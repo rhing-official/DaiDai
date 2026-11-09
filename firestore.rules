@@ -619,6 +619,7 @@ service cloud.firestore {
                    .concat([request.auth.uid])
                    .hasAll(get(/databases/$(database)/documents/directMessages/$(dmId)/rooms/$(roomId)).data.participants)
               || resource.data.senderId == request.auth.uid
+              || ('assistantOwnerId' in resource.data && resource.data.assistantOwnerId == request.auth.uid)
             );
         }
 
@@ -1315,6 +1316,7 @@ service cloud.firestore {
                    .concat([request.auth.uid])
                    .hasAll(get(/databases/$(database)/documents/groups/$(groupId)/rooms/$(roomId)).data.memberIds)
               || resource.data.senderId == request.auth.uid
+              || ('assistantOwnerId' in resource.data && resource.data.assistantOwnerId == request.auth.uid)
               || get(/databases/$(database)/documents/groups/$(groupId)/rooms/$(roomId)).data.roomDeletionRequestedBy != null
             );
         }

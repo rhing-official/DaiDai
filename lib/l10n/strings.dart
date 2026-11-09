@@ -642,6 +642,7 @@ class Strings {
     required this.chatBotRemovedNotice,
     required this.assistantTitle,
     required this.assistantDescription,
+    required this.aiBadgeLabel,
     required this.assistantCreate,
     required this.groupRoomCustomSettingsLabel,
     required this.groupRoomCustomSettingsHint,
@@ -1872,6 +1873,9 @@ class Strings {
   final String Function(String) chatBotRemovedNotice;
   final String assistantTitle;
   final String assistantDescription;
+
+  /// AI連携の投稿の送信者名の横に出すラベルとアイコンの角のマーク（BOTではなくAI）。
+  final String aiBadgeLabel;
   final String assistantCreate;
 
   /// 寄合ハンバーガーメニュー最下部の「この寄合独自の設定」トグル。ONの間、
@@ -3170,8 +3174,9 @@ class Strings {
     chatBotAddedNotice: (name) => 'BOT「$name」が追加されました。これ以降のメッセージを読めます',
     chatBotRemovedNotice: (name) => 'BOT「$name」が外されました',
     assistantTitle: 'AIエージェント連携',
+    aiBadgeLabel: 'AI',
     assistantDescription:
-        '自分のAIエージェント（Claude Codeなど）が、自分の参加している全ての広場・一対のメッセージを読み、返信できるようにします。会話ごとの追加や、相手の同意は要りません。\n・読めるのは、自分が画面で見られる範囲です（過去の履歴を含みます。自分が非表示にしたメッセージと、ブロックした相手との一対は除きます）。\n・返信は「名前（その語らいでの自分の呼び名）」のBOT表示で投稿され、人間の発言と区別できます。自分には通知されません。\n・トークンは5個まで作れます。作成・再発行の直後に1度だけ表示されます。\n・会話の相手の発言が、選んだAIの提供元へ送られます。ご注意ください。',
+        '自分のAIエージェント（Claude Codeなど）が、自分の参加している全ての広場・一対のメッセージを読み、返信できるようにします。会話ごとの追加や、相手の同意は要りません。\n・読めるのは、自分が画面で見られる範囲です（過去の履歴を含みます。自分が非表示にしたメッセージと、ブロックした相手との一対は除きます）。\n・返信は「自分の呼び名（その語らいでの呼び名）」に「AI」のラベルを付け、アイコンは自分のものに「AI」マークを重ねて投稿されるので、人間の発言と区別できます。自分には通知されません。\n・トークンは5個まで作れます。作成・再発行の直後に1度だけ表示されます。\n・会話の相手の発言が、選んだAIの提供元へ送られます。ご注意ください。',
     assistantCreate: '連携を作成',
     groupRoomCustomSettingsLabel: 'この寄合独自の設定',
     groupRoomCustomSettingsHint:
@@ -4406,8 +4411,9 @@ class Strings {
         'Bot “$name” was added. It can read messages from now on',
     chatBotRemovedNotice: (name) => 'Bot “$name” was removed',
     assistantTitle: 'AI agent integration',
+    aiBadgeLabel: 'AI',
     assistantDescription:
-        'Lets your own AI agent (such as Claude Code) read and reply to messages in every plaza and duo you belong to. No per-conversation setup or consent from others is needed.\n• It can read what you can see on screen, including earlier history (except messages you hid and duos with people you blocked).\n• Replies are posted with a bot label, “Name (your name in that conversation)”, so they are distinct from human messages. You are not notified of them.\n• You can create up to 5 tokens. A token is shown only once, right after it is created or reissued.\n• Other people’s messages are sent to the AI provider you choose. Please keep that in mind.',
+        'Lets your own AI agent (such as Claude Code) read and reply to messages in every plaza and duo you belong to. No per-conversation setup or consent from others is needed.\n• It can read what you can see on screen, including earlier history (except messages you hid and duos with people you blocked).\n• Replies are posted under your name in that conversation with an “AI” label, and your icon carries a small “AI” mark, so they are distinct from human messages. You are not notified of them.\n• You can create up to 5 tokens. A token is shown only once, right after it is created or reissued.\n• Other people’s messages are sent to the AI provider you choose. Please keep that in mind.',
     assistantCreate: 'Create connection',
     groupRoomCustomSettingsLabel: "This room's own settings",
     groupRoomCustomSettingsHint:

@@ -3193,18 +3193,23 @@ async function sendMessageNotification(params: {
   if (recipientIds.length === 0) return;
 
   const preview = buildMessagePreview(message);
-  // AI連携（bot API）の投稿は「名前（持ち主のその語らいでの呼び名）」にする
-  // （呼び名が無ければ`@Rhing Seed`、2026-11-09）。
+  // AI連携（bot API）の投稿は「持ち主のその語らいでの呼び名 [AI]」にする
+  // （AIの名前は出さない。呼び名が無ければ`@Rhing Seed`、2026-11-09）。
   let botLabel = botName;
   if (botName !== null && typeof message.assistantOwnerId === "string") {
     const owner = (await db.doc(`users/${message.assistantOwnerId}`).get()).data();
     if (owner) {
       const identity = resolveSenderIdentity(owner, conversationId).name;
-      botLabel = `${botName}（${identity === owner.rhingSeed ? `@${identity}` : identity}）`;
+      botLabel = `${identity === owner.rhingSeed ? `@${identity}` : identity} [AI]`;
     }
   }
+  // 一対では、AI連携の投稿の通知の題も持ち主の呼び名にする（BOT名ではなく）。
+  const dmAssistantTitle = isDm && botName !== null && botLabel !== botName;
+  if (dmAssistantTitle) title = botLabel!;
   const body =
-    botName !== null
+    dmAssistantTitle
+      ? preview.body
+      : botName !== null
       ? `${botLabel}: ${preview.body}`
       : withSenderName(preview.body, senderNamePrefix);
   // 送信時刻（epoch ms）。Androidは端末側で表示時点の日時と比べて整形する

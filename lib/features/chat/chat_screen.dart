@@ -1953,7 +1953,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
         _MessageRow(
           key: ValueKey('capture_${message.messageId}'),
           message: message,
-          isMe: message.senderId == widget.currentUserId,
+          isMe: _isMine(message),
           currentUserId: widget.currentUserId,
           timeLabel: sentAt != null
               ? formatMessageTime(sentAt, timeFormat)
@@ -2230,13 +2230,19 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   /// 書き込みが失敗した場合（通信不安定・画面を閉じるタイミング等）は
   /// [_markedReadIds]から外し、次回のスナップショット受信時に再試行出来る
   /// ようにする（投げっぱなしで失敗を握りつぶすと、二度と既読が付かなくなる）。
+  /// 自分の投稿か。自分のAIエージェント連携の投稿（`assistantOwnerId`が自分、
+  /// 2026-11-09）も、自分が送ったものとして扱う（右側の自分の吹き出し・取り消し）。
+  bool _isMine(Message m) =>
+      m.senderId == widget.currentUserId ||
+      m.assistantOwnerId == widget.currentUserId;
+
   void _notifyViewed(List<Message> messages) {
     final onViewed = widget.onViewed;
     if (onViewed == null) return;
     var changed = !_viewedInitial;
     _viewedInitial = true;
     for (final m in messages) {
-      if (m.senderId != widget.currentUserId && _viewedIds.add(m.messageId)) {
+      if (!_isMine(m) && _viewedIds.add(m.messageId)) {
         changed = true;
       }
     }
@@ -2248,7 +2254,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   Future<void> _markUnreadMessages(List<Message> messages) async {
     if (!widget.readReceiptsEnabled || widget.onMarkRead == null) return;
     final toMark = messages
-        .where((m) => m.senderId != widget.currentUserId)
+        .where((m) => !_isMine(m))
         .where((m) => !m.readBy.any((r) => r.userId == widget.currentUserId))
         .where((m) => _markedReadIds.add(m.messageId))
         .map((m) => m.messageId)
@@ -3336,7 +3342,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                         _MessageRow(
                           key: ValueKey(message.messageId),
                           message: message,
-                          isMe: message.senderId == widget.currentUserId,
+                          isMe: _isMine(message),
                           currentUserId: widget.currentUserId,
                           timeLabel: sentAt != null
                               ? formatMessageTime(sentAt, timeFormat)
@@ -4492,6 +4498,7 @@ class _PinnedMessageCard extends StatelessWidget {
             userId: message.senderId,
             rhingSeed: message.senderRhingSeed ?? message.botName,
             botIconUrl: message.botIconUrl,
+            assistantOwnerId: message.assistantOwnerId,
             conversationId: conversationId,
             uiStyle: uiStyle,
             size: 32,
@@ -5651,7 +5658,13 @@ class _MessageRow extends ConsumerWidget {
     // 変更した（bubbleをFlexibleにしてバッジ分の幅を確保する）。
     // テキストメッセージの自分の投稿のみ編集可能（画像等contentType='text'
     // 以外は将来実装時もまず本文編集の対象外という方針、Planでの検討通り）。
-    final canEdit = isMe && message.contentType == 'text' && onEdit != null;
+    // AIエージェント連携の投稿（`senderId`が`bot:`）は本文の編集をルールが許さない為、
+    // 編集は実際の送信者本人のみ（取り消しは`assistantOwnerId`でも可能、2026-11-09）。
+    final canEdit =
+        isMe &&
+        message.senderId == currentUserId &&
+        message.contentType == 'text' &&
+        onEdit != null;
 
     // 劇画スタイルでは、ジグザグ枠にはせず色だけモノクロ（黒地白文字）に
     // 変える（2026-08-04追加。`colorScheme.surface`は劇画テーマだと背景と
@@ -5849,7 +5862,24 @@ class _MessageRow extends ConsumerWidget {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.end,
             children: [
-              ?timeText,
+              // 自分のAIの投稿は右側の自分の吹き出しに出る（名前の行が無い）ため、
+              // 時刻の横に「AI」ラベルを付けて、自分の発言と見分けられるようにする。
+              if (message.assistantOwnerId != null)
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    _BotBadge(
+                      color: Theme.of(context).colorScheme.onSurfaceVariant,
+                      label: strings.aiBadgeLabel,
+                    ),
+                    if (timeText != null) ...[
+                      const SizedBox(width: 6),
+                      timeText,
+                    ],
+                  ],
+                )
+              else
+                ?timeText,
               const SizedBox(height: 2),
               bubbleWithReadMark,
               for (final url in previewUrls)
@@ -5870,10 +5900,14 @@ class _MessageRow extends ConsumerWidget {
       // 自分のアイコン・呼び名も、相手と同じようにタップでプロフィールカードを開く
       // （2026-10-31）。
       final canTapSender = onSenderTap != null;
+      // AI連携の投稿は、アイコン・名前のタップで持ち主のプロフィールカードを開く
+      // （`senderId`は`bot:`で`users`が無いため、持ち主のidを渡す、2026-11-09）。
+      final tapTargetId = message.assistantOwnerId ?? message.senderId;
       Widget senderAvatar = _SenderAvatar(
         userId: message.senderId,
         rhingSeed: message.senderRhingSeed ?? message.botName,
         botIconUrl: message.botIconUrl,
+        assistantOwnerId: message.assistantOwnerId,
         conversationId: conversationId,
         uiStyle: uiStyle,
       );
@@ -5883,7 +5917,8 @@ class _MessageRow extends ConsumerWidget {
         botName: message.botName,
         assistantOwnerId: message.assistantOwnerId,
         conversationId: conversationId,
-        color: senderNameColorResolver?.call(message.senderId),
+        // AI連携の投稿は`senderId`が`bot:`でロールを持たないため、持ち主のロールの色を使う。
+        color: senderNameColorResolver?.call(tapTargetId),
       );
       if (blurSenderInfo) {
         // プライバシー配慮のスクリーンショット用（[blurSenderInfo]参照）。
@@ -5905,7 +5940,7 @@ class _MessageRow extends ConsumerWidget {
               if (showAvatarAndName) ...[
                 canTapSender
                     ? GestureDetector(
-                        onTap: () => onSenderTap!(message.senderId),
+                        onTap: () => onSenderTap!(tapTargetId),
                         child: senderAvatar,
                       )
                     : senderAvatar,
@@ -5925,7 +5960,7 @@ class _MessageRow extends ConsumerWidget {
                           Flexible(
                             child: canTapSender
                                 ? GestureDetector(
-                                    onTap: () => onSenderTap!(message.senderId),
+                                    onTap: () => onSenderTap!(tapTargetId),
                                     child: senderName,
                                   )
                                 : senderName,
@@ -8195,15 +8230,15 @@ class _SenderName extends ConsumerWidget {
   /// 参照）。nullなら既定色のまま。
   final Color? color;
 
-  /// BOTの表示名。AI連携の投稿は「名前（持ち主の呼び名）」。呼び名は人間の送信者と
-  /// 同じ規則（自分が付けた呼び名 > その語らいでの呼び名 > `@Rhing Seed`）で解決する。
+  /// BOTの表示名。AI連携の投稿は**持ち主の呼び名だけ**（AIの名前は出さない、2026-11-09）。
+  /// 呼び名は人間の送信者と同じ規則（自分が付けた呼び名 > その語らいでの呼び名 >
+  /// `@Rhing Seed`）で解決する。AIかどうかは名前の横の「AI」ラベルで示す。
   String _botLabel(WidgetRef ref) {
     final name = botName ?? 'BOT';
     final ownerId = assistantOwnerId;
     if (ownerId == null) return name;
     final owner = ref.watch(watchedUserProvider(ownerId)).value;
-    return assistantSenderLabel(
-      botName: name,
+    return resolveDisplayName(
       alias: aliasOf(ref.watch(myContactAliasesProvider).value, ownerId),
       nickname: owner?.effectiveNicknameFor(conversationId)?.text,
       rhingSeed: owner?.rhingSeed ?? '?',
@@ -8236,7 +8271,12 @@ class _SenderName extends ConsumerWidget {
           ),
           if (!isSystem) ...[
             const SizedBox(width: 4),
-            _BotBadge(color: style.color!),
+            _BotBadge(
+              color: style.color!,
+              label: assistantOwnerId != null
+                  ? ref.watch(appStringsProvider).aiBadgeLabel
+                  : 'BOT',
+            ),
           ],
         ],
       );
@@ -8278,11 +8318,13 @@ const kBotSenderPrefix = 'bot:';
 /// 送信者の名前・アイコンは`users`を引かず、`Message.botName`・`botIconUrl`で表示する。
 const kSystemSenderPrefix = 'system:';
 
-/// 送信者名の横に出す小さな「BOT」バッジ。
+/// 送信者名の横に出す小さな「BOT」バッジ。AI連携の投稿は[label]を「AI」にする。
 class _BotBadge extends StatelessWidget {
-  const _BotBadge({required this.color});
+  const _BotBadge({required this.color, this.label = 'BOT', this.fontSize = 9});
 
   final Color color;
+  final String label;
+  final double fontSize;
 
   @override
   Widget build(BuildContext context) {
@@ -8293,9 +8335,9 @@ class _BotBadge extends StatelessWidget {
         borderRadius: BorderRadius.circular(4),
       ),
       child: Text(
-        'BOT',
+        label,
         style: TextStyle(
-          fontSize: 9,
+          fontSize: fontSize,
           fontWeight: FontWeight.w700,
           color: color,
         ),
@@ -8315,10 +8357,16 @@ class _SenderAvatar extends ConsumerWidget {
     this.uiStyle = AppUiStyle.flat,
     this.size = 48,
     this.botIconUrl,
+    this.assistantOwnerId,
   });
 
   final String userId;
   final String? rhingSeed;
+
+  /// AIエージェント連携の投稿の持ち主（`Message.assistantOwnerId`、2026-11-09）。
+  /// 非nullなら、アイコンは持ち主のその語らいでのアイコンを流用し、右下に小さな
+  /// 「AI」マークを重ねて人間の発言と見分ける。
+  final String? assistantOwnerId;
 
   /// お便り（`system:`）の発信元アイコンURL（`Message.botIconUrl`）。
   /// nullなら頭文字のフォールバック表示。
@@ -8335,18 +8383,63 @@ class _SenderAvatar extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final user =
-        (userId.startsWith(kWebhookSenderPrefix) ||
-            userId.startsWith(kBotSenderPrefix) ||
-            userId.startsWith(kSystemSenderPrefix))
+    final avatar = _avatar(context, ref);
+    if (assistantOwnerId == null) return avatar;
+    // AI連携の投稿は、右下に小さな「AI」マークを重ねる（丸の外へ少しはみ出す）。
+    final markSize = (size * 0.24).clamp(7.0, 11.0);
+    // 劇画は背景を黒・文字を白にする（2026-11-09）。他は面の色に文字をのせる。
+    final isGekiga = uiStyle == AppUiStyle.gekiga;
+    final markBackground = isGekiga
+        ? Colors.black
+        : Theme.of(context).colorScheme.surface;
+    final markForeground = isGekiga
+        ? Colors.white
+        : Theme.of(context).colorScheme.onSurface;
+    return SizedBox(
+      width: size,
+      height: size,
+      child: Stack(
+        clipBehavior: Clip.none,
+        children: [
+          avatar,
+          Positioned(
+            right: -size * 0.12,
+            bottom: -size * 0.08,
+            child: DecoratedBox(
+              decoration: BoxDecoration(
+                color: markBackground,
+                borderRadius: BorderRadius.circular(4),
+              ),
+              child: _BotBadge(
+                color: markForeground,
+                label: ref.watch(appStringsProvider).aiBadgeLabel,
+                fontSize: markSize,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _avatar(BuildContext context, WidgetRef ref) {
+    final ownerId = assistantOwnerId;
+    final user = ownerId != null
+        ? ref.watch(watchedUserProvider(ownerId)).value
+        : (userId.startsWith(kWebhookSenderPrefix) ||
+              userId.startsWith(kBotSenderPrefix) ||
+              userId.startsWith(kSystemSenderPrefix))
         ? null
         : ref.watch(watchedUserProvider(userId)).value;
-    final iconUrl = botIconUrl ?? user?.effectiveIconFor(conversationId)?.url;
+    final iconUrl = ownerId != null
+        ? user?.effectiveIconFor(conversationId)?.url
+        : botIconUrl ?? user?.effectiveIconFor(conversationId)?.url;
     // BOT・Webhook由来のアイコンには焦点が無い（住人のカードの構図のみ反映）。
-    final iconFocal = botIconUrl != null
+    final iconFocal = (ownerId == null && botIconUrl != null)
         ? null
         : user?.effectiveIconFocalFor(conversationId);
-    final id = (rhingSeed == null || rhingSeed!.isEmpty) ? '?' : rhingSeed!;
+    final seed = ownerId != null ? user?.rhingSeed : rhingSeed;
+    final id = (seed == null || seed.isEmpty) ? '?' : seed;
     final palette = ref.watch(avatarPaletteProvider);
     final color = palette[id.hashCode.abs() % palette.length];
     final fontSize = size / 48 * 13;

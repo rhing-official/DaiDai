@@ -258,10 +258,14 @@ abstract class DirectMessageRepository {
   /// 自分が送ったメッセージを、相手側にも痕跡を残さず完全に削除する
   /// （物理削除）。このメッセージを引用返信している他のメッセージがあれば、
   /// それらのreplyTo系フィールドも同時にクリアする。
+  ///
+  /// [userId]は取り消す本人。最終メッセージの表示を直す時に、自分が参加している寄合だけを
+  /// 調べるために使う（寄合の一覧取得は`participants`の絞り込み条件が無いと権限エラーになる）。
   Future<void> unsendMessage({
     required String dmId,
     required String roomId,
     required String messageId,
+    required String userId,
   });
 
   /// 自分のこのメッセージへのリアクションを、呼び出し側が計算済みの
@@ -1186,6 +1190,7 @@ class FirestoreDirectMessageRepository implements DirectMessageRepository {
     required String dmId,
     required String roomId,
     required String messageId,
+    required String userId,
   }) async {
     final messagesRef = _dmRoomRef(dmId, roomId).collection('messages');
     final quoting = await messagesRef
@@ -1206,7 +1211,12 @@ class FirestoreDirectMessageRepository implements DirectMessageRepository {
         conversationLastAt: dmData['lastMessageAt'] as Timestamp?,
         conversationLastSenderId: dmData['lastMessageSenderId'] as String?,
       )) {
-        final rooms = await _directMessages.doc(dmId).collection('rooms').get();
+        // 寄合の一覧は`participants`の絞り込み付きで取得する（無いと権限エラー）。
+        final rooms = await _directMessages
+            .doc(dmId)
+            .collection('rooms')
+            .where('participants', arrayContains: userId)
+            .get();
         final candidates = <Message>[];
         for (final room in rooms.docs) {
           final recent = await room.reference

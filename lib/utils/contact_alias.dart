@@ -13,22 +13,6 @@ String resolveDisplayName({
   return '@$rhingSeed';
 }
 
-/// AIエージェント連携（bot API）の投稿の表示名「名前（持ち主の呼び名）」を作る（2026-11-09）。
-/// 持ち主の呼び名は人間の送信者と同じ規則（[resolveDisplayName]）で決める。
-String assistantSenderLabel({
-  required String botName,
-  required String? alias,
-  required String? nickname,
-  required String rhingSeed,
-}) {
-  final owner = resolveDisplayName(
-    alias: alias,
-    nickname: nickname,
-    rhingSeed: rhingSeed,
-  );
-  return '$botName（$owner）';
-}
-
 /// [aliases]（相手のuserId→呼び名）から[userId]への指定を取り出す。無ければnull。
 String? aliasOf(Map<String, String>? aliases, String userId) {
   final value = aliases?[userId]?.trim();

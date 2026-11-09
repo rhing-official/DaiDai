@@ -62,10 +62,7 @@ void main() {
                           icon: Icons.add,
                           onPressed: () {},
                         ),
-                        const TalksNameChip(
-                          key: Key('chip'),
-                          label: '終焉と消失',
-                        ),
+                        const TalksNameChip(key: Key('chip'), label: '終焉と消失'),
                       ],
                     ),
                   );

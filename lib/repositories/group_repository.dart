@@ -375,10 +375,14 @@ abstract class GroupRepository {
   /// 自分が送ったメッセージを、他のメンバーにも痕跡を残さず完全に削除する
   /// （物理削除）。このメッセージを引用返信している他のメッセージがあれば、
   /// それらのreplyTo系フィールドも同時にクリアする。
+  ///
+  /// [userId]は取り消す本人。最終メッセージの表示を直す時に、自分が入っている寄合だけを
+  /// 調べるために使う（寄合の一覧取得は`memberIds`の絞り込み条件が無いと権限エラーになる）。
   Future<void> unsendRoomMessage({
     required String groupId,
     required String roomId,
     required String messageId,
+    required String userId,
   });
 
   /// 自分のこのメッセージへのリアクションを、呼び出し側が計算済みの
@@ -1347,6 +1351,7 @@ class FirestoreGroupRepository implements GroupRepository {
     required String groupId,
     required String roomId,
     required String messageId,
+    required String userId,
   }) async {
     final messagesRef = _roomRef(groupId, roomId).collection('messages');
     final quoting = await messagesRef
@@ -1367,7 +1372,12 @@ class FirestoreGroupRepository implements GroupRepository {
         conversationLastAt: groupData['lastMessageAt'] as Timestamp?,
         conversationLastSenderId: groupData['lastMessageSenderId'] as String?,
       )) {
-        final rooms = await _groups.doc(groupId).collection('rooms').get();
+        // 寄合の一覧は`memberIds`の絞り込み付きで取得する（無いと権限エラー）。
+        final rooms = await _groups
+            .doc(groupId)
+            .collection('rooms')
+            .where('memberIds', arrayContains: userId)
+            .get();
         final candidates = <Message>[];
         for (final room in rooms.docs) {
           final recent = await room.reference

@@ -779,8 +779,9 @@ final Strings _stringsFr = Strings._(
       'Le bot « $name » a été ajouté. Il peut lire les messages à partir de maintenant',
   chatBotRemovedNotice: (name) => 'Le bot « $name » a été retiré',
   assistantTitle: 'Intégration d’agents IA',
+  aiBadgeLabel: 'IA',
   assistantDescription:
-      'Permet à votre propre agent IA (comme Claude Code) de lire et de répondre aux messages de toutes les places et duos auxquels vous appartenez. Aucun ajout par conversation ni consentement des autres n’est nécessaire.\n• Il peut lire ce que vous voyez à l’écran, historique antérieur compris (sauf les messages que vous avez masqués et les duos avec les personnes bloquées).\n• Les réponses sont publiées avec une étiquette de bot « Nom (votre nom dans cette conversation) », donc distinctes des messages humains. Vous n’êtes pas notifié.\n• Vous pouvez créer jusqu’à 5 jetons. Un jeton n’est affiché qu’une seule fois, juste après sa création ou sa régénération.\n• Les messages des autres sont envoyés au fournisseur d’IA que vous choisissez. Gardez-le à l’esprit.',
+      'Permet à votre propre agent IA (comme Claude Code) de lire et de répondre aux messages de toutes les places et duos auxquels vous appartenez. Aucun ajout par conversation ni consentement des autres n’est nécessaire.\n• Il peut lire ce que vous voyez à l’écran, historique antérieur compris (sauf les messages que vous avez masqués et les duos avec les personnes bloquées).\n• Les réponses sont publiées sous votre nom dans cette conversation avec une étiquette « IA », et votre icône porte une petite marque « IA » : elles se distinguent donc des messages humains. Vous n’êtes pas notifié.\n• Vous pouvez créer jusqu’à 5 jetons. Un jeton n’est affiché qu’une seule fois, juste après sa création ou sa régénération.\n• Les messages des autres sont envoyés au fournisseur d’IA que vous choisissez. Gardez-le à l’esprit.',
   assistantCreate: 'Créer une connexion',
   groupRoomCustomSettingsLabel: 'Réglages propres à ce salon',
   groupRoomCustomSettingsHint:

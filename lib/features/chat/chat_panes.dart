@@ -854,6 +854,7 @@ class _DmChatPaneState extends ConsumerState<DmChatPane> {
           dmId: dm.dmId,
           roomId: roomId,
           messageId: messageId,
+          userId: widget.currentUser.userId,
         ),
         messageIds: [messageId],
         fetchMessage: (id) => dmRepository.getMessage(
@@ -2921,6 +2922,7 @@ class _GroupChatPaneState extends ConsumerState<GroupChatPane> {
           groupId: group.groupId,
           roomId: roomId,
           messageId: messageId,
+          userId: widget.currentUser.userId,
         ),
         messageIds: [messageId],
         fetchMessage: (id) => groupRepository.getRoomMessage(

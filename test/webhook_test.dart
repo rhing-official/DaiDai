@@ -108,36 +108,21 @@ void main() {
       expect(m.assistantOwnerId, 'u9');
     });
 
-    test('持ち主のその語らいでの呼び名があれば「名前（呼び名）」', () {
+    test('AI投稿の送信者名は持ち主の呼び名だけ（AIの名前は出さない）', () {
       expect(
-        assistantSenderLabel(
-          botName: 'Claude',
-          alias: null,
-          nickname: 'あらた',
-          rhingSeed: 'arata',
-        ),
-        'Claude（あらた）',
+        resolveDisplayName(alias: null, nickname: 'あらた', rhingSeed: 'arata'),
+        'あらた',
       );
     });
 
     test('呼び名が無ければ@Rhing Seed、自分が付けた呼び名があればそれを優先', () {
       expect(
-        assistantSenderLabel(
-          botName: 'Claude',
-          alias: null,
-          nickname: null,
-          rhingSeed: 'arata',
-        ),
-        'Claude（@arata）',
+        resolveDisplayName(alias: null, nickname: null, rhingSeed: 'arata'),
+        '@arata',
       );
       expect(
-        assistantSenderLabel(
-          botName: 'Claude',
-          alias: '友人A',
-          nickname: 'あらた',
-          rhingSeed: 'arata',
-        ),
-        'Claude（友人A）',
+        resolveDisplayName(alias: '友人A', nickname: 'あらた', rhingSeed: 'arata'),
+        '友人A',
       );
     });
   });
