@@ -9,7 +9,12 @@ import '../models/link_preview.dart';
 import '../providers/link_preview_provider.dart';
 import '../utils/web_link.dart';
 import '../theme/gekiga/gekiga_colors.dart';
+import 'group_profile_card_view.dart';
+import 'invite_link_dialog.dart';
+import 'profile_card_view.dart'
+    show kProfileCardDesignHeight, kProfileCardDesignWidth;
 import 'media_preview_frame.dart';
+import 'user_profile_card_view.dart';
 
 /// 動画リンクと判定するホスト名（サムネイルに再生アイコンを重ねる対象）。
 /// OGPからは`og:type`等を取得していない為、簡易的にホスト名で判定する。
@@ -46,7 +51,9 @@ class LinkPreviewCard extends ConsumerWidget {
   final bool isGekiga;
   final bool isMe;
 
-  Future<void> _open() async {
+  Future<void> _open(BuildContext context) async {
+    // DaiDai自身の招待リンクは、画面を切り替えずにポップアップで開く（2026-11-09）。
+    if (await openInviteLinkDialog(context, url)) return;
     final uri = Uri.tryParse(url);
     if (uri == null) return;
     await launchUrl(uri, mode: LaunchMode.externalApplication);
@@ -89,9 +96,14 @@ class LinkPreviewCard extends ConsumerWidget {
             ? (data ?? LinkPreview(url: url))
             : LinkPreview(
                 url: data.url,
-                title: _plainUrl(),
+                // 招待リンクのカードは、プロフィールカードそのものを出すので、URLの題名は付けない。
+                title: data.inviteUser != null || data.inviteGroup != null
+                    ? null
+                    : _plainUrl(),
                 description: data.description,
                 image: data.image,
+                inviteUser: data.inviteUser,
+                inviteGroup: data.inviteGroup,
               );
         return Padding(
           padding: const EdgeInsets.only(top: 8),
@@ -100,6 +112,40 @@ class LinkPreviewCard extends ConsumerWidget {
               : _buildFlatCard(context, shown),
         );
       },
+    );
+  }
+
+  /// DaiDai自身の招待リンクのカード（2026-11-09）。サーバーが作るOGP画像は静止画の為、
+  /// GIFのアイコン・背景が止まっていた。ここでは、プロフィールカードそのもの
+  /// （[UserProfileCardView]／[GroupProfileCardView]、4:5）をアプリ内で描き、
+  /// 背景・アイコンのGIFも再生する。大きさは従来のOGP画像と同じ（最大高さ460）。
+  Widget _inviteCard(LinkPreview data) {
+    // `LayoutBuilder`は、カードを`IntrinsicHeight`で包むフラットUIで使えない為、
+    // 4:5の枠（幅は最大368）の中に、プロフィールカードを基準の大きさで描いて縮小する。
+    final user = data.inviteUser;
+    final group = data.inviteGroup;
+    return ConstrainedBox(
+      constraints: const BoxConstraints(maxWidth: 368),
+      child: AspectRatio(
+        aspectRatio: 4 / 5,
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(8),
+          child: FittedBox(
+            fit: BoxFit.contain,
+            child: user != null
+                ? UserProfileCardView(
+                    user: user,
+                    width: kProfileCardDesignWidth,
+                    height: kProfileCardDesignHeight,
+                  )
+                : SizedBox(
+                    width: GroupProfileCardView.size.width,
+                    height: GroupProfileCardView.size.height,
+                    child: GroupProfileCardView(card: group!),
+                  ),
+          ),
+        ),
+      ),
     );
   }
 
@@ -191,7 +237,7 @@ class LinkPreviewCard extends ConsumerWidget {
           borderRadius: BorderRadius.circular(8),
           clipBehavior: Clip.antiAlias,
           child: InkWell(
-            onTap: _open,
+            onTap: () => _open(context),
             child: IntrinsicHeight(
               child: Row(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -238,7 +284,11 @@ class LinkPreviewCard extends ConsumerWidget {
                               ),
                             ),
                           ],
-                          if (data.image != null) ...[
+                          if (data.inviteUser != null ||
+                              data.inviteGroup != null) ...[
+                            const SizedBox(height: 8),
+                            _inviteCard(data),
+                          ] else if (data.image != null) ...[
                             const SizedBox(height: 8),
                             _thumbnail(
                               data.image!,
@@ -272,7 +322,7 @@ class LinkPreviewCard extends ConsumerWidget {
         child: Material(
           color: Colors.transparent,
           child: InkWell(
-            onTap: _open,
+            onTap: () => _open(context),
             child: Padding(
               padding: const EdgeInsets.all(14),
               child: Column(
@@ -304,7 +354,10 @@ class LinkPreviewCard extends ConsumerWidget {
                       style: TextStyle(fontSize: 12, color: subFg),
                     ),
                   ],
-                  if (data.image != null) ...[
+                  if (data.inviteUser != null || data.inviteGroup != null) ...[
+                    const SizedBox(height: 8),
+                    _inviteCard(data),
+                  ] else if (data.image != null) ...[
                     const SizedBox(height: 8),
                     _thumbnail(
                       data.image!,

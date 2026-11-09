@@ -1,3 +1,4 @@
+import 'package:daidai/models/group_profile_card.dart';
 import 'package:daidai/models/link_preview.dart';
 import 'package:daidai/repositories/link_preview_repository.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -41,22 +42,21 @@ void main() {
     );
   });
 
-  test('招待リンクは公開プレビューの元のアイコンURLを画像にし、従来のOGPは呼ばない', () async {
+  test('招待リンクは、招待した人／広場をそのまま渡し（カードを描く為）、従来のOGPは呼ばない', () async {
     final inner = _Inner();
+    final group = const GroupProfileCard(name: '広場');
     final repo = InviteAwareLinkPreviewRepository(
       inner: inner,
-      userPreview: (url, seed) async => LinkPreview(
-        url: url,
-        title: seed,
-        image: 'https://example.com/icon.gif',
-      ),
-      groupPreview: (url, id) async => null,
+      userPreview: (url, seed) async => LinkPreview(url: url, title: seed),
+      groupPreview: (url, id) async =>
+          LinkPreview(url: url, inviteGroup: group),
     );
-    final result = await repo.fetchPreview(
+    final user = await repo.fetchPreview(
       'https://daidai.rhing.jp/invite/Alice',
     );
-    expect(result?.title, 'alice');
-    expect(result?.image, 'https://example.com/icon.gif');
+    expect(user?.title, 'alice');
+    final joined = await repo.fetchPreview('https://daidai.rhing.jp/join/g1');
+    expect(joined?.inviteGroup?.name, '広場');
     expect(inner.calls, 0);
   });
 

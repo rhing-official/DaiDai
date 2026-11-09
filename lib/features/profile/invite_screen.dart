@@ -3,6 +3,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../l10n/strings.dart';
+import '../../models/app_ui_style.dart';
+import '../../providers/app_ui_style_provider.dart';
+import '../../widgets/glass/glass_dialog.dart';
 import '../../models/app_user.dart';
 import '../../models/direct_message.dart';
 import '../../providers/repository_providers.dart';
@@ -15,19 +18,60 @@ import '../auth/auth_gate.dart';
 /// 友達申請の確認画面。ログイン前に開かれた場合は[AuthGate]がまずログイン・
 /// Rhing Seed登録を済ませてから、この画面本体（[_InviteConfirmView]）を表示する。
 class InviteScreen extends StatelessWidget {
-  const InviteScreen({required this.rhingSeed, super.key});
+  const InviteScreen({
+    required this.rhingSeed,
+    this.asDialog = false,
+    super.key,
+  });
 
   final String rhingSeed;
 
+  /// trueなら、画面ではなくポップアップとして描く（チャット内の招待リンクをタップした時、
+  /// 画面を切り替えずに開く、2026-11-09）。閉じる操作も画面遷移ではなくポップアップを閉じる。
+  final bool asDialog;
+
   @override
   Widget build(BuildContext context) {
+    // ポップアップでは`AuthGate`を通さず、ログイン中のユーザーを直接使う（`AuthGate`の
+    // 読み込み中の`Scaffold`が、ポップアップいっぱいの縦長の面になってしまう為）。
+    if (asDialog) {
+      return Consumer(
+        builder: (context, ref, _) {
+          final uid = ref.watch(authStateProvider).value?.uid;
+          final user = uid == null
+              ? null
+              : ref.watch(watchedUserProvider(uid)).value;
+          if (user == null) return const _DialogLoading();
+          return _InviteConfirmView(
+            currentUser: user,
+            inviterRhingSeed: rhingSeed,
+            asDialog: true,
+          );
+        },
+      );
+    }
     return AuthGate(
       builder: (context, currentUser) => _InviteConfirmView(
         currentUser: currentUser,
         inviterRhingSeed: rhingSeed,
+        asDialog: asDialog,
       ),
     );
   }
+}
+
+/// ポップアップの読み込み中の表示。
+class _DialogLoading extends StatelessWidget {
+  const _DialogLoading();
+
+  @override
+  Widget build(BuildContext context) => const Dialog(
+    child: SizedBox(
+      width: 96,
+      height: 96,
+      child: Center(child: CircularProgressIndicator()),
+    ),
+  );
 }
 
 enum _InviteStatus { loading, invalid, self, alreadyFriends, ready, sent }
@@ -36,10 +80,12 @@ class _InviteConfirmView extends ConsumerStatefulWidget {
   const _InviteConfirmView({
     required this.currentUser,
     required this.inviterRhingSeed,
+    this.asDialog = false,
   });
 
   final AppUser currentUser;
   final String inviterRhingSeed;
+  final bool asDialog;
 
   @override
   ConsumerState<_InviteConfirmView> createState() => _InviteConfirmViewState();
@@ -160,6 +206,32 @@ class _InviteConfirmViewState extends ConsumerState<_InviteConfirmView> {
   Widget build(BuildContext context) {
     final strings = ref.watch(appStringsProvider);
 
+    if (widget.asDialog) {
+      // `glassAwareDialog`が`Dialog`を作るので、中身は`AlertDialog`ではなく素の列にする
+      // （`AlertDialog`を入れると、外側に縦長の`Dialog`がもう1つ出る）。
+      return glassAwareDialog(
+        isGlass: ref.watch(appUiStyleProvider) == AppUiStyle.glass,
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 400),
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.all(24),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  strings.inviteScreenTitle,
+                  style: Theme.of(context).textTheme.headlineSmall,
+                ),
+                const SizedBox(height: 16),
+                _buildBody(context, strings),
+              ],
+            ),
+          ),
+        ),
+      );
+    }
+
     return Scaffold(
       appBar: AppBar(
         automaticallyImplyLeading: false,
@@ -177,21 +249,43 @@ class _InviteConfirmViewState extends ConsumerState<_InviteConfirmView> {
     );
   }
 
+  /// 閉じる。ポップアップならそれを閉じ、画面なら語らいへ戻る。
+  void _close(BuildContext context) {
+    if (widget.asDialog) {
+      Navigator.of(context).pop();
+    } else {
+      context.go('/');
+    }
+  }
+
   Widget _buildBody(BuildContext context, Strings strings) {
     switch (_status) {
       case _InviteStatus.loading:
         return const SizedBox.shrink();
       case _InviteStatus.invalid:
-        return _Message(text: strings.inviteScreenInvalid, strings: strings);
+        return _Message(
+          text: strings.inviteScreenInvalid,
+          strings: strings,
+          onClose: widget.asDialog ? null : () => _close(context),
+        );
       case _InviteStatus.self:
-        return _Message(text: strings.friendSearchSelf, strings: strings);
+        return _Message(
+          text: strings.friendSearchSelf,
+          strings: strings,
+          onClose: widget.asDialog ? null : () => _close(context),
+        );
       case _InviteStatus.alreadyFriends:
         return _Message(
           text: strings.friendRequestAlreadyFriends,
           strings: strings,
+          onClose: widget.asDialog ? null : () => _close(context),
         );
       case _InviteStatus.sent:
-        return _Message(text: strings.friendRequestSent, strings: strings);
+        return _Message(
+          text: strings.friendRequestSent,
+          strings: strings,
+          onClose: widget.asDialog ? null : () => _close(context),
+        );
       case _InviteStatus.ready:
         return Column(
           mainAxisSize: MainAxisSize.min,
@@ -238,7 +332,7 @@ class _InviteConfirmViewState extends ConsumerState<_InviteConfirmView> {
             Row(
               children: [
                 TextButton(
-                  onPressed: _isSending ? null : () => context.go('/'),
+                  onPressed: _isSending ? null : () => _close(context),
                   child: Text(strings.cancel),
                 ),
                 const SizedBox(width: 8),
@@ -264,10 +358,17 @@ class _InviteConfirmViewState extends ConsumerState<_InviteConfirmView> {
 }
 
 class _Message extends StatelessWidget {
-  const _Message({required this.text, required this.strings});
+  const _Message({
+    required this.text,
+    required this.strings,
+    required this.onClose,
+  });
 
   final String text;
   final Strings strings;
+
+  /// nullなら「ホームに戻る」ボタンを出さない（ポップアップは外側のタップなどで閉じる）。
+  final VoidCallback? onClose;
 
   @override
   Widget build(BuildContext context) {
@@ -275,11 +376,13 @@ class _Message extends StatelessWidget {
       mainAxisSize: MainAxisSize.min,
       children: [
         Text(text, textAlign: TextAlign.center),
-        const SizedBox(height: 24),
-        ElevatedButton(
-          onPressed: () => context.go('/'),
-          child: Text(strings.inviteScreenGoHome),
-        ),
+        if (onClose != null) ...[
+          const SizedBox(height: 24),
+          ElevatedButton(
+            onPressed: onClose,
+            child: Text(strings.inviteScreenGoHome),
+          ),
+        ],
       ],
     );
   }

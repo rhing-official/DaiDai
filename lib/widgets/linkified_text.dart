@@ -1,3 +1,4 @@
+import 'invite_link_dialog.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -167,6 +168,8 @@ class _LinkifiedTextState extends State<LinkifiedText> {
   }
 
   Future<void> _openLink(String url) async {
+    // DaiDai自身の招待リンクは、画面を切り替えずにポップアップで開く（2026-11-09）。
+    if (await openInviteLinkDialog(context, url)) return;
     final uri = Uri.tryParse(url);
     if (uri == null) return;
     await launchUrl(uri, mode: LaunchMode.externalApplication);

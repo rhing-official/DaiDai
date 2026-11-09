@@ -16,6 +16,7 @@ import '../repositories/direct_message_repository.dart';
 import '../repositories/friend_repository.dart';
 import '../repositories/group_call_repository.dart';
 import '../repositories/group_repository.dart';
+import '../models/group_profile_card.dart';
 import '../models/link_preview.dart';
 import '../repositories/link_preview_repository.dart';
 import '../repositories/note_repository.dart';
@@ -101,12 +102,8 @@ final linkPreviewRepositoryProvider = Provider<LinkPreviewRepository>((ref) {
           .read(userRepositoryProvider)
           .findByRhingSeed(rhingSeed);
       if (user == null) return null;
-      return LinkPreview(
-        url: url,
-        title: user.effectiveNickname?.text ?? '@${user.rhingSeed}',
-        description: user.effectiveStatusMessage?.text,
-        image: user.effectiveIcon?.url,
-      );
+      // 題名・説明は付けない（カードの中に呼び名・一言が出る為）。
+      return LinkPreview(url: url, inviteUser: user);
     },
     groupPreview: (url, groupId) async {
       final group = await ref
@@ -115,9 +112,14 @@ final linkPreviewRepositoryProvider = Provider<LinkPreviewRepository>((ref) {
       if (group == null) return null;
       return LinkPreview(
         url: url,
-        title: group.name,
-        description: group.description.isEmpty ? null : group.description,
-        image: group.iconUrl,
+        inviteGroup: GroupProfileCard(
+          name: group.name,
+          description: group.description,
+          iconUrl: group.iconUrl,
+          backgroundImageUrl: group.backgroundImageUrl,
+          iconFocal: group.iconFocal,
+          backgroundFocal: group.backgroundFocal,
+        ),
       );
     },
   );

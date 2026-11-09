@@ -3,6 +3,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../l10n/strings.dart';
+import '../../widgets/glass/glass_dialog.dart';
+import '../../providers/app_ui_style_provider.dart';
+import '../../models/app_ui_style.dart';
 import '../../l10n/vocabulary.dart';
 import '../../models/app_user.dart';
 import '../../models/group_invite_preview.dart';
@@ -19,15 +22,50 @@ import '../auth/auth_gate.dart';
 /// 広場への参加リクエスト確認画面。ログイン前に開かれた場合は[AuthGate]が
 /// 先ずログイン・Rhing Seed登録を済ませてから、この画面本体を表示する。
 class JoinGroupScreen extends StatelessWidget {
-  const JoinGroupScreen({required this.groupId, super.key});
+  const JoinGroupScreen({
+    required this.groupId,
+    this.asDialog = false,
+    super.key,
+  });
 
   final String groupId;
 
+  /// trueなら、画面ではなくポップアップとして描く（[InviteScreen.asDialog]と同じ）。
+  final bool asDialog;
+
   @override
   Widget build(BuildContext context) {
+    // ポップアップでは`AuthGate`を通さない（[InviteScreen]と同じ理由）。
+    if (asDialog) {
+      return Consumer(
+        builder: (context, ref, _) {
+          final uid = ref.watch(authStateProvider).value?.uid;
+          final user = uid == null
+              ? null
+              : ref.watch(watchedUserProvider(uid)).value;
+          if (user == null) {
+            return const Dialog(
+              child: SizedBox(
+                width: 96,
+                height: 96,
+                child: Center(child: CircularProgressIndicator()),
+              ),
+            );
+          }
+          return _JoinGroupView(
+            currentUser: user,
+            groupId: groupId,
+            asDialog: true,
+          );
+        },
+      );
+    }
     return AuthGate(
-      builder: (context, currentUser) =>
-          _JoinGroupView(currentUser: currentUser, groupId: groupId),
+      builder: (context, currentUser) => _JoinGroupView(
+        currentUser: currentUser,
+        groupId: groupId,
+        asDialog: asDialog,
+      ),
     );
   }
 }
@@ -43,10 +81,15 @@ enum _JoinStatus {
 }
 
 class _JoinGroupView extends ConsumerStatefulWidget {
-  const _JoinGroupView({required this.currentUser, required this.groupId});
+  const _JoinGroupView({
+    required this.currentUser,
+    required this.groupId,
+    this.asDialog = false,
+  });
 
   final AppUser currentUser;
   final String groupId;
+  final bool asDialog;
 
   @override
   ConsumerState<_JoinGroupView> createState() => _JoinGroupViewState();
@@ -182,11 +225,48 @@ class _JoinGroupViewState extends ConsumerState<_JoinGroupView> {
     // どおりに開くため、`/chat/group`へ直接pushせず語らいタブへ選択を渡す
     // （2026-10-11変更、以前は常にフルスクリーン＋寄合タブバーで開いていた）。
     await openGroupInTalks(ref, group);
+    // ポップアップで開いていた時は、語らいを開いたあとに閉じる。
+    if (mounted && widget.asDialog) Navigator.of(context).pop();
+  }
+
+  /// 閉じる。ポップアップならそれを閉じ、画面なら語らいへ戻る。
+  void _close(BuildContext context) {
+    if (widget.asDialog) {
+      Navigator.of(context).pop();
+    } else {
+      context.go('/');
+    }
   }
 
   @override
   Widget build(BuildContext context) {
     final strings = ref.watch(appStringsProvider);
+
+    if (widget.asDialog) {
+      // `glassAwareDialog`が`Dialog`を作るので、中身は`AlertDialog`ではなく素の列にする
+      // （`AlertDialog`を入れると、外側に縦長の`Dialog`がもう1つ出る）。
+      return glassAwareDialog(
+        isGlass: ref.watch(appUiStyleProvider) == AppUiStyle.glass,
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 400),
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.all(24),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  strings.groupJoinScreenTitle,
+                  style: Theme.of(context).textTheme.headlineSmall,
+                ),
+                const SizedBox(height: 16),
+                _buildBody(context, strings),
+              ],
+            ),
+          ),
+        ),
+      );
+    }
 
     return Scaffold(
       appBar: AppBar(
@@ -210,25 +290,39 @@ class _JoinGroupViewState extends ConsumerState<_JoinGroupView> {
       case _JoinStatus.loading:
         return const SizedBox.shrink();
       case _JoinStatus.invalid:
-        return _Message(text: strings.groupJoinInvalid, strings: strings);
+        return _Message(
+          text: strings.groupJoinInvalid,
+          strings: strings,
+          onClose: widget.asDialog ? null : () => _close(context),
+        );
       case _JoinStatus.alreadyMember:
         return _Message(
           text: strings.groupJoinAlreadyMember,
           strings: strings,
           actionLabel: strings.groupJoinOpenGroup,
           onAction: _openGroup,
+          onClose: widget.asDialog ? null : () => _close(context),
         );
       case _JoinStatus.pending:
-        return _Message(text: strings.groupJoinPending, strings: strings);
+        return _Message(
+          text: strings.groupJoinPending,
+          strings: strings,
+          onClose: widget.asDialog ? null : () => _close(context),
+        );
       case _JoinStatus.error:
         return _Message(
           text: _errorMessage ?? strings.genericErrorMessage,
           strings: strings,
           actionLabel: strings.groupJoinRetry,
           onAction: _resolve,
+          onClose: widget.asDialog ? null : () => _close(context),
         );
       case _JoinStatus.sent:
-        return _Message(text: strings.groupJoinRequestSent, strings: strings);
+        return _Message(
+          text: strings.groupJoinRequestSent,
+          strings: strings,
+          onClose: widget.asDialog ? null : () => _close(context),
+        );
       case _JoinStatus.ready:
         final preview = _preview!;
         final previewName = preview.name.isEmpty
@@ -308,6 +402,7 @@ class _Message extends StatelessWidget {
   const _Message({
     required this.text,
     required this.strings,
+    required this.onClose,
     this.actionLabel,
     this.onAction,
   });
@@ -317,17 +412,22 @@ class _Message extends StatelessWidget {
   final String? actionLabel;
   final VoidCallback? onAction;
 
+  /// nullで`actionLabel`も無ければ、ボタンを出さない（ポップアップは外側のタップなどで閉じる）。
+  final VoidCallback? onClose;
+
   @override
   Widget build(BuildContext context) {
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
         Text(text, textAlign: TextAlign.center),
-        const SizedBox(height: 24),
-        ElevatedButton(
-          onPressed: onAction ?? () => context.go('/'),
-          child: Text(actionLabel ?? strings.inviteScreenGoHome),
-        ),
+        if (onAction != null || onClose != null) ...[
+          const SizedBox(height: 24),
+          ElevatedButton(
+            onPressed: onAction ?? onClose,
+            child: Text(actionLabel ?? strings.inviteScreenGoHome),
+          ),
+        ],
       ],
     );
   }

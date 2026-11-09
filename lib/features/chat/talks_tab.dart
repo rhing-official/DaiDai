@@ -437,6 +437,9 @@ double _roomHeaderZoneFor(double controlHeight) => controlHeight + 16;
 /// `H`+32 = (`H`+16) + 1 + 15。
 const double _kRoomListTopPadding = 15;
 
+/// 長い検索ボックスの右端と、寄合一覧の右端の区切り線との間の余白（2026-11-09）。
+const double _kSearchRightGap = 12;
+
 class _SearchInsetScope extends InheritedWidget {
   const _SearchInsetScope({
     required this.inset,
@@ -730,6 +733,12 @@ class _TalksTabState extends ConsumerState<TalksTab>
 
   /// 長い検索欄の高さ。最初のフレームから位置を固定する為、測定前は標準値。
   double _searchFieldHeight = 56;
+
+  /// 語らい一覧の幅（`build`で更新）。検索ボックスを寄合一覧の右端まで伸ばす長さの計算に使う。
+  double _lastComputerListWidth = 260;
+
+  /// 置き物（元の位置の検索欄）の幅。寄合一覧が無い語らいで、浮いた検索欄をこの幅にする。
+  double _searchPlaceholderWidth = 228;
 
   /// 検索欄の下端。寄合一覧の項目・区切り線は、ここから下に置く。
   double get _searchInset => _searchWide ? 12 + _searchFieldHeight : 0;
@@ -1812,6 +1821,12 @@ class _TalksTabState extends ConsumerState<TalksTab>
                             ),
                           )
                           .toDouble();
+                  _lastComputerListWidth = computerListWidth;
+                  if (_searchWide) {
+                    // 寄合一覧の幅（ドラッグ中を含む）が変わったら検索ボックスも追従させる。
+                    ref.watch(iconSplitDragProvider);
+                    ref.watch(appTextSizeProvider);
+                  }
                   return Row(
                     children: [
                       // 260px: 語らい一覧のブロック（アイコン＋名前＋ピン/ミュート
@@ -2763,7 +2778,7 @@ class _TalksTabState extends ConsumerState<TalksTab>
   }
 
   /// 横画面で寄合一覧サイドバーがある語らいを選んでいる時だけ、検索欄を
-  /// 標準560px（打った文字が収まらなければ、その分だけ右へ）の長さにして、
+  /// 寄合一覧の右端（区切り線）までの長さにして、
   /// 寄合一覧の上まで伸ばす（2026-11-09）。伸びた部分は寄合一覧に被らないよう、
   /// 寄合一覧の項目を検索欄の高さぶん下げる（[talksSearchInset]）。寄合
   /// サイドバーが無い語らい・縦画面では、従来通りサイドバー幅の検索欄のまま。
@@ -2777,13 +2792,23 @@ class _TalksTabState extends ConsumerState<TalksTab>
   }
 
   Widget _buildPopSearchField(Strings strings) {
+    // 横画面の間は、寄合一覧の有無にかかわらず常に同じ木（置き物＋浮いた検索欄）にし、
+    // 変えるのは浮いた検索欄の目標の幅だけにする（2026-11-09）。以前は寄合一覧が
+    // 出る時に木ごと入れ替えていた為、浮いた検索欄が出るまでの1フレームは検索欄が
+    // どこにも無く（一瞬消える）、入力中の文字・カーソルも途切れていた。
+    final split = _isSplit;
     final wide = _searchWide;
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
-      if (wide) {
-        if (!_searchOverlay.isShowing) _searchOverlay.show();
+      if (split) {
+        if (!_searchOverlay.isShowing) {
+          _searchOverlay.show();
+          // 置き物を透明にする為に、もう1度描き直す。
+          setState(() {});
+        }
         final box = _searchBoxKey.currentContext?.findRenderObject();
-        if (box is RenderBox &&
+        if (wide &&
+            box is RenderBox &&
             box.hasSize &&
             (box.size.height - _searchFieldHeight).abs() > 0.5) {
           // 検索欄の実際の高さ（UIスタイルで違う）を一度だけ測り直す。
@@ -2793,7 +2818,7 @@ class _TalksTabState extends ConsumerState<TalksTab>
         _searchOverlay.hide();
       }
     });
-    if (!wide) return _buildSearchField(strings);
+    if (!split) return _buildSearchField(strings);
     return CompositedTransformTarget(
       key: _searchBoxKey,
       link: _searchLink,
@@ -2806,26 +2831,39 @@ class _TalksTabState extends ConsumerState<TalksTab>
               ? box.localToGlobal(Offset.zero).dx
               : 16.0;
           final avail = (media.size.width - left - 16).clamp(200.0, 4000.0);
-          // 打った文字が収まらない時は、その分だけ右へ伸ばす。幅の内訳は
-          // 虫眼鏡・×・左右の余白ぶんの余裕を足した値。
-          final painter = TextPainter(
-            text: TextSpan(
-              text: _searchController.text,
-              style: Theme.of(context).textTheme.bodyLarge,
-            ),
-            textDirection: TextDirection.ltr,
-            maxLines: 1,
-          )..layout();
-          final width = math
-              .max(560.0, painter.width + 140)
-              .clamp(200.0, avail);
+          // 右端は、寄合一覧とメッセージ画面の区切り線に揃える（2026-11-09）。
+          // 語らい一覧の右端までの距離（左の余白16を除く）＋区切り線のつかみ代＋
+          // 寄合一覧の幅＋つかみ代の半分（見える線は中央）。文字が長い時は右へ
+          // 伸ばさず、ここで止めて文字をスクロールさせる。
+          final drag = ref.read(iconSplitDragProvider);
+          final roomListWidth =
+              drag?.list ??
+              iconSplitWidths(
+                scale: ref.read(appTextSizeProvider).scale,
+                screenWidth: media.size.width,
+                layout: ref.read(iconSplitLayoutProvider),
+                showPeek: true,
+              ).list;
+          final wideWidth =
+              (_lastComputerListWidth -
+                      16 +
+                      kIconSplitHandleWidth +
+                      roomListWidth +
+                      kIconSplitHandleWidth / 2 -
+                      _kSearchRightGap)
+                  .clamp(200.0, avail);
+          // 寄合一覧が無い語らいでは、置き物と同じ幅（従来のサイドバー幅）。
+          final targetWidth = wide ? wideWidth : _searchPlaceholderWidth;
           return CompositedTransformFollower(
             link: _searchLink,
             showWhenUnlinked: false,
             child: Align(
               alignment: Alignment.topLeft,
-              child: SizedBox(
-                width: width.toDouble(),
+              // 左端を固定して、右へスライドして伸びる・縮む。
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 260),
+                curve: Curves.easeOutCubic,
+                width: targetWidth.toDouble(),
                 child: Material(
                   type: MaterialType.transparency,
                   child: _buildSearchField(strings),
@@ -2834,10 +2872,21 @@ class _TalksTabState extends ConsumerState<TalksTab>
             ),
           );
         },
-        // 置き物: 高さを保つだけで、見えず、押せない。
-        child: Opacity(
-          opacity: 0,
-          child: IgnorePointer(child: _buildSearchField(strings)),
+        // 置き物: 高さ・幅を保つだけで、押せない。浮いた検索欄が出るまでの
+        // 1フレームだけは見せて、検索欄がどこにも無い瞬間を作らない。
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            if ((constraints.maxWidth - _searchPlaceholderWidth).abs() > 0.5) {
+              _searchPlaceholderWidth = constraints.maxWidth;
+              WidgetsBinding.instance.addPostFrameCallback((_) {
+                if (mounted) setState(() {});
+              });
+            }
+            return Opacity(
+              opacity: _searchOverlay.isShowing ? 0 : 1,
+              child: IgnorePointer(child: _buildSearchField(strings)),
+            );
+          },
         ),
       ),
     );
