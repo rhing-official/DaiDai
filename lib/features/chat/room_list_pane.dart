@@ -1,6 +1,7 @@
 import '../../theme/block/block_theme.dart';
 import 'package:flutter/foundation.dart' show setEquals;
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../l10n/strings.dart';
@@ -8,12 +9,12 @@ import '../../l10n/vocabulary.dart';
 import '../../models/app_ui_style.dart';
 import '../../providers/app_ui_style_provider.dart';
 import '../../utils/text_truncate.dart';
-import '../../widgets/gekiga/gekiga_icon_badge.dart';
 import '../../widgets/gekiga/gekiga_panel_box.dart';
 import '../../widgets/gekiga/gekiga_text_field.dart';
 import '../../widgets/glass/glass_dialog.dart';
 import '../../widgets/glass/glass_surface.dart';
 import '../../widgets/unread_badge.dart';
+import 'talks_header_metrics.dart';
 import '../../widgets/dialog_keyboard_shortcuts.dart';
 import '../../widgets/app_dialog.dart';
 
@@ -50,6 +51,8 @@ class RoomListPane extends ConsumerStatefulWidget {
     this.onCreateRoom,
     this.onOpenConversationSettings,
     this.onReorderRooms,
+    this.headerZoneHeight,
+    this.listTopPadding = 12,
     super.key,
   });
 
@@ -75,6 +78,15 @@ class RoomListPane extends ConsumerStatefulWidget {
   /// 並べ替え後の寄合idの並びを渡す。nullなら並べ替え機能自体を出さない
   /// （広場で`manageRooms`権限を持たないメンバーには渡さない）。
   final Future<void> Function(List<String> roomIds)? onReorderRooms;
+
+  /// ヘッダー（会話名・設定・＋の行）の領域の高さを固定する（2026-11-09）。
+  /// 語らい一覧の項目と寄合一覧の項目の上端を揃える為、横画面で検索欄を長く
+  /// している間だけ渡す。非nullなら中身を縦中央に置く。nullなら従来どおり。
+  final double? headerZoneHeight;
+
+  /// 区切り線と最初の項目の間の余白。見出し領域を高くして区切り線を下げた分、
+  /// ここを詰めて、項目の上端の位置を変えない（2026-11-09）。
+  final double listTopPadding;
 
   @override
   ConsumerState<RoomListPane> createState() => _RoomListPaneState();
@@ -310,117 +322,54 @@ class _RoomListPaneState extends ConsumerState<RoomListPane> {
       );
     }
 
+    final zone = widget.headerZoneHeight != null;
     final paneContent = Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Padding(
-          padding: const EdgeInsets.fromLTRB(16, 16, 8, 8),
-          child: Row(
-            children: [
-              Expanded(
-                child: isGekiga
-                    ? GekigaJointedTileList(
-                        seeds: [widget.conversationName.hashCode],
-                        selectedFlags: const [false],
-                        children: [
-                          GekigaTileContent(
-                            title: Text(
-                              truncateName(widget.conversationName, 8),
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                          ),
-                        ],
-                      )
-                    : uiStyle == AppUiStyle.block
-                    // 版画: 太枠と硬い影の箱に会話名を載せる（アクセントでは塗らない）。
-                    // 箱は会話名の長さに合わせて可変にする（左寄せ、2026-11-06）。
-                    ? Align(
-                        alignment: Alignment.centerLeft,
-                        child: Padding(
-                          padding: const EdgeInsets.only(right: 6, bottom: 4),
-                          child: blockMaterialBox(
-                            context,
-                            color:
-                                Theme.of(context).brightness == Brightness.light
-                                ? Colors.white
-                                : colorScheme.surface,
-                            child: Padding(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 12,
-                                vertical: 10,
-                              ),
-                              child: Text(
-                                truncateName(widget.conversationName, 8),
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: TextStyle(
-                                  fontWeight: FontWeight.bold,
-                                  color: colorScheme.onSurface,
-                                ),
-                              ),
-                            ),
-                          ),
-                        ),
-                      )
-                    : Text(
-                        truncateName(widget.conversationName, 8),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(fontWeight: FontWeight.bold),
-                      ),
-              ),
-              if (widget.onOpenConversationSettings != null)
-                isGekiga
-                    ? GekigaIconButton(
-                        icon: Icons.settings_outlined,
-                        onPressed: widget.onOpenConversationSettings!,
-                      )
-                    : uiStyle == AppUiStyle.block
-                    ? blockIconButton(
-                        context,
-                        icon: Icons.settings_outlined,
-                        onPressed: widget.onOpenConversationSettings,
-                      )
-                    : IconButton(
-                        icon: const Icon(Icons.settings_outlined),
-                        onPressed: widget.onOpenConversationSettings,
-                      ),
-              if (widget.onCreateRoom != null)
-                isGekiga
-                    ? GekigaIconButton(
-                        icon: Icons.add,
-                        onPressed: () => _createRoom(
-                          context,
-                          strings,
-                          vocab,
-                          isGekiga,
-                          isGlass,
-                        ),
-                      )
-                    : uiStyle == AppUiStyle.block
-                    ? blockIconButton(
-                        context,
-                        icon: Icons.add,
-                        onPressed: () => _createRoom(
-                          context,
-                          strings,
-                          vocab,
-                          isGekiga,
-                          isGlass,
-                        ),
-                      )
-                    : IconButton(
-                        icon: const Icon(Icons.add),
-                        onPressed: () => _createRoom(
-                          context,
-                          strings,
-                          vocab,
-                          isGekiga,
-                          isGlass,
-                        ),
-                      ),
-            ],
+        _HeaderZone(
+          height: widget.headerZoneHeight,
+          child: Padding(
+            // 固定高の領域では、会話名の箱を領域の上端（語らい一覧の
+            // 「一対／広場」タブの上端と同じ高さ）に置き、設定・＋は
+            // タブ行の縦中央に揃える（2026-11-09）。
+            padding: zone
+                ? EdgeInsets.fromLTRB(16, 8, 8, 0)
+                : const EdgeInsets.fromLTRB(16, 16, 8, 8),
+            child: Row(
+              crossAxisAlignment: zone
+                  ? CrossAxisAlignment.start
+                  : CrossAxisAlignment.center,
+              children: [
+                // 会話名・設定・＋は、語らい一覧のトグル・ボタンと同じ高さ・形
+                // （[TalksNameChip]・[TalksControlButton]、2026-11-09）。
+                Expanded(
+                  child: Align(
+                    alignment: Alignment.centerLeft,
+                    // 高さは箱に合わせる（無指定だと領域いっぱいに広がり、箱が
+                    // ボタンより下にずれる）。
+                    heightFactor: 1,
+                    child: TalksNameChip(
+                      label: truncateName(widget.conversationName, 8),
+                    ),
+                  ),
+                ),
+                if (widget.onOpenConversationSettings != null) ...[
+                  const SizedBox(width: 8),
+                  TalksControlButton(
+                    icon: Icons.settings_outlined,
+                    onPressed: widget.onOpenConversationSettings!,
+                  ),
+                ],
+                if (widget.onCreateRoom != null) ...[
+                  const SizedBox(width: 8),
+                  TalksControlButton(
+                    icon: Icons.add,
+                    onPressed: () =>
+                        _createRoom(context, strings, vocab, isGekiga, isGlass),
+                  ),
+                ],
+              ],
+            ),
           ),
         ),
         const Divider(height: 1),
@@ -430,7 +379,12 @@ class _RoomListPaneState extends ConsumerState<RoomListPane> {
                   // ヘッダー行と同じ左右の余白に揃える（2026-08-04追加）。
                   // 上にも余白を入れ、区切り線に一覧の箱が接して被って
                   // 見える不具合を解消する（2026-08-04追加）。
-                  padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+                  padding: EdgeInsets.fromLTRB(
+                    16,
+                    widget.listTopPadding,
+                    16,
+                    0,
+                  ),
                   child: GekigaJointedTileList(
                     seeds: [for (final room in _rooms) room.roomId.hashCode],
                     selectedFlags: [
@@ -447,7 +401,7 @@ class _RoomListPaneState extends ConsumerState<RoomListPane> {
                   // ヘッダー直下のDividerに（同日追加）接して重なって
                   // 見えないよう余白を持たせる。上余白12pxは劇画UI分岐
                   // （上の`SingleChildScrollView`、2026-08-04追加）と揃えた。
-                  padding: const EdgeInsets.fromLTRB(8, 12, 8, 0),
+                  padding: EdgeInsets.fromLTRB(8, widget.listTopPadding, 8, 0),
                   children: [for (final room in _rooms) buildRoomTile(room)],
                 )
               : ReorderableListView(
@@ -462,7 +416,7 @@ class _RoomListPaneState extends ConsumerState<RoomListPane> {
                   // 独立した箱になる＝`ReorderableListView`の1行として個別に
                   // ドラッグ出来る）。
                   buildDefaultDragHandles: false,
-                  padding: const EdgeInsets.fromLTRB(8, 12, 8, 0),
+                  padding: EdgeInsets.fromLTRB(8, widget.listTopPadding, 8, 0),
                   onReorderItem: _handleReorder,
                   proxyDecorator: (child, index, animation) =>
                       _dragLiftDecorator(
@@ -562,4 +516,21 @@ Future<String?> promptForRoomName(
             actions: actions,
           ),
   );
+}
+
+/// [height]が非nullの時、子を固定高の領域の縦中央に置く。
+class _HeaderZone extends StatelessWidget {
+  const _HeaderZone({required this.height, required this.child});
+  final double? height;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    final h = height;
+    if (h == null) return child;
+    return SizedBox(
+      height: h,
+      child: Align(alignment: Alignment.topLeft, child: child),
+    );
+  }
 }

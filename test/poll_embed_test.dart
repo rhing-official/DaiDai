@@ -22,14 +22,22 @@ void main() {
       expect(shouldCollapsePoll(_poll(options)), isTrue);
     });
 
-    test('画像・動画付きの選択肢が1つでもあれば折りたたむ', () {
+    test('画像・動画付きの選択肢があっても、4件までは折りたたまない（メッセージ画面から答えられる）', () {
       for (final type in ['image', 'video']) {
         final options = [
           const PollOption(text: 'a'),
           PollOption(text: 'b', mediaUrl: 'https://e/x', mediaType: type),
         ];
-        expect(shouldCollapsePoll(_poll(options)), isTrue, reason: type);
+        expect(shouldCollapsePoll(_poll(options)), isFalse, reason: type);
       }
+    });
+
+    test('画像付きでも5件以上なら折りたたむ', () {
+      final options = [
+        for (var i = 0; i < 5; i++)
+          PollOption(text: '$i', mediaUrl: 'https://e/x', mediaType: 'image'),
+      ];
+      expect(shouldCollapsePoll(_poll(options)), isTrue);
     });
   });
 }

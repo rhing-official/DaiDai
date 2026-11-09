@@ -31,11 +31,21 @@ import {
 import { HttpsError, onCall, onRequest } from "firebase-functions/v2/https";
 import { onSchedule } from "firebase-functions/v2/scheduler";
 import { onObjectFinalized } from "firebase-functions/v2/storage";
+import { spawn } from "node:child_process";
 import ffmpeg from "fluent-ffmpeg";
 import ffmpegPath from "ffmpeg-static";
 import Stripe from "stripe";
 import { parseKiwamiReference } from "./kiwamiReference";
 import { aliasExpiresAtMs, evaluateSeedChange } from "./rhingSeedChange";
+import {
+  kMaxPlaybackSourceSeconds,
+  kPlaybackOutputOptions,
+  kPlaybackTranscodeBudgetMs,
+  kPlaybackScaleFilter,
+  needsPlaybackVersion,
+  parseFfmpegInfo,
+  playbackStoragePath,
+} from "./playbackVideo";
 
 import {
   WEBHOOK_BODY_MAX_BYTES,
@@ -4050,6 +4060,91 @@ async function findMessageRef(
   return null;
 }
 
+/** サムネイルの長辺の上限（px）。4Kの動画から原寸のJPEGを作らず、一覧・通知に十分な
+ * 大きさにする（2026-11-08）。 */
+const THUMBNAIL_MAX_SIDE = 960;
+
+/** ダウンロードして処理してよい動画の上限（バイト）。一時領域がメモリ上の為、これを
+ * 超える動画は、URLから読めない時にはサムネイルを作らない（2026-11-08）。 */
+const THUMBNAIL_DOWNLOAD_LIMIT_BYTES = 400 * 1024 * 1024;
+
+/**
+ * 動画の1コマをJPEGのサムネイルとして[outPath]へ書く（2026-11-08）。以前は動画全体を
+ * メモリ上の一時領域へダウンロードしていた為、メモリ1GiBでは1GB超の動画（4Kのデジカメ
+ * 動画など）で失敗し、サムネイルが付かなかった。今は、アップロード時にクライアントが付けた
+ * ダウンロードトークンのURLを`ffmpeg`へ直接渡し、`-ss`で先頭付近へ飛んで必要な部分だけを
+ * 読む（`moov`が先頭にある動画なら数MBで済む）。トークンが無い、又はURLから読めなかった
+ * 時だけ、小さい動画に限りダウンロードして処理する。出力は長辺[THUMBNAIL_MAX_SIDE]px以下。
+ * 作れたら`true`。
+ */
+async function renderVideoThumbnail(opts: {
+  bucketName: string;
+  filePath: string;
+  sizeBytes: number;
+  metadata: Record<string, unknown> | undefined;
+  outPath: string;
+  tmpKey: string;
+}): Promise<boolean> {
+  const { bucketName, filePath, sizeBytes, metadata, outPath, tmpKey } = opts;
+  const scale =
+    `scale='if(gt(iw,ih),min(${THUMBNAIL_MAX_SIDE},iw),-2)'` +
+    `:'if(gt(iw,ih),-2,min(${THUMBNAIL_MAX_SIDE},ih))'`;
+  const grab = (input: string, timestamp: string) =>
+    new Promise<void>((resolve, reject) => {
+      ffmpeg(input)
+        .inputOptions(["-ss", timestamp])
+        .outputOptions(["-frames:v", "1", "-q:v", "3", "-vf", scale])
+        .output(outPath)
+        .on("end", () => resolve())
+        .on("error", (err: Error) => reject(err))
+        .run();
+    });
+  // 1秒付近の1コマ（冒頭は暗転・フェードインで黒くなりやすい為、アプリ側
+  // `VideoThumbnail`の表示位置と同じ）。1秒に満たない短い動画ではコマが出ない
+  // （エラーにもならない）ので、出力が無ければ先頭付近（0.1秒）で撮り直す。
+  const grabBoth = async (input: string): Promise<boolean> => {
+    for (const timestamp of ["1", "0.1"]) {
+      try {
+        await grab(input, timestamp);
+      } catch (err) {
+        logger.warn(`動画サムネイル: ${timestamp}秒位置で失敗 (${filePath})`, err);
+      }
+      if (fs.existsSync(outPath)) return true;
+    }
+    return false;
+  };
+
+  const token = String(metadata?.["firebaseStorageDownloadTokens"] ?? "")
+    .split(",")[0]
+    .trim();
+  if (token) {
+    const url =
+      `https://firebasestorage.googleapis.com/v0/b/${bucketName}/o/` +
+      `${encodeURIComponent(filePath)}?alt=media&token=${token}`;
+    if (await grabBoth(url)) return true;
+    logger.warn(`動画サムネイル: URLから読めませんでした (${filePath})`);
+  }
+  if (sizeBytes > THUMBNAIL_DOWNLOAD_LIMIT_BYTES) {
+    logger.warn(
+      `動画サムネイル: 大きすぎてダウンロードできないので作りません (${filePath}, ${sizeBytes}B)`,
+    );
+    return false;
+  }
+  const tmpVideoPath = path.join(
+    os.tmpdir(),
+    `${tmpKey}-src${path.extname(filePath)}`,
+  );
+  try {
+    await getStorage()
+      .bucket(bucketName)
+      .file(filePath)
+      .download({ destination: tmpVideoPath });
+    return await grabBoth(tmpVideoPath);
+  } finally {
+    if (fs.existsSync(tmpVideoPath)) fs.unlinkSync(tmpVideoPath);
+  }
+}
+
 /**
  * 動画メッセージのアップロード完了時に1フレーム抽出してサムネイル画像を
  * 生成し、Storageへ保存した上でメッセージの`fileMetadata.thumbnailUrl`に
@@ -4065,10 +4160,15 @@ export const generateVideoThumbnail = onObjectFinalized(
     const filePath = event.data.name;
     const contentType = event.data.contentType;
     if (!filePath || !contentType?.startsWith("video/")) return;
-    if (filePath.includes("_thumb.")) return; // 生成物自身の再帰防止
+    if (filePath.includes("_thumb.") || filePath.includes("_play.")) return; // 生成物自身の再帰防止
     // アルバムの動画（アップロード・メッセージからのコピー）は別の記録先なので別処理。
     if (filePath.startsWith("albumFiles/")) {
-      await generateAlbumVideoThumbnail(event.data.bucket, filePath);
+      await generateAlbumVideoThumbnail(
+        event.data.bucket,
+        filePath,
+        Number(event.data.size),
+        event.data.metadata,
+      );
       return;
     }
     if (!filePath.startsWith("dmFiles/") && !filePath.startsWith("groupFiles/")) {
@@ -4091,38 +4191,17 @@ export const generateVideoThumbnail = onObjectFinalized(
     if (isMulti && !Number.isInteger(attachmentIndex)) return;
 
     const bucket = getStorage().bucket(event.data.bucket);
-    const tmpVideoPath = path.join(
-      os.tmpdir(),
-      `${messageId}-${attachmentIndex}-src${path.extname(fileName)}`,
-    );
     const tmpThumbFileName = `${messageId}-${attachmentIndex}-thumb.jpg`;
     const tmpThumbPath = path.join(os.tmpdir(), tmpThumbFileName);
-
-    await bucket.file(filePath).download({ destination: tmpVideoPath });
-    // サムネイルは動画の1秒付近の1コマ（冒頭は暗転・フェードインで黒くなりやすい
-    // ため、アプリ側`VideoThumbnail`の表示位置と同じ1秒にそろえている）。
-    // 1秒に満たない短い動画ではコマが出力されない（エラーにもならない）ので、
-    // 出力が無ければ先頭付近（0.1秒）で撮り直す。
-    const takeScreenshot = (timestamp: string) =>
-      new Promise<void>((resolve, reject) => {
-        ffmpeg(tmpVideoPath)
-          .on("end", () => resolve())
-          .on("error", (err: Error) => reject(err))
-          .screenshots({
-            count: 1,
-            timestamps: [timestamp],
-            filename: tmpThumbFileName,
-            folder: os.tmpdir(),
-          });
-      });
-    try {
-      await takeScreenshot("1");
-    } catch (err) {
-      logger.warn(`動画サムネイル: 1秒位置で失敗、先頭付近で再試行 (${filePath})`, err);
-    }
-    if (!fs.existsSync(tmpThumbPath)) {
-      await takeScreenshot("0.1");
-    }
+    const rendered = await renderVideoThumbnail({
+      bucketName: event.data.bucket,
+      filePath,
+      sizeBytes: Number(event.data.size),
+      metadata: event.data.metadata,
+      outPath: tmpThumbPath,
+      tmpKey: `${messageId}-${attachmentIndex}`,
+    });
+    if (!rendered) return;
 
     const thumbStoragePath = isMulti
       ? `${prefix}/${parentId}/${messageId}/${attachmentIndex}_thumb.jpg`
@@ -4135,7 +4214,6 @@ export const generateVideoThumbnail = onObjectFinalized(
         metadata: { firebaseStorageDownloadTokens: downloadToken },
       },
     });
-    fs.unlinkSync(tmpVideoPath);
     fs.unlinkSync(tmpThumbPath);
 
     // Admin SDKにはクライアントSDKのgetDownloadURL()相当が無いため、既存の
@@ -4203,6 +4281,8 @@ export const generateVideoThumbnail = onObjectFinalized(
 async function generateAlbumVideoThumbnail(
   bucketName: string,
   filePath: string,
+  sizeBytes: number,
+  metadata: Record<string, unknown> | undefined,
 ): Promise<void> {
   const segments = filePath.split("/");
   if (segments.length !== 6) return;
@@ -4211,33 +4291,19 @@ async function generateAlbumVideoThumbnail(
   const itemId = fileName.replace(/\.[^.]+$/, "");
   const bucket = getStorage().bucket(bucketName);
   const tmpKey = `album-${itemId}`;
-  const tmpVideoPath = path.join(os.tmpdir(), `${tmpKey}-src${path.extname(fileName)}`);
   const tmpThumbFileName = `${tmpKey}-thumb.jpg`;
   const tmpThumbPath = path.join(os.tmpdir(), tmpThumbFileName);
 
-  await bucket.file(filePath).download({ destination: tmpVideoPath });
-  const takeScreenshot = (timestamp: string) =>
-    new Promise<void>((resolve, reject) => {
-      ffmpeg(tmpVideoPath)
-        .on("end", () => resolve())
-        .on("error", (err: Error) => reject(err))
-        .screenshots({
-          count: 1,
-          timestamps: [timestamp],
-          filename: tmpThumbFileName,
-          folder: os.tmpdir(),
-        });
-    });
   try {
-    try {
-      await takeScreenshot("1");
-    } catch (err) {
-      logger.warn(`アルバム動画サムネイル: 1秒位置で失敗、先頭付近で再試行 (${filePath})`, err);
-    }
-    if (!fs.existsSync(tmpThumbPath)) {
-      await takeScreenshot("0.1");
-    }
-    if (!fs.existsSync(tmpThumbPath)) return;
+    const rendered = await renderVideoThumbnail({
+      bucketName,
+      filePath,
+      sizeBytes,
+      metadata,
+      outPath: tmpThumbPath,
+      tmpKey,
+    });
+    if (!rendered) return;
 
     const thumbStoragePath = `${segments.slice(0, 5).join("/")}/${itemId}_thumb.jpg`;
     const downloadToken = randomUUID();
@@ -4271,10 +4337,255 @@ async function generateAlbumVideoThumbnail(
     }
     logger.info(`アルバム動画サムネイル記録: ${itemRef.path}`);
   } finally {
-    for (const tmp of [tmpVideoPath, tmpThumbPath]) {
-      if (fs.existsSync(tmp)) fs.unlinkSync(tmp);
-    }
+    if (fs.existsSync(tmpThumbPath)) fs.unlinkSync(tmpThumbPath);
   }
+}
+
+/**
+ * 重い動画（高ビットレート・4Kなど）の再生用の軽い版を作る（2026-11-08）。
+ * 動画のアップロード完了時に`ffmpeg -i`で映像の情報を調べ、[needsPlaybackVersion]が
+ * 真なら、短辺1080px以下・約8Mbps以下のH.264＋AAC（`faststart`）を元のファイルの横に
+ * `_play.mp4`として保存し、メッセージ・複数添付・アルバム項目へ`playbackPath`（真の情報）と
+ * `playbackUrl`（併記）を記録する。クライアントのビューアはこれがあれば再生に使い、
+ * ダウンロード・共有・転送は元のファイルのまま。変換の前や、軽い動画では記録されず、
+ * 従来どおり元の動画を再生する。保存先の規約は[generateVideoThumbnail]と同じ
+ * （`dmFiles|groupFiles/{id}/{messageId}.ext`、複数添付は`.../{messageId}/{index}.ext`、
+ * アルバムは`albumFiles/{dm|group}/{会話id}/{寄合id}/{albumId}/{itemId}.ext`）。
+ *
+ * 変換は時間とメモリを使う（Cloud Functionsの一時領域はメモリ上）ので、メモリ8GiB・
+ * CPU4・同時1件に制限する。イベント起動の関数は最大540秒なので、長さが
+ * [kMaxPlaybackSourceSeconds]（10分）を超える動画は作らず、変換が
+ * [kPlaybackTranscodeBudgetMs]を超えたら打ち切る（その場合は元の動画のまま）。
+ */
+export const generatePlaybackVideo = onObjectFinalized(
+  {
+    region: "asia-northeast1",
+    memory: "8GiB",
+    cpu: 4,
+    // イベント起動の関数は最大540秒。変換はこの中に収める（下の長さ制限と打ち切りを参照）。
+    timeoutSeconds: 540,
+    concurrency: 1,
+    maxInstances: 3,
+  },
+  async (event) => {
+    const filePath = event.data.name;
+    const contentType = event.data.contentType;
+    if (!filePath || !contentType?.startsWith("video/")) return;
+    if (filePath.includes("_thumb.") || filePath.includes("_play.")) return;
+    const segments = filePath.split("/");
+    const prefix = segments[0];
+    // 保存先ごとに、記録先（メッセージ／複数添付／アルバム項目）を決める。
+    type Target =
+      | { kind: "message"; top: string; parentId: string; messageId: string }
+      | {
+          kind: "multi";
+          top: string;
+          parentId: string;
+          messageId: string;
+          index: number;
+        }
+      | {
+          kind: "album";
+          top: string;
+          conversationId: string;
+          roomId: string;
+          albumId: string;
+          itemId: string;
+        };
+    let target: Target;
+    if ((prefix === "dmFiles" || prefix === "groupFiles") && segments.length === 3) {
+      target = {
+        kind: "message",
+        top: prefix === "dmFiles" ? "directMessages" : "groups",
+        parentId: segments[1],
+        messageId: segments[2].replace(/\.[^.]+$/, ""),
+      };
+    } else if (
+      (prefix === "dmFiles" || prefix === "groupFiles") &&
+      segments.length === 4
+    ) {
+      const index = Number(segments[3].replace(/\.[^.]+$/, ""));
+      if (!Number.isInteger(index)) return;
+      target = {
+        kind: "multi",
+        top: prefix === "dmFiles" ? "directMessages" : "groups",
+        parentId: segments[1],
+        messageId: segments[2],
+        index,
+      };
+    } else if (prefix === "albumFiles" && segments.length === 6) {
+      const [, scope, conversationId, roomId, albumId, fileName] = segments;
+      if (scope !== "dm" && scope !== "group") return;
+      target = {
+        kind: "album",
+        top: scope === "dm" ? "directMessages" : "groups",
+        conversationId,
+        roomId,
+        albumId,
+        itemId: fileName.replace(/\.[^.]+$/, ""),
+      };
+    } else {
+      return;
+    }
+
+    // 一時領域がメモリ上の為、極端に大きいファイルは扱わない（サーバー経由は2GBまで）。
+    const sizeBytes = Number(event.data.size);
+    if (sizeBytes > 2.5 * 1024 * 1024 * 1024) {
+      logger.warn(`再生用の動画: 大きすぎるので作りません (${filePath}, ${sizeBytes}B)`);
+      return;
+    }
+
+    const bucket = getStorage().bucket(event.data.bucket);
+    const key = filePath.replace(/[^A-Za-z0-9]/g, "_");
+    const tmpSrc = path.join(os.tmpdir(), `${key}-src${path.extname(filePath)}`);
+    const tmpOut = path.join(os.tmpdir(), `${key}-play.mp4`);
+    try {
+      await bucket.file(filePath).download({ destination: tmpSrc });
+      const info = parseFfmpegInfo(await ffmpegInfoOutput(tmpSrc));
+      if (!needsPlaybackVersion(info)) {
+        logger.info(`再生用の動画: 軽いので作りません (${filePath})`, info);
+        return;
+      }
+      // 関数の制限時間（540秒）に収まらない長い動画は作らない。変換中の打ち切り
+      // （下のタイマー）はそれでも間に合わなかった時の保険。
+      if (info?.durationSec != null && info.durationSec > kMaxPlaybackSourceSeconds) {
+        logger.warn(
+          `再生用の動画: 長すぎるので作りません (${filePath}, ${info.durationSec}秒)`,
+        );
+        return;
+      }
+      logger.info(`再生用の動画: 変換を始めます (${filePath})`, info);
+      try {
+        await new Promise<void>((resolve, reject) => {
+          const command = ffmpeg(tmpSrc)
+            .videoFilters(kPlaybackScaleFilter)
+            .outputOptions(kPlaybackOutputOptions)
+            .output(tmpOut)
+            .on("end", () => {
+              clearTimeout(watchdog);
+              resolve();
+            })
+            .on("error", (err: Error) => {
+              clearTimeout(watchdog);
+              reject(err);
+            });
+          // 制限時間の前に打ち切る（アップロードと記録の時間を残す）。
+          const watchdog = setTimeout(
+            () => command.kill("SIGKILL"),
+            kPlaybackTranscodeBudgetMs,
+          );
+          command.run();
+        });
+      } catch (err) {
+        logger.warn(`再生用の動画: 変換できませんでした (${filePath})`, err);
+        return;
+      }
+
+      const playbackPath = playbackStoragePath(filePath);
+      const downloadToken = randomUUID();
+      await bucket.upload(tmpOut, {
+        destination: playbackPath,
+        metadata: {
+          contentType: "video/mp4",
+          metadata: { firebaseStorageDownloadTokens: downloadToken },
+        },
+      });
+      const playbackUrl =
+        `https://firebasestorage.googleapis.com/v0/b/${bucket.name}/o/` +
+        `${encodeURIComponent(playbackPath)}?alt=media&token=${downloadToken}`;
+      const fields = { playbackPath, playbackUrl };
+
+      // 記録先のドキュメントは、アップロードの後に作られることがある（サムネイルと同じ）。
+      // 見つかるまで最大約20秒待つ。
+      const waitFor = async <T>(find: () => Promise<T | null>): Promise<T | null> => {
+        let found = await find();
+        for (let i = 0; i < 10 && !found; i++) {
+          await new Promise((resolve) => setTimeout(resolve, 2000));
+          found = await find();
+        }
+        return found;
+      };
+
+      if (target.kind === "album") {
+        const itemRef = db
+          .collection(target.top)
+          .doc(target.conversationId)
+          .collection("rooms")
+          .doc(target.roomId)
+          .collection("albums")
+          .doc(target.albumId)
+          .collection("items")
+          .doc(target.itemId);
+        const found = await waitFor(async () => ((await itemRef.get()).exists ? itemRef : null));
+        if (!found) {
+          logger.warn(`再生用の動画: アルバム項目が見つかりません (${filePath})`);
+          return;
+        }
+        await itemRef.update(fields);
+        logger.info(`再生用の動画を記録: ${itemRef.path}`);
+        return;
+      }
+
+      const messageTarget = target;
+      const messageRef = await waitFor(() =>
+        findMessageRef(
+          messageTarget.top as "directMessages" | "groups",
+          messageTarget.parentId,
+          messageTarget.messageId,
+        ),
+      );
+      if (!messageRef) {
+        logger.warn(`再生用の動画: メッセージが見つかりません (${filePath})`);
+        return;
+      }
+      if (target.kind === "message") {
+        await messageRef.update({
+          "fileMetadata.playbackPath": playbackPath,
+          "fileMetadata.playbackUrl": playbackUrl,
+        });
+        logger.info(`再生用の動画を記録: ${messageRef.path}`);
+        return;
+      }
+      const attachmentIndex = target.index;
+      await db.runTransaction(async (tx) => {
+        const snap = await tx.get(messageRef);
+        const attachments = (snap.get("attachments") ?? []) as Array<
+          Record<string, unknown>
+        >;
+        if (!attachments[attachmentIndex]) return;
+        attachments[attachmentIndex] = { ...attachments[attachmentIndex], ...fields };
+        const update: Record<string, unknown> = { attachments };
+        if (attachmentIndex === 0) {
+          update["fileMetadata.playbackPath"] = playbackPath;
+          update["fileMetadata.playbackUrl"] = playbackUrl;
+        }
+        tx.update(messageRef, update);
+      });
+      logger.info(`再生用の動画を記録: ${messageRef.path} [${attachmentIndex}]`);
+    } finally {
+      for (const tmp of [tmpSrc, tmpOut]) {
+        if (fs.existsSync(tmp)) fs.unlinkSync(tmp);
+      }
+    }
+  },
+);
+
+/** `ffmpeg -i <file>`の標準エラー出力（映像・音声ストリームの情報）を返す。出力先が
+ * 無い`ffmpeg -i`は常に非0で終わるので、終了コードは見ない。 */
+function ffmpegInfoOutput(file: string): Promise<string> {
+  return new Promise((resolve, reject) => {
+    if (!ffmpegPath) {
+      reject(new Error("ffmpegが見つかりません"));
+      return;
+    }
+    const child = spawn(ffmpegPath, ["-hide_banner", "-i", file]);
+    let stderr = "";
+    child.stderr.on("data", (chunk: Buffer) => {
+      stderr += chunk.toString();
+    });
+    child.on("error", reject);
+    child.on("close", () => resolve(stderr));
+  });
 }
 
 // ============================================================

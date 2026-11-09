@@ -24,6 +24,8 @@ class AlbumItem {
     this.sourceSenderId,
     this.sourceSentAt,
     this.thumbnailUrl,
+    this.playbackPath,
+    this.playbackUrl,
   });
 
   final String itemId;
@@ -60,6 +62,13 @@ class AlbumItem {
   /// クライアントからは書かない為`toJson()`には含めない。
   final String? thumbnailUrl;
 
+  /// 動画の再生用の軽い版（最大1080p・約8Mbps以下のH.264）の保存先パス（真の情報）と
+  /// URL（併記）。サーバー（`generatePlaybackVideo`）が重い動画にだけ書き込む
+  /// （2026-11-08）。無ければ元の[url]を再生する。クライアントからは書かない為
+  /// `toJson()`には含めない。
+  final String? playbackPath;
+  final String? playbackUrl;
+
   factory AlbumItem.fromJson(String itemId, Map<String, dynamic> json) {
     return AlbumItem(
       itemId: itemId,
@@ -76,6 +85,8 @@ class AlbumItem {
       sourceSenderId: json['sourceSenderId'] as String?,
       sourceSentAt: json['sourceSentAt'] as Timestamp?,
       thumbnailUrl: json['thumbnailUrl'] as String?,
+      playbackPath: json['playbackPath'] as String?,
+      playbackUrl: json['playbackUrl'] as String?,
     );
   }
 

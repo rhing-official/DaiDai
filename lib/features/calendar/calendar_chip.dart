@@ -6,6 +6,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../models/app_ui_style.dart';
 import '../../models/app_user.dart';
 import '../../providers/app_ui_style_provider.dart';
+import '../../theme/block/block_theme.dart';
+import '../../theme/gekiga/gekiga_colors.dart';
+import '../../widgets/gekiga/gekiga_panel_box.dart';
 import '../../widgets/glass/glass_avatar.dart';
 
 /// 出欠回答・日程調整回答で共通して使う、独立したピル型のチップ
@@ -49,6 +52,7 @@ class CalendarResponseGroup extends ConsumerWidget {
     required this.label,
     required this.users,
     required this.conversationId,
+    this.styledMemberChips = false,
     super.key,
   });
 
@@ -56,11 +60,14 @@ class CalendarResponseGroup extends ConsumerWidget {
   final List<AppUser> users;
   final String conversationId;
 
+  /// メンバーのチップを、劇画（ジグザグ枠の黒い箱）・版画（太枠と硬い影の箱）では
+  /// そのスタイルのデザインにする（2026-11-08、投票の詳細ダイアログで指定）。
+  /// falseなら従来どおり標準の`Chip`（予定・日程調整のダイアログ）。
+  final bool styledMemberChips;
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     if (users.isEmpty) return const SizedBox.shrink();
-    final isGlass = ref.watch(appUiStyleProvider) == AppUiStyle.glass;
-    final onSurfaceVariant = Theme.of(context).colorScheme.onSurfaceVariant;
     return Padding(
       padding: const EdgeInsets.only(bottom: 8),
       child: Column(
@@ -75,49 +82,120 @@ class CalendarResponseGroup extends ConsumerWidget {
             spacing: 8,
             runSpacing: 4,
             children: [
-              for (final user in users)
-                Chip(
-                  avatar: () {
-                    final iconUrl = user.effectiveIconFor(conversationId)?.url;
-                    return isGlass
-                        ? GlassAvatar(
-                            size: 28,
-                            image: iconUrl != null
-                                ? NetworkImage(iconUrl)
-                                : null,
-                            fallback: iconUrl != null
-                                ? null
-                                : Icon(
-                                    Icons.person,
-                                    size: 14,
-                                    color: onSurfaceVariant,
-                                  ),
-                          )
-                        : CircleAvatar(
-                            backgroundImage: iconUrl != null
-                                ? NetworkImage(iconUrl)
-                                : null,
-                            child: iconUrl == null
-                                ? const Icon(Icons.person, size: 14)
-                                : null,
-                          );
-                  }(),
-                  // 自分が指定した呼び名があれば優先する（2026-11-06）。
-                  label: Text(
-                    resolveDisplayName(
-                      alias: aliasOf(
-                        ref.watch(myContactAliasesProvider).value,
-                        user.userId,
-                      ),
-                      nickname: user.effectiveNicknameFor(conversationId)?.text,
-                      rhingSeed: user.rhingSeed,
-                    ),
-                  ),
-                ),
+              for (final user in users) _memberChip(context, ref, user),
             ],
           ),
         ],
       ),
+    );
+  }
+
+  /// 自分が指定した呼び名があれば優先する（2026-11-06）。
+  String _displayName(WidgetRef ref, AppUser user) => resolveDisplayName(
+    alias: aliasOf(ref.watch(myContactAliasesProvider).value, user.userId),
+    nickname: user.effectiveNicknameFor(conversationId)?.text,
+    rhingSeed: user.rhingSeed,
+  );
+
+  Widget _memberChip(BuildContext context, WidgetRef ref, AppUser user) {
+    final uiStyle = ref.watch(appUiStyleProvider);
+    final iconUrl = user.effectiveIconFor(conversationId)?.url;
+    final name = _displayName(ref, user);
+    final onSurfaceVariant = Theme.of(context).colorScheme.onSurfaceVariant;
+
+    if (styledMemberChips && uiStyle == AppUiStyle.gekiga) {
+      // 他の劇画のボタン・タイルと同じ、モノクロの枠の黒い箱（白文字・白縁のアイコン）。
+      return GekigaJointedTileList(
+        seeds: [user.userId.hashCode],
+        selectedFlags: const [false],
+        children: [
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    border: Border.all(color: GekigaColors.onPanel, width: 1.5),
+                  ),
+                  child: CircleAvatar(
+                    radius: 11,
+                    backgroundColor: GekigaColors.panel,
+                    backgroundImage: iconUrl != null
+                        ? NetworkImage(iconUrl)
+                        : null,
+                    child: iconUrl == null
+                        ? const Icon(
+                            Icons.person,
+                            size: 14,
+                            color: GekigaColors.onPanel,
+                          )
+                        : null,
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Text(
+                  name,
+                  style: const TextStyle(
+                    color: GekigaColors.onPanel,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      );
+    }
+
+    if (styledMemberChips && uiStyle == AppUiStyle.block) {
+      // 版画の枠付きの箱（黒の太枠＋硬い影）。影が右・下へはみ出す分の余白を足す。
+      return Padding(
+        padding: const EdgeInsets.only(right: 3, bottom: 3),
+        child: blockMaterialBox(
+          context,
+          radius: 18,
+          shadowOffset: const Offset(2, 2),
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(6, 4, 12, 4),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                CircleAvatar(
+                  radius: 12,
+                  backgroundImage: iconUrl != null
+                      ? NetworkImage(iconUrl)
+                      : null,
+                  child: iconUrl == null
+                      ? const Icon(Icons.person, size: 14)
+                      : null,
+                ),
+                const SizedBox(width: 8),
+                Text(name),
+              ],
+            ),
+          ),
+        ),
+      );
+    }
+
+    return Chip(
+      avatar: uiStyle == AppUiStyle.glass
+          ? GlassAvatar(
+              size: 28,
+              image: iconUrl != null ? NetworkImage(iconUrl) : null,
+              fallback: iconUrl != null
+                  ? null
+                  : Icon(Icons.person, size: 14, color: onSurfaceVariant),
+            )
+          : CircleAvatar(
+              backgroundImage: iconUrl != null ? NetworkImage(iconUrl) : null,
+              child: iconUrl == null
+                  ? const Icon(Icons.person, size: 14)
+                  : null,
+            ),
+      label: Text(name),
     );
   }
 }

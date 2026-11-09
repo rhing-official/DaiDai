@@ -36,6 +36,7 @@ class MediaViewerItem {
     this.fileName,
     this.bytes,
     this.thumbnailUrl,
+    this.playbackUrl,
   });
 
   final String id;
@@ -53,6 +54,10 @@ class MediaViewerItem {
   /// 動画のサムネイル画像（あれば）。「吸い込み」の開閉中、実物の動画の代わりに
   /// 縮む静止画として出す（2026-11-05）。
   final String? thumbnailUrl;
+
+  /// 動画の再生用の軽い版のURL（2026-11-08、サーバーが重い動画にだけ作る）。あれば
+  /// 再生にはこれを使い、ダウンロード・共有・外部アプリで開く時は元の[url]のまま。
+  final String? playbackUrl;
 }
 
 /// ダウンロード確認に出すファイル名。[MediaViewerItem.fileName]があればそれ、
@@ -379,7 +384,7 @@ class _MediaViewerScreenState extends ConsumerState<MediaViewerScreen> {
                         item.id,
                         GlobalKey<_VideoViewerPageState>.new,
                       ),
-                      url: item.url,
+                      url: item.playbackUrl ?? item.url,
                       thumbnailUrl: item.thumbnailUrl,
                       autoPlay: index == _safeInitialIndex,
                       chromeHidden: _chromeHidden,

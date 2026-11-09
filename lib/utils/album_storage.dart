@@ -58,6 +58,8 @@ Future<void> deleteAlbumFile(
         ? storagePath.substring(0, dot)
         : storagePath;
     await _deleteIfExists(storage, '${base}_thumb.jpg', rethrowOthers: false);
+    // 重い動画の再生用の軽い版（`<itemId>_play.mp4`、サーバーが生成、2026-11-08）も消す。
+    await _deleteIfExists(storage, '${base}_play.mp4', rethrowOthers: false);
   }
 }
 

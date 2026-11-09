@@ -26,6 +26,7 @@ import 'models/app_ui_style.dart';
 import 'providers/repository_providers.dart';
 import 'providers/kiwami_providers.dart';
 import 'providers/accent_color_provider.dart';
+import 'providers/room_list_swipe_action_provider.dart';
 import 'providers/app_locale_provider.dart';
 import 'providers/app_ui_style_provider.dart';
 import 'providers/calling_sound_provider.dart';
@@ -115,6 +116,7 @@ Future<void> main() async {
   final initialAppTextSize = await loadInitialAppTextSize();
   final initialIconSplitLayout = await loadInitialIconSplitLayout();
   final initialCategoryListVertical = await loadInitialCategoryListVertical();
+  final initialRoomListSwipeAction = await loadInitialRoomListSwipeAction();
   final initialNavChipLayout = await loadInitialNavChipLayout();
   final initialMessageTimeFormat = await loadInitialMessageTimeFormat();
   final initialCalendarWeekStart = await loadInitialCalendarWeekStart();
@@ -187,6 +189,9 @@ Future<void> main() async {
         ),
         initialCategoryListVerticalProvider.overrideWithValue(
           initialCategoryListVertical,
+        ),
+        initialRoomListSwipeActionProvider.overrideWithValue(
+          initialRoomListSwipeAction,
         ),
         initialNavChipLayoutProvider.overrideWithValue(initialNavChipLayout),
         initialMessageTimeFormatProvider.overrideWithValue(

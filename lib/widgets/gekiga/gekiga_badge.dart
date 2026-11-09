@@ -16,6 +16,7 @@ class GekigaBadgeShape extends StatelessWidget {
     this.child,
     this.seed,
     this.invert = false,
+    this.thicknessBase,
     super.key,
   });
 
@@ -27,6 +28,10 @@ class GekigaBadgeShape extends StatelessWidget {
   /// 参照）。[color]を白地に切り替える選択中表現と組み合わせて使う想定
   /// （2026-09-12追加、既定はfalseで既存の全呼び出し元の見た目は変わらない）。
   final bool invert;
+
+  /// 枠の太さの基準。省略時は箱の大きさ（従来どおり）。他の部品と枠の太さを
+  /// 揃えたい時に固定値を渡す（2026-11-09）。
+  final double? thicknessBase;
 
   @override
   Widget build(BuildContext context) {
@@ -46,7 +51,7 @@ class GekigaBadgeShape extends StatelessWidget {
               size: Size(size, size),
               painter: MonochromeBoxPainter(
                 vertices: vertices,
-                thicknessBase: size,
+                thicknessBase: thicknessBase ?? size,
                 fillColor: color,
                 seed: seed,
                 invert: invert,

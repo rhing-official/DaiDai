@@ -4308,7 +4308,8 @@ Widget? _replyPreviewThumbnail(Message target) {
       final supportsInAppPlayback =
           kIsWeb || !(Platform.isWindows || Platform.isLinux);
       return VideoThumbnail(
-        url: url,
+        // 重い動画は軽い版から先頭のコマを取る（2026-11-08）。
+        url: target.fileMetadata?.playbackUrl ?? url,
         canLoad: supportsInAppPlayback,
         size: size,
         thumbnailUrl: target.fileMetadata?.thumbnailUrl,
@@ -6946,7 +6947,7 @@ class _MessageRow extends ConsumerWidget {
                   width: side,
                   height: side,
                   child: VideoThumbnail(
-                    url: item.url,
+                    url: item.playbackUrl ?? item.url,
                     canLoad: videoPlaybackSupported,
                     size: side,
                     showPlayIcon: false,
@@ -7145,7 +7146,7 @@ class _MessageRow extends ConsumerWidget {
           child: Stack(
             children: [
               VideoThumbnail(
-                url: metadata.url,
+                url: metadata.playbackUrl ?? metadata.url,
                 canLoad: videoPlaybackSupported,
                 thumbnailUrl: metadata.thumbnailUrl,
               ),
@@ -9452,6 +9453,7 @@ List<MediaViewerItem> mediaViewerItemsOf(List<Message> mediaMessages) => [
             contentType: m.attachments[i].isVideo ? 'video' : 'image',
             fileName: m.attachments[i].fileName,
             thumbnailUrl: m.attachments[i].thumbnailUrl,
+            playbackUrl: m.attachments[i].playbackUrl,
           ),
     ] else
       MediaViewerItem(
@@ -9460,6 +9462,7 @@ List<MediaViewerItem> mediaViewerItemsOf(List<Message> mediaMessages) => [
         contentType: m.contentType,
         fileName: m.fileMetadata?.fileName,
         thumbnailUrl: m.fileMetadata?.thumbnailUrl,
+        playbackUrl: m.fileMetadata?.playbackUrl,
       ),
 ];
 

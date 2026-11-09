@@ -24,9 +24,12 @@ class GekigaTextField extends StatelessWidget {
     this.inputFormatters,
     this.textCapitalization = TextCapitalization.none,
     this.autofocus = false,
+    this.readOnly = false,
+    this.onTap,
     this.focusNode,
     this.onSubmitted,
     this.onChanged,
+    this.thicknessBase,
     super.key,
   });
 
@@ -40,19 +43,26 @@ class GekigaTextField extends StatelessWidget {
   final List<TextInputFormatter>? inputFormatters;
   final TextCapitalization textCapitalization;
   final bool autofocus;
+  final bool readOnly;
+  final VoidCallback? onTap;
   final FocusNode? focusNode;
   final ValueChanged<String>? onSubmitted;
   final ValueChanged<String>? onChanged;
+
+  /// 枠の太さの基準。省略時は箱の短辺（従来どおり）。
+  final double? thicknessBase;
 
   @override
   Widget build(BuildContext context) {
     final hintColor = GekigaColors.onPanel.withValues(alpha: 0.5);
     return CustomPaint(
-      painter: const _GekigaTextFieldPainter(),
+      painter: _GekigaTextFieldPainter(thicknessBase),
       child: TextField(
         controller: controller,
         focusNode: focusNode,
         autofocus: autofocus,
+        readOnly: readOnly,
+        onTap: onTap,
         textCapitalization: textCapitalization,
         inputFormatters: inputFormatters,
         onSubmitted: onSubmitted,
@@ -84,7 +94,8 @@ class GekigaTextField extends StatelessWidget {
 }
 
 class _GekigaTextFieldPainter extends CustomPainter {
-  const _GekigaTextFieldPainter();
+  const _GekigaTextFieldPainter(this.thicknessBase);
+  final double? thicknessBase;
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -101,11 +112,12 @@ class _GekigaTextFieldPainter extends CustomPainter {
     );
     MonochromeBoxPainter(
       vertices: vertices,
-      thicknessBase: size.shortestSide,
+      thicknessBase: thicknessBase ?? size.shortestSide,
       fillColor: GekigaColors.panel,
     ).paint(canvas, size);
   }
 
   @override
-  bool shouldRepaint(covariant _GekigaTextFieldPainter oldDelegate) => false;
+  bool shouldRepaint(covariant _GekigaTextFieldPainter oldDelegate) =>
+      oldDelegate.thicknessBase != thicknessBase;
 }

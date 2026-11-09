@@ -14,11 +14,13 @@ import 'package:flutter/foundation.dart'
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import '../../theme/block/block_theme.dart';
+import 'talks_header_metrics.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../l10n/strings.dart';
 import '../../l10n/vocabulary.dart';
 import '../../models/app_ui_style.dart';
+import '../../models/room_list_swipe_action.dart';
 import '../../models/app_user.dart';
 import '../../models/conversation_prefs.dart';
 import '../../models/conversation_sort_order.dart';
@@ -50,6 +52,7 @@ import '../../providers/group_join_request_providers.dart';
 import '../../providers/last_opened_room_provider.dart';
 import '../../providers/message_time_format_provider.dart';
 import '../../providers/repository_providers.dart';
+import '../../providers/room_list_swipe_action_provider.dart';
 import '../../providers/talks_list_layout_style_provider.dart';
 import '../../providers/user_providers.dart';
 import '../../router/app_router.dart';
@@ -421,6 +424,55 @@ class TalksTab extends ConsumerStatefulWidget {
   ConsumerState<TalksTab> createState() => _TalksTabState();
 }
 
+/// 長く伸ばした検索欄の分だけ、寄合一覧の項目・区切り線の上を空ける量
+/// （2026-11-09）。検索欄が長くなる横画面の間だけ0より大きく、最初の
+/// フレームから固定の値を渡す（後から滑り落ちないように、アニメーション
+/// はしない）。
+/// 寄合一覧のヘッダー領域の高さは、トグルの高さ`H`から決める（2026-11-09）。
+/// 帯（上余白8＋`H`）の下に8の余白を取る＝`H`+16。
+double _roomHeaderZoneFor(double controlHeight) => controlHeight + 16;
+
+/// 語らい一覧の項目の上端（検索欄の下端から 8＋`H`＋12＋一覧の上余白12＝`H`+32）に、
+/// 寄合一覧の項目の上端（ヘッダー領域＋区切り線1＋この余白）を合わせる余白。
+/// `H`+32 = (`H`+16) + 1 + 15。
+const double _kRoomListTopPadding = 15;
+
+class _SearchInsetScope extends InheritedWidget {
+  const _SearchInsetScope({
+    required this.inset,
+    required this.roomHeaderZone,
+    required super.child,
+  });
+  final double inset;
+
+  /// 寄合一覧のヘッダー領域の固定高。検索欄を長くしていない間はnull。
+  /// [_roomHeaderZoneFor]参照。
+  final double? roomHeaderZone;
+
+  static double? headerZoneOf(BuildContext context) => context
+      .dependOnInheritedWidgetOfExactType<_SearchInsetScope>()
+      ?.roomHeaderZone;
+
+  static double of(BuildContext context) =>
+      context.dependOnInheritedWidgetOfExactType<_SearchInsetScope>()?.inset ??
+      0;
+
+  @override
+  bool updateShouldNotify(_SearchInsetScope old) =>
+      inset != old.inset || roomHeaderZone != old.roomHeaderZone;
+}
+
+class _SearchInsetPad extends StatelessWidget {
+  const _SearchInsetPad({required this.child});
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) => Padding(
+    padding: EdgeInsets.only(top: _SearchInsetScope.of(context)),
+    child: child,
+  );
+}
+
 class _TalksTabState extends ConsumerState<TalksTab>
     with TickerProviderStateMixin {
   _TalksCategory _category = _TalksCategory.dm;
@@ -672,6 +724,15 @@ class _TalksTabState extends ConsumerState<TalksTab>
 
   /// 一対・広場を横断して検索する為の入力欄（2026-08-30追加）。
   final _searchController = TextEditingController();
+  final _searchOverlay = OverlayPortalController();
+  final _searchLink = LayerLink();
+  final _searchBoxKey = GlobalKey();
+
+  /// 長い検索欄の高さ。最初のフレームから位置を固定する為、測定前は標準値。
+  double _searchFieldHeight = 56;
+
+  /// 検索欄の下端。寄合一覧の項目・区切り線は、ここから下に置く。
+  double get _searchInset => _searchWide ? 12 + _searchFieldHeight : 0;
 
   /// メッセージ内容検索のセッション（2026-09-12追加、検索欄を開いている間の
   /// 取得済みメッセージのメモ化キャッシュを持つ）。`_buildSearchResults`と
@@ -1519,8 +1580,20 @@ class _TalksTabState extends ConsumerState<TalksTab>
                     // 指定済みだったため同じ問題は起きていなかった）。
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
+                      // 一対/広場切り替えタブの上に検索欄を置く（2026-08-30追加、
+                      // 2026-11-09にタブの上へ移動）。検索中は下のExpandedの中身が
+                      // カテゴリ別スワイプ表示から検索結果一覧に切り替わる。
+                      // 並べ替え・＋ボタンはタブの右隣に置く。
                       Padding(
                         padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+                        child: Row(
+                          children: [
+                            Expanded(child: _buildPopSearchField(strings)),
+                          ],
+                        ),
+                      ),
+                      Padding(
+                        padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
                         child: Row(
                           children: [
                             // 言語によってはラベルが長くなる（例: 英語の
@@ -1599,54 +1672,24 @@ class _TalksTabState extends ConsumerState<TalksTab>
                                     ),
                             ),
                             const SizedBox(width: 8),
+                            _buildSortButton(
+                              strings,
+                              size: talksControlHeight(
+                                context,
+                                ref.watch(appUiStyleProvider),
+                              ),
+                            ),
+                            const SizedBox(width: 8),
                             TutorialTarget(
                               id: TutorialTargetIds.talkAdd,
                               child: PickZone(
                                 onCommit: _showAddMenu,
-                                child: switch (ref.watch(appUiStyleProvider)) {
-                                  AppUiStyle.gekiga => GekigaIconButton(
-                                    icon: Icons.add,
-                                    size: 32,
-                                    onPressed: _showAddMenu,
-                                  ),
-                                  AppUiStyle.glass => GlassIconButton(
-                                    icon: Icons.add,
-                                    size: 32,
-                                    // アクセントを抜き、縁の光彩を中立色にする。
-                                    accentColorOverride: Theme.of(
-                                      context,
-                                    ).colorScheme.onSurfaceVariant,
-                                    onPressed: _showAddMenu,
-                                  ),
-                                  AppUiStyle.block => blockIconButton(
-                                    context,
-                                    icon: Icons.add,
-                                    size: 32,
-                                    onPressed: _showAddMenu,
-                                  ),
-                                  AppUiStyle.flat => flatCircleIconButton(
-                                    context,
-                                    icon: Icons.add,
-                                    size: 32,
-                                    onPressed: _showAddMenu,
-                                  ),
-                                },
+                                child: TalksControlButton(
+                                  icon: Icons.add,
+                                  onPressed: _showAddMenu,
+                                ),
                               ),
                             ),
-                          ],
-                        ),
-                      ),
-                      // 一対/広場切り替えタブの真下に検索欄を置く（2026-08-30
-                      // 追加）。検索中は下のExpandedの中身がカテゴリ別スワイプ
-                      // 表示から検索結果一覧に切り替わる。並べ替えボタンは
-                      // 検索欄の右隣に置く（2026-09-02追加）。
-                      Padding(
-                        padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
-                        child: Row(
-                          children: [
-                            Expanded(child: _buildSearchField(strings)),
-                            const SizedBox(width: 8),
-                            _buildSortButton(strings),
                           ],
                         ),
                       ),
@@ -1736,7 +1779,18 @@ class _TalksTabState extends ConsumerState<TalksTab>
                   final detailPane = SwipeBackDetector(
                     onBack: () => setState(() => _chatExpanded = false),
                     onNext: () => setState(() => _chatExpanded = true),
-                    child: _buildDetailPane(directMessages, groups),
+                    child: _SearchInsetScope(
+                      inset: _searchInset,
+                      roomHeaderZone: _searchWide
+                          ? _roomHeaderZoneFor(
+                              talksControlHeight(
+                                context,
+                                ref.watch(appUiStyleProvider),
+                              ),
+                            )
+                          : null,
+                      child: _buildDetailPane(directMessages, groups),
+                    ),
                   );
 
                   if (_chatExpanded) return detailPane;
@@ -1773,18 +1827,22 @@ class _TalksTabState extends ConsumerState<TalksTab>
                       // 不具合が発生したため260へ広げ（250へ微調整後、再度260へ
                       // 戻した）、3画面とも同じ値で揃える。
                       SizedBox(width: computerListWidth, child: listPane),
-                      SplitDivider(
-                        width: computerListWidth,
-                        mirrored: false,
-                        onChanged: (w) => ref
-                            .read(iconSplitLayoutProvider.notifier)
-                            .setComputerList(w),
-                        onDragEnd: () => ref
-                            .read(iconSplitLayoutProvider.notifier)
-                            .persist(),
-                        onReset: () => ref
-                            .read(iconSplitLayoutProvider.notifier)
-                            .resetComputerList(),
+                      // 検索欄の下で区切り線を切る（検索欄の分は線を引かない）。
+                      Padding(
+                        padding: EdgeInsets.only(top: _searchInset),
+                        child: SplitDivider(
+                          width: computerListWidth,
+                          mirrored: false,
+                          onChanged: (w) => ref
+                              .read(iconSplitLayoutProvider.notifier)
+                              .setComputerList(w),
+                          onDragEnd: () => ref
+                              .read(iconSplitLayoutProvider.notifier)
+                              .persist(),
+                          onReset: () => ref
+                              .read(iconSplitLayoutProvider.notifier)
+                              .resetComputerList(),
+                        ),
                       ),
                       Expanded(child: detailPane),
                     ],
@@ -2671,7 +2729,7 @@ class _TalksTabState extends ConsumerState<TalksTab>
   /// 語らい一覧の並べ替え順を選ぶボタン（検索欄の右隣、2026-09-02追加）。
   /// ピン留めは並べ替え順に関わらず常に最優先で表示され、この設定は
   /// ピン留め内・ピン留め外それぞれの並び順のみを決める。
-  Widget _buildSortButton(Strings strings) {
+  Widget _buildSortButton(Strings strings, {double? size}) {
     final current = ref.watch(conversationSortOrderProvider);
     // メニューチップから滑らせてきた指を離した時は、並べ替えメニューを開く
     // （2026-11-03、`PickZone`）。
@@ -2683,6 +2741,7 @@ class _TalksTabState extends ConsumerState<TalksTab>
         current: current,
         isGekiga: ref.watch(appUiStyleProvider) == AppUiStyle.gekiga,
         isGlass: ref.watch(appUiStyleProvider) == AppUiStyle.glass,
+        size: size,
         labelOf: (order) => _sortOrderLabel(strings, order),
         onSelected: (order) =>
             ref.read(conversationSortOrderProvider.notifier).setOrder(order),
@@ -2703,7 +2762,94 @@ class _TalksTabState extends ConsumerState<TalksTab>
     }
   }
 
-  Widget _buildSearchField(Strings strings) {
+  /// 横画面で寄合一覧サイドバーがある語らいを選んでいる時だけ、検索欄を
+  /// 標準560px（打った文字が収まらなければ、その分だけ右へ）の長さにして、
+  /// 寄合一覧の上まで伸ばす（2026-11-09）。伸びた部分は寄合一覧に被らないよう、
+  /// 寄合一覧の項目を検索欄の高さぶん下げる（[talksSearchInset]）。寄合
+  /// サイドバーが無い語らい・縦画面では、従来通りサイドバー幅の検索欄のまま。
+  /// 伸びた検索欄は`OverlayPortal`で描き、元の位置には同じ高さの透明な
+  /// 置き物を残して一覧の配置を保つ。
+  bool get _searchWide {
+    if (!_isSplit) return false;
+    return _category == _TalksCategory.dm
+        ? (_selectedDm?.roomsEnabled ?? false)
+        : (_selectedGroup?.roomsEnabled ?? false);
+  }
+
+  Widget _buildPopSearchField(Strings strings) {
+    final wide = _searchWide;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      if (wide) {
+        if (!_searchOverlay.isShowing) _searchOverlay.show();
+        final box = _searchBoxKey.currentContext?.findRenderObject();
+        if (box is RenderBox &&
+            box.hasSize &&
+            (box.size.height - _searchFieldHeight).abs() > 0.5) {
+          // 検索欄の実際の高さ（UIスタイルで違う）を一度だけ測り直す。
+          setState(() => _searchFieldHeight = box.size.height);
+        }
+      } else if (_searchOverlay.isShowing) {
+        _searchOverlay.hide();
+      }
+    });
+    if (!wide) return _buildSearchField(strings);
+    return CompositedTransformTarget(
+      key: _searchBoxKey,
+      link: _searchLink,
+      child: OverlayPortal(
+        controller: _searchOverlay,
+        overlayChildBuilder: (context) {
+          final media = MediaQuery.of(context);
+          final box = _searchBoxKey.currentContext?.findRenderObject();
+          final left = box is RenderBox && box.attached
+              ? box.localToGlobal(Offset.zero).dx
+              : 16.0;
+          final avail = (media.size.width - left - 16).clamp(200.0, 4000.0);
+          // 打った文字が収まらない時は、その分だけ右へ伸ばす。幅の内訳は
+          // 虫眼鏡・×・左右の余白ぶんの余裕を足した値。
+          final painter = TextPainter(
+            text: TextSpan(
+              text: _searchController.text,
+              style: Theme.of(context).textTheme.bodyLarge,
+            ),
+            textDirection: TextDirection.ltr,
+            maxLines: 1,
+          )..layout();
+          final width = math
+              .max(560.0, painter.width + 140)
+              .clamp(200.0, avail);
+          return CompositedTransformFollower(
+            link: _searchLink,
+            showWhenUnlinked: false,
+            child: Align(
+              alignment: Alignment.topLeft,
+              child: SizedBox(
+                width: width.toDouble(),
+                child: Material(
+                  type: MaterialType.transparency,
+                  child: _buildSearchField(strings),
+                ),
+              ),
+            ),
+          );
+        },
+        // 置き物: 高さを保つだけで、見えず、押せない。
+        child: Opacity(
+          opacity: 0,
+          child: IgnorePointer(child: _buildSearchField(strings)),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildSearchField(
+    Strings strings, {
+    bool autofocus = false,
+    VoidCallback? onSubmitted,
+    VoidCallback? onTapOpen,
+    FocusNode? focusNode,
+  }) {
     final uiStyle = ref.watch(appUiStyleProvider);
     final hasQuery = _searchController.text.isNotEmpty;
     Widget? clearButton(Color? color) {
@@ -2723,10 +2869,16 @@ class _TalksTabState extends ConsumerState<TalksTab>
       case AppUiStyle.gekiga:
         return GekigaTextField(
           controller: _searchController,
+          thicknessBase: kGekigaBoxThicknessBase,
+          autofocus: autofocus,
+          focusNode: focusNode,
+          readOnly: onTapOpen != null,
+          onTap: onTapOpen,
           hintText: strings.talksSearchHint,
           prefixIcon: const Icon(Icons.search, color: GekigaColors.onPanel),
           suffixIcon: clearButton(GekigaColors.onPanel),
           onChanged: (_) => _onSearchTextChanged(),
+          onSubmitted: onSubmitted == null ? null : (_) => onSubmitted(),
         );
       case AppUiStyle.glass:
         // ガラスUIのすりガラス外枠（GlassSurface）の中に、枠・塗り無しの
@@ -2736,6 +2888,10 @@ class _TalksTabState extends ConsumerState<TalksTab>
           borderRadius: BorderRadius.circular(24),
           child: TextField(
             controller: _searchController,
+            autofocus: autofocus,
+            focusNode: focusNode,
+            readOnly: onTapOpen != null,
+            onTap: onTapOpen,
             decoration: InputDecoration(
               filled: false,
               border: InputBorder.none,
@@ -2744,6 +2900,7 @@ class _TalksTabState extends ConsumerState<TalksTab>
               suffixIcon: clearButton(null),
             ),
             onChanged: (_) => _onSearchTextChanged(),
+            onSubmitted: onSubmitted == null ? null : (_) => onSubmitted(),
           ),
         );
       case AppUiStyle.block:
@@ -2757,6 +2914,10 @@ class _TalksTabState extends ConsumerState<TalksTab>
                 : Theme.of(context).colorScheme.surface,
             child: TextField(
               controller: _searchController,
+              autofocus: autofocus,
+              focusNode: focusNode,
+              readOnly: onTapOpen != null,
+              onTap: onTapOpen,
               decoration: InputDecoration(
                 filled: false,
                 border: InputBorder.none,
@@ -2767,6 +2928,7 @@ class _TalksTabState extends ConsumerState<TalksTab>
                 suffixIcon: clearButton(null),
               ),
               onChanged: (_) => _onSearchTextChanged(),
+              onSubmitted: onSubmitted == null ? null : (_) => onSubmitted(),
             ),
           ),
         );
@@ -2780,6 +2942,10 @@ class _TalksTabState extends ConsumerState<TalksTab>
           ),
           child: TextField(
             controller: _searchController,
+            autofocus: autofocus,
+            focusNode: focusNode,
+            readOnly: onTapOpen != null,
+            onTap: onTapOpen,
             decoration: InputDecoration(
               filled: false,
               border: InputBorder.none,
@@ -2788,6 +2954,7 @@ class _TalksTabState extends ConsumerState<TalksTab>
               suffixIcon: clearButton(null),
             ),
             onChanged: (_) => _onSearchTextChanged(),
+            onSubmitted: onSubmitted == null ? null : (_) => onSubmitted(),
           ),
         );
     }
@@ -4939,6 +5106,11 @@ class _SwipeToOpenRoomPreviewState
 
   double _cumulativeDx = 0;
 
+  /// 設定「寄合一覧の横スワイプ」がタブの切り替えか（2026-11-08）。この間は左右どちらの
+  /// スワイプも隣のタブへの切り替えにし、メッセージ画面はスワイプでは開かない。
+  bool get _switchTabMode =>
+      ref.read(roomListSwipeActionProvider) == RoomListSwipeAction.switchTab;
+
   /// このドラッグを、メニューチップの隣のタブへの切り替えとして使っている（2026-11-03）。
   /// 左へ引けば寄合を開き、先に右へ引いた時は離すまでタブの切り替えになる。
   bool _tabDragging = false;
@@ -5076,7 +5248,9 @@ class _SwipeToOpenRoomPreviewState
     return GestureDetector(
       behavior: HitTestBehavior.translucent,
       onHorizontalDragDown: (_) {
-        _warm.value = true;
+        // 横スワイプをタブの切り替えに割り当てている間は、メッセージ画面を開く準備
+        // （プレビューの先行マウント）はしない（2026-11-08）。
+        if (!_switchTabMode) _warm.value = true;
       },
       onHorizontalDragCancel: () {
         if (_tabDragging) {
@@ -5097,7 +5271,8 @@ class _SwipeToOpenRoomPreviewState
       },
       onHorizontalDragUpdate: (details) {
         // 開く向き（左）へ動く前に右へ引いたら、隣のタブへの切り替えにする。
-        if (_tabDragging ||
+        if (_switchTabMode ||
+            _tabDragging ||
             (!_controller.isGestureActive &&
                 _cumulativeDx <= 0 &&
                 details.delta.dx > 0)) {
@@ -5560,6 +5735,10 @@ class _DmDetailWithRoomsState extends ConsumerState<_DmDetailWithRooms> {
         }
 
         final rawRoomListPane = RoomListPane(
+          headerZoneHeight: _SearchInsetScope.headerZoneOf(context),
+          listTopPadding: _SearchInsetScope.headerZoneOf(context) == null
+              ? 12
+              : _kRoomListTopPadding,
           conversationName: conversationName,
           rooms: [
             for (final r in _orderedRooms(rooms, dm.roomOrder, (r) => r.roomId))
@@ -5601,7 +5780,10 @@ class _DmDetailWithRoomsState extends ConsumerState<_DmDetailWithRooms> {
             isGlass: isGlass,
           ),
         );
-        final roomListPane = scaledSplitPane(splitScale, rawRoomListPane);
+        final roomListPane = scaledSplitPane(
+          splitScale,
+          _SearchInsetPad(child: rawRoomListPane),
+        );
 
         if (widget.roomListOnly) {
           // 単一モードの会話はここに辿り着く前（アイコンタップ時点）で
@@ -5918,6 +6100,10 @@ class _GroupDetailWithRoomsState extends ConsumerState<_GroupDetailWithRooms> {
         }
 
         final rawRoomListPane = RoomListPane(
+          headerZoneHeight: _SearchInsetScope.headerZoneOf(context),
+          listTopPadding: _SearchInsetScope.headerZoneOf(context) == null
+              ? 12
+              : _kRoomListTopPadding,
           conversationName: group.name,
           rooms: [
             for (final r in _orderedRooms(
@@ -5973,7 +6159,10 @@ class _GroupDetailWithRoomsState extends ConsumerState<_GroupDetailWithRooms> {
             isGlass: isGlass,
           ),
         );
-        final roomListPane = scaledSplitPane(splitScale, rawRoomListPane);
+        final roomListPane = scaledSplitPane(
+          splitScale,
+          _SearchInsetPad(child: rawRoomListPane),
+        );
 
         if (widget.roomListOnly) {
           // 単一モードの会話はここに辿り着く前（アイコンタップ時点）で
@@ -6090,6 +6279,7 @@ class _HoldSelectSortButton extends StatefulWidget {
     required this.current,
     required this.isGekiga,
     this.isGlass = false,
+    this.size,
     required this.labelOf,
     required this.onSelected,
   });
@@ -6101,6 +6291,10 @@ class _HoldSelectSortButton extends StatefulWidget {
 
   /// 劇画UIでは、ボタンをモノクロの箱のバッジにし、メニューも黒地・白文字にする。
   final bool isGekiga;
+
+  /// 見出しの行では、トグルと同じ高さ（[talksControlHeight]）で、余白無しで描く。
+  /// nullなら従来の40（アイコンレールの縦並び）。
+  final double? size;
   final String Function(ConversationSortOrder order) labelOf;
   final ValueChanged<ConversationSortOrder> onSelected;
 
@@ -6258,35 +6452,72 @@ class _HoldSelectSortButtonState extends State<_HoldSelectSortButton> {
         if (order != null) Navigator.of(context).pop(order);
       },
       // クリックした時の半透明の円（スプラッシュ・ハイライト・ホバー）は出さない。
-      child: widget.isGekiga
-          ? const Padding(
-              padding: EdgeInsets.all(4),
-              child: GekigaIconBadge(icon: Icons.sort, size: 40),
-            )
-          : isBlockTheme(context)
-          ? blockIconButton(context, icon: Icons.sort, size: 40)
-          : widget.isGlass
-          ? Padding(
-              padding: const EdgeInsets.all(4),
-              child: GlassIconButton(
-                icon: Icons.sort,
-                size: 40,
-                accentColorOverride: Theme.of(
-                  context,
-                ).colorScheme.onSurfaceVariant,
-                onPressed: _noop,
-              ),
-            )
-          : Padding(
-              padding: const EdgeInsets.all(4),
-              child: flatCircleIconButton(
-                context,
-                icon: Icons.sort,
-                size: 40,
-                onPressed: _noop,
-              ),
-            ),
+      child: widget.size != null
+          ? _headerButton(context)
+          : _railButton(context),
     );
+  }
+
+  /// 見出しの行（トグルと同じ高さ、余白無し）。
+  Widget _headerButton(BuildContext context) {
+    final size = widget.size!;
+    if (widget.isGekiga) {
+      return GekigaIconBadge(
+        icon: Icons.sort,
+        size: size,
+        thicknessBase: kGekigaBoxThicknessBase,
+        seed: gekigaToolbarIconSeed,
+      );
+    }
+    if (isBlockTheme(context)) {
+      return blockHeaderButton(context, icon: Icons.sort, size: size);
+    }
+    if (widget.isGlass) {
+      return GlassIconButton(
+        icon: Icons.sort,
+        size: size,
+        accentColorOverride: Theme.of(context).colorScheme.onSurfaceVariant,
+        onPressed: _noop,
+      );
+    }
+    return flatCircleIconButton(
+      context,
+      icon: Icons.sort,
+      size: size,
+      onPressed: _noop,
+    );
+  }
+
+  /// アイコンレール（縦並び、40px、周りに余白4）。
+  Widget _railButton(BuildContext context) {
+    return widget.isGekiga
+        ? const Padding(
+            padding: EdgeInsets.all(4),
+            child: GekigaIconBadge(icon: Icons.sort, size: 40),
+          )
+        : isBlockTheme(context)
+        ? blockIconButton(context, icon: Icons.sort, size: 40)
+        : widget.isGlass
+        ? Padding(
+            padding: const EdgeInsets.all(4),
+            child: GlassIconButton(
+              icon: Icons.sort,
+              size: 40,
+              accentColorOverride: Theme.of(
+                context,
+              ).colorScheme.onSurfaceVariant,
+              onPressed: _noop,
+            ),
+          )
+        : Padding(
+            padding: const EdgeInsets.all(4),
+            child: flatCircleIconButton(
+              context,
+              icon: Icons.sort,
+              size: 40,
+              onPressed: _noop,
+            ),
+          );
   }
 
   static void _noop() {}
@@ -6319,30 +6550,4 @@ class BlockTalkTileWrap extends StatelessWidget {
       ),
     );
   }
-}
-
-/// フラットUIの丸いアイコンボタン。検索欄と同じ不透明の面（`surfaceContainerHigh`）で塗り、
-/// 枠線・影・アクセントは使わない。ガラスの[GlassIconButton]に対応する形。
-Widget flatCircleIconButton(
-  BuildContext context, {
-  required IconData icon,
-  required double size,
-  required VoidCallback onPressed,
-}) {
-  final scheme = Theme.of(context).colorScheme;
-  return SizedBox(
-    width: size,
-    height: size,
-    child: Material(
-      color: scheme.surfaceContainerHigh,
-      shape: const CircleBorder(),
-      clipBehavior: Clip.antiAlias,
-      child: InkResponse(
-        onTap: onPressed,
-        child: Center(
-          child: Icon(icon, size: size * 0.6, color: scheme.onSurface),
-        ),
-      ),
-    ),
-  );
 }

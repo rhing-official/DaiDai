@@ -162,6 +162,7 @@ class PollOptionsList extends StatelessWidget {
               label: strings.calendarRsvpStatusNoResponse,
               users: noResponse,
               conversationId: conversationId,
+              styledMemberChips: true,
             ),
           ],
           if (responses != null && participants != null)
@@ -174,6 +175,7 @@ class PollOptionsList extends StatelessWidget {
                       ?participants.usersById[r.userId],
                 ],
                 conversationId: conversationId,
+                styledMemberChips: true,
               ),
         ],
       );

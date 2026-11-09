@@ -19,6 +19,7 @@ import '../../widgets/destructive_label.dart';
 import '../../widgets/glass/glass_dialog.dart';
 import 'poll_option_media_picker.dart';
 import 'poll_options_list.dart';
+import 'poll_vote_button.dart';
 import '../../widgets/dialog_keyboard_shortcuts.dart';
 import '../../widgets/app_dialog.dart';
 
@@ -411,15 +412,15 @@ class _PollDetailDialogState extends ConsumerState<_PollDetailDialog> {
             stream: _myResponseStream,
             builder: (context, responseSnapshot) {
               final hasVoted = responseSnapshot.data != null;
-              return FilledButton(
+              return PollVoteButton(
+                isGekiga: ref.watch(appUiStyleProvider) == AppUiStyle.gekiga,
+                foreground: Theme.of(context).colorScheme.onSurface,
                 onPressed: (_saving || closed || _selectedKeys.isEmpty)
                     ? null
                     : _vote,
-                child: Text(
-                  hasVoted
-                      ? strings.pollChangeVoteButton
-                      : strings.pollVoteButton,
-                ),
+                label: hasVoted
+                    ? strings.pollChangeVoteButton
+                    : strings.pollVoteButton,
               );
             },
           ),

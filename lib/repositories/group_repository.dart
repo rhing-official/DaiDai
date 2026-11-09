@@ -15,6 +15,7 @@ import '../models/group_join_request.dart';
 import '../models/group_profile_card.dart';
 import '../models/group_role.dart';
 import '../models/message.dart';
+import '../utils/last_message_update.dart';
 import '../models/message_cursor.dart';
 import '../utils/attachment_upload.dart';
 import '../utils/image_format.dart';
@@ -1354,6 +1355,36 @@ class FirestoreGroupRepository implements GroupRepository {
     final quoting2 = await messagesRef
         .where('replyTo2MessageId', isEqualTo: messageId)
         .get();
+    // 取り消すのが最終メッセージなら、削除後に語らい一覧のプレビューも直す。
+    final targetDoc = await messagesRef.doc(messageId).get();
+    final groupDoc = await _groups.doc(groupId).get();
+    Map<String, Object?>? lastFix;
+    if (targetDoc.exists && groupDoc.exists) {
+      final target = Message.fromJson(targetDoc.id, targetDoc.data()!);
+      final groupData = groupDoc.data()!;
+      if (LastMessageUpdate.isLast(
+        target: target,
+        conversationLastAt: groupData['lastMessageAt'] as Timestamp?,
+        conversationLastSenderId: groupData['lastMessageSenderId'] as String?,
+      )) {
+        final rooms = await _groups.doc(groupId).collection('rooms').get();
+        final candidates = <Message>[];
+        for (final room in rooms.docs) {
+          final recent = await room.reference
+              .collection('messages')
+              .orderBy('sentAt', descending: true)
+              .limit(2)
+              .get();
+          for (final doc in recent.docs) {
+            if (room.id == roomId && doc.id == messageId) continue;
+            candidates.add(Message.fromJson(doc.id, doc.data()));
+          }
+        }
+        lastFix = LastMessageUpdate.fieldsFor(
+          LastMessageUpdate.newest(candidates),
+        );
+      }
+    }
 
     // 1件のメッセージへの引用返信が499件を超えることは現実的に想定しない
     // ため、500件のバッチ上限に収まる範囲でまとめて処理する
@@ -1382,6 +1413,7 @@ class FirestoreGroupRepository implements GroupRepository {
     batch.update(_roomRef(groupId, roomId), {
       'pinnedMessageIds': FieldValue.arrayRemove([messageId]),
     });
+    if (lastFix != null) batch.update(_groups.doc(groupId), lastFix);
     await batch.commit();
   }
 

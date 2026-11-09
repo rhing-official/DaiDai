@@ -9,7 +9,12 @@ import '../../providers/app_ui_style_provider.dart';
 import '../../providers/repository_providers.dart';
 import '../../utils/auto_dismiss_banner.dart';
 import '../../utils/poll_embed.dart';
+import '../../widgets/media_viewer_screen.dart';
+import '../../widgets/video_thumbnail.dart';
+import '../../theme/gekiga/gekiga_colors.dart';
 import '../../widgets/toggles/app_checkbox.dart';
+import '../../widgets/toggles/app_radio.dart';
+import 'poll_vote_button.dart';
 
 /// 直近に受け取った投票・自分の回答の写し（メモリのみ、2026-11-08）。語らいを
 /// 開き直した時、購読の初回の値が届くまで通知カード（背が高い）を出してから埋め込み
@@ -227,18 +232,16 @@ class _PollMessageCardState extends ConsumerState<PollMessageCard> {
                               ),
                             ),
                           ),
-                          _voteButton(
+                          PollVoteButton(
                             isGekiga: isGekiga,
                             foreground: foreground,
                             onPressed:
                                 (_saving || closed || _selectedKeys.isEmpty)
                                 ? null
                                 : _vote,
-                            child: Text(
-                              myResponse != null
-                                  ? strings.pollChangeVoteButton
-                                  : strings.pollVoteButton,
-                            ),
+                            label: myResponse != null
+                                ? strings.pollChangeVoteButton
+                                : strings.pollVoteButton,
                           ),
                         ],
                       ),
@@ -270,17 +273,24 @@ class _PollMessageCardState extends ConsumerState<PollMessageCard> {
   }) {
     final selected = _selectedKeys.contains(key);
     final radius = BorderRadius.circular(10);
+    // 劇画の吹き出しは単色（黒地か白地）なので、選択の印はこの単色に合わせて描く
+    // （2026-11-08、以前は標準の`Radio`で、劇画では選んでも変化が見えなかった）。
+    // チェックボックスの地の色は、文字色の反対。
+    final gekigaBackground = foreground == GekigaColors.panel
+        ? GekigaColors.onPanel
+        : GekigaColors.panel;
     final Widget marker = IgnorePointer(
       child: poll.allowMultipleChoices
-          ? AppCheckbox(value: selected, onChanged: interactive ? (_) {} : null)
-          : RadioGroup<String>(
-              groupValue: _selectedKeys.isEmpty ? null : _selectedKeys.first,
-              onChanged: (_) {},
-              child: Radio<String>(
-                value: key,
-                visualDensity: VisualDensity.compact,
-                materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-              ),
+          ? AppCheckbox(
+              value: selected,
+              onChanged: interactive ? (_) {} : null,
+              foreground: isGekiga ? foreground : null,
+              background: isGekiga ? gekigaBackground : null,
+            )
+          : AppRadioMark(
+              selected: selected,
+              enabled: interactive,
+              color: isGekiga ? foreground : null,
             ),
     );
     return Padding(
@@ -300,6 +310,12 @@ class _PollMessageCardState extends ConsumerState<PollMessageCard> {
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
             child: Row(
               children: [
+                // 画像・動画付きの選択肢は、左にサムネイルを出す。タップで拡大表示
+                // （ダイアログと同じ`openMediaViewer`で、メディア付きの選択肢を巡れる）。
+                if (poll.options[key]?.mediaUrl != null) ...[
+                  _mediaThumbnail(poll, key),
+                  const SizedBox(width: 10),
+                ],
                 Expanded(
                   child: Text(
                     poll.options[key]?.text ?? '',
@@ -323,22 +339,43 @@ class _PollMessageCardState extends ConsumerState<PollMessageCard> {
     );
   }
 
-  Widget _voteButton({
-    required bool isGekiga,
-    required Color foreground,
-    required VoidCallback? onPressed,
-    required Widget child,
-  }) {
-    if (isGekiga) {
-      return OutlinedButton(
-        onPressed: onPressed,
-        style: OutlinedButton.styleFrom(
-          foregroundColor: foreground,
-          side: BorderSide(color: foreground),
-        ),
-        child: child,
-      );
-    }
-    return FilledButton(onPressed: onPressed, child: child);
+  /// 選択肢の画像・動画のサムネイル（2026-11-08）。タップで拡大表示。
+  Widget _mediaThumbnail(Poll poll, String key) {
+    final option = poll.options[key]!;
+    final mediaKeys = [
+      for (final k in poll.orderedOptionKeys)
+        if (poll.options[k]?.mediaUrl != null) k,
+    ];
+    return GestureDetector(
+      onTap: () => openMediaViewer(
+        context,
+        items: [
+          for (final k in mediaKeys)
+            MediaViewerItem(
+              id: k,
+              url: poll.options[k]!.mediaUrl!,
+              contentType: poll.options[k]!.hasVideo ? 'video' : 'image',
+            ),
+        ],
+        initialIndex: mediaKeys.indexOf(key),
+      ),
+      child: option.hasVideo
+          ? VideoThumbnail(
+              url: option.mediaUrl!,
+              canLoad: videoPlaybackSupported,
+              size: 48,
+            )
+          : ClipRRect(
+              borderRadius: BorderRadius.circular(8),
+              child: Image.network(
+                option.mediaUrl!,
+                width: 48,
+                height: 48,
+                fit: BoxFit.cover,
+                errorBuilder: (_, _, _) =>
+                    const SizedBox(width: 48, height: 48),
+              ),
+            ),
+    );
   }
 }

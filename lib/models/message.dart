@@ -31,6 +31,8 @@ class MessageFileMetadata {
     required this.mimeType,
     this.compressionType,
     this.thumbnailUrl,
+    this.playbackPath,
+    this.playbackUrl,
   });
 
   /// Firebase StorageのダウンロードURL。
@@ -53,6 +55,14 @@ class MessageFileMetadata {
   /// 間・画像・ファイルはnull。
   final String? thumbnailUrl;
 
+  /// 動画のみ。重い動画（高ビットレート・4Kなど）の再生用の軽い版（最大1080p・約8Mbps以下の
+  /// H.264）の保存先パス（真の情報）とそのダウンロードURL（併記）。サーバー
+  /// （Cloud Functions `generatePlaybackVideo`）が送信後に作って書き込む（2026-11-08）。
+  /// まだ無い間・軽い動画・それ以前の動画はnull（元の[url]を再生する）。ビューアの再生にだけ
+  /// 使い、ダウンロード・共有・転送は元の[url]のまま。クライアントからは書かない。
+  final String? playbackPath;
+  final String? playbackUrl;
+
   factory MessageFileMetadata.fromJson(Map<String, dynamic> json) {
     return MessageFileMetadata(
       url: json['url'] as String,
@@ -62,6 +72,8 @@ class MessageFileMetadata {
       mimeType: json['mimeType'] as String,
       compressionType: json['compressionType'] as String?,
       thumbnailUrl: json['thumbnailUrl'] as String?,
+      playbackPath: json['playbackPath'] as String?,
+      playbackUrl: json['playbackUrl'] as String?,
     );
   }
 
@@ -80,6 +92,9 @@ class MessageFileMetadata {
     'mimeType': mimeType,
     'compressionType': compressionType,
     'thumbnailUrl': thumbnailUrl,
+    // サーバーが書く値を、クライアントの書き込みで消さない為、あるときだけ含める。
+    if (playbackPath != null) 'playbackPath': playbackPath,
+    if (playbackUrl != null) 'playbackUrl': playbackUrl,
   };
 }
 

@@ -58,12 +58,14 @@ import '../../providers/slide_transition_style_provider.dart';
 import '../../providers/talks_list_layout_style_provider.dart';
 import '../../providers/draft_sync_enabled_provider.dart';
 import '../../models/nav_chip_layout.dart';
+import '../../models/room_list_swipe_action.dart';
 import '../../providers/category_list_alignment_provider.dart';
 import '../../providers/settings_expansion_provider.dart';
 import '../../widgets/nav_chip.dart';
 import '../../widgets/home_tab_swipe.dart';
 import '../../widgets/slide_select_list.dart';
 import '../../providers/icon_split_mirrored_provider.dart';
+import '../../providers/room_list_swipe_action_provider.dart';
 import '../../providers/join_video_camera_on_provider.dart';
 import '../../providers/nav_chip_layout_provider.dart';
 import '../../providers/gekiga_background_color_provider.dart';
@@ -2004,6 +2006,19 @@ class _AccountPage extends ConsumerWidget {
     final liveSeed =
         ref.watch(watchedUserProvider(currentUser.userId)).value?.rhingSeed ??
         currentUser.rhingSeed;
+    Future<void> changeSeed() async {
+      final changed = await RhingSeedChangeDialog.show(
+        context,
+        userId: currentUser.userId,
+        currentSeed: liveSeed,
+      );
+      if (changed == true && context.mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(strings.rhingSeedChangeDone)));
+      }
+    }
+
     return ListView(
       padding: const EdgeInsets.only(bottom: 24),
       children: [
@@ -2012,22 +2027,21 @@ class _AccountPage extends ConsumerWidget {
           label: strings.settingsRhingSeedLabel,
           // 変更後すぐ表示が替わるよう、保存済みの住人を購読して使う。
           value: '@$liveSeed',
-          trailing: IconButton(
-            icon: const Icon(Icons.edit_outlined),
-            tooltip: strings.settingsRhingSeedChange,
-            onPressed: () async {
-              final changed = await RhingSeedChangeDialog.show(
-                context,
-                userId: currentUser.userId,
-                currentSeed: liveSeed,
-              );
-              if (changed == true && context.mounted) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(content: Text(strings.rhingSeedChangeDone)),
-                );
-              }
-            },
-          ),
+          // 劇画では、箱が白地（文字は黒）なので、標準の`IconButton`だと白い印が白地に
+          // 溶けて見えない。コピーのボタンと同じ黒いバッジにする（2026-11-08）。
+          trailing: ref.watch(appUiStyleProvider) == AppUiStyle.gekiga
+              ? Tooltip(
+                  message: strings.settingsRhingSeedChange,
+                  child: GekigaIconButton(
+                    icon: Icons.edit_outlined,
+                    onPressed: changeSeed,
+                  ),
+                )
+              : IconButton(
+                  icon: const Icon(Icons.edit_outlined),
+                  tooltip: strings.settingsRhingSeedChange,
+                  onPressed: changeSeed,
+                ),
         ),
         _SeedSearchableRow(strings: strings, currentUser: currentUser),
         // 居住地（伝書鳩・安否確認用の自己申告、2026-10-16追加）。
@@ -4113,6 +4127,10 @@ class TalksListLayoutFolder extends ConsumerWidget {
         if (style == TalksListLayoutStyle.iconSplit) ...[
           _MirrorSwitch(strings: strings),
           _AdjustWidthButton(strings: strings),
+          // 寄合一覧の横スワイプの割り当ては、寄合一覧だけを出すスマホ（画面の短辺が
+          // 600px未満）でだけ意味がある（2026-11-08）。
+          if (MediaQuery.sizeOf(context).shortestSide < kNavChipWideBreakpoint)
+            _RoomListSwipeSetting(strings: strings),
         ] else if (classifyDevice(context) == DeviceClass.computer)
           // コンピューターの左右分割でも、語らい一覧の幅を変えられる。
           _AdjustWidthButton(strings: strings),
@@ -5739,6 +5757,93 @@ class _AdjustWidthButton extends ConsumerWidget {
           ),
         ],
       ),
+    );
+  }
+}
+
+/// 縦表示（スマホ）の「アイコン＋寄合一覧」で、寄合一覧の横スワイプに割り当てる動作
+/// （メッセージ画面を開く／メニューのタブを切り替える、2026-11-08）。端末ごとに保存する。
+class _RoomListSwipeSetting extends ConsumerWidget {
+  const _RoomListSwipeSetting({required this.strings});
+
+  final Strings strings;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final action = ref.watch(roomListSwipeActionProvider);
+    final isGekiga = ref.watch(appUiStyleProvider) == AppUiStyle.gekiga;
+    void select(RoomListSwipeAction value) =>
+        ref.read(roomListSwipeActionProvider.notifier).setAction(value);
+
+    final options = [
+      (
+        value: RoomListSwipeAction.openRoom,
+        title: strings.settingsRoomListSwipeOpenTitle,
+        subtitle: strings.settingsRoomListSwipeOpenDescription,
+      ),
+      (
+        value: RoomListSwipeAction.switchTab,
+        title: strings.settingsRoomListSwipeTabTitle,
+        subtitle: strings.settingsRoomListSwipeTabDescription,
+      ),
+    ];
+
+    final control = isGekiga
+        ? GekigaJointedTileList(
+            seeds: [for (final option in options) option.value.hashCode],
+            selectedFlags: [
+              for (final option in options) action == option.value,
+            ],
+            children: [
+              for (final option in options)
+                GekigaTileContent(
+                  selected: action == option.value,
+                  leading: AppRadioMark(
+                    selected: action == option.value,
+                    color: (action == option.value)
+                        ? GekigaColors.panel
+                        : GekigaColors.onPanel,
+                  ),
+                  title: Text(option.title),
+                  subtitle: Text(option.subtitle),
+                  onTap: () => select(option.value),
+                ),
+            ],
+          )
+        : RadioGroup<RoomListSwipeAction>(
+            groupValue: action,
+            onChanged: (value) {
+              if (value != null) select(value);
+            },
+            child: Column(
+              children: [
+                for (final option in options)
+                  AppRadioListTile<RoomListSwipeAction>(
+                    value: option.value,
+                    title: Text(option.title),
+                    subtitle: Text(option.subtitle),
+                  ),
+              ],
+            ),
+          );
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+          child: GekigaSectionHeader(strings.settingsRoomListSwipeTitle),
+        ),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+          child: Text(
+            strings.settingsRoomListSwipeNote,
+            style: Theme.of(context).textTheme.bodyMedium,
+          ),
+        ),
+        control,
+      ],
     );
   }
 }

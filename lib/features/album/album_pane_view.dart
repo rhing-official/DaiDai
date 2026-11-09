@@ -478,6 +478,7 @@ class _AlbumPaneViewState extends ConsumerState<AlbumPaneView> {
                       url: i.url,
                       contentType: i.contentType,
                       thumbnailUrl: i.thumbnailUrl,
+                      playbackUrl: i.playbackUrl,
                     ),
                 ],
                 initialIndex: index,
@@ -488,7 +489,8 @@ class _AlbumPaneViewState extends ConsumerState<AlbumPaneView> {
                   // あればそれを出す（無い間・古い動画は動画から先頭付近のコマ）。
                   ? LayoutBuilder(
                       builder: (context, constraints) => VideoThumbnail(
-                        url: item.url,
+                        // 重い動画は軽い版から先頭のコマを取る（2026-11-08）。
+                        url: item.playbackUrl ?? item.url,
                         thumbnailUrl: item.thumbnailUrl,
                         canLoad: videoPlaybackSupported,
                         size: constraints.maxWidth,

@@ -16,6 +16,7 @@ import '../repositories/direct_message_repository.dart';
 import '../repositories/friend_repository.dart';
 import '../repositories/group_call_repository.dart';
 import '../repositories/group_repository.dart';
+import '../models/link_preview.dart';
 import '../repositories/link_preview_repository.dart';
 import '../repositories/note_repository.dart';
 import '../repositories/passcode_repository.dart';
@@ -93,7 +94,33 @@ final residenceRepositoryProvider = Provider<ResidenceRepository>((ref) {
 });
 
 final linkPreviewRepositoryProvider = Provider<LinkPreviewRepository>((ref) {
-  return HttpLinkPreviewRepository();
+  return InviteAwareLinkPreviewRepository(
+    inner: HttpLinkPreviewRepository(),
+    userPreview: (url, rhingSeed) async {
+      final user = await ref
+          .read(userRepositoryProvider)
+          .findByRhingSeed(rhingSeed);
+      if (user == null) return null;
+      return LinkPreview(
+        url: url,
+        title: user.effectiveNickname?.text ?? '@${user.rhingSeed}',
+        description: user.effectiveStatusMessage?.text,
+        image: user.effectiveIcon?.url,
+      );
+    },
+    groupPreview: (url, groupId) async {
+      final group = await ref
+          .read(groupRepositoryProvider)
+          .getInvitePreview(groupId);
+      if (group == null) return null;
+      return LinkPreview(
+        url: url,
+        title: group.name,
+        description: group.description.isEmpty ? null : group.description,
+        image: group.iconUrl,
+      );
+    },
+  );
 });
 
 final stickerRepositoryProvider = Provider<StickerRepository>((ref) {

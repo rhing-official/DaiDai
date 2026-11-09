@@ -10,6 +10,7 @@ import '../models/dm_room.dart';
 import '../models/message.dart';
 import '../models/message_cursor.dart';
 import '../utils/attachment_upload.dart';
+import '../utils/last_message_update.dart';
 
 abstract class DirectMessageRepository {
   /// 2人のuserから一対を取得する。無ければ作成する
@@ -1193,6 +1194,36 @@ class FirestoreDirectMessageRepository implements DirectMessageRepository {
     final quoting2 = await messagesRef
         .where('replyTo2MessageId', isEqualTo: messageId)
         .get();
+    // 取り消すのが最終メッセージなら、削除後に語らい一覧のプレビューも直す。
+    final targetDoc = await messagesRef.doc(messageId).get();
+    final dmDoc = await _directMessages.doc(dmId).get();
+    Map<String, Object?>? lastFix;
+    if (targetDoc.exists && dmDoc.exists) {
+      final target = Message.fromJson(targetDoc.id, targetDoc.data()!);
+      final dmData = dmDoc.data()!;
+      if (LastMessageUpdate.isLast(
+        target: target,
+        conversationLastAt: dmData['lastMessageAt'] as Timestamp?,
+        conversationLastSenderId: dmData['lastMessageSenderId'] as String?,
+      )) {
+        final rooms = await _directMessages.doc(dmId).collection('rooms').get();
+        final candidates = <Message>[];
+        for (final room in rooms.docs) {
+          final recent = await room.reference
+              .collection('messages')
+              .orderBy('sentAt', descending: true)
+              .limit(2)
+              .get();
+          for (final doc in recent.docs) {
+            if (room.id == roomId && doc.id == messageId) continue;
+            candidates.add(Message.fromJson(doc.id, doc.data()));
+          }
+        }
+        lastFix = LastMessageUpdate.fieldsFor(
+          LastMessageUpdate.newest(candidates),
+        );
+      }
+    }
 
     // 1件のメッセージへの引用返信が499件を超えることは現実的に想定しない
     // ため、500件のバッチ上限に収まる範囲でまとめて処理する
@@ -1221,6 +1252,7 @@ class FirestoreDirectMessageRepository implements DirectMessageRepository {
     batch.update(_dmRoomRef(dmId, roomId), {
       'pinnedMessageIds': FieldValue.arrayRemove([messageId]),
     });
+    if (lastFix != null) batch.update(_directMessages.doc(dmId), lastFix);
     await batch.commit();
   }
 

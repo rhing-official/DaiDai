@@ -115,6 +115,12 @@ class Strings {
     required this.settingsSlidePickSubtitle,
     required this.settingsTalksListMirrorTitle,
     required this.settingsTalksListMirrorSubtitle,
+    required this.settingsRoomListSwipeTitle,
+    required this.settingsRoomListSwipeNote,
+    required this.settingsRoomListSwipeOpenTitle,
+    required this.settingsRoomListSwipeOpenDescription,
+    required this.settingsRoomListSwipeTabTitle,
+    required this.settingsRoomListSwipeTabDescription,
     required this.settingsTalksListLayoutStandard,
     required this.settingsTalksListLayoutStandardDescription,
     required this.settingsTalksListLayoutIconSplit,
@@ -1179,6 +1185,12 @@ class Strings {
   final String settingsSlidePickSubtitle;
   final String settingsTalksListMirrorTitle;
   final String settingsTalksListMirrorSubtitle;
+  final String settingsRoomListSwipeTitle;
+  final String settingsRoomListSwipeNote;
+  final String settingsRoomListSwipeOpenTitle;
+  final String settingsRoomListSwipeOpenDescription;
+  final String settingsRoomListSwipeTabTitle;
+  final String settingsRoomListSwipeTabDescription;
   final String settingsTalksListLayoutStandard;
   final String settingsTalksListLayoutStandardDescription;
   final String settingsTalksListLayoutIconSplit;
@@ -2545,6 +2557,15 @@ class Strings {
         'メニューチップや語らいのボタンを押したまま指を滑らせ、離した所を選びます。\nオフにすると、1回ずつタップして操作します。',
     settingsTalksListMirrorTitle: '左右を反転する',
     settingsTalksListMirrorSubtitle: '「アイコン＋寄合一覧」の時、アイコン列を右端に、メッセージ画面を左にします。',
+    settingsRoomListSwipeTitle: '寄合一覧の横スワイプ',
+    settingsRoomListSwipeNote:
+        'スマホの縦表示で「アイコン＋寄合一覧」の寄合一覧を横にスワイプした時の動きです。この端末だけに保存します。',
+    settingsRoomListSwipeOpenTitle: 'メッセージ画面を開く',
+    settingsRoomListSwipeOpenDescription:
+        '左へスワイプすると、選択中の寄合のメッセージ画面を開きます。先に右へスワイプすると、隣のタブへ切り替わります。',
+    settingsRoomListSwipeTabTitle: 'メニューのタブを切り替える',
+    settingsRoomListSwipeTabDescription:
+        '左右どちらへスワイプしても、隣のタブへ切り替わります。メッセージ画面は寄合をタップして開きます。',
     settingsTalksListLayoutStandard: 'アイコンのみ',
     settingsTalksListLayoutStandardDescription: '一対・広場をアイコンで縦一列に表示します。',
     settingsTalksListLayoutIconSplit: 'アイコン＋寄合一覧',
@@ -3519,7 +3540,7 @@ class Strings {
     mediaSkipForwardLabel: '+10秒',
     mediaSkipBackwardLabel: '−10秒',
     mediaVideoUnplayableNotice:
-        'この動画は映像を再生できません。容量が大きい動画（約400MB以上）は、映像が再生されないことがあります。ダウンロードして別のアプリで開いてください。',
+        'この端末では、この動画の映像を再生できません。4Kなど画質が高くて重い動画は、映像が再生されないことがあります。しばらくしてからもう一度開くか、ダウンロードして別のアプリで開いてください。',
     groupCallInProgressBannerLabel: (isVideo) =>
         isVideo ? 'ビデオ通話中です。タップして参加' : '通話中です。タップして参加',
     groupCallBackToGridTooltip: 'グリッドに戻る',
@@ -3670,6 +3691,15 @@ class Strings {
     settingsTalksListMirrorTitle: 'Flip left and right',
     settingsTalksListMirrorSubtitle:
         'With "Icon + room list", puts the icon column on the right and the messages on the left.',
+    settingsRoomListSwipeTitle: 'Swiping the room list',
+    settingsRoomListSwipeNote:
+        'What happens when you swipe sideways on the room list of "Icons + room list" on a phone held upright. Saved on this device only.',
+    settingsRoomListSwipeOpenTitle: 'Open the messages',
+    settingsRoomListSwipeOpenDescription:
+        'Swipe left to open the messages of the selected room. Swipe right first to move to the neighbouring tab.',
+    settingsRoomListSwipeTabTitle: 'Switch the menu tab',
+    settingsRoomListSwipeTabDescription:
+        'Swiping either way moves to the neighbouring tab. Tap a room to open its messages.',
     settingsTalksListLayoutStandard: 'Icon only',
     settingsTalksListLayoutStandardDescription:
         'Shows each Direct and Plaza as an icon in a single vertical list.',
@@ -4758,7 +4788,7 @@ class Strings {
     mediaSkipForwardLabel: '+10s',
     mediaSkipBackwardLabel: '−10s',
     mediaVideoUnplayableNotice:
-        'The picture of this video cannot be played. Large videos (around 400MB or more) may not play. Download it and open it in another app.',
+        'The picture of this video can\'t be played on this device. Heavy, high-quality videos such as 4K may not play. Try again a little later, or download it and open it in another app.',
     groupCallInProgressBannerLabel: (isVideo) => isVideo
         ? 'A video call is in progress. Tap to join'
         : 'A call is in progress. Tap to join',

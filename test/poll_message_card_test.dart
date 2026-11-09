@@ -10,6 +10,8 @@ import 'package:daidai/providers/app_locale_provider.dart';
 import 'package:daidai/providers/app_ui_style_provider.dart';
 import 'package:daidai/providers/repository_providers.dart';
 import 'package:daidai/repositories/poll_repository.dart';
+import 'package:daidai/widgets/gekiga/gekiga_panel_box.dart';
+import 'package:daidai/widgets/toggles/app_radio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -71,13 +73,17 @@ Poll _poll({int options = 2, DateTime? deadline, bool withImage = false}) {
   );
 }
 
-Future<_FakePollRepository> _pump(WidgetTester tester, Poll? poll) async {
+Future<_FakePollRepository> _pump(
+  WidgetTester tester,
+  Poll? poll, {
+  AppUiStyle style = AppUiStyle.flat,
+}) async {
   final repo = _FakePollRepository(poll);
   await tester.pumpWidget(
     ProviderScope(
       overrides: [
         initialAppLocaleProvider.overrideWithValue(AppLocale.japanese),
-        initialAppUiStyleProvider.overrideWithValue(AppUiStyle.flat),
+        initialAppUiStyleProvider.overrideWithValue(style),
         pollRepositoryProvider.overrideWithValue(repo),
       ],
       child: MaterialApp(
@@ -119,11 +125,58 @@ void main() {
     ]);
   });
 
-  testWidgets('選択肢が5件以上・画像付きは従来の小さいカードに折りたたむ', (tester) async {
+  testWidgets('選択肢が5件以上は従来の小さいカードに折りたたむ', (tester) async {
     await _pump(tester, _poll(options: 5));
     expect(find.text('FALLBACK'), findsOneWidget);
-    await _pump(tester, _poll(withImage: true));
-    expect(find.text('FALLBACK'), findsOneWidget);
+  });
+
+  testWidgets('画像付きの選択肢がある投票も、メッセージ内で選んで投票できる', (tester) async {
+    final repo = await _pump(tester, _poll(withImage: true));
+    expect(find.text('FALLBACK'), findsNothing);
+    // 画像付きの選択肢にはサムネイル（Image）が出る。
+    expect(find.byType(Image), findsOneWidget);
+    await tester.tap(find.textContaining('選択肢0'));
+    await tester.pump();
+    await tester.tap(find.widgetWithText(FilledButton, '投票する'));
+    await tester.pump();
+    expect(repo.votes, [
+      ['0'],
+    ]);
+  });
+
+  testWidgets('劇画では、選ぶ前も「投票する」が見えて（グレーアウト）、ラジオが反応する', (tester) async {
+    final repo = await _pump(tester, _poll(), style: AppUiStyle.gekiga);
+    // 選ぶ前: ボタンは消えず、押せない状態で出ている。
+    final voteButton = find.widgetWithText(GekigaButton, '投票する');
+    expect(voteButton, findsOneWidget);
+    expect(tester.widget<GekigaButton>(voteButton).onPressed, isNull);
+    expect(
+      tester
+          .widgetList<AppRadioMark>(find.byType(AppRadioMark))
+          .map((m) => m.selected),
+      [false, false],
+    );
+    // 選ぶと、ラジオの印が変わって投票できる。
+    await tester.tap(find.textContaining('選択肢1'));
+    await tester.pump();
+    expect(
+      tester
+          .widgetList<AppRadioMark>(find.byType(AppRadioMark))
+          .map((m) => m.selected),
+      [false, true],
+    );
+    await tester.tap(voteButton);
+    await tester.pump();
+    expect(repo.votes, [
+      ['1'],
+    ]);
+  });
+
+  testWidgets('版画でも、選ぶ前の「投票する」はグレーで見えている', (tester) async {
+    await _pump(tester, _poll(), style: AppUiStyle.block);
+    final voteButton = find.widgetWithText(FilledButton, '投票する');
+    expect(voteButton, findsOneWidget);
+    expect(tester.widget<FilledButton>(voteButton).onPressed, isNull);
   });
 
   testWidgets('投票が取得できない（削除済み）ときも従来のカード', (tester) async {

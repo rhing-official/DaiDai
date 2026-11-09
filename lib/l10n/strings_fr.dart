@@ -127,6 +127,15 @@ final Strings _stringsFr = Strings._(
   settingsTalksListLayoutStandard: 'Icônes seulement',
   settingsTalksListLayoutStandardDescription:
       'Affiche chaque duo et chaque place sous forme d’icône dans une seule liste verticale.',
+  settingsRoomListSwipeTitle: 'Balayage de la liste des salons',
+  settingsRoomListSwipeNote:
+      'Action du balayage latéral sur la liste des salons de « Icônes + liste des salons », sur téléphone en mode portrait. Enregistré sur cet appareil uniquement.',
+  settingsRoomListSwipeOpenTitle: 'Ouvrir les messages',
+  settingsRoomListSwipeOpenDescription:
+      'Balayez vers la gauche pour ouvrir les messages du salon sélectionné. Balayez d’abord vers la droite pour passer à l’onglet voisin.',
+  settingsRoomListSwipeTabTitle: 'Changer d’onglet du menu',
+  settingsRoomListSwipeTabDescription:
+      'Un balayage dans les deux sens passe à l’onglet voisin. Touchez un salon pour ouvrir ses messages.',
   settingsTalksListLayoutIconSplit: 'Icônes + liste des salons',
   settingsTalksListLayoutIconSplitDescription:
       'Affiche une liste d’icônes à gauche et la liste des salons de la discussion sélectionnée à droite.',
@@ -1224,7 +1233,7 @@ final Strings _stringsFr = Strings._(
   mediaSkipForwardLabel: '+10 s',
   mediaSkipBackwardLabel: '−10 s',
   mediaVideoUnplayableNotice:
-      'L’image de cette vidéo ne peut pas être lue. Les vidéos volumineuses (environ 400 Mo ou plus) peuvent ne pas se lire. Téléchargez-la et ouvrez-la dans une autre application.',
+      'L’image de cette vidéo ne peut pas être lue sur cet appareil. Les vidéos lourdes en haute qualité, comme la 4K, peuvent ne pas se lire. Réessayez un peu plus tard, ou téléchargez-la et ouvrez-la dans une autre application.',
   groupCallInProgressBannerLabel: (isVideo) => isVideo
       ? 'Un appel vidéo est en cours. Touchez pour rejoindre'
       : 'Un appel est en cours. Touchez pour rejoindre',

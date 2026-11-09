@@ -13,11 +13,15 @@ class GekigaIconBadge extends StatelessWidget {
     required this.icon,
     this.size = 36,
     this.seed,
+    this.thicknessBase,
     super.key,
   });
 
   final IconData icon;
   final double size;
+
+  /// [GekigaBadgeShape.thicknessBase]と同じ。
+  final double? thicknessBase;
 
   /// 枠線の太さのランダム変動（[GekigaBadgeShape]/`MonochromeBoxPainter`
   /// 参照）に使うseed。省略時は`icon.hashCode`（アイコン毎に手作り感を
@@ -34,6 +38,7 @@ class GekigaIconBadge extends StatelessWidget {
       child: GekigaBadgeShape(
         color: GekigaColors.panel,
         seed: seed ?? icon.hashCode,
+        thicknessBase: thicknessBase,
         child: Icon(icon, color: GekigaColors.onPanel, size: size * 0.6),
       ),
     );
@@ -55,12 +60,16 @@ class GekigaIconButton extends StatelessWidget {
     required this.icon,
     required this.onPressed,
     this.size = 36,
+    this.thicknessBase,
+    this.seed,
     super.key,
   });
 
   final IconData icon;
   final VoidCallback onPressed;
   final double size;
+  final double? thicknessBase;
+  final int? seed;
 
   @override
   Widget build(BuildContext context) {
@@ -68,7 +77,12 @@ class GekigaIconButton extends StatelessWidget {
       color: Colors.transparent,
       child: InkWell(
         onTap: onPressed,
-        child: GekigaIconBadge(icon: icon, size: size),
+        child: GekigaIconBadge(
+          icon: icon,
+          size: size,
+          thicknessBase: thicknessBase,
+          seed: seed,
+        ),
       ),
     );
   }

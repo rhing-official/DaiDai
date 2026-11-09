@@ -167,7 +167,9 @@ class GekigaButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final fg = selected ? GekigaColors.panel : GekigaColors.onPanel;
+    // 押せない間（[onPressed]がnull）は、文字を薄くしてグレーアウトに見せる（2026-11-08）。
+    final base = selected ? GekigaColors.panel : GekigaColors.onPanel;
+    final fg = onPressed == null ? base.withValues(alpha: 0.4) : base;
     return Material(
       color: Colors.transparent,
       child: InkWell(
@@ -319,6 +321,10 @@ class GekigaJointedPair extends StatelessWidget {
   }
 }
 
+/// 箱の枠の太さの基準（一覧・トグルの箱と同じ固定値）。ボタンなど別の部品でも
+/// 枠の太さを揃えたい場面で渡す（2026-11-09）。
+const double kGekigaBoxThicknessBase = 48;
+
 class _JointedParentData extends ContainerBoxParentData<RenderBox> {}
 
 class _RenderGekigaJointedList extends RenderBox
@@ -350,7 +356,7 @@ class _RenderGekigaJointedList extends RenderBox
   /// 長い名前で箱が大きくなるほど枠まで太くなってしまい、一覧内で箱毎に
   /// 枠の太さがバラつく不具合になっていた。箱のサイズに関わらず常にこの
   /// 固定値を使うことで、枠の太さを揃える。
-  static const double _fixedThicknessBase = 48;
+  static const double _fixedThicknessBase = kGekigaBoxThicknessBase;
 
   Axis _axis;
   set axis(Axis value) {
