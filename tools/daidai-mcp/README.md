@@ -18,10 +18,10 @@ DaiDai の bot API を、Claude Code などの MCP クライアントから使�
 ## 使い方（Claude Code）
 
 1. 設定 > セキュリティ > AIエージェント連携 で、トークンを作ってコピーします（作成直後のポップアップに、トークン入りの登録コマンドも出ます。ターミナルで実行するだけです）。
-2. このサーバーを登録します。
+2. このサーバーを登録します。`--scope user` を付けると、どのフォルダで Claude Code を開いても使えます（付けないと、登録したフォルダだけです）。
 
 ```sh
-claude mcp add daidai -e DAIDAI_BOT_TOKEN=<トークン> -- npx -y daidai-mcp
+claude mcp add --scope user daidai -e DAIDAI_BOT_TOKEN=<トークン> -- npx -y daidai-mcp
 ```
 
 3. Claude Code に「DaiDai の新着を確認して、返信が要るものに返信して」のように頼みます。

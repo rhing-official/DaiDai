@@ -3172,7 +3172,7 @@ class Strings {
     assistantTitle: 'AIエージェント連携',
     assistantDescription:
         '自分のAIエージェント（Claude Codeなど）が、自分の参加している全ての広場・一対のメッセージを読み、返信できるようにします。会話ごとの追加や、相手の同意は要りません。\n・読めるのは、自分が画面で見られる範囲です（過去の履歴を含みます。自分が非表示にしたメッセージと、ブロックした相手との一対は除きます）。\n・返信は「名前（その語らいでの自分の呼び名）」のBOT表示で投稿され、人間の発言と区別できます。自分には通知されません。\n・トークンは5個まで作れます。作成・再発行の直後に1度だけ表示されます。\n・会話の相手の発言が、選んだAIの提供元へ送られます。ご注意ください。',
-    assistantCreate: 'AIエージェント連携を作成',
+    assistantCreate: '連携を作成',
     groupRoomCustomSettingsLabel: 'この寄合独自の設定',
     groupRoomCustomSettingsHint:
         'オンにすると、通知・既読・ロールの優先順位・加入前メッセージの公開を広場全体の設定より優先してこの寄合だけ個別に設定出来ます',
@@ -4408,7 +4408,7 @@ class Strings {
     assistantTitle: 'AI agent integration',
     assistantDescription:
         'Lets your own AI agent (such as Claude Code) read and reply to messages in every plaza and duo you belong to. No per-conversation setup or consent from others is needed.\n• It can read what you can see on screen, including earlier history (except messages you hid and duos with people you blocked).\n• Replies are posted with a bot label, “Name (your name in that conversation)”, so they are distinct from human messages. You are not notified of them.\n• You can create up to 5 tokens. A token is shown only once, right after it is created or reissued.\n• Other people’s messages are sent to the AI provider you choose. Please keep that in mind.',
-    assistantCreate: 'Create an AI agent connection',
+    assistantCreate: 'Create connection',
     groupRoomCustomSettingsLabel: "This room's own settings",
     groupRoomCustomSettingsHint:
         'When on, this room\'s notification, read receipts, role priority and earlier-message visibility settings take priority over the plaza defaults',

@@ -781,7 +781,7 @@ final Strings _stringsFr = Strings._(
   assistantTitle: 'Intégration d’agents IA',
   assistantDescription:
       'Permet à votre propre agent IA (comme Claude Code) de lire et de répondre aux messages de toutes les places et duos auxquels vous appartenez. Aucun ajout par conversation ni consentement des autres n’est nécessaire.\n• Il peut lire ce que vous voyez à l’écran, historique antérieur compris (sauf les messages que vous avez masqués et les duos avec les personnes bloquées).\n• Les réponses sont publiées avec une étiquette de bot « Nom (votre nom dans cette conversation) », donc distinctes des messages humains. Vous n’êtes pas notifié.\n• Vous pouvez créer jusqu’à 5 jetons. Un jeton n’est affiché qu’une seule fois, juste après sa création ou sa régénération.\n• Les messages des autres sont envoyés au fournisseur d’IA que vous choisissez. Gardez-le à l’esprit.',
-  assistantCreate: 'Créer une connexion d’agent IA',
+  assistantCreate: 'Créer une connexion',
   groupRoomCustomSettingsLabel: 'Réglages propres à ce salon',
   groupRoomCustomSettingsHint:
       'Lorsque cette option est activée, les réglages de notifications, d’accusés de lecture, de priorité des rôles et de visibilité des anciens messages de ce salon l’emportent sur les valeurs par défaut de la place',
