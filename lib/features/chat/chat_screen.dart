@@ -5207,6 +5207,10 @@ class _MessageRow extends ConsumerWidget {
                   _SenderName(
                     userId: replySenderId,
                     rhingSeed: replySenderRhingSeed,
+                    // 引用元がAI連携の投稿なら、AIの名前ではなく持ち主の呼び名を出す
+                    // （返信元の実物がロード済みの時。無ければ保存済みの名前のまま）。
+                    botName: target?.botName,
+                    assistantOwnerId: target?.assistantOwnerId,
                     conversationId: conversationId,
                     color: onBubbleColor,
                   ),

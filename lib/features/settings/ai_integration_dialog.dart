@@ -364,7 +364,7 @@ class _TokenBody extends StatelessWidget {
   Widget build(BuildContext context) {
     final command =
         'claude mcp add --scope user daidai '
-        '-e DAIDAI_BOT_TOKEN=$token -- npx -y daidai-mcp';
+        '-e DAIDAI_BOT_TOKEN=$token -- npx -y daidai-mcp@latest';
     final curl =
         "curl -H 'Authorization: Bot $token' "
         "'https://asia-northeast1-daidai-rhing.cloudfunctions.net/botApi/v1/conversations'";
