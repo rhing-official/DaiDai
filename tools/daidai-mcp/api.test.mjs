@@ -58,3 +58,23 @@ test("更新の取得: sinceとwaitが付く", async () => {
   await c.updates({ since: "123", wait: 10 });
   assert.equal(calls[0].url, "https://x.test/v1/updates?since=123&wait=10");
 });
+
+test("投稿: メンション先はmentions.userIdsとして送る", async () => {
+  const { impl, calls } = fakeFetch([{ status: 200, body: { ok: true } }]);
+  const c = new DaiDaiClient({ token: "t.s", fetchImpl: impl });
+  await c.postMessage({
+    scope: "group", conversationId: "g", roomId: "r", content: "hi", mentionUserIds: ["u1", "u2"],
+  });
+  assert.deepEqual(JSON.parse(calls[0].init.body), {
+    content: "hi",
+    mentions: { userIds: ["u1", "u2"] },
+  });
+});
+
+test("参加者の一覧: 経路と不正なscope", async () => {
+  const { impl, calls } = fakeFetch([{ status: 200, body: { members: [] } }]);
+  const c = new DaiDaiClient({ token: "t.s", baseUrl: "https://x.test/v1", fetchImpl: impl });
+  await c.members({ scope: "group", conversationId: "g1" });
+  assert.equal(calls[0].url, "https://x.test/v1/groups/g1/members");
+  assert.throws(() => c.members({ scope: "x", conversationId: "g1" }));
+});

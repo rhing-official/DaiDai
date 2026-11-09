@@ -16,6 +16,9 @@ export const BOT_NAME_MAX_LENGTH = 40;
 /** 投稿本文の最大文字数。 */
 export const BOT_CONTENT_MAX_LENGTH = 2000;
 
+/** 1回の投稿でメンションできる個人の上限（AIの暴走で大勢を呼ばない為）。 */
+export const BOT_MENTION_MAX = 5;
+
 /** 取得1回あたりの既定・最大件数。 */
 export const BOT_READ_DEFAULT_LIMIT = 50;
 export const BOT_READ_MAX_LIMIT = 100;
@@ -84,6 +87,7 @@ export type BotRoute =
   | { kind: "me" }
   | { kind: "conversations" }
   | { kind: "updates" }
+  | { kind: "members"; scope: BotScope; conversationId: string }
   | { kind: "readMessages"; scope: BotScope; conversationId: string; roomId: string }
   | { kind: "postMessage"; scope: BotScope; conversationId: string; roomId: string }
   | {
@@ -103,6 +107,7 @@ const ID = /^[A-Za-z0-9_-]{1,128}$/;
  * - `GET /v1/me`
  * - `GET /v1/conversations`
  * - `GET /v1/updates?since=&wait=`（AIエージェント連携のみ、更新のあった会話）
+ * - `GET /v1/groups/{groupId}/members`・`GET /v1/dms/{dmId}/members`（メンション先を選ぶための参加者一覧）
  * - `GET|POST /v1/groups/{groupId}/rooms/{roomId}/messages`（広場）
  * - `GET|POST /v1/dms/{dmId}/rooms/{roomId}/messages`（一対）
  * - `DELETE …/messages/{messageId}`（そのbot自身の投稿のみ）
@@ -123,6 +128,15 @@ export function parseBotRoute(method: string, path: string): BotRoute | null {
   }
   const scope: BotScope | null =
     rest[0] === "groups" ? "group" : rest[0] === "dms" ? "dm" : null;
+  if (
+    scope !== null &&
+    rest.length === 3 &&
+    rest[2] === "members" &&
+    method === "GET" &&
+    ID.test(rest[1] ?? "")
+  ) {
+    return { kind: "members", scope, conversationId: rest[1] };
+  }
   if (
     scope !== null &&
     rest[2] === "rooms" &&
@@ -226,6 +240,8 @@ export type PostPayload =
       content: string;
       replyToMessageId: string | null;
       silent: boolean;
+      /** メンション先の個人のuserId（重複除去済み、最大[BOT_MENTION_MAX]件）。 */
+      mentionUserIds: string[];
     }
   | { ok: false; reason: string };
 
@@ -234,7 +250,7 @@ export function parseBotPostPayload(body: unknown): PostPayload {
   if (typeof body !== "object" || body === null || Array.isArray(body)) {
     return { ok: false, reason: "JSONオブジェクトで送ってください" };
   }
-  const { content, replyToMessageId, silent } = body as Record<
+  const { content, replyToMessageId, silent, mentions } = body as Record<
     string,
     unknown
   >;
@@ -260,12 +276,48 @@ export function parseBotPostPayload(body: unknown): PostPayload {
   if (silent !== undefined && typeof silent !== "boolean") {
     return { ok: false, reason: "silentは真偽値で指定してください" };
   }
+  // メンションは個人のみ（`@everyone`・ロール宛は受け付けない）。
+  let mentionUserIds: string[] = [];
+  if (mentions !== undefined && mentions !== null) {
+    const userIds = (mentions as Record<string, unknown>)?.userIds;
+    if (
+      typeof mentions !== "object" ||
+      Array.isArray(mentions) ||
+      (userIds !== undefined &&
+        (!Array.isArray(userIds) ||
+          userIds.some((id) => typeof id !== "string" || !ID.test(id))))
+    ) {
+      return {
+        ok: false,
+        reason: "mentions.userIdsはuserIdの配列で指定してください",
+      };
+    }
+    mentionUserIds = [...new Set((userIds as string[] | undefined) ?? [])];
+    if (mentionUserIds.length > BOT_MENTION_MAX) {
+      return {
+        ok: false,
+        reason: `メンションは${BOT_MENTION_MAX}人までです`,
+      };
+    }
+  }
   return {
     ok: true,
     content,
     replyToMessageId: (replyToMessageId as string | null | undefined) ?? null,
     silent: silent === true,
+    mentionUserIds,
   };
+}
+
+/**
+ * 本文に`@表示名`が無いメンション先は、本文の先頭に`@表示名 `を補う（本文とメンション先を
+ * 食い違わせない。クライアントの入力欄は、本文から`@名前`が消えると宛先から外す）。
+ * [labels]は`@`を除いた表示名。
+ */
+export function ensureMentionText(content: string, labels: string[]): string {
+  const missing = labels.filter((l) => !content.includes(`@${l}`));
+  if (missing.length === 0) return content;
+  return `${missing.map((l) => `@${l}`).join(" ")} ${content}`;
 }
 
 /** 一覧の最終メッセージの控え（プレビュー）。改行は空白に、80字で切る。 */

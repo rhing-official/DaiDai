@@ -3,6 +3,8 @@ import { test } from "node:test";
 
 import {
   BOT_CONTENT_MAX_LENGTH,
+  BOT_MENTION_MAX,
+  ensureMentionText,
   BOT_READ_DEFAULT_LIMIT,
   BOT_READ_MAX_LIMIT,
   BOT_WAIT_MAX_SECONDS,
@@ -120,6 +122,7 @@ test("投稿のボディを検証する", () => {
     content: "hi",
     replyToMessageId: null,
     silent: false,
+    mentionUserIds: [],
   });
   const reply = parseBotPostPayload({
     content: "hi",
@@ -177,4 +180,47 @@ test("AIには、所有者が非表示にしたメッセージ・スパム・他
   assert.ok(!isReadableByAssistant({ senderId: "bot:other" }, "u", "bot:me"));
   assert.ok(isReadableByAssistant({ senderId: "bot:me" }, "u", "bot:me"));
   assert.ok(isReadableByAssistant({ senderId: "webhook:w" }, "u", "bot:me"));
+});
+
+test("メンションは個人のuserIdだけを、重複を除いて受け付ける", () => {
+  const ok = parseBotPostPayload({
+    content: "hi",
+    mentions: { userIds: ["u1", "u2", "u1"] },
+  });
+  assert.ok(ok.ok && ok.mentionUserIds.length === 2);
+  // everyone・roleIdsは無視される（受け付けない）。
+  const ignored = parseBotPostPayload({
+    content: "hi",
+    mentions: { userIds: ["u1"], everyone: true, roleIds: ["r1"] },
+  });
+  assert.ok(ignored.ok && ignored.mentionUserIds.length === 1);
+  assert.ok(!parseBotPostPayload({ content: "hi", mentions: "u1" }).ok);
+  assert.ok(!parseBotPostPayload({ content: "hi", mentions: { userIds: "u1" } }).ok);
+  assert.ok(!parseBotPostPayload({ content: "hi", mentions: { userIds: ["a/b"] } }).ok);
+  const tooMany = Array.from({ length: BOT_MENTION_MAX + 1 }, (_, i) => `u${i}`);
+  assert.ok(!parseBotPostPayload({ content: "hi", mentions: { userIds: tooMany } }).ok);
+});
+
+test("本文に無い@表示名だけを先頭に補う", () => {
+  assert.equal(ensureMentionText("こんにちは", ["たろ"]), "@たろ こんにちは");
+  assert.equal(ensureMentionText("@たろ こんにちは", ["たろ"]), "@たろ こんにちは");
+  assert.equal(
+    ensureMentionText("@たろ 確認して", ["たろ", "はな"]),
+    "@はな @たろ 確認して",
+  );
+  assert.equal(ensureMentionText("hi", []), "hi");
+});
+
+test("参加者一覧の経路", () => {
+  assert.deepEqual(parseBotRoute("GET", "/botApi/v1/groups/g1/members"), {
+    kind: "members",
+    scope: "group",
+    conversationId: "g1",
+  });
+  assert.deepEqual(parseBotRoute("GET", "/v1/dms/d1/members"), {
+    kind: "members",
+    scope: "dm",
+    conversationId: "d1",
+  });
+  assert.equal(parseBotRoute("POST", "/v1/groups/g1/members"), null);
 });

@@ -3142,6 +3142,14 @@ async function sendMessageNotification(params: {
         isDm: true,
         memberIds: participants,
       });
+    } else if (typeof message.assistantOwnerId === "string") {
+      // AI連携の投稿（2026-11-09）。送信者は`bot:`のため、候補から持ち主本人が
+      // 除かれるよう、送信者に持ち主のidを渡す。
+      mentionRecipients = resolveMentionRecipients(message, {
+        senderId: message.assistantOwnerId,
+        isDm: true,
+        memberIds: participants,
+      });
     }
     if (botName !== null) {
       // BOT由来（bot API、2026-11-09）は送信者の`users`が無い為、BOT名を題にする。
@@ -3165,6 +3173,13 @@ async function sendMessageNotification(params: {
         ownerId: groupData.ownerId as string | undefined,
         roleAssignments: groupData.roleAssignments,
         memberPermissions: groupData.memberPermissions,
+      });
+    } else if (typeof message.assistantOwnerId === "string") {
+      // AI連携の投稿は個人宛のメンションだけ（`@everyone`・ロール宛はAPIが受け付けない）。
+      mentionRecipients = resolveMentionRecipients(message, {
+        senderId: message.assistantOwnerId,
+        isDm: false,
+        memberIds,
       });
     }
     const inviteDoc = await db.doc(`groupInvites/${conversationId}`).get();

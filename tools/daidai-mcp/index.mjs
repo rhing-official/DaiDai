@@ -20,7 +20,7 @@ const client = new DaiDaiClient({
   baseUrl: process.env.DAIDAI_API_BASE || undefined,
 });
 
-const server = new McpServer({ name: "daidai", version: "0.1.0" });
+const server = new McpServer({ name: "daidai", version: "0.2.0" });
 
 const scope = z
   .enum(["group", "dm"])
@@ -97,11 +97,26 @@ server.registerTool(
 );
 
 server.registerTool(
+  "list_members",
+  {
+    description:
+      "会話（広場・一対）の参加者の一覧（userIdとその語らいでの呼び名）を返す。" +
+      "`reply`の`mentionUserIds`に渡すuserIdを調べるのに使う（自分とブロックした相手は含まれない）。",
+    inputSchema: { scope, conversationId },
+  },
+  (args) => guarded(() => client.members(args)),
+);
+
+server.registerTool(
   "reply",
   {
     description:
       "寄合にメッセージを投稿する。`replyToMessageId`を指定すると、そのメッセージへの引用返信になる" +
-      "（BOTが読める範囲のメッセージのみ）。本文は2000字まで。投稿は「名前（その語らいでの自分の呼び名）」のBOT表示（呼び名が無ければ`@Rhing Seed`）になる。",
+      "（BOTが読める範囲のメッセージのみ）。本文は2000字まで。" +
+      "投稿は「自分の呼び名（その語らいでの呼び名。無ければ`@Rhing Seed`）」に「AI」のラベルが付いた形で表示される。" +
+      "特定の人に通知したい時は、`mentionUserIds`にその人のuserId（`list_members`で調べる、最大5人）を渡す。" +
+      "本文に`@名前`を書かなくても、足りなければ先頭に自動で補う。通知はメンションした人にだけ飛ぶ" +
+      "（全員宛・ロール宛は使えない）。",
     inputSchema: {
       scope,
       conversationId,
@@ -109,6 +124,11 @@ server.registerTool(
       content: z.string().min(1).max(2000),
       replyToMessageId: z.string().optional(),
       silent: z.boolean().optional().describe("trueなら通知を送らない"),
+      mentionUserIds: z
+        .array(z.string())
+        .max(5)
+        .optional()
+        .describe("メンション先の個人のuserId（list_membersで得られる、最大5人）"),
     },
   },
   (args) => guarded(() => client.postMessage(args)),

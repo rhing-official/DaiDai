@@ -70,10 +70,22 @@ export class DaiDaiClient {
     });
   }
 
-  postMessage({ scope, conversationId, roomId, content, replyToMessageId, silent }) {
+  /** `mentionUserIds`（任意）は、メンション先の個人のuserId。通知がその人にだけ飛ぶ。 */
+  postMessage({ scope, conversationId, roomId, content, replyToMessageId, silent, mentionUserIds }) {
+    const mentions =
+      mentionUserIds && mentionUserIds.length > 0 ? { userIds: mentionUserIds } : undefined;
     return this.#request("POST", conversationPath(scope, conversationId, roomId), {
-      body: { content, replyToMessageId, silent },
+      body: { content, replyToMessageId, silent, mentions },
     });
+  }
+
+  /** 会話の参加者（メンション先を選ぶ用。自分とブロックした相手は含まない）。 */
+  members({ scope, conversationId }) {
+    const kind = scope === "group" ? "groups" : "dms";
+    if (scope !== "group" && scope !== "dm") {
+      throw new Error('scopeは "group" か "dm" を指定してください');
+    }
+    return this.#request("GET", `${kind}/${encodeURIComponent(conversationId)}/members`);
   }
 
   deleteMessage({ scope, conversationId, roomId, messageId }) {

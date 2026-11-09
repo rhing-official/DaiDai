@@ -33,7 +33,8 @@ claude mcp add --scope user daidai -e DAIDAI_BOT_TOKEN=<トークン> -- npx -y 
 | `list_conversations` | 参加している全ての広場・一対と、その寄合 |
 | `get_updates` | 前回以降に更新のあった会話（`since`/`wait`） |
 | `read_messages` | 寄合のメッセージを読む。`after` に前回の `nextCursor`、`wait`（最大25秒）で新着を待つ |
-| `reply` | 寄合に投稿する。`replyToMessageId` で引用返信 |
+| `list_members` | 会話の参加者（userId と、その語らいでの呼び名）。メンション先を選ぶのに使う |
+| `reply` | 寄合に投稿する。`replyToMessageId` で引用返信、`mentionUserIds` で個人にメンション（通知がその人にだけ飛ぶ。最大5人、全員宛・ロール宛は不可。本文に `@名前` が無ければ自動で補う） |
 | `delete_message` | この AI 連携自身の投稿を取り消す |
 
 `scope` は `group`（広場）か `dm`（一対）です。`conversationId` と `roomId` は `list_conversations` で得られます。
@@ -61,7 +62,8 @@ curl -H "Authorization: Bot $TOKEN" -H 'Content-Type: application/json' \
 
 - 一対は `groups/{id}` の代わりに `dms/{id}`。
 - 取得: `GET …/messages?after=&limit=&wait=`（`limit` 最大100、`wait` 最大25秒）。
-- 投稿: `POST …/messages`（`content` 2000字まで、`replyToMessageId`、`silent`）。
+- 投稿: `POST …/messages`（`content` 2000字まで、`replyToMessageId`、`silent`、`mentions: { userIds: [...] }`）。
+- 参加者: `GET /v1/groups/{id}/members`・`GET /v1/dms/{id}/members`（メンション先の userId を調べる。自分とブロックした相手は含まない）。
 - 取り消し: `DELETE …/messages/{messageId}`（この AI 連携の投稿のみ）。
 - レート制限: 1トークンあたり30回/分。超えると `429`（`Retry-After`）。
 

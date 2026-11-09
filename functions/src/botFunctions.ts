@@ -8,12 +8,14 @@ import { HttpsError, onCall, onRequest } from "firebase-functions/v2/https";
 
 import {
   ASSISTANT_KIND,
+  BOT_CONTENT_MAX_LENGTH,
   BOT_MAX_PER_OWNER,
   BotScope,
   Cursor,
   assistantHistoryFloor,
   botSenderId,
   encodeCursor,
+  ensureMentionText,
   generateBotToken,
   hashBotToken,
   isReadableByAssistant,
@@ -221,6 +223,21 @@ async function effectiveNicknameFor(
   return nicknames.find((n) => n.id === nicknameId)?.text ?? null;
 }
 
+/**
+ * その会話での[userId]の呼び名（メンション・参加者一覧用）。その語らいで使っている
+ * 呼び名があればそれ、無ければRhing Seed（`@`は付けない。本文には`@$label`で入る）。
+ * 見つからなければnull。
+ */
+async function memberLabel(
+  userId: string,
+  conversationId: string,
+): Promise<string | null> {
+  const nickname = await effectiveNicknameFor(userId, conversationId);
+  if (nickname) return nickname;
+  const user = (await db().doc(`users/${userId}`).get()).data();
+  return (user?.rhingSeed as string | undefined) ?? null;
+}
+
 /** 会話の表示名（広場は広場名、一対は相手の呼び名。無ければRhing Seed）。 */
 async function conversationName(
   scope: BotScope,
@@ -257,6 +274,9 @@ function messageJson(
     content: isText ? (data.content ?? "") : "",
     sentAt: sentAt?.toDate().toISOString() ?? null,
     replyToMessageId: data.replyToMessageId ?? null,
+    mentionedUserIds: Array.isArray(data.mentionedUserIds)
+      ? data.mentionedUserIds
+      : [],
     editedAt: (data.editedAt as Timestamp | null)?.toDate().toISOString() ?? null,
   };
 }
@@ -485,6 +505,26 @@ export const botApi = onRequest(
       return;
     }
 
+    // 参加者の一覧（メンション先を選ぶため）。所有者が参加している会話だけ。
+    if (route.kind === "members") {
+      const target: Target = { scope: route.scope, id: route.conversationId };
+      const conv = (await convRef(target).get()).data();
+      if (!conv || !membersOf(route.scope, conv).includes(ownerId)) {
+        res.status(403).json({ error: "forbidden" });
+        return;
+      }
+      const members: Json[] = [];
+      for (const userId of membersOf(route.scope, conv)) {
+        if (userId === ownerId) continue;
+        // 所有者がブロックしている相手は、メンション先に出さない。
+        if (await isBlocked(ownerId, userId)) continue;
+        const name = await memberLabel(userId, route.conversationId);
+        if (name) members.push({ userId, name });
+      }
+      res.json({ members });
+      return;
+    }
+
     // ここから先は広場・一対の寄合に対する操作。所有者が参加している寄合だけ。
     const { scope, conversationId, roomId } = route;
     const target: Target = { scope, id: conversationId };
@@ -648,6 +688,43 @@ export const botApi = onRequest(
       };
     }
 
+    // メンション（個人のみ）。その会話のメンバー（所有者を除く）で、所有者が
+    // ブロックしていない相手だけ有効。ラベルは、その会話での相手の呼び名。
+    const mentionLabels: string[] = [];
+    if (payload.mentionUserIds.length > 0) {
+      const memberIds = membersOf(scope, conv);
+      for (const userId of payload.mentionUserIds) {
+        if (
+          userId === ownerId ||
+          !memberIds.includes(userId) ||
+          (await isBlocked(ownerId, userId))
+        ) {
+          res.status(400).json({
+            error: "invalid_payload",
+            message: "メンションできない相手がいます",
+          });
+          return;
+        }
+        const label = await memberLabel(userId, conversationId);
+        if (!label) {
+          res.status(400).json({
+            error: "invalid_payload",
+            message: "メンションできない相手がいます",
+          });
+          return;
+        }
+        mentionLabels.push(label);
+      }
+    }
+    const content = ensureMentionText(payload.content, mentionLabels);
+    if (content.length > BOT_CONTENT_MAX_LENGTH) {
+      res.status(400).json({
+        error: "invalid_payload",
+        message: `メンションを加えると${BOT_CONTENT_MAX_LENGTH}文字を超えます`,
+      });
+      return;
+    }
+
     const messageRef = messages.doc();
     const batch = db().batch();
     batch.set(messageRef, {
@@ -660,8 +737,13 @@ export const botApi = onRequest(
       // 解決する。所有者本人には通知・未読を出さない（`sendMessageNotification`等が参照）。
       botName: bot.name as string,
       assistantOwnerId: ownerId,
-      content: payload.content,
+      content,
       contentType: "text",
+      // メンションは個人のみ（人間の投稿と同じ形で保存し、通知は`resolveMentionRecipients`が決める）。
+      mentionedUserIds: payload.mentionUserIds,
+      mentionedRoleIds: [],
+      mentionEveryone: false,
+      mentionLabels,
       sentAt: FieldValue.serverTimestamp(),
       hiddenFor: [],
       readBy: [],
@@ -676,7 +758,7 @@ export const botApi = onRequest(
       lastMessageAt: FieldValue.serverTimestamp(),
       lastMessageSenderId: ownSenderId,
       lastMessageContentType: "text",
-      lastMessagePreview: previewOf(payload.content),
+      lastMessagePreview: previewOf(content),
     });
     await batch.commit();
     res.status(200).json({ ok: true, messageId: messageRef.id });
