@@ -16,7 +16,7 @@ import '../../widgets/media_preview_frame.dart';
 /// で包み、周囲に余白を取って「浮いた」独立の面に見せる。マテリアルに影は
 /// 使わない方針の為、影ではなく面・縁線・角丸・余白だけで区別する
 /// （2026-10-11、ユーザー指示）。
-class MentionSuggestionList extends StatelessWidget {
+class MentionSuggestionList extends StatefulWidget {
   const MentionSuggestionList({
     required this.candidates,
     required this.selectedIndex,
@@ -35,6 +35,59 @@ class MentionSuggestionList extends StatelessWidget {
   final String plazaLabel;
   final bool isGlass;
   final bool isGekiga;
+
+  @override
+  State<MentionSuggestionList> createState() => _MentionSuggestionListState();
+}
+
+class _MentionSuggestionListState extends State<MentionSuggestionList> {
+  final _scrollController = ScrollController();
+  final _selectedKey = GlobalKey();
+
+  @override
+  void dispose() {
+    _scrollController.dispose();
+    super.dispose();
+  }
+
+  @override
+  void didUpdateWidget(MentionSuggestionList oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.selectedIndex == widget.selectedIndex) return;
+    final movedDown = widget.selectedIndex > oldWidget.selectedIndex;
+    // キーボードで選択を動かした時、選んでいる行が見える位置まで一覧も一緒に動かす
+    // （2026-11-09）。行が描画された後に、最小限だけスクロールする。
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || !_scrollController.hasClients) return;
+      if (widget.selectedIndex == 0) {
+        // 先頭は、区分の見出しも見えるよう一番上まで戻す。
+        _scrollController.animateTo(
+          0,
+          duration: const Duration(milliseconds: 120),
+          curve: Curves.easeOut,
+        );
+        return;
+      }
+      final context = _selectedKey.currentContext;
+      if (context == null) return;
+      Scrollable.ensureVisible(
+        context,
+        duration: const Duration(milliseconds: 120),
+        curve: Curves.easeOut,
+        alignmentPolicy: movedDown
+            ? ScrollPositionAlignmentPolicy.keepVisibleAtEnd
+            : ScrollPositionAlignmentPolicy.keepVisibleAtStart,
+      );
+    });
+  }
+
+  List<MentionCandidate> get candidates => widget.candidates;
+  int get selectedIndex => widget.selectedIndex;
+  void Function(MentionCandidate candidate) get onPick => widget.onPick;
+  Strings get strings => widget.strings;
+  String get plazaLabel => widget.plazaLabel;
+  bool get isGlass => widget.isGlass;
+  bool get isGekiga => widget.isGekiga;
 
   @override
   Widget build(BuildContext context) {
@@ -71,6 +124,7 @@ class MentionSuggestionList extends StatelessWidget {
       for (final (index, candidate) in entries) {
         children.add(
           _MentionRow(
+            key: index == selectedIndex ? _selectedKey : null,
             candidate: candidate,
             selected: index == selectedIndex,
             foreground: foreground,
@@ -90,6 +144,7 @@ class MentionSuggestionList extends StatelessWidget {
     final list = ConstrainedBox(
       constraints: const BoxConstraints(maxHeight: 260),
       child: ListView(
+        controller: _scrollController,
         shrinkWrap: true,
         padding: const EdgeInsets.only(bottom: 4),
         children: children,
@@ -121,6 +176,7 @@ class MentionSuggestionList extends StatelessWidget {
 
 class _MentionRow extends StatelessWidget {
   const _MentionRow({
+    super.key,
     required this.candidate,
     required this.selected,
     required this.foreground,
