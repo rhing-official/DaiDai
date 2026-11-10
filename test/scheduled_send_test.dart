@@ -2,7 +2,9 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:daidai/features/chat/scheduled_send_ui.dart';
 import 'package:daidai/l10n/app_locale.dart';
 import 'package:daidai/models/app_ui_style.dart';
+import 'package:daidai/models/message.dart';
 import 'package:daidai/models/scheduled_message.dart';
+import 'package:daidai/utils/attachment_upload.dart';
 import 'package:daidai/providers/app_locale_provider.dart';
 import 'package:daidai/providers/app_ui_style_provider.dart';
 import 'package:daidai/providers/repository_providers.dart';
@@ -29,6 +31,15 @@ class _FakeScheduledRepo implements ScheduledMessageRepository {
 
   @override
   Future<void> reschedule(String id, DateTime sendAt) async {}
+
+  @override
+  Future<void> updateContent(
+    ScheduledMessage scheduled, {
+    required String text,
+    required List<MessageFileMetadata> kept,
+    required List<AttachmentUploadInput> added,
+    ValueChanged<double>? onProgress,
+  }) async {}
 }
 
 ScheduledMessage _item(

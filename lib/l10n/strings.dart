@@ -951,6 +951,11 @@ class Strings {
     required this.scheduledTimeTooSoon,
     required this.scheduledAdded,
     required this.scheduledAttachmentKind,
+    required this.scheduledEditAction,
+    required this.scheduledEditTitle,
+    required this.scheduledEditHint,
+    required this.scheduledEditEmpty,
+    required this.scheduledEditFailed,
     required this.noteSelectedPrefix,
     required this.noteCharsUnit,
     required this.noteBlockMoveTooltip,
@@ -2370,6 +2375,11 @@ class Strings {
   final String scheduledTimeTooSoon;
   final String scheduledAdded;
   final String scheduledAttachmentKind;
+  final String scheduledEditAction;
+  final String scheduledEditTitle;
+  final String scheduledEditHint;
+  final String scheduledEditEmpty;
+  final String scheduledEditFailed;
   final String noteSelectedPrefix;
   final String noteCharsUnit;
   final String noteBlockMoveTooltip;
@@ -3538,6 +3548,11 @@ class Strings {
     scheduledTimeTooSoon: '1分以上先の日時を選んでください',
     scheduledAdded: '送信予約に追加しました',
     scheduledAttachmentKind: '添付',
+    scheduledEditAction: '内容を編集',
+    scheduledEditTitle: '送信予約を編集',
+    scheduledEditHint: 'メッセージ',
+    scheduledEditEmpty: '文字か添付を入れてください',
+    scheduledEditFailed: '保存できませんでした',
     noteSelectedPrefix: '選択',
     noteCharsUnit: '文字',
     noteBlockMoveTooltip: 'ドラッグして移動',
@@ -4822,6 +4837,11 @@ class Strings {
     scheduledTimeTooSoon: 'Choose a time at least one minute from now',
     scheduledAdded: 'Added to scheduled messages',
     scheduledAttachmentKind: 'Attachment',
+    scheduledEditAction: 'Edit message',
+    scheduledEditTitle: 'Edit scheduled message',
+    scheduledEditHint: 'Message',
+    scheduledEditEmpty: 'Add some text or an attachment',
+    scheduledEditFailed: 'Could not save',
     noteSelectedPrefix: 'Selected',
     noteCharsUnit: 'characters',
     noteBlockMoveTooltip: 'Drag to move',

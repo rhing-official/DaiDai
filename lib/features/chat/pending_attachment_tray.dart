@@ -176,7 +176,9 @@ class _Thumb extends StatelessWidget {
                             errorBuilder: (_, _, _) =>
                                 _placeholder(colorScheme),
                           )
-                        : _placeholder(colorScheme, video: true),
+                        : attachment.contentType == 'video'
+                        ? _placeholder(colorScheme, video: true)
+                        : _filePlaceholder(context, colorScheme),
                   ),
                 ),
               ),
@@ -210,6 +212,36 @@ class _Thumb extends StatelessWidget {
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  /// ファイル（画像・動画以外）: ファイルのアイコンとファイル名。
+  Widget _filePlaceholder(BuildContext context, ColorScheme colorScheme) {
+    return ColoredBox(
+      color: colorScheme.surfaceContainerHighest,
+      child: Padding(
+        padding: const EdgeInsets.all(6),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(
+              Icons.insert_drive_file_outlined,
+              color: colorScheme.onSurfaceVariant,
+              size: 28,
+            ),
+            const SizedBox(height: 4),
+            Text(
+              attachment.fileName,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              textAlign: TextAlign.center,
+              style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                color: colorScheme.onSurfaceVariant,
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

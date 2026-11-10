@@ -4,7 +4,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../l10n/strings.dart';
+import '../../utils/attachment_upload.dart';
+import 'attachment_popup_button.dart';
 import '../../models/app_ui_style.dart';
+import '../../models/message.dart';
 import '../../models/scheduled_message.dart';
 import '../../providers/app_ui_style_provider.dart';
 import '../../providers/repository_providers.dart';
@@ -326,15 +329,6 @@ class _ScheduledMessagesDialog extends ConsumerWidget {
     _ => s.scheduledFailedInvalid,
   };
 
-  IconData _icon(String type) => switch (type) {
-    'image' => Icons.image_outlined,
-    'video' => Icons.videocam_outlined,
-    'file' => Icons.attach_file,
-    'multi' => Icons.collections_outlined,
-    'sticker' => Icons.emoji_emotions_outlined,
-    _ => Icons.chat_bubble_outline,
-  };
-
   Future<void> _cancel(
     BuildContext context,
     WidgetRef ref,
@@ -387,7 +381,6 @@ class _ScheduledMessagesDialog extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final strings = ref.watch(appStringsProvider);
     final uiStyle = ref.watch(appUiStyleProvider);
-    final isGlass = uiStyle == AppUiStyle.glass;
     final snapshot = ref.watch(
       scheduledMessagesProvider((
         userId: userId,
@@ -409,94 +402,459 @@ class _ScheduledMessagesDialog extends ConsumerWidget {
               ),
             );
           }
-          return ListView(
+          // 1件ずつ区切り線で分け、上に添付（画像・ファイル・ぺったん）、下に文字を出す。
+          return ListView.separated(
             shrinkWrap: true,
-            children: [
-              for (final item in items)
-                ListTile(
-                  leading: Icon(_icon(item.contentType)),
-                  title: Text(
-                    item.content.isEmpty
-                        ? strings.scheduledAttachmentKind
-                        : item.content,
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                  subtitle: Text(
-                    item.isFailed
-                        ? _failText(strings, item.failReason)
-                        : formatScheduledTime(item.sendAt),
-                  ),
-                  trailing: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      if (item.isPending)
-                        IconButton(
-                          tooltip: strings.scheduledRescheduleAction,
-                          icon: const Icon(Icons.edit_calendar_outlined),
-                          onPressed: () =>
-                              _reschedule(context, ref, strings, item),
+            itemCount: items.length,
+            separatorBuilder: (_, _) => const Divider(height: 1),
+            itemBuilder: (context, index) {
+              final item = items[index];
+              final files = item.files;
+              final sticker = item.stickerUrl;
+              final text = item.bodyText;
+              return Padding(
+                padding: const EdgeInsets.symmetric(vertical: 10),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    if (files.isNotEmpty || sticker != null)
+                      Padding(
+                        padding: const EdgeInsets.only(bottom: 8),
+                        child: Wrap(
+                          spacing: 6,
+                          runSpacing: 6,
+                          children: [
+                            if (sticker != null)
+                              _ScheduledThumb.sticker(sticker)
+                            else
+                              for (final file in files)
+                                _ScheduledThumb.file(file),
+                          ],
                         ),
-                      IconButton(
-                        tooltip: strings.scheduledCancelAction,
-                        icon: const Icon(Icons.delete_outline),
-                        onPressed: () => _cancel(context, ref, strings, item),
                       ),
-                    ],
-                  ),
+                    if (text.isNotEmpty)
+                      Text(text, maxLines: 4, overflow: TextOverflow.ellipsis),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            item.isFailed
+                                ? _failText(strings, item.failReason)
+                                : formatScheduledTime(item.sendAt),
+                            style: Theme.of(context).textTheme.bodySmall,
+                          ),
+                        ),
+                        if (item.isPending)
+                          IconButton(
+                            tooltip: strings.scheduledEditAction,
+                            icon: const Icon(Icons.edit_outlined),
+                            onPressed: () =>
+                                showEditScheduledDialog(context, item),
+                          ),
+                        if (item.isPending)
+                          IconButton(
+                            tooltip: strings.scheduledRescheduleAction,
+                            icon: const Icon(Icons.edit_calendar_outlined),
+                            onPressed: () =>
+                                _reschedule(context, ref, strings, item),
+                          ),
+                        IconButton(
+                          tooltip: strings.scheduledCancelAction,
+                          icon: const Icon(Icons.delete_outline),
+                          onPressed: () => _cancel(context, ref, strings, item),
+                        ),
+                      ],
+                    ),
+                  ],
                 ),
-            ],
+              );
+            },
           );
         },
       ),
     );
-    final title = Text(strings.scheduledListTitle);
-    if (uiStyle == AppUiStyle.gekiga) {
-      // 劇画: ギザギザの太線の箱、文字・アイコンは白。
-      final base = Theme.of(context);
-      final themed = base.copyWith(
-        colorScheme: base.colorScheme.copyWith(
-          onSurface: GekigaColors.onPanel,
-          onSurfaceVariant: GekigaColors.onPanel,
-        ),
-        textTheme: base.textTheme.apply(
-          bodyColor: GekigaColors.onPanel,
-          displayColor: GekigaColors.onPanel,
-        ),
-        listTileTheme: const ListTileThemeData(
-          textColor: GekigaColors.onPanel,
-          iconColor: GekigaColors.onPanel,
-        ),
-      );
-      return Theme(
-        data: themed,
-        child: Dialog(
-          backgroundColor: Colors.transparent,
-          elevation: 0,
-          shadowColor: Colors.transparent,
-          insetPadding: const EdgeInsets.all(24),
-          child: GekigaRectBox(
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(28, 24, 28, 24),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  DefaultTextStyle.merge(
-                    style: themed.textTheme.titleLarge,
-                    child: title,
-                  ),
+    return _styledDialog(
+      context: context,
+      uiStyle: uiStyle,
+      title: Text(strings.scheduledListTitle),
+      content: content,
+    );
+  }
+}
+
+/// UIスタイルに沿ったダイアログの外枠（劇画はギザギザの太線の箱・文字は白、ガラスはガラス、
+/// それ以外は標準の`AlertDialog`）。送信予約の一覧と編集で共通。
+Widget _styledDialog({
+  required BuildContext context,
+  required AppUiStyle uiStyle,
+  required Widget title,
+  required Widget content,
+  List<Widget>? actions,
+}) {
+  if (uiStyle == AppUiStyle.gekiga) {
+    final base = Theme.of(context);
+    final themed = base.copyWith(
+      colorScheme: base.colorScheme.copyWith(
+        onSurface: GekigaColors.onPanel,
+        onSurfaceVariant: GekigaColors.onPanel,
+      ),
+      textTheme: base.textTheme.apply(
+        bodyColor: GekigaColors.onPanel,
+        displayColor: GekigaColors.onPanel,
+      ),
+      listTileTheme: const ListTileThemeData(
+        textColor: GekigaColors.onPanel,
+        iconColor: GekigaColors.onPanel,
+      ),
+    );
+    return Theme(
+      data: themed,
+      child: Dialog(
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        shadowColor: Colors.transparent,
+        insetPadding: const EdgeInsets.all(24),
+        child: GekigaRectBox(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(28, 24, 28, 24),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                DefaultTextStyle.merge(
+                  style: themed.textTheme.titleLarge,
+                  child: title,
+                ),
+                const SizedBox(height: 16),
+                Flexible(child: content),
+                if (actions != null) ...[
                   const SizedBox(height: 16),
-                  Flexible(child: content),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.end,
+                    children: actions,
+                  ),
                 ],
-              ),
+              ],
             ),
           ),
         ),
+      ),
+    );
+  }
+  return uiStyle == AppUiStyle.glass
+      ? GlassAlertDialog(title: title, content: content, actions: actions)
+      : AlertDialog(title: title, content: content, actions: actions);
+}
+
+/// 送信予約の編集ダイアログ（文字と添付を直す）。保存したらtrue。
+Future<bool?> showEditScheduledDialog(
+  BuildContext context,
+  ScheduledMessage item,
+) {
+  return showAppDialog<bool>(
+    context: context,
+    builder: (_) => _EditScheduledDialog(item: item),
+  );
+}
+
+class _EditScheduledDialog extends ConsumerStatefulWidget {
+  const _EditScheduledDialog({required this.item});
+
+  final ScheduledMessage item;
+
+  @override
+  ConsumerState<_EditScheduledDialog> createState() =>
+      _EditScheduledDialogState();
+}
+
+class _EditScheduledDialogState extends ConsumerState<_EditScheduledDialog> {
+  late final TextEditingController _text = TextEditingController(
+    text: widget.item.bodyText,
+  );
+  late final List<MessageFileMetadata> _kept = [...widget.item.files];
+  final List<PickedAttachment> _added = [];
+  double? _progress;
+  String? _error;
+
+  @override
+  void dispose() {
+    _text.dispose();
+    super.dispose();
+  }
+
+  int get _count => _kept.length + _added.length;
+
+  Future<void> _save() async {
+    final strings = ref.read(appStringsProvider);
+    if (_text.text.trim().isEmpty && _count == 0) {
+      setState(() => _error = strings.scheduledEditEmpty);
+      return;
+    }
+    setState(() {
+      _progress = 0;
+      _error = null;
+    });
+    try {
+      await ref
+          .read(scheduledMessageRepositoryProvider)
+          .updateContent(
+            widget.item,
+            text: _text.text,
+            kept: _kept,
+            added: [
+              for (final a in _added)
+                AttachmentUploadInput(
+                  bytes: a.bytes,
+                  fileName: a.fileName,
+                  contentType: a.contentType,
+                ),
+            ],
+            onProgress: (p) {
+              if (mounted) setState(() => _progress = p);
+            },
+          );
+      if (mounted) Navigator.of(context).pop(true);
+    } catch (_) {
+      if (mounted) {
+        setState(() {
+          _progress = null;
+          _error = strings.scheduledEditFailed;
+        });
+      }
+    }
+  }
+
+  void _onPicked(List<PickedAttachment> picked) {
+    final strings = ref.read(appStringsProvider);
+    final room = kMaxMultiAttachments - _count;
+    setState(() {
+      _added.addAll(picked.take(room));
+      _error = picked.length > room
+          ? strings.chatPendingTrayLimitMessage(kMaxMultiAttachments)
+          : null;
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final strings = ref.watch(appStringsProvider);
+    final uiStyle = ref.watch(appUiStyleProvider);
+    final busy = _progress != null;
+    final isSticker = widget.item.contentType == 'sticker';
+    final content = SizedBox(
+      width: 420,
+      child: SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            if (isSticker && widget.item.stickerUrl != null)
+              Padding(
+                padding: const EdgeInsets.only(bottom: 8),
+                child: _ScheduledThumb.sticker(widget.item.stickerUrl!),
+              ),
+            if (!isSticker) ...[
+              if (_count > 0)
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 8),
+                  child: Wrap(
+                    spacing: 6,
+                    runSpacing: 6,
+                    children: [
+                      for (var i = 0; i < _kept.length; i++)
+                        _RemovableThumb(
+                          onRemove: busy
+                              ? null
+                              : () => setState(() => _kept.removeAt(i)),
+                          child: _ScheduledThumb.file(_kept[i]),
+                        ),
+                      for (var i = 0; i < _added.length; i++)
+                        _RemovableThumb(
+                          onRemove: busy
+                              ? null
+                              : () => setState(() => _added.removeAt(i)),
+                          child: _ScheduledThumb.picked(_added[i]),
+                        ),
+                    ],
+                  ),
+                ),
+              Align(
+                alignment: Alignment.centerLeft,
+                child: AttachmentPopupButton(
+                  strings: strings,
+                  isGekiga: uiStyle == AppUiStyle.gekiga,
+                  onPicked: _onPicked,
+                ),
+              ),
+            ],
+            if (!isSticker)
+              TextField(
+                controller: _text,
+                enabled: !busy,
+                minLines: 2,
+                maxLines: 8,
+                decoration: InputDecoration(
+                  hintText: strings.scheduledEditHint,
+                ),
+              ),
+            if (busy)
+              Padding(
+                padding: const EdgeInsets.only(top: 12),
+                child: LinearProgressIndicator(value: _progress),
+              ),
+            if (_error != null)
+              Padding(
+                padding: const EdgeInsets.only(top: 8),
+                child: Text(_error!, style: const TextStyle(color: Colors.red)),
+              ),
+          ],
+        ),
+      ),
+    );
+    return _styledDialog(
+      context: context,
+      uiStyle: uiStyle,
+      title: Text(strings.scheduledEditTitle),
+      content: content,
+      actions: [
+        TextButton(
+          onPressed: busy ? null : () => Navigator.of(context).pop(false),
+          child: Text(strings.cancel),
+        ),
+        const SizedBox(width: 8),
+        FilledButton(
+          onPressed: busy || isSticker ? null : _save,
+          child: Text(strings.save),
+        ),
+      ],
+    );
+  }
+}
+
+/// 右上に×を付けたサムネイル（編集ダイアログで添付を外す）。
+class _RemovableThumb extends StatelessWidget {
+  const _RemovableThumb({required this.child, required this.onRemove});
+
+  final Widget child;
+  final VoidCallback? onRemove;
+
+  @override
+  Widget build(BuildContext context) {
+    return Stack(
+      clipBehavior: Clip.none,
+      children: [
+        child,
+        Positioned(
+          top: -6,
+          right: -6,
+          child: GestureDetector(
+            onTap: onRemove,
+            child: const CircleAvatar(
+              radius: 10,
+              backgroundColor: Colors.black87,
+              child: Icon(Icons.close, size: 12, color: Colors.white),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+/// 送信予約の一覧の添付1つ分の小さなサムネイル（画像は画像、動画・ファイルはアイコンと名前）。
+class _ScheduledThumb extends StatelessWidget {
+  const _ScheduledThumb.file(MessageFileMetadata file)
+    : _url = null,
+      _file = file,
+      _picked = null;
+  const _ScheduledThumb.sticker(String url)
+    : _url = url,
+      _file = null,
+      _picked = null;
+  const _ScheduledThumb.picked(PickedAttachment picked)
+    : _url = null,
+      _file = null,
+      _picked = picked;
+
+  final String? _url;
+  final MessageFileMetadata? _file;
+  final PickedAttachment? _picked;
+
+  static const double _size = 56;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final file = _file;
+    final picked = _picked;
+    final Widget child;
+    if (picked != null) {
+      child = switch (picked.contentType) {
+        'image' => Image.memory(
+          picked.bytes,
+          fit: BoxFit.cover,
+          cacheWidth: (_size * 2).round(),
+          errorBuilder: (_, _, _) => const Icon(Icons.image_outlined),
+        ),
+        'video' => const Icon(Icons.play_circle_outline),
+        _ => Padding(
+          padding: const EdgeInsets.all(4),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const Icon(Icons.insert_drive_file_outlined, size: 20),
+              Text(
+                picked.fileName,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: Theme.of(context).textTheme.labelSmall,
+              ),
+            ],
+          ),
+        ),
+      };
+    } else if (_url != null) {
+      child = Image.network(
+        _url,
+        fit: BoxFit.contain,
+        errorBuilder: (_, _, _) => const Icon(Icons.emoji_emotions_outlined),
+      );
+    } else if (file!.isImage) {
+      child = Image.network(
+        file.url,
+        fit: BoxFit.cover,
+        cacheWidth: (_size * 2).round(),
+        errorBuilder: (_, _, _) => const Icon(Icons.image_outlined),
+      );
+    } else if (file.isVideo) {
+      child = const Icon(Icons.play_circle_outline);
+    } else {
+      child = Padding(
+        padding: const EdgeInsets.all(4),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            const Icon(Icons.insert_drive_file_outlined, size: 20),
+            Text(
+              file.fileName,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: Theme.of(context).textTheme.labelSmall,
+            ),
+          ],
+        ),
       );
     }
-    return isGlass
-        ? GlassAlertDialog(title: title, content: content)
-        : AlertDialog(title: title, content: content);
+    return Container(
+      width: _size,
+      height: _size,
+      clipBehavior: Clip.antiAlias,
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: scheme.outlineVariant),
+      ),
+      alignment: Alignment.center,
+      child: child,
+    );
   }
 }

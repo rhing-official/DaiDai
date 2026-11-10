@@ -2891,22 +2891,12 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     _composerFocusNode.requestFocus();
   }
 
-  /// ＋ボタンで選んだ添付の受け口。画像・動画（撮影を含む）は送信前のトレイへ入れ、
-  /// ファイルは従来どおり選んだ直後に送る。
+  /// ＋ボタンで選んだ添付の受け口。画像・動画・ファイルはどれも送信前のトレイへ入れ、
+  /// 文字（あれば）と一緒に1つのメッセージとして送る（ファイルも複数まとめて送れる、2026-11-10。
+  /// 以前は、ファイルだけ選んだ直後に1件ずつ送っていた）。
   void _onAttachmentsChosen(List<PickedAttachment> picked) {
     if (picked.isEmpty) return;
-    final staged = [
-      for (final a in picked)
-        if (a.contentType == 'image' || a.contentType == 'video') a,
-    ];
-    final immediate = [
-      for (final a in picked)
-        if (a.contentType != 'image' && a.contentType != 'video') a,
-    ];
-    if (immediate.isNotEmpty) {
-      _handleAttachmentsPicked(immediate, sendAt: _takeScheduledAt());
-    }
-    if (staged.isEmpty) return;
+    final staged = picked;
     final room = kMaxMultiAttachments - _pendingAttachments.length;
     setState(() => _pendingAttachments.addAll(staged.take(room)));
     _refocusComposerForTray();
@@ -5504,12 +5494,23 @@ class _MessageRow extends ConsumerWidget {
         isPreviewablePdf(message.fileMetadata!) &&
         message.fileMetadata!.sizeBytes <= kMaxPdfThumbnailBytes;
 
-    // 複数添付で全てが画像・動画なら、単一の画像と同じく吹き出しの枠を付けず
-    // グリッド自身の枠だけにする（ファイルが混ざる場合は吹き出しに入れる）。
+    // 複数添付は、種類ごとに吹き出しを分けて表示する（文字・URLのプレビュー・画像と動画
+    // （この2つだけは1つにまとめる）・音声・その他のファイル、2026-11-10、ユーザー指示）。
+    // 外側には吹き出しを付けず、各グループが自分の枠（吹き出し）を持つ。
+    final isMultiSplit = message.contentType == 'multi';
     final isMultiMediaOnly =
         message.contentType == 'multi' &&
         message.attachments.isNotEmpty &&
         message.attachments.every((a) => a.isMedia);
+
+    // 文字と一緒に送った音声は、文字とは別の吹き出しで表示する（1つのメッセージのまま、
+    // 2026-11-10、ユーザー指示）。
+    final isAudioWithCaption =
+        isAttachment &&
+        (message.caption?.isNotEmpty ?? false) &&
+        message.contentType == 'file' &&
+        message.fileMetadata != null &&
+        _FileAttachmentBlock.isPlayableAudio(message.fileMetadata!);
 
     final bubbleContent = Column(
       mainAxisSize: MainAxisSize.min,
@@ -5573,64 +5574,93 @@ class _MessageRow extends ConsumerWidget {
             ),
           )
         else if (isAttachment)
-          _attachmentWithCaption(
-            context,
-            message,
-            body: _attachmentContent(context, onBubbleColor, isGekiga),
-            alignRight: alignRight,
-            preview: (message.caption?.isNotEmpty ?? false)
-                ? _captionPreview(message, isGekiga: isGekiga, isMe: isMe)
-                : null,
-            // 画像・動画・メディアだけの複数は吹き出しの枠が無い為、文字だけを
-            // 吹き出しで包む。ファイルを含むものは全体が吹き出しの中なので文字だけ
-            // （2026-11-01）。
-            captionBuilder: (caption) {
-              // URLはリンクとして出す（通常のテキストメッセージと同じ、2026-11-01）。
-              final text = LinkifiedText(
-                caption,
-                style: TextStyle(
-                  color: onBubbleColor,
-                  fontWeight: isGekiga ? FontWeight.w600 : null,
+          () {
+            // 吹き出しの枠（劇画・フラット・版画・ガラスで意匠が違う）。
+            Widget wrapInBubble(
+              Widget child, {
+              double gekigaPadding = 30,
+              double gekigaTopExtra = 0,
+            }) => switch (uiStyle) {
+              AppUiStyle.gekiga => _GekigaBubble(
+                seed: message.messageId.hashCode,
+                isMe: isMe,
+                alignRight: alignRight,
+                horizontalPadding: gekigaPadding,
+                extraTopPadding: gekigaTopExtra,
+                child: child,
+              ),
+              AppUiStyle.flat || AppUiStyle.block => Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 10,
                 ),
-                linkColor: isGekiga
-                    ? (isMe ? Colors.black : Colors.white)
-                    : onBubbleColor,
-              );
-              final mediaOnly =
-                  message.contentType == 'image' ||
-                  message.contentType == 'video' ||
-                  isMultiMediaOnly;
-              if (!mediaOnly) return text;
-              return switch (uiStyle) {
-                AppUiStyle.gekiga => _GekigaBubble(
-                  seed: message.messageId.hashCode,
-                  isMe: isMe,
-                  alignRight: alignRight,
-                  child: text,
+                decoration: framedCardDecoration(
+                  context,
+                  color: bubbleFill,
+                  borderRadius: BorderRadius.circular(20),
                 ),
-                AppUiStyle.flat || AppUiStyle.block => Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 16,
-                    vertical: 10,
+                child: child,
+              ),
+              AppUiStyle.glass => GlassSurface(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 10,
+                ),
+                fillColorOverride: bubbleFill,
+                child: child,
+              ),
+            };
+            final attachmentBody = _attachmentContent(
+              context,
+              onBubbleColor,
+              isGekiga,
+              // 複数添付の音声・その他のファイルは、それぞれ自分の吹き出しで包む。
+              wrapFileGroup: isMultiSplit
+                  ? (child, isAudio) =>
+                        wrapInBubble(child, gekigaPadding: isAudio ? 46 : 30)
+                  : null,
+              groupGap: isGekiga ? 20 : 8,
+            );
+            return _attachmentWithCaption(
+              context,
+              message,
+              body: isAudioWithCaption
+                  ? wrapInBubble(attachmentBody, gekigaPadding: 46)
+                  : attachmentBody,
+              alignRight: alignRight,
+              // 劇画の吹き出しは枠が傾き・ぶれるので、文字の吹き出しと重ならないよう、音声の
+              // 吹き出しをさらに下げる。
+              captionGap: (isAudioWithCaption || isMultiSplit) && isGekiga
+                  ? 20
+                  : (isMultiSplit ? 8 : 6),
+              preview: (message.caption?.isNotEmpty ?? false)
+                  ? _captionPreview(message, isGekiga: isGekiga, isMe: isMe)
+                  : null,
+              // 画像・動画・メディアだけの複数・音声は吹き出しの枠が本体側に無い為、文字だけを
+              // 吹き出しで包む。ファイルを含むものは全体が吹き出しの中なので文字だけ
+              // （2026-11-01）。
+              captionBuilder: (caption) {
+                // URLはリンクとして出す（通常のテキストメッセージと同じ、2026-11-01）。
+                final text = LinkifiedText(
+                  caption,
+                  style: TextStyle(
+                    color: onBubbleColor,
+                    fontWeight: isGekiga ? FontWeight.w600 : null,
                   ),
-                  decoration: framedCardDecoration(
-                    context,
-                    color: bubbleFill,
-                    borderRadius: BorderRadius.circular(20),
-                  ),
-                  child: text,
-                ),
-                AppUiStyle.glass => GlassSurface(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 16,
-                    vertical: 10,
-                  ),
-                  fillColorOverride: bubbleFill,
-                  child: text,
-                ),
-              };
-            },
-          )
+                  linkColor: isGekiga
+                      ? (isMe ? Colors.black : Colors.white)
+                      : onBubbleColor,
+                );
+                final mediaOnly =
+                    message.contentType == 'image' ||
+                    message.contentType == 'video' ||
+                    isMultiMediaOnly ||
+                    isMultiSplit ||
+                    isAudioWithCaption;
+                return mediaOnly ? wrapInBubble(text) : text;
+              },
+            );
+          }()
         else if (isSticker)
           _stickerContent(context, ref, onBubbleColor)
         else
@@ -5787,6 +5817,8 @@ class _MessageRow extends ConsumerWidget {
         message.contentType == 'image' ||
         message.contentType == 'video' ||
         isMultiMediaOnly ||
+        isMultiSplit ||
+        isAudioWithCaption ||
         isMarkdownPreview ||
         isPdfPreview ||
         isSticker ||
@@ -7159,8 +7191,10 @@ class _MessageRow extends ConsumerWidget {
   Widget _multiAttachmentContent(
     BuildContext context,
     Color onBubbleColor,
-    bool isGekiga,
-  ) {
+    bool isGekiga, {
+    Widget Function(Widget child, bool isAudio)? wrapFileGroup,
+    double groupGap = 6,
+  }) {
     const gridWidth = 280.0;
     final media = [
       for (var i = 0; i < message.attachments.length; i++)
@@ -7267,18 +7301,49 @@ class _MessageRow extends ConsumerWidget {
         ),
       );
     }
-    for (final index in files) {
-      if (children.isNotEmpty) children.add(const SizedBox(height: 6));
-      children.add(
-        _FileAttachmentBlock(
-          metadata: message.attachments[index],
-          messageId: '${message.messageId}#$index',
-          onBubbleColor: onBubbleColor,
-          isGekiga: isGekiga,
-          isGlass: uiStyle == AppUiStyle.glass,
-          isMe: isMe,
-        ),
-      );
+    Widget fileBlock(int index) => _FileAttachmentBlock(
+      metadata: message.attachments[index],
+      messageId: '${message.messageId}#$index',
+      onBubbleColor: onBubbleColor,
+      isGekiga: isGekiga,
+      isGlass: uiStyle == AppUiStyle.glass,
+      isMe: isMe,
+    );
+    if (wrapFileGroup == null) {
+      // 従来の並び（全体が1つの吹き出しの中）。
+      for (final index in files) {
+        if (children.isNotEmpty) children.add(const SizedBox(height: 6));
+        children.add(fileBlock(index));
+      }
+    } else {
+      // 音声とその他のファイルを、それぞれ別の吹き出しにする。
+      final audio = [
+        for (final i in files)
+          if (_FileAttachmentBlock.isPlayableAudio(message.attachments[i])) i,
+      ];
+      final others = [
+        for (final i in files)
+          if (!_FileAttachmentBlock.isPlayableAudio(message.attachments[i])) i,
+      ];
+      for (final group in [(audio, true), (others, false)]) {
+        if (group.$1.isEmpty) continue;
+        if (children.isNotEmpty) children.add(SizedBox(height: groupGap));
+        children.add(
+          wrapFileGroup(
+            Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                for (var k = 0; k < group.$1.length; k++) ...[
+                  if (k > 0) const SizedBox(height: 6),
+                  fileBlock(group.$1[k]),
+                ],
+              ],
+            ),
+            group.$2,
+          ),
+        );
+      }
     }
     return Column(
       mainAxisSize: MainAxisSize.min,
@@ -7315,6 +7380,7 @@ class _MessageRow extends ConsumerWidget {
     required Widget Function(String caption) captionBuilder,
     required bool alignRight,
     Widget? preview,
+    double captionGap = 6,
   }) {
     final caption = message.caption;
     if (caption == null || caption.isEmpty) return body;
@@ -7325,7 +7391,7 @@ class _MessageRow extends ConsumerWidget {
           : CrossAxisAlignment.start,
       children: [
         Padding(
-          padding: const EdgeInsets.only(bottom: 6),
+          padding: EdgeInsets.only(bottom: captionGap),
           child: captionBuilder(caption),
         ),
         // 文字のURLのプレビューは、文字の直下（画像の上）に出す（2026-11-01）。
@@ -7339,10 +7405,18 @@ class _MessageRow extends ConsumerWidget {
   Widget _attachmentContent(
     BuildContext context,
     Color onBubbleColor,
-    bool isGekiga,
-  ) {
+    bool isGekiga, {
+    Widget Function(Widget child, bool isAudio)? wrapFileGroup,
+    double groupGap = 6,
+  }) {
     if (message.contentType == 'multi') {
-      return _multiAttachmentContent(context, onBubbleColor, isGekiga);
+      return _multiAttachmentContent(
+        context,
+        onBubbleColor,
+        isGekiga,
+        wrapFileGroup: wrapFileGroup,
+        groupGap: groupGap,
+      );
     }
     final metadata = message.fileMetadata;
     if (metadata == null) {
@@ -9494,11 +9568,20 @@ class _GekigaBubble extends StatelessWidget {
     required this.isMe,
     required this.alignRight,
     this.skipFrame = false,
+    this.horizontalPadding = 30,
+    this.extraTopPadding = 0,
   });
 
   final Widget child;
   final int seed;
   final bool isMe;
+
+  /// 左右の余白。縦に長い吹き出し（音声の一覧など）は、傾き（最大20px）で左上・右下の角が
+  /// 中身に食い込むので、広げる。
+  final double horizontalPadding;
+
+  /// 中身を少し下げる量（上の余白に足す）。
+  final double extraTopPadding;
 
   /// 右寄せ表示（自分・sideBySideレイアウト）かどうか。真なら吹き出しの
   /// 形状（平行四辺形の傾き）を左右反転する（2026-08-06追加）。
@@ -9530,7 +9613,12 @@ class _GekigaBubble extends StatelessWidget {
         alignRight: alignRight,
       ),
       child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 30, vertical: 18),
+        padding: EdgeInsets.fromLTRB(
+          horizontalPadding,
+          18 + extraTopPadding,
+          horizontalPadding,
+          18,
+        ),
         child: child,
       ),
     );

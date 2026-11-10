@@ -1,5 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 
+import 'message.dart';
+
 /// 送信予定の1件（`scheduledMessages/{id}`、2026-11-10追加）。時刻になるとCloud Functionsが
 /// [message]を寄合へ送る。作成・日時の変更・取り消しは予定した本人（[createdBy]）だけ。
 class ScheduledMessage {
@@ -45,6 +47,34 @@ class ScheduledMessage {
 
   /// 本文（添付・ぺったんでは、ファイル名・ぺったんの名前）。
   String get content => (message['content'] as String?) ?? '';
+
+  /// 添付（画像・動画・ファイル）。複数添付は`attachments`、単独の添付は`fileMetadata`から取る。
+  List<MessageFileMetadata> get files {
+    final list = message['attachments'];
+    if (list is List && list.isNotEmpty) {
+      return [
+        for (final a in list)
+          MessageFileMetadata.fromJson(Map<String, dynamic>.from(a as Map)),
+      ];
+    }
+    final single = message['fileMetadata'];
+    if (single is Map) {
+      return [MessageFileMetadata.fromJson(Map<String, dynamic>.from(single))];
+    }
+    return const [];
+  }
+
+  /// ぺったんの画像のURL（ぺったんでなければnull）。
+  String? get stickerUrl {
+    final data = message['stickerData'];
+    return data is Map ? data['stickerUrl'] as String? : null;
+  }
+
+  /// 本文（テキストはその文、添付は添えた文字、ぺったんは名前）。無ければ空。
+  String get bodyText {
+    if (contentType == 'text' || contentType == 'sticker') return content;
+    return (message['caption'] as String?) ?? '';
+  }
 
   factory ScheduledMessage.fromJson(String id, Map<String, dynamic> json) {
     return ScheduledMessage(

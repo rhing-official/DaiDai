@@ -1,8 +1,10 @@
 import 'dart:async';
 
 import 'package:cloud_firestore/cloud_firestore.dart' show Timestamp;
+import 'package:flutter/foundation.dart' show ValueChanged;
 
 import '../../../models/app_user.dart';
+import '../../../utils/attachment_upload.dart';
 import '../../../models/conversation_prefs.dart';
 import '../../../models/direct_message.dart';
 import '../../../models/dm_room.dart';
@@ -451,6 +453,15 @@ class PracticeScheduledMessageRepository implements ScheduledMessageRepository {
 
   @override
   Future<void> reschedule(String id, DateTime sendAt) async {}
+
+  @override
+  Future<void> updateContent(
+    ScheduledMessage scheduled, {
+    required String text,
+    required List<MessageFileMetadata> kept,
+    required List<AttachmentUploadInput> added,
+    ValueChanged<double>? onProgress,
+  }) async {}
 
   @override
   Future<void> cancel(ScheduledMessage scheduled) async {}

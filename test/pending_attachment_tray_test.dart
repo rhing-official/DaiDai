@@ -59,6 +59,24 @@ void main() {
     expect(removed, 1);
   });
 
+  testWidgets('ファイルもトレイに並び、アイコンとファイル名が出る', (tester) async {
+    await tester.pumpWidget(
+      host(
+        list: [
+          ...attachments,
+          PickedAttachment(
+            bytes: Uint8List(4),
+            fileName: 'report.pdf',
+            contentType: 'file',
+          ),
+        ],
+      ),
+    );
+    expect(find.byIcon(Icons.insert_drive_file_outlined), findsOneWidget);
+    expect(find.text('report.pdf'), findsOneWidget);
+    expect(find.byIcon(Icons.close), findsNWidgets(3));
+  });
+
   testWidgets('送信中などで無効な間は、外せない', (tester) async {
     int? removed;
     await tester.pumpWidget(

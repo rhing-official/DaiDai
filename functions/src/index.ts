@@ -3772,6 +3772,8 @@ async function dispatchScheduledMessage(
   // 同じメッセージIDで`create`する為、再実行しても二重には送られない。
   batch.create(roomRef.collection("messages").doc(messageId), {
     ...message,
+    // 送信者は、予約した本人に固定する（保存された中身の`senderId`は信用しない）。
+    senderId,
     sentAt: FieldValue.serverTimestamp(),
   });
   batch.update(roomRef, { lastMessageAt: FieldValue.serverTimestamp() });

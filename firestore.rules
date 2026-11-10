@@ -1764,7 +1764,7 @@ service cloud.firestore {
     }
 
     // scheduledMessages/{id}: 送信予定のメッセージ（2026-11-10追加）。予定した本人だけが
-    // 作成・読み取り・日時の変更・取り消しでき、送信（messagesへの書き出し）と状態の変更は
+    // 作成・読み取り・日時・中身（文字と添付）の変更・取り消しでき、送信（messagesへの書き出し）と状態の変更は
     // Cloud Functions（Admin SDK）だけが行う。日時は未来〜31日後。送る時点で、予定した本人が
     // まだ会話に参加しているかはサーバーが確かめる。
     match /scheduledMessages/{scheduledId} {
@@ -1772,6 +1772,7 @@ service cloud.firestore {
         && resource.data.createdBy == request.auth.uid;
       allow create: if request.auth != null
         && request.resource.data.createdBy == request.auth.uid
+        && request.resource.data.message.senderId == request.auth.uid
         && request.resource.data.status == 'pending'
         && request.resource.data.sendAt is timestamp
         && request.resource.data.sendAt > request.time
@@ -1779,7 +1780,9 @@ service cloud.firestore {
       allow update: if request.auth != null
         && resource.data.createdBy == request.auth.uid
         && resource.data.status == 'pending'
-        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['sendAt'])
+        && request.resource.data.diff(resource.data).affectedKeys()
+          .hasOnly(['sendAt', 'message', 'lastMessageContentType', 'lastMessagePreview'])
+        && request.resource.data.message.senderId == request.auth.uid
         && request.resource.data.sendAt > request.time
         && request.resource.data.sendAt <= request.time + duration.value(31, 'd');
       allow delete: if request.auth != null
