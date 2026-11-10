@@ -25,6 +25,7 @@ import '../../widgets/media_viewer_screen.dart';
 import 'album_message_picker_screen.dart';
 import '../../widgets/dialog_keyboard_shortcuts.dart';
 import '../../widgets/app_dialog.dart';
+import '../../widgets/pane_title_row_app_bar.dart';
 
 /// 寄合単位の共有アルバムの中身を寄合の表示領域内で開く（2026-09-07、
 /// `NotePaneView`/`CalendarPaneView`と同じ「ローカルなbool/オブジェクト
@@ -411,38 +412,58 @@ class _AlbumPaneViewState extends ConsumerState<AlbumPaneView> {
       onPressed: _uploading ? null : _deleteAlbum,
     );
 
-    return Scaffold(
-      appBar: isGlass
-          ? GlassAppBar(
-              automaticallyImplyLeading: false,
-              title: title,
-              actions: [addAction, deleteAction],
-            )
-          : AppBar(
-              automaticallyImplyLeading: false,
-              title: title,
-              actions: [addAction, deleteAction],
+    // 幅が狭い（縦画面）時は、ボタンの行と題名の行を分ける（題名の文字サイズは縮めない）。
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final twoRows = paneNeedsTitleRow(
+          maxWidth: constraints.maxWidth,
+          actionCount: 2,
+          titleFontSize: 24,
+          textScale: MediaQuery.textScalerOf(context).scale(1),
+        );
+        final bottom = twoRows
+            ? paneTitleRowBottom(
+                context: context,
+                titleField: title,
+                titleFontSize: 24,
+              )
+            : null;
+        return Scaffold(
+          appBar: isGlass
+              ? GlassAppBar(
+                  automaticallyImplyLeading: false,
+                  title: twoRows ? null : title,
+                  bottom: bottom,
+                  actions: [addAction, deleteAction],
+                )
+              : AppBar(
+                  automaticallyImplyLeading: false,
+                  title: twoRows ? null : title,
+                  bottom: bottom,
+                  actions: [addAction, deleteAction],
+                ),
+          body: PaneKeyFocus(
+            onKeyEvent: (node, event) {
+              if (event is! KeyDownEvent) return KeyEventResult.ignored;
+              if (event.logicalKey == LogicalKeyboardKey.escape) {
+                _close();
+                return KeyEventResult.handled;
+              }
+              return KeyEventResult.ignored;
+            },
+            child: SwipeDownToDismiss(
+              onDismiss: _close,
+              child: Column(
+                children: [
+                  if (_uploadProgress case final progress?)
+                    UploadProgressBar(progress: progress),
+                  Expanded(child: _itemsGrid(strings)),
+                ],
+              ),
             ),
-      body: PaneKeyFocus(
-        onKeyEvent: (node, event) {
-          if (event is! KeyDownEvent) return KeyEventResult.ignored;
-          if (event.logicalKey == LogicalKeyboardKey.escape) {
-            _close();
-            return KeyEventResult.handled;
-          }
-          return KeyEventResult.ignored;
-        },
-        child: SwipeDownToDismiss(
-          onDismiss: _close,
-          child: Column(
-            children: [
-              if (_uploadProgress case final progress?)
-                UploadProgressBar(progress: progress),
-              Expanded(child: _itemsGrid(strings)),
-            ],
           ),
-        ),
-      ),
+        );
+      },
     );
   }
 

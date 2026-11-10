@@ -100,7 +100,9 @@ server.registerTool(
   "list_members",
   {
     description:
-      "会話（広場・一対）の参加者の一覧（userIdとその語らいでの呼び名）を返す。" +
+      "会話（広場・一対）の参加者の一覧を返す。`name`は持ち主が画面で見ている呼び名" +
+      "（持ち主が相手に付けた呼び名`alias`が最優先、無ければその語らいでの呼び名`nickname`、無ければ`@rhingSeed`）。" +
+      "ユーザーが「〇〇さん」と呼ぶ相手を探す時は、`name`・`alias`・`nickname`・`rhingSeed`のどれでも照合する。" +
       "`reply`の`mentionUserIds`に渡すuserIdを調べるのに使う（自分とブロックした相手は含まれない）。",
     inputSchema: { scope, conversationId },
   },

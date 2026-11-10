@@ -33,7 +33,7 @@ claude mcp add --scope user daidai -e DAIDAI_BOT_TOKEN=<トークン> -- npx -y 
 | `list_conversations` | 参加している全ての広場・一対と、その寄合 |
 | `get_updates` | 前回以降に更新のあった会話（`since`/`wait`） |
 | `read_messages` | 寄合のメッセージを読む。`after` に前回の `nextCursor`、`wait`（最大25秒）で新着を待つ |
-| `list_members` | 会話の参加者（userId と、その語らいでの呼び名）。メンション先を選ぶのに使う |
+| `list_members` | 会話の参加者（`userId`、`name`＝あなたが画面で見ている呼び名（あなたが付けた呼び名が最優先）、`alias`・`nickname`・`rhingSeed`）。メンション先を選ぶのに使う |
 | `reply` | 寄合に投稿する。`replyToMessageId` で引用返信、`mentionUserIds` で個人にメンション（通知がその人にだけ飛ぶ。最大5人、全員宛・ロール宛は不可。本文に `@名前` が無ければ自動で補う） |
 | `delete_message` | この AI 連携自身の投稿を取り消す |
 

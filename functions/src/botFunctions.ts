@@ -26,6 +26,7 @@ import {
   parseReadParams,
   parseUpdatesParams,
   previewOf,
+  resolveOwnerViewName,
   snippetOf,
   verifyBotToken,
 } from "./botApi";
@@ -224,6 +225,22 @@ async function effectiveNicknameFor(
 }
 
 /**
+ * 持ち主が相手に付けた呼び名（`users/{ownerId}/contactAliases/{相手}`、自分の画面だけで
+ * 相手の名前を上書きする設定、2026-11-06）。相手のuserId→呼び名。
+ */
+async function loadContactAliases(
+  ownerId: string,
+): Promise<Map<string, string>> {
+  const snap = await db().collection(`users/${ownerId}/contactAliases`).get();
+  const map = new Map<string, string>();
+  for (const doc of snap.docs) {
+    const alias = doc.data().alias;
+    if (typeof alias === "string" && alias.trim()) map.set(doc.id, alias.trim());
+  }
+  return map;
+}
+
+/**
  * その会話での[userId]の呼び名（メンション・参加者一覧用）。その語らいで使っている
  * 呼び名があればそれ、無ければRhing Seed（`@`は付けない。本文には`@$label`で入る）。
  * 見つからなければnull。
@@ -244,29 +261,39 @@ async function conversationName(
   data: FirebaseFirestore.DocumentData,
   ownerId: string,
   conversationId: string,
+  aliases: Map<string, string>,
 ): Promise<string | null> {
   if (scope === "group") return (data.name as string | undefined) ?? null;
   const other = membersOf("dm", data).find((id) => id !== ownerId);
   if (!other) return null;
-  const nickname = await effectiveNicknameFor(other, conversationId);
-  if (nickname) return nickname;
-  const seed = (data.participantRhingSeeds as Record<string, string> | undefined)?.[
-    other
-  ];
-  return seed ? `@${seed}` : null;
+  // 一対の相手の名前は、持ち主が画面で見ている呼び名（自分が付けた呼び名が最優先）。
+  return resolveOwnerViewName({
+    alias: aliases.get(other),
+    nickname: await effectiveNicknameFor(other, conversationId),
+    rhingSeed: (
+      data.participantRhingSeeds as Record<string, string> | undefined
+    )?.[other],
+  });
 }
 
 function messageJson(
   id: string,
   data: FirebaseFirestore.DocumentData,
   ownSenderId: string,
+  senderNames: Map<string, string>,
 ): Json {
   const sentAt = data.sentAt as Timestamp | undefined;
   const isText = data.contentType === "text";
   return {
     id,
     senderId: data.senderId ?? null,
-    senderName: (data.botName as string | null) ?? data.senderRhingSeed ?? null,
+    // 人間の送信者は、持ち主が画面で見ている呼び名（自分が付けた呼び名が最優先）。
+    senderName:
+      (data.botName as string | null) ??
+      senderNames.get(data.senderId as string) ??
+      data.senderRhingSeed ??
+      null,
+    senderRhingSeed: data.senderRhingSeed ?? null,
     isBot: typeof data.botName === "string",
     isSelf: data.senderId === ownSenderId,
     contentType: data.contentType ?? "text",
@@ -456,6 +483,7 @@ export const botApi = onRequest(
     }
 
     if (route.kind === "updates") {
+      const aliases = await loadContactAliases(ownerId);
       const params = parseUpdatesParams(req.query);
       if (!params) {
         res.status(400).json({ error: "invalid_query" });
@@ -474,7 +502,13 @@ export const botApi = onRequest(
         conversations.push({
           type: target.scope,
           [target.scope === "group" ? "groupId" : "dmId"]: target.id,
-          name: await conversationName(target.scope, data, ownerId, target.id),
+          name: await conversationName(
+            target.scope,
+            data,
+            ownerId,
+            target.id,
+            aliases,
+          ),
           lastMessageAt: new Date(at).toISOString(),
           lastMessageSenderId: data.lastMessageSenderId ?? null,
           lastMessagePreview: data.lastMessagePreview ?? null,
@@ -485,13 +519,20 @@ export const botApi = onRequest(
     }
 
     if (route.kind === "conversations") {
+      const aliases = await loadContactAliases(ownerId);
       const conversations: Json[] = [];
       for (const { target, data } of await ownerConversations(ownerId)) {
         const rooms = await convRef(target).collection("rooms").get();
         conversations.push({
           type: target.scope,
           [target.scope === "group" ? "groupId" : "dmId"]: target.id,
-          name: await conversationName(target.scope, data, ownerId, target.id),
+          name: await conversationName(
+            target.scope,
+            data,
+            ownerId,
+            target.id,
+            aliases,
+          ),
           lastMessageAt:
             (data.lastMessageAt as Timestamp | undefined)
               ?.toDate()
@@ -513,13 +554,19 @@ export const botApi = onRequest(
         res.status(403).json({ error: "forbidden" });
         return;
       }
+      const aliases = await loadContactAliases(ownerId);
       const members: Json[] = [];
       for (const userId of membersOf(route.scope, conv)) {
         if (userId === ownerId) continue;
         // 所有者がブロックしている相手は、メンション先に出さない。
         if (await isBlocked(ownerId, userId)) continue;
-        const name = await memberLabel(userId, route.conversationId);
-        if (name) members.push({ userId, name });
+        const user = (await db().doc(`users/${userId}`).get()).data();
+        const nickname = await effectiveNicknameFor(userId, route.conversationId);
+        const rhingSeed = (user?.rhingSeed as string | undefined) ?? null;
+        const alias = aliases.get(userId) ?? null;
+        // `name`は持ち主が画面で見ている呼び名（自分が付けた呼び名が最優先）。
+        const name = resolveOwnerViewName({ alias, nickname, rhingSeed });
+        if (name) members.push({ userId, name, alias, nickname, rhingSeed });
       }
       res.json({ members });
       return;
@@ -600,9 +647,25 @@ export const botApi = onRequest(
         };
         nextCursor = encodeCursor(cursor);
       }
+      // 送信者ごとの名前（持ち主の見た目）を、重複を除いて1回ずつ引く。
+      const aliases = await loadContactAliases(ownerId);
+      const senderNames = new Map<string, string>();
+      for (const d of readable) {
+        const data = d.data();
+        const sid = data.senderId as string | undefined;
+        if (!sid || typeof data.botName === "string" || senderNames.has(sid)) {
+          continue;
+        }
+        const name = resolveOwnerViewName({
+          alias: aliases.get(sid),
+          nickname: await effectiveNicknameFor(sid, conversationId),
+          rhingSeed: data.senderRhingSeed as string | undefined,
+        });
+        if (name) senderNames.set(sid, name);
+      }
       res.json({
         messages: readable.map((d) =>
-          messageJson(d.id, d.data(), ownSenderId),
+          messageJson(d.id, d.data(), ownSenderId, senderNames),
         ),
         nextCursor,
       });

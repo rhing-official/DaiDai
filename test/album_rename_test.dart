@@ -37,7 +37,12 @@ class _FakeAlbumRepository implements AlbumRepository {
   dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
 }
 
-Future<_FakeAlbumRepository> _open(WidgetTester tester) async {
+Future<_FakeAlbumRepository> _open(WidgetTester tester, {Size? size}) async {
+  if (size != null) {
+    tester.view.physicalSize = size;
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+  }
   final repo = _FakeAlbumRepository();
   await tester.pumpWidget(
     ProviderScope(
@@ -86,5 +91,20 @@ void main() {
     final repo = await _open(tester);
     await tester.pumpWidget(const SizedBox());
     expect(repo.renamed, isEmpty);
+  });
+
+  testWidgets('狭い幅（縦画面）では、ボタンの行と題名の行が分かれ、広い幅では同じ行', (tester) async {
+    await _open(tester, size: const Size(330, 700));
+    final narrowTitle = tester.getTopLeft(find.byType(TextField)).dy;
+    final narrowButton = tester
+        .getTopLeft(find.byIcon(Icons.delete_outline))
+        .dy;
+    expect(narrowTitle, greaterThan(narrowButton + 20));
+
+    await _open(tester, size: const Size(900, 700));
+    await tester.pumpAndSettle();
+    final wideTitle = tester.getCenter(find.byType(TextField)).dy;
+    final wideButton = tester.getCenter(find.byIcon(Icons.delete_outline)).dy;
+    expect((wideTitle - wideButton).abs(), lessThan(10));
   });
 }

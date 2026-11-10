@@ -22,6 +22,7 @@ import {
   parseBotRoute,
   parseReadParams,
   previewOf,
+  resolveOwnerViewName,
   verifyBotToken,
 } from "./botApi";
 
@@ -223,4 +224,20 @@ test("参加者一覧の経路", () => {
     conversationId: "d1",
   });
   assert.equal(parseBotRoute("POST", "/v1/groups/g1/members"), null);
+});
+
+test("持ち主の見た目の名前は、自分が付けた呼び名が最優先", () => {
+  assert.equal(
+    resolveOwnerViewName({ alias: "おいおいおい", nickname: "たろ", rhingSeed: "taro" }),
+    "おいおいおい",
+  );
+  assert.equal(
+    resolveOwnerViewName({ alias: null, nickname: "たろ", rhingSeed: "taro" }),
+    "たろ",
+  );
+  assert.equal(
+    resolveOwnerViewName({ alias: "  ", nickname: " ", rhingSeed: "taro" }),
+    "@taro",
+  );
+  assert.equal(resolveOwnerViewName({}), null);
 });

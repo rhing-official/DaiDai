@@ -320,6 +320,24 @@ export function ensureMentionText(content: string, labels: string[]): string {
   return `${missing.map((l) => `@${l}`).join(" ")} ${content}`;
 }
 
+/**
+ * 持ち主が画面で見ている相手の名前（2026-11-10）。クライアントの`resolveDisplayName`
+ * （`lib/utils/contact_alias.dart`）と同じ規則: 自分が付けた呼び名 > その語らいでの
+ * 相手の呼び名 > `@Rhing Seed`。空白だけの値は無いものとして扱う。
+ */
+export function resolveOwnerViewName(input: {
+  alias?: string | null;
+  nickname?: string | null;
+  rhingSeed?: string | null;
+}): string | null {
+  const alias = input.alias?.trim();
+  if (alias) return alias;
+  const nickname = input.nickname?.trim();
+  if (nickname) return nickname;
+  const seed = input.rhingSeed?.trim();
+  return seed ? `@${seed}` : null;
+}
+
 /** 一覧の最終メッセージの控え（プレビュー）。改行は空白に、80字で切る。 */
 export function previewOf(content: string): string {
   const singleLine = content.replace(/\n/g, " ");

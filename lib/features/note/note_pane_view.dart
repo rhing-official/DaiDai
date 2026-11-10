@@ -55,6 +55,7 @@ import 'blocks/table_of_contents_block.dart';
 import '../../widgets/confirm_download_dialog.dart';
 import '../../widgets/dialog_keyboard_shortcuts.dart';
 import '../../widgets/app_dialog.dart';
+import '../../widgets/pane_title_row_app_bar.dart';
 
 /// Obsidianの既定テーマに寄せた固定パレット（2026-09-26追加、ユーザー指示。
 /// アクセントカラーに依存しない固定値という点で劇画UIの`GekigaColors`と
@@ -1483,63 +1484,80 @@ class _NotePaneViewState extends ConsumerState<NotePaneView>
         }
         return KeyEventResult.ignored;
       },
-      child: Scaffold(
-        backgroundColor: noteColors.background,
-        appBar: isGlass
-            ? GlassAppBar(
-                // 戻る矢印は出さない（ダイアログで開くため。閉じるのはEsc・暗幕・戻る操作、
-                // 2026-11-05、ユーザー指示）。
-                automaticallyImplyLeading: false,
-                title: titleField,
-                actions: [
-                  if (isMobile && !_isDraw && !_readOnly) insertAction,
-                  if (!_isDraw) modeAction,
-                  forwardAction,
-                  shareAction,
-                  downloadAction,
-                  if (canDelete) deleteAction,
-                ],
-              )
-            : AppBar(
-                backgroundColor: noteColors.background,
-                foregroundColor: noteColors.text,
-                automaticallyImplyLeading: false,
-                title: titleField,
-                actions: [
-                  if (isMobile && !_isDraw && !_readOnly) insertAction,
-                  if (!_isDraw) modeAction,
-                  forwardAction,
-                  shareAction,
-                  downloadAction,
-                  if (canDelete) deleteAction,
-                ],
-              ),
-        // 下スワイプで閉じる（既存）。右スワイプは画面全体（AppBar込み）を
-        // `InteractiveSwipeBackTransition`で包む（下の`return`参照）。
-        body: SwipeDownToDismiss(
-          onDismiss: _close,
-          // ドローノートはEscと暗幕・戻る操作でしか閉じない（2026-10-10、ユーザー指示。矢印は2026-11-05に削除。
-          // ペンで下へなぞって誤って閉じるのを防ぐ）。
-          enabled: !_isDraw,
-          child: _isDraw
-              ? DrawCanvasView(
-                  isDm: widget.isDm,
-                  conversationId: widget.conversationId,
-                  roomId: widget.roomId,
-                  noteId: widget.noteId,
-                  currentUser: widget.currentUser,
-                  foreground: noteColors.text,
-                  background: noteColors.background,
+      // 幅が狭い（縦画面）時は、ボタンの行と題名の行を分ける（題名の文字サイズは縮めない、
+      // 2026-11-10、ユーザー指示。マークダウン・ドロー共通）。
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final actions = <Widget>[
+            if (isMobile && !_isDraw && !_readOnly) insertAction,
+            if (!_isDraw) modeAction,
+            forwardAction,
+            shareAction,
+            downloadAction,
+            if (canDelete) deleteAction,
+          ];
+          final titleFontSize =
+              Theme.of(context).textTheme.titleMedium?.fontSize ?? 16;
+          final twoRows = paneNeedsTitleRow(
+            maxWidth: constraints.maxWidth,
+            actionCount: actions.length,
+            titleFontSize: titleFontSize,
+            textScale: MediaQuery.textScalerOf(context).scale(1),
+          );
+          final bottom = twoRows
+              ? paneTitleRowBottom(
+                  context: context,
+                  titleField: titleField,
+                  titleFontSize: titleFontSize,
                 )
-              : TutorialTarget(
-                  id: TutorialTargetIds.noteEditor,
-                  child: _withStats(
-                    _buildEditorBody(strings, noteColors, isMobile),
-                    strings,
-                    noteColors,
+              : null;
+          return Scaffold(
+            backgroundColor: noteColors.background,
+            appBar: isGlass
+                ? GlassAppBar(
+                    // 戻る矢印は出さない（ダイアログで開くため。閉じるのはEsc・暗幕・戻る操作、
+                    // 2026-11-05、ユーザー指示）。
+                    automaticallyImplyLeading: false,
+                    title: twoRows ? null : titleField,
+                    bottom: bottom,
+                    actions: actions,
+                  )
+                : AppBar(
+                    backgroundColor: noteColors.background,
+                    foregroundColor: noteColors.text,
+                    automaticallyImplyLeading: false,
+                    title: twoRows ? null : titleField,
+                    bottom: bottom,
+                    actions: actions,
                   ),
-                ),
-        ),
+            // 下スワイプで閉じる（既存）。右スワイプは画面全体（AppBar込み）を
+            // `InteractiveSwipeBackTransition`で包む（下の`return`参照）。
+            body: SwipeDownToDismiss(
+              onDismiss: _close,
+              // ドローノートはEscと暗幕・戻る操作でしか閉じない（2026-10-10、ユーザー指示。矢印は2026-11-05に削除。
+              // ペンで下へなぞって誤って閉じるのを防ぐ）。
+              enabled: !_isDraw,
+              child: _isDraw
+                  ? DrawCanvasView(
+                      isDm: widget.isDm,
+                      conversationId: widget.conversationId,
+                      roomId: widget.roomId,
+                      noteId: widget.noteId,
+                      currentUser: widget.currentUser,
+                      foreground: noteColors.text,
+                      background: noteColors.background,
+                    )
+                  : TutorialTarget(
+                      id: TutorialTargetIds.noteEditor,
+                      child: _withStats(
+                        _buildEditorBody(strings, noteColors, isMobile),
+                        strings,
+                        noteColors,
+                      ),
+                    ),
+            ),
+          );
+        },
       ),
     );
     // 右スワイプで閉じる操作は、設定・身だしなみ・チャットと同じ指追従の
