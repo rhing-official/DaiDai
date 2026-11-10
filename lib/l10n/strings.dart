@@ -3710,9 +3710,9 @@ class Strings {
     workshopBirthdayFieldLabel: '誕生日',
     workshopRhingSeedFieldLabel: 'Rhing Seed',
     workshopRhingSeedFieldShortLabel: 'Seed',
-    settingsSeedSearchableTitle: 'Rhing Seedで検索に表示する',
+    settingsSeedSearchableTitle: 'Rhing Seedでの友達追加に表示する',
     settingsSeedSearchableDescription:
-        'オフにすると、他の住人がRhing Seedを入力しても見つかりません。\n招待リンクとQRコードからは、これまでどおり友達申請出来ます。',
+        'オフにすると、他の住人が「友達を追加」でRhing Seedを入力しても見つかりません。語らいの検索には影響しません。\n招待リンクとQRコードからは、これまでどおり友達申請出来ます。',
     workshopBirthdayNotRegisteredHint: '蔵で誕生日を登録して下さい',
     workshopFontLabel: 'フォントデザイン',
     workshopFontShortLabel: 'デザイン',
@@ -5019,9 +5019,9 @@ class Strings {
     workshopBirthdayFieldLabel: 'Birthday',
     workshopRhingSeedFieldLabel: 'Rhing Seed',
     workshopRhingSeedFieldShortLabel: 'Seed',
-    settingsSeedSearchableTitle: 'Appear in Rhing Seed searches',
+    settingsSeedSearchableTitle: 'Appear when adding friends by Rhing Seed',
     settingsSeedSearchableDescription:
-        'When off, other residents can\'t find you by typing your Rhing Seed. Friend requests from your invite link and QR code still work.',
+        'When off, other residents can\'t find you by typing your Rhing Seed in "Add friends". Searching your chats isn\'t affected. Friend requests from your invite link and QR code still work.',
     workshopBirthdayNotRegisteredHint:
         'Add your birthday in the Profile library first',
     workshopFontLabel: 'Font design',

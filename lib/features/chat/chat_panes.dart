@@ -585,7 +585,10 @@ class _DmChatPaneState extends ConsumerState<DmChatPane> {
     final dm = ref.watch(watchedDmProvider(widget.dm.dmId)).value ?? widget.dm;
     final currentUser = widget.currentUser;
     final roomId = _currentRoomId;
-    final roomName = _currentRoomName;
+    // 名前の変更を再読込なしで反映する（2026-11-11）。購読中の寄合一覧の値を優先。
+    final roomName =
+        rooms?.firstWhereOrNull((r) => r.roomId == roomId)?.name ??
+        _currentRoomName;
     final otherUserId = dm.otherUserId(currentUser.userId);
     // `@`メンションの候補（一対は相手のみ、2026-10-11追加）。
     final mentionCandidates = buildDmMentionCandidates(
@@ -2650,7 +2653,8 @@ class _GroupChatPaneState extends ConsumerState<GroupChatPane> {
     final group = widget.group;
     final currentUser = widget.currentUser;
     final roomId = _currentRoomId;
-    final roomName = _currentRoomName;
+    // 名前の変更を再読込なしで反映する（2026-11-11）。購読中の寄合の値を優先。
+    final roomName = currentRoom?.name ?? _currentRoomName;
     // 寄合毎の上書きが分かった時点で、閲覧開始時刻が変わっていれば購読し直す
     // （2026-10-08追加）。
     _syncVisibleFrom(currentRoom);

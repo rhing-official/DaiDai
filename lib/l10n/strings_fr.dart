@@ -1310,9 +1310,9 @@ final Strings _stringsFr = Strings._(
   workshopBirthdayFieldLabel: 'Date de naissance',
   workshopRhingSeedFieldLabel: "Rhing Seed",
   workshopRhingSeedFieldShortLabel: "Seed",
-  settingsSeedSearchableTitle: "Apparaître dans la recherche par Rhing Seed",
+  settingsSeedSearchableTitle: "Apparaître dans l'ajout d'amis par Rhing Seed",
   settingsSeedSearchableDescription:
-      "Désactivé, les autres résidents ne peuvent pas vous trouver en saisissant votre Rhing Seed. Les demandes via votre lien d'invitation et votre QR code fonctionnent toujours.",
+      "Désactivé, les autres résidents ne peuvent pas vous trouver en saisissant votre Rhing Seed dans « Ajouter des amis ». La recherche de vos conversations n'est pas concernée. Les demandes via votre lien d'invitation et votre QR code fonctionnent toujours.",
   workshopBirthdayNotRegisteredHint:
       "Ajoutez d'abord votre date de naissance dans la Bibliothèque de profils",
   workshopFontLabel: 'Design de police',

@@ -109,6 +109,11 @@ class _RoomListPaneState extends ConsumerState<RoomListPane> {
     final incomingIds = widget.rooms.map((r) => r.roomId).toSet();
     if (!setEquals(currentIds, incomingIds)) {
       _rooms = List.of(widget.rooms);
+    } else {
+      // 並びはそのまま、名前・未読数など中身は最新に差し替える（以前は並びと一緒に
+      // 古い値も残り、寄合名の変更が再読込まで反映されなかった、2026-11-11）。
+      final latest = {for (final r in widget.rooms) r.roomId: r};
+      _rooms = [for (final r in _rooms) latest[r.roomId]!];
     }
   }
 
@@ -342,9 +347,7 @@ class _RoomListPaneState extends ConsumerState<RoomListPane> {
                     // 高さは箱に合わせる（無指定だと領域いっぱいに広がり、箱が
                     // ボタンより下にずれる）。
                     heightFactor: 1,
-                    child: TalksNameChip(
-                      label: widget.conversationName,
-                    ),
+                    child: TalksNameChip(label: widget.conversationName),
                   ),
                 ),
                 if (widget.onOpenConversationSettings != null) ...[
