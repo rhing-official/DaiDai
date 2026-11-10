@@ -10,7 +10,8 @@ final Strings _stringsFr = Strings._(
   addMenuDmTitleTemplate: (dmTerm) => 'Démarrer un $dmTerm',
   addMenuDmSubtitle: 'Ajouter quelqu’un pour discuter en tête-à-tête',
   addMenuGroupTitleTemplate: (plazaTerm) => 'Créer une $plazaTerm',
-  addMenuGroupSubtitle: 'Créer un groupe de trois personnes ou plus',
+  addMenuGroupSubtitle:
+      'Créer un groupe de plusieurs personnes (ou juste vous)',
   talksSearchHint: 'Rechercher',
   talksSearchNoResults: 'Aucun résultat',
   talksSearchSectionMessages: 'Messages',
@@ -1115,6 +1116,25 @@ final Strings _stringsFr = Strings._(
   noteInsertTooltip: 'Insérer',
   noteModeToReadLabel: 'Passer en lecture',
   noteModeToEditLabel: 'Passer en édition',
+  scheduledSendOptionSilent: 'Envoyer sans notifier',
+  scheduledSendOptionSchedule: 'Programmer l\'envoi…',
+  scheduledPickerHelp: 'Envoyer le (jusqu\'à un mois)',
+  scheduledChipLabel: (when) => 'Envoi le $when',
+  scheduledListMenuLabel: (count) => 'Programmés ($count)',
+  scheduledListTitle: 'Messages programmés',
+  scheduledListEmpty: 'Aucun message programmé',
+  scheduledRescheduleAction: 'Changer l\'heure',
+  scheduledCancelAction: 'Annuler',
+  scheduledCancelConfirm: 'Annuler ce message programmé ?',
+  scheduledFailedNotMember:
+      'Non envoyé (vous ne faites plus partie de cette conversation)',
+  scheduledFailedMissing: 'Non envoyé (conversation introuvable)',
+  scheduledFailedInvalid: 'Non envoyé',
+  scheduledLimitReached: (max) =>
+      'Vous pouvez programmer jusqu\'à $max messages par salon',
+  scheduledTimeTooSoon: 'Choisissez une heure au moins une minute plus tard',
+  scheduledAdded: 'Ajouté aux messages programmés',
+  scheduledAttachmentKind: 'Pièce jointe',
   noteSelectedPrefix: 'Sélection',
   noteCharsUnit: 'caractères',
   noteBlockMoveTooltip: 'Faire glisser pour déplacer',
@@ -1146,22 +1166,20 @@ final Strings _stringsFr = Strings._(
   createGroupTitle: 'Créer une place',
   createGroupNameLabel: 'Nom de la place',
   createGroupNameRequiredError: 'Saisissez un nom de place',
-  createGroupMinMembersError: (remaining) =>
-      'Une place nécessite au moins 3 personnes (vous compris). Choisissez-en $remaining de plus.',
   createGroupMultiRoomTitle: 'Créer plusieurs salons textuels',
   createGroupMultiRoomSubtitle:
       'Lorsque cette option est désactivée, la place n’a qu’un seul salon textuel et pas de barre latérale. Tous les réglages se trouvent dans le menu hamburger (vous pourrez passer à plusieurs salons plus tard).',
   createGroupNextButton: 'Suivant',
   createGroupMemberStepTitle:
-      'Choisissez des membres parmi vos amis (vous plus au moins 2 autres)',
+      'Choisissez des membres parmi vos amis. C’est facultatif, vous pourrez en ajouter plus tard',
   createGroupSearchLabel: 'Rechercher par nom',
   createGroupNoFriends:
-      'Vous n’avez pas encore d’amis. Ajoutez d’abord des amis avec « Ajouter des amis ».',
+      'Vous n’avez pas encore d’amis. Vous pouvez créer la place maintenant et ajouter des membres plus tard.',
   createGroupNoMatch: 'Aucun ami correspondant',
   createGroupFriendsLoadError: (error) =>
       'Impossible de charger vos amis : $error',
   createGroupSelectedCount: (count) =>
-      '$count sélectionné(s) (${count + 1} avec vous)',
+      '$count sélectionnés, ${count + 1} avec vous',
   genericErrorMessage: 'Une erreur est survenue',
   genericErrorTemplate: (error) => 'Une erreur est survenue : $error',
   notFoundSubtitle: 'La page que vous cherchez est introuvable',

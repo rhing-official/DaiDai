@@ -68,6 +68,7 @@ Future<void> _pump(WidgetTester tester, List<_Sent> sent) async {
                 silent = false,
                 replyTo,
                 mentions = MessageMentions.none,
+                sendAt,
               }) async => sent.add(_Sent(content, mentions)),
         ),
       ),

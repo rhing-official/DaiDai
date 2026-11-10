@@ -31,7 +31,14 @@ class PickedAttachment {
   final String contentType;
 }
 
-enum _AttachmentMenuItem { file, image, video, capture }
+enum _AttachmentMenuItem {
+  file,
+  image,
+  video,
+  capture,
+  scheduleTime,
+  scheduleList,
+}
 
 /// ポインター位置がこの距離未満しか動かないまま指が離れた場合、
 /// 「押した瞬間にポップアップを開くだけの単純なタップ」とみなし、
@@ -52,6 +59,9 @@ class AttachmentPopupButton extends StatefulWidget {
     required this.strings,
     required this.isGekiga,
     required this.onPicked,
+    this.onScheduleTime,
+    this.onScheduleList,
+    this.scheduleListLabel,
     super.key,
   });
 
@@ -66,6 +76,11 @@ class AttachmentPopupButton extends StatefulWidget {
   /// 選ばれた添付（複数選択に対応、1件のこともある、2026-10-16変更）。
   /// 上限（[kMaxMultiAttachments]）の切り詰めは呼び出し側が行う。
   final void Function(List<PickedAttachment> attachments) onPicked;
+
+  /// 送信予定（2026-11-10）。「送信日時を指定」と「送信予定の一覧」の項目を足す。nullなら出さない。
+  final VoidCallback? onScheduleTime;
+  final VoidCallback? onScheduleList;
+  final String? scheduleListLabel;
 
   @override
   State<AttachmentPopupButton> createState() => _AttachmentPopupButtonState();
@@ -140,6 +155,18 @@ class _AttachmentPopupButtonState extends State<AttachmentPopupButton> {
           label: strings.chatAttachCapture,
           icon: Icons.photo_camera_outlined,
         ),
+      if (widget.onScheduleTime != null)
+        (
+          item: _AttachmentMenuItem.scheduleTime,
+          label: strings.scheduledSendOptionSchedule,
+          icon: Icons.schedule_send_outlined,
+        ),
+      if (widget.onScheduleList != null)
+        (
+          item: _AttachmentMenuItem.scheduleList,
+          label: widget.scheduleListLabel ?? strings.scheduledListTitle,
+          icon: Icons.event_note_outlined,
+        ),
     ];
   }
 
@@ -154,6 +181,10 @@ class _AttachmentPopupButtonState extends State<AttachmentPopupButton> {
         await _pickVideo();
       case _AttachmentMenuItem.capture:
         await _openCamera();
+      case _AttachmentMenuItem.scheduleTime:
+        widget.onScheduleTime?.call();
+      case _AttachmentMenuItem.scheduleList:
+        widget.onScheduleList?.call();
     }
   }
 

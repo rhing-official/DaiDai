@@ -56,6 +56,7 @@ Future<void> _pumpChatScreen(
                 silent = false,
                 replyTo,
                 mentions = MessageMentions.none,
+                sendAt,
               }) async => sentMessages.add(_Sent(content, silent)),
         ),
       ),

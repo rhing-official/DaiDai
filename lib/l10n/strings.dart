@@ -934,6 +934,23 @@ class Strings {
     required this.noteInsertTooltip,
     required this.noteModeToReadLabel,
     required this.noteModeToEditLabel,
+    required this.scheduledSendOptionSilent,
+    required this.scheduledSendOptionSchedule,
+    required this.scheduledPickerHelp,
+    required this.scheduledChipLabel,
+    required this.scheduledListMenuLabel,
+    required this.scheduledListTitle,
+    required this.scheduledListEmpty,
+    required this.scheduledRescheduleAction,
+    required this.scheduledCancelAction,
+    required this.scheduledCancelConfirm,
+    required this.scheduledFailedNotMember,
+    required this.scheduledFailedMissing,
+    required this.scheduledFailedInvalid,
+    required this.scheduledLimitReached,
+    required this.scheduledTimeTooSoon,
+    required this.scheduledAdded,
+    required this.scheduledAttachmentKind,
     required this.noteSelectedPrefix,
     required this.noteCharsUnit,
     required this.noteBlockMoveTooltip,
@@ -962,7 +979,6 @@ class Strings {
     required this.createGroupTitle,
     required this.createGroupNameLabel,
     required this.createGroupNameRequiredError,
-    required this.createGroupMinMembersError,
     required this.createGroupMultiRoomTitle,
     required this.createGroupMultiRoomSubtitle,
     required this.createGroupNextButton,
@@ -2337,6 +2353,23 @@ class Strings {
   final String noteInsertTooltip;
   final String noteModeToReadLabel;
   final String noteModeToEditLabel;
+  final String scheduledSendOptionSilent;
+  final String scheduledSendOptionSchedule;
+  final String scheduledPickerHelp;
+  final String Function(String when) scheduledChipLabel;
+  final String Function(int count) scheduledListMenuLabel;
+  final String scheduledListTitle;
+  final String scheduledListEmpty;
+  final String scheduledRescheduleAction;
+  final String scheduledCancelAction;
+  final String scheduledCancelConfirm;
+  final String scheduledFailedNotMember;
+  final String scheduledFailedMissing;
+  final String scheduledFailedInvalid;
+  final String Function(int max) scheduledLimitReached;
+  final String scheduledTimeTooSoon;
+  final String scheduledAdded;
+  final String scheduledAttachmentKind;
   final String noteSelectedPrefix;
   final String noteCharsUnit;
   final String noteBlockMoveTooltip;
@@ -2365,7 +2398,6 @@ class Strings {
   final String createGroupTitle;
   final String createGroupNameLabel;
   final String createGroupNameRequiredError;
-  final String Function(int remaining) createGroupMinMembersError;
   final String createGroupMultiRoomTitle;
   final String createGroupMultiRoomSubtitle;
   final String createGroupNextButton;
@@ -2502,7 +2534,7 @@ class Strings {
     addMenuDmTitleTemplate: (dmTerm) => '$dmTermを始める',
     addMenuDmSubtitle: '1対1で話す相手を追加する',
     addMenuGroupTitleTemplate: (plazaTerm) => '$plazaTermを作る',
-    addMenuGroupSubtitle: '3人以上のグループを作る',
+    addMenuGroupSubtitle: '複数人のグループを作る（1人でも作れます）',
     talksSearchHint: '検索',
     talksSearchNoResults: '見つかりませんでした',
     talksSearchSectionMessages: 'メッセージ',
@@ -3489,6 +3521,23 @@ class Strings {
     noteInsertTooltip: '挿入',
     noteModeToReadLabel: '閲覧モードにする',
     noteModeToEditLabel: '編集モードにする',
+    scheduledSendOptionSilent: '通知なしで送信',
+    scheduledSendOptionSchedule: '日時を指定して送信…',
+    scheduledPickerHelp: '送信する日時（1か月先まで）',
+    scheduledChipLabel: (when) => '$when に送信',
+    scheduledListMenuLabel: (count) => '送信予定（$count件）',
+    scheduledListTitle: '送信予定',
+    scheduledListEmpty: '送信予定はありません',
+    scheduledRescheduleAction: '日時を変更',
+    scheduledCancelAction: '取り消す',
+    scheduledCancelConfirm: '送信予定を取り消しますか？',
+    scheduledFailedNotMember: '送れませんでした（この会話に参加していません）',
+    scheduledFailedMissing: '送れませんでした（会話が見つかりません）',
+    scheduledFailedInvalid: '送れませんでした',
+    scheduledLimitReached: (max) => '送信予定は1つの寄合につき$max件までです',
+    scheduledTimeTooSoon: '1分以上先の日時を選んでください',
+    scheduledAdded: '送信予定に追加しました',
+    scheduledAttachmentKind: '添付',
     noteSelectedPrefix: '選択',
     noteCharsUnit: '文字',
     noteBlockMoveTooltip: 'ドラッグして移動',
@@ -3519,18 +3568,16 @@ class Strings {
     createGroupTitle: '広場を作る',
     createGroupNameLabel: '広場の名前',
     createGroupNameRequiredError: '広場の名前を入力して下さい',
-    createGroupMinMembersError: (remaining) =>
-        '広場は3人以上（自分含む）で作成出来ます。あと$remaining人選んで下さい',
     createGroupMultiRoomTitle: '寄合を複数作成する',
     createGroupMultiRoomSubtitle:
         'オフの場合、寄合は1つだけになりサイドバーは出ません。設定は全てハンバーガーメニューから行えます（後から複数に切り替え可能）',
     createGroupNextButton: '次へ',
-    createGroupMemberStepTitle: 'メンバーを友達から選ぶ（自分＋2人以上が必要）',
+    createGroupMemberStepTitle: 'メンバーを友達から選びます。選ばなくても作れて、後から追加できます',
     createGroupSearchLabel: '名前で検索',
-    createGroupNoFriends: '友達がいません。先に縁結びで友達を追加して下さい',
+    createGroupNoFriends: '友達がいません。このまま作成して、後からメンバーを追加できます',
     createGroupNoMatch: '該当する友達が見つかりません',
     createGroupFriendsLoadError: (error) => '友達一覧の取得に失敗しました: $error',
-    createGroupSelectedCount: (count) => '$count人選択中（自分を含めて計${count + 1}人）',
+    createGroupSelectedCount: (count) => '$count人選択中。自分を含めて計${count + 1}人',
     genericErrorMessage: 'エラーが発生しました',
     genericErrorTemplate: (error) => 'エラーが発生しました: $error',
     notFoundSubtitle: 'お探しのページは見つかりませんでした',
@@ -3655,7 +3702,7 @@ class Strings {
     addMenuDmTitleTemplate: (dmTerm) => 'Start a $dmTerm',
     addMenuDmSubtitle: 'Add someone to talk to one-on-one',
     addMenuGroupTitleTemplate: (plazaTerm) => 'Create a $plazaTerm',
-    addMenuGroupSubtitle: 'Make a group with three or more people',
+    addMenuGroupSubtitle: 'Make a group with several people (or just yourself)',
     talksSearchHint: 'Search',
     talksSearchNoResults: 'No matches found',
     talksSearchSectionMessages: 'Messages',
@@ -4756,6 +4803,25 @@ class Strings {
     noteInsertTooltip: 'Insert',
     noteModeToReadLabel: 'Switch to reading mode',
     noteModeToEditLabel: 'Switch to editing mode',
+    scheduledSendOptionSilent: 'Send without notifying',
+    scheduledSendOptionSchedule: 'Schedule send…',
+    scheduledPickerHelp: 'Send at (up to one month ahead)',
+    scheduledChipLabel: (when) => 'Sends $when',
+    scheduledListMenuLabel: (count) => 'Scheduled ($count)',
+    scheduledListTitle: 'Scheduled messages',
+    scheduledListEmpty: 'No scheduled messages',
+    scheduledRescheduleAction: 'Change time',
+    scheduledCancelAction: 'Cancel',
+    scheduledCancelConfirm: 'Cancel this scheduled message?',
+    scheduledFailedNotMember:
+        'Not sent (you are no longer in this conversation)',
+    scheduledFailedMissing: 'Not sent (conversation not found)',
+    scheduledFailedInvalid: 'Not sent',
+    scheduledLimitReached: (max) =>
+        'You can schedule up to $max messages per room',
+    scheduledTimeTooSoon: 'Choose a time at least one minute from now',
+    scheduledAdded: 'Added to scheduled messages',
+    scheduledAttachmentKind: 'Attachment',
     noteSelectedPrefix: 'Selected',
     noteCharsUnit: 'characters',
     noteBlockMoveTooltip: 'Drag to move',
@@ -4787,22 +4853,20 @@ class Strings {
     createGroupTitle: 'Create a plaza',
     createGroupNameLabel: 'Plaza name',
     createGroupNameRequiredError: 'Enter a plaza name',
-    createGroupMinMembersError: (remaining) =>
-        'A plaza needs at least 3 people (including you). Pick $remaining more.',
     createGroupMultiRoomTitle: 'Create multiple text channels',
     createGroupMultiRoomSubtitle:
         'When off, the plaza has just one text channel and no sidebar. All settings are in the hamburger menu (you can switch to multiple later).',
     createGroupNextButton: 'Next',
     createGroupMemberStepTitle:
-        'Choose members from your friends (you plus at least 2 others)',
+        'Choose members from your friends. This is optional, and you can add people later',
     createGroupSearchLabel: 'Search by name',
     createGroupNoFriends:
-        'You have no friends yet. Add friends with Add friends first.',
+        'You have no friends yet. You can create it now and add members later.',
     createGroupNoMatch: 'No matching friends found',
     createGroupFriendsLoadError: (error) =>
         'Could not load your friends: $error',
     createGroupSelectedCount: (count) =>
-        '$count selected (${count + 1} including you)',
+        '$count selected, ${count + 1} including you',
     genericErrorMessage: 'An error occurred',
     genericErrorTemplate: (error) => 'An error occurred: $error',
     notFoundSubtitle: 'The page you are looking for could not be found',

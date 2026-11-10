@@ -16,6 +16,7 @@ import '../models/group_profile_card.dart';
 import '../models/group_role.dart';
 import '../models/message.dart';
 import '../utils/last_message_update.dart';
+import '../utils/scheduled_send.dart';
 import '../models/message_cursor.dart';
 import '../utils/attachment_upload.dart';
 import '../utils/image_format.dart';
@@ -266,6 +267,7 @@ abstract class GroupRepository {
     bool silent = false,
     Message? replyTo,
     MessageMentions mentions = MessageMentions.none,
+    DateTime? sendAt,
   });
 
   /// ファイル・画像・動画を添付したメッセージを送信する（技術仕様書5.2参照、
@@ -285,6 +287,7 @@ abstract class GroupRepository {
     Message? replyTo,
     ValueChanged<double>? onProgress,
     String? caption,
+    DateTime? sendAt,
   });
 
   /// 複数の添付（画像・動画・ファイル、最大[kMaxMultiAttachments]件）を1つの
@@ -300,6 +303,7 @@ abstract class GroupRepository {
     Message? replyTo,
     ValueChanged<double>? onProgress,
     String? caption,
+    DateTime? sendAt,
   });
 
   /// ぺったん（スタンプ）を送る。既にStorageにアップロード済みの画像を
@@ -315,6 +319,7 @@ abstract class GroupRepository {
     required String stickerUrl,
     bool silent = false,
     Message? replyTo,
+    DateTime? sendAt,
   });
 
   /// カレンダーの予定を追加した際、その寄合に通知メッセージを送る
@@ -960,6 +965,7 @@ class FirestoreGroupRepository implements GroupRepository {
     bool silent = false,
     Message? replyTo,
     MessageMentions mentions = MessageMentions.none,
+    DateTime? sendAt,
   }) async {
     final roomRef = _roomRef(groupId, roomId);
     final messageRef = roomRef.collection('messages').doc();
@@ -991,21 +997,20 @@ class FirestoreGroupRepository implements GroupRepository {
           : messageSnippetOf(secondReplyOf(replyTo)!.content),
     );
 
-    final batch = _firestore.batch();
-    batch.set(messageRef, message.toJson());
-    batch.update(roomRef, {'lastMessageAt': FieldValue.serverTimestamp()});
-    // 語らい一覧（TalksTab）は広場単位でlastMessageAt順に並ぶため、寄合側に
-    // 加えて広場本体のlastMessageAt/lastMessageSenderIdも更新する
-    // （direct_message_repository.dartのDM本体更新と同じ理由、2026-09-02追加）。
-    // lastMessageContentType/lastMessagePreviewは一覧の最新メッセージ
-    // プレビュー表示用（2026-09-02追加）。
-    batch.update(_groups.doc(groupId), {
-      'lastMessageAt': FieldValue.serverTimestamp(),
-      'lastMessageSenderId': senderId,
-      'lastMessageContentType': 'text',
-      'lastMessagePreview': messageSnippetOf(content),
-    });
-    await batch.commit();
+    await commitOrScheduleMessage(
+      firestore: _firestore,
+      sendAt: sendAt,
+      scope: 'group',
+      conversationId: groupId,
+      roomId: roomId,
+      roomRef: roomRef,
+      conversationRef: _groups.doc(groupId),
+      messageRef: messageRef,
+      message: message,
+      senderId: senderId,
+      lastMessageContentType: 'text',
+      lastMessagePreview: messageSnippetOf(content),
+    );
   }
 
   @override
@@ -1021,6 +1026,7 @@ class FirestoreGroupRepository implements GroupRepository {
     Message? replyTo,
     ValueChanged<double>? onProgress,
     String? caption,
+    DateTime? sendAt,
   }) async {
     final roomRef = _roomRef(groupId, roomId);
     final messageRef = roomRef.collection('messages').doc();
@@ -1060,16 +1066,20 @@ class FirestoreGroupRepository implements GroupRepository {
       caption: caption,
     );
 
-    final batch = _firestore.batch();
-    batch.set(messageRef, message.toJson());
-    batch.update(roomRef, {'lastMessageAt': FieldValue.serverTimestamp()});
-    batch.update(_groups.doc(groupId), {
-      'lastMessageAt': FieldValue.serverTimestamp(),
-      'lastMessageSenderId': senderId,
-      'lastMessageContentType': contentType,
-      'lastMessagePreview': null,
-    });
-    await batch.commit();
+    await commitOrScheduleMessage(
+      firestore: _firestore,
+      sendAt: sendAt,
+      scope: 'group',
+      conversationId: groupId,
+      roomId: roomId,
+      roomRef: roomRef,
+      conversationRef: _groups.doc(groupId),
+      messageRef: messageRef,
+      message: message,
+      senderId: senderId,
+      lastMessageContentType: contentType,
+      lastMessagePreview: null,
+    );
   }
 
   @override
@@ -1083,6 +1093,7 @@ class FirestoreGroupRepository implements GroupRepository {
     Message? replyTo,
     ValueChanged<double>? onProgress,
     String? caption,
+    DateTime? sendAt,
   }) async {
     if (items.isEmpty || items.length > kMaxMultiAttachments) {
       throw ArgumentError.value(items.length, 'items');
@@ -1124,16 +1135,20 @@ class FirestoreGroupRepository implements GroupRepository {
       caption: caption,
     );
 
-    final batch = _firestore.batch();
-    batch.set(messageRef, message.toJson());
-    batch.update(roomRef, {'lastMessageAt': FieldValue.serverTimestamp()});
-    batch.update(_groups.doc(groupId), {
-      'lastMessageAt': FieldValue.serverTimestamp(),
-      'lastMessageSenderId': senderId,
-      'lastMessageContentType': 'multi',
-      'lastMessagePreview': null,
-    });
-    await batch.commit();
+    await commitOrScheduleMessage(
+      firestore: _firestore,
+      sendAt: sendAt,
+      scope: 'group',
+      conversationId: groupId,
+      roomId: roomId,
+      roomRef: roomRef,
+      conversationRef: _groups.doc(groupId),
+      messageRef: messageRef,
+      message: message,
+      senderId: senderId,
+      lastMessageContentType: 'multi',
+      lastMessagePreview: null,
+    );
   }
 
   @override
@@ -1147,6 +1162,7 @@ class FirestoreGroupRepository implements GroupRepository {
     required String stickerUrl,
     bool silent = false,
     Message? replyTo,
+    DateTime? sendAt,
   }) async {
     final roomRef = _roomRef(groupId, roomId);
     final messageRef = roomRef.collection('messages').doc();
@@ -1178,16 +1194,20 @@ class FirestoreGroupRepository implements GroupRepository {
       ),
     );
 
-    final batch = _firestore.batch();
-    batch.set(messageRef, message.toJson());
-    batch.update(roomRef, {'lastMessageAt': FieldValue.serverTimestamp()});
-    batch.update(_groups.doc(groupId), {
-      'lastMessageAt': FieldValue.serverTimestamp(),
-      'lastMessageSenderId': senderId,
-      'lastMessageContentType': 'sticker',
-      'lastMessagePreview': null,
-    });
-    await batch.commit();
+    await commitOrScheduleMessage(
+      firestore: _firestore,
+      sendAt: sendAt,
+      scope: 'group',
+      conversationId: groupId,
+      roomId: roomId,
+      roomRef: roomRef,
+      conversationRef: _groups.doc(groupId),
+      messageRef: messageRef,
+      message: message,
+      senderId: senderId,
+      lastMessageContentType: 'sticker',
+      lastMessagePreview: null,
+    );
   }
 
   @override

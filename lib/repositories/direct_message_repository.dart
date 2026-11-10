@@ -10,6 +10,7 @@ import '../models/dm_room.dart';
 import '../models/message.dart';
 import '../models/message_cursor.dart';
 import '../utils/attachment_upload.dart';
+import '../utils/scheduled_send.dart';
 import '../utils/last_message_update.dart';
 
 abstract class DirectMessageRepository {
@@ -134,6 +135,7 @@ abstract class DirectMessageRepository {
     bool silent = false,
     Message? replyTo,
     MessageMentions mentions = MessageMentions.none,
+    DateTime? sendAt,
   });
 
   /// ファイル・画像・動画を添付したメッセージを送信する（技術仕様書5.2参照、
@@ -153,6 +155,7 @@ abstract class DirectMessageRepository {
     Message? replyTo,
     ValueChanged<double>? onProgress,
     String? caption,
+    DateTime? sendAt,
   });
 
   /// 複数の添付（画像・動画・ファイル、最大[kMaxMultiAttachments]件）を1つの
@@ -168,6 +171,7 @@ abstract class DirectMessageRepository {
     Message? replyTo,
     ValueChanged<double>? onProgress,
     String? caption,
+    DateTime? sendAt,
   });
 
   /// ぺったん（スタンプ）を送る。既にStorageにアップロード済みの画像を
@@ -183,6 +187,7 @@ abstract class DirectMessageRepository {
     required String stickerUrl,
     bool silent = false,
     Message? replyTo,
+    DateTime? sendAt,
   });
 
   /// 通話が終了した際、通話履歴メッセージ（開始時刻・通話時間）を送る。
@@ -753,6 +758,7 @@ class FirestoreDirectMessageRepository implements DirectMessageRepository {
     bool silent = false,
     Message? replyTo,
     MessageMentions mentions = MessageMentions.none,
+    DateTime? sendAt,
   }) async {
     final roomRef = _dmRoomRef(dmId, roomId);
     final messageRef = roomRef.collection('messages').doc();
@@ -784,22 +790,20 @@ class FirestoreDirectMessageRepository implements DirectMessageRepository {
           : messageSnippetOf(secondReplyOf(replyTo)!.content),
     );
 
-    final batch = _firestore.batch();
-    batch.set(messageRef, message.toJson());
-    batch.update(roomRef, {'lastMessageAt': FieldValue.serverTimestamp()});
-    // 語らい一覧（TalksTab）はDM単位でlastMessageAt順に並ぶため、寄合側に
-    // 加えてDM本体のlastMessageAtも更新する（どの寄合に投稿しても一覧の
-    // 並び順に反映されるようにする為）。lastMessageSenderIdは一覧の
-    // 「未読優先」並べ替え用（2026-09-02追加）。lastMessageContentType/
-    // lastMessagePreviewは一覧の最新メッセージプレビュー表示用
-    // （2026-09-02追加）。
-    batch.update(_directMessages.doc(dmId), {
-      'lastMessageAt': FieldValue.serverTimestamp(),
-      'lastMessageSenderId': senderId,
-      'lastMessageContentType': 'text',
-      'lastMessagePreview': messageSnippetOf(content),
-    });
-    await batch.commit();
+    await commitOrScheduleMessage(
+      firestore: _firestore,
+      sendAt: sendAt,
+      scope: 'dm',
+      conversationId: dmId,
+      roomId: roomId,
+      roomRef: roomRef,
+      conversationRef: _directMessages.doc(dmId),
+      messageRef: messageRef,
+      message: message,
+      senderId: senderId,
+      lastMessageContentType: 'text',
+      lastMessagePreview: messageSnippetOf(content),
+    );
   }
 
   @override
@@ -815,6 +819,7 @@ class FirestoreDirectMessageRepository implements DirectMessageRepository {
     Message? replyTo,
     ValueChanged<double>? onProgress,
     String? caption,
+    DateTime? sendAt,
   }) async {
     final roomRef = _dmRoomRef(dmId, roomId);
     final messageRef = roomRef.collection('messages').doc();
@@ -854,16 +859,20 @@ class FirestoreDirectMessageRepository implements DirectMessageRepository {
       caption: caption,
     );
 
-    final batch = _firestore.batch();
-    batch.set(messageRef, message.toJson());
-    batch.update(roomRef, {'lastMessageAt': FieldValue.serverTimestamp()});
-    batch.update(_directMessages.doc(dmId), {
-      'lastMessageAt': FieldValue.serverTimestamp(),
-      'lastMessageSenderId': senderId,
-      'lastMessageContentType': contentType,
-      'lastMessagePreview': null,
-    });
-    await batch.commit();
+    await commitOrScheduleMessage(
+      firestore: _firestore,
+      sendAt: sendAt,
+      scope: 'dm',
+      conversationId: dmId,
+      roomId: roomId,
+      roomRef: roomRef,
+      conversationRef: _directMessages.doc(dmId),
+      messageRef: messageRef,
+      message: message,
+      senderId: senderId,
+      lastMessageContentType: contentType,
+      lastMessagePreview: null,
+    );
   }
 
   @override
@@ -877,6 +886,7 @@ class FirestoreDirectMessageRepository implements DirectMessageRepository {
     Message? replyTo,
     ValueChanged<double>? onProgress,
     String? caption,
+    DateTime? sendAt,
   }) async {
     if (items.isEmpty || items.length > kMaxMultiAttachments) {
       throw ArgumentError.value(items.length, 'items');
@@ -918,16 +928,20 @@ class FirestoreDirectMessageRepository implements DirectMessageRepository {
       caption: caption,
     );
 
-    final batch = _firestore.batch();
-    batch.set(messageRef, message.toJson());
-    batch.update(roomRef, {'lastMessageAt': FieldValue.serverTimestamp()});
-    batch.update(_directMessages.doc(dmId), {
-      'lastMessageAt': FieldValue.serverTimestamp(),
-      'lastMessageSenderId': senderId,
-      'lastMessageContentType': 'multi',
-      'lastMessagePreview': null,
-    });
-    await batch.commit();
+    await commitOrScheduleMessage(
+      firestore: _firestore,
+      sendAt: sendAt,
+      scope: 'dm',
+      conversationId: dmId,
+      roomId: roomId,
+      roomRef: roomRef,
+      conversationRef: _directMessages.doc(dmId),
+      messageRef: messageRef,
+      message: message,
+      senderId: senderId,
+      lastMessageContentType: 'multi',
+      lastMessagePreview: null,
+    );
   }
 
   @override
@@ -941,6 +955,7 @@ class FirestoreDirectMessageRepository implements DirectMessageRepository {
     required String stickerUrl,
     bool silent = false,
     Message? replyTo,
+    DateTime? sendAt,
   }) async {
     final roomRef = _dmRoomRef(dmId, roomId);
     final messageRef = roomRef.collection('messages').doc();
@@ -972,16 +987,20 @@ class FirestoreDirectMessageRepository implements DirectMessageRepository {
       ),
     );
 
-    final batch = _firestore.batch();
-    batch.set(messageRef, message.toJson());
-    batch.update(roomRef, {'lastMessageAt': FieldValue.serverTimestamp()});
-    batch.update(_directMessages.doc(dmId), {
-      'lastMessageAt': FieldValue.serverTimestamp(),
-      'lastMessageSenderId': senderId,
-      'lastMessageContentType': 'sticker',
-      'lastMessagePreview': null,
-    });
-    await batch.commit();
+    await commitOrScheduleMessage(
+      firestore: _firestore,
+      sendAt: sendAt,
+      scope: 'dm',
+      conversationId: dmId,
+      roomId: roomId,
+      roomRef: roomRef,
+      conversationRef: _directMessages.doc(dmId),
+      messageRef: messageRef,
+      message: message,
+      senderId: senderId,
+      lastMessageContentType: 'sticker',
+      lastMessagePreview: null,
+    );
   }
 
   @override

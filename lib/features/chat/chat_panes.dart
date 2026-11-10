@@ -683,6 +683,7 @@ class _DmChatPaneState extends ConsumerState<DmChatPane> {
       // 作成時点のentryを束縛しておく。
       onDisposeScrollAnchor: _scrollAnchorSaver(_cacheEntry),
       messagesStream: _messagesController.stream,
+      scheduledSendEnabled: true,
       onLoadOlderMessages: _loadOlderMessages,
       isLoadingOlderMessages: _cacheEntry.isLoadingOlder,
       hasMoreHistory: _cacheEntry.hasMoreHistory,
@@ -692,6 +693,7 @@ class _DmChatPaneState extends ConsumerState<DmChatPane> {
             silent = false,
             replyTo,
             mentions = MessageMentions.none,
+            sendAt,
           }) async {
             if (isBlocked) {
               showAutoDismissBanner(
@@ -709,31 +711,34 @@ class _DmChatPaneState extends ConsumerState<DmChatPane> {
               silent: silent,
               replyTo: replyTo,
               mentions: mentions,
+              sendAt: sendAt,
             );
           },
-      onSendAttachment: (attachment, {onProgress, caption, replyTo}) async {
-        if (isBlocked) {
-          showAutoDismissBanner(
-            context,
-            message: strings.conversationBlockedCannotSend,
-          );
-          return;
-        }
-        await dmRepository.sendAttachmentMessage(
-          dmId: dm.dmId,
-          roomId: roomId,
-          senderId: currentUser.userId,
-          senderRhingSeed: currentUser.rhingSeed,
-          bytes: attachment.bytes,
-          fileName: attachment.fileName,
-          contentType: attachment.contentType,
-          onProgress: onProgress,
-          caption: caption,
-          replyTo: replyTo,
-        );
-      },
+      onSendAttachment:
+          (attachment, {onProgress, caption, replyTo, sendAt}) async {
+            if (isBlocked) {
+              showAutoDismissBanner(
+                context,
+                message: strings.conversationBlockedCannotSend,
+              );
+              return;
+            }
+            await dmRepository.sendAttachmentMessage(
+              dmId: dm.dmId,
+              roomId: roomId,
+              senderId: currentUser.userId,
+              senderRhingSeed: currentUser.rhingSeed,
+              bytes: attachment.bytes,
+              fileName: attachment.fileName,
+              contentType: attachment.contentType,
+              onProgress: onProgress,
+              caption: caption,
+              replyTo: replyTo,
+              sendAt: sendAt,
+            );
+          },
       onSendMultiAttachment:
-          (attachments, {onProgress, caption, replyTo}) async {
+          (attachments, {onProgress, caption, replyTo, sendAt}) async {
             if (isBlocked) {
               showAutoDismissBanner(
                 context,
@@ -757,9 +762,10 @@ class _DmChatPaneState extends ConsumerState<DmChatPane> {
               onProgress: onProgress,
               caption: caption,
               replyTo: replyTo,
+              sendAt: sendAt,
             );
           },
-      onSendSticker: (sticker) async {
+      onSendSticker: (sticker, {sendAt}) async {
         if (isBlocked) {
           showAutoDismissBanner(
             context,
@@ -775,6 +781,7 @@ class _DmChatPaneState extends ConsumerState<DmChatPane> {
           stickerId: sticker.stickerId,
           stickerName: sticker.name,
           stickerUrl: sticker.imageUrl,
+          sendAt: sendAt,
         );
       },
       onCallPressed: widget.onCallPressed,
@@ -2768,6 +2775,7 @@ class _GroupChatPaneState extends ConsumerState<GroupChatPane> {
         ],
       ),
       messagesStream: _messagesController.stream,
+      scheduledSendEnabled: true,
       onLoadOlderMessages: _loadOlderMessages,
       isLoadingOlderMessages: _cacheEntry.isLoadingOlder,
       hasMoreHistory: _cacheEntry.hasMoreHistory,
@@ -2777,6 +2785,7 @@ class _GroupChatPaneState extends ConsumerState<GroupChatPane> {
             silent = false,
             replyTo,
             mentions = MessageMentions.none,
+            sendAt,
           }) => groupRepository.sendRoomMessage(
             groupId: group.groupId,
             roomId: roomId,
@@ -2786,8 +2795,9 @@ class _GroupChatPaneState extends ConsumerState<GroupChatPane> {
             silent: silent,
             replyTo: replyTo,
             mentions: mentions,
+            sendAt: sendAt,
           ),
-      onSendAttachment: (attachment, {onProgress, caption, replyTo}) =>
+      onSendAttachment: (attachment, {onProgress, caption, replyTo, sendAt}) =>
           groupRepository.sendAttachmentMessage(
             groupId: group.groupId,
             roomId: roomId,
@@ -2799,26 +2809,29 @@ class _GroupChatPaneState extends ConsumerState<GroupChatPane> {
             onProgress: onProgress,
             caption: caption,
             replyTo: replyTo,
+            sendAt: sendAt,
           ),
-      onSendMultiAttachment: (attachments, {onProgress, caption, replyTo}) =>
-          groupRepository.sendMultiAttachmentMessage(
-            groupId: group.groupId,
-            roomId: roomId,
-            senderId: currentUser.userId,
-            senderRhingSeed: currentUser.rhingSeed,
-            items: [
-              for (final a in attachments)
-                AttachmentUploadInput(
-                  bytes: a.bytes,
-                  fileName: a.fileName,
-                  contentType: a.contentType,
-                ),
-            ],
-            onProgress: onProgress,
-            caption: caption,
-            replyTo: replyTo,
-          ),
-      onSendSticker: (sticker) => groupRepository.sendStickerMessage(
+      onSendMultiAttachment:
+          (attachments, {onProgress, caption, replyTo, sendAt}) =>
+              groupRepository.sendMultiAttachmentMessage(
+                groupId: group.groupId,
+                roomId: roomId,
+                senderId: currentUser.userId,
+                senderRhingSeed: currentUser.rhingSeed,
+                items: [
+                  for (final a in attachments)
+                    AttachmentUploadInput(
+                      bytes: a.bytes,
+                      fileName: a.fileName,
+                      contentType: a.contentType,
+                    ),
+                ],
+                onProgress: onProgress,
+                caption: caption,
+                replyTo: replyTo,
+                sendAt: sendAt,
+              ),
+      onSendSticker: (sticker, {sendAt}) => groupRepository.sendStickerMessage(
         groupId: group.groupId,
         roomId: roomId,
         senderId: currentUser.userId,
@@ -2826,6 +2839,7 @@ class _GroupChatPaneState extends ConsumerState<GroupChatPane> {
         stickerId: sticker.stickerId,
         stickerName: sticker.name,
         stickerUrl: sticker.imageUrl,
+        sendAt: sendAt,
       ),
       // 進行中の通話がある間は、音声・ビデオの2つのボタンを「参加」の1つにまとめ、
       // 参加人数を出す（2026-10-21）。映像のオン・オフは参加者毎に独立で、通話の

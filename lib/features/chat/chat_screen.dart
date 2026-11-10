@@ -22,6 +22,8 @@ import 'package:url_launcher/url_launcher.dart';
 import '../call/camera_availability.dart';
 import '../../l10n/app_locale.dart';
 import '../../l10n/strings.dart';
+import '../../models/scheduled_message.dart';
+import 'scheduled_send_ui.dart';
 import '../../theme/block/block_theme.dart';
 import '../../theme/motion.dart';
 import '../../l10n/vocabulary.dart';
@@ -146,6 +148,7 @@ class ChatScreen extends ConsumerStatefulWidget {
     this.onSendAttachment,
     this.onSendMultiAttachment,
     this.onSendSticker,
+    this.scheduledSendEnabled = false,
     this.onCallPressed,
     this.onVideoCallPressed,
     this.callParticipantCount,
@@ -210,6 +213,7 @@ class ChatScreen extends ConsumerStatefulWidget {
     bool silent,
     Message? replyTo,
     MessageMentions mentions,
+    DateTime? sendAt,
   })?
   onSend;
 
@@ -234,6 +238,7 @@ class ChatScreen extends ConsumerStatefulWidget {
     ValueChanged<double>? onProgress,
     String? caption,
     Message? replyTo,
+    DateTime? sendAt,
   })?
   onSendAttachment;
 
@@ -245,12 +250,18 @@ class ChatScreen extends ConsumerStatefulWidget {
     ValueChanged<double>? onProgress,
     String? caption,
     Message? replyTo,
+    DateTime? sendAt,
   })?
   onSendMultiAttachment;
 
   /// ぺったん（スタンプ）を送信する（技術仕様書7.4参照、2026-08-11追加）。
   /// nullなら＋ボタンのメニューに「ぺったん」項目自体を出さない。
-  final Future<void> Function(Sticker sticker)? onSendSticker;
+  final Future<void> Function(Sticker sticker, {DateTime? sendAt})?
+  onSendSticker;
+
+  /// 送信予定（指定した日時にサーバーが送る、2026-11-10追加）を使えるか。trueの時だけ、送信ボタンの
+  /// 長押しメニュー・＋メニューに予定の項目を出す（一対・広場の語らい用。お知らせ等では出さない）。
+  final bool scheduledSendEnabled;
 
   /// 送信済みテキストメッセージの本文を編集する。nullなら編集機能自体を
   /// 提供しない（メニューに「編集」項目を出さない）。
@@ -1238,6 +1249,9 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   /// 返信中・編集中のメッセージ（同時にはどちらか一方のみ）。入力欄上部に
   /// プレビューバーとして表示し、キャンセルボタンでnullに戻す。
   Message? _replyingTo;
+
+  /// 次の1回の送信を予定にする日時（送信ボタンのメニュー・＋メニューで設定、2026-11-10）。
+  DateTime? _scheduledAt;
 
   /// 二重返信の2件目の返信先（2026-11-06）。返信中にもう一度「返信」を選ぶと入る。
   /// 1件目（[_replyingTo]）が無い間は常にnull。
@@ -2374,6 +2388,8 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
       final proceed = await _checkSpamBeforeSend(conversationId, content);
       if (!proceed) return;
     }
+    // 送信予定の日時が設定されていれば、この1回の送信を予定にする（編集中は対象外）。
+    final sendAt = _editingMessage == null ? _takeScheduledAt() : null;
 
     if (sendingTray) {
       final replyTo = _replyingTo;
@@ -2389,6 +2405,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
       await _sendPendingAttachments(
         caption: content.isEmpty ? null : content,
         replyTo: replyTo,
+        sendAt: sendAt,
       );
       _scrollToLatestMessage();
       return;
@@ -2426,8 +2443,104 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
       silent: silent,
       replyTo: replyTo,
       mentions: mentions,
+      sendAt: sendAt,
     );
     _scrollToLatestMessage();
+  }
+
+  /// この寄合の自分の送信待ちの件数（＋メニューの表示用）。
+  int _scheduledPendingCount() {
+    final conversationId = widget.conversationId;
+    final roomId = widget.roomId;
+    if (conversationId == null || roomId == null) return 0;
+    final items = ref
+        .watch(
+          scheduledMessagesProvider((
+            userId: widget.currentUserId,
+            conversationId: conversationId,
+            roomId: roomId,
+          )),
+        )
+        .value;
+    return items?.where((e) => e.isPending).length ?? 0;
+  }
+
+  /// 設定済みの送信予定の日時を取り出して消す（次の1回だけ予定にする）。
+  DateTime? _takeScheduledAt() {
+    final at = _scheduledAt;
+    if (at == null) return null;
+    setState(() => _scheduledAt = null);
+    _bannerTimer = showAutoDismissBanner(
+      context,
+      message: ref.read(appStringsProvider).scheduledAdded,
+      previousTimer: _bannerTimer,
+    );
+    return at;
+  }
+
+  /// 送信予定の日時を選び、チップとして入力欄の上に出す（次の送信が予定になる）。
+  Future<void> _chooseScheduledTime() async {
+    final strings = ref.read(appStringsProvider);
+    final userId = widget.currentUserId;
+    final conversationId = widget.conversationId;
+    final roomId = widget.roomId;
+    if (conversationId != null && roomId != null) {
+      final items = await ref.read(
+        scheduledMessagesProvider((
+          userId: userId,
+          conversationId: conversationId,
+          roomId: roomId,
+        )).future,
+      );
+      if (!mounted) return;
+      if (items.where((e) => e.isPending).length >= kScheduledMaxPerRoom) {
+        _bannerTimer = showAutoDismissBanner(
+          context,
+          message: strings.scheduledLimitReached(kScheduledMaxPerRoom),
+          previousTimer: _bannerTimer,
+        );
+        return;
+      }
+    }
+    final picked = await pickScheduledDateTime(
+      context: context,
+      strings: strings,
+      initial: _scheduledAt,
+    );
+    if (picked == null || !mounted) return;
+    setState(() => _scheduledAt = picked);
+    _composerFocusNode.requestFocus();
+  }
+
+  /// 送信ボタンの長押しメニュー（通知なしで送信／日時を指定して送信）。
+  Future<void> _openSendOptions(BuildContext buttonContext) async {
+    final box = buttonContext.findRenderObject() as RenderBox;
+    final choice = await showSendOptionsMenu(
+      context: context,
+      strings: ref.read(appStringsProvider),
+      globalPosition: box.localToGlobal(Offset.zero),
+    );
+    if (!mounted) return;
+    switch (choice) {
+      case SendOptionChoice.silent:
+        await _send(silent: true);
+      case SendOptionChoice.schedule:
+        await _chooseScheduledTime();
+      case null:
+        break;
+    }
+  }
+
+  void _openScheduledList() {
+    final conversationId = widget.conversationId;
+    final roomId = widget.roomId;
+    if (conversationId == null || roomId == null) return;
+    showScheduledMessagesDialog(
+      context: context,
+      userId: widget.currentUserId,
+      conversationId: conversationId,
+      roomId: roomId,
+    );
   }
 
   /// 自分が送信したメッセージが必ず画面に表示されるよう、送信後は一覧の
@@ -2458,6 +2571,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     List<PickedAttachment> picked, {
     String? caption,
     Message? replyTo,
+    DateTime? sendAt,
   }) async {
     final onSendAttachment = widget.onSendAttachment;
     if (onSendAttachment == null || picked.isEmpty) return;
@@ -2485,6 +2599,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
           onProgress: onProgress,
           caption: caption,
           replyTo: replyTo,
+          sendAt: sendAt,
         );
       } else {
         for (final attachment in attachments) {
@@ -2493,6 +2608,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
             onProgress: onProgress,
             caption: caption,
             replyTo: replyTo,
+            sendAt: sendAt,
           );
         }
       }
@@ -2520,6 +2636,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                   attachments,
                   caption: caption,
                   replyTo: replyTo,
+                  sendAt: sendAt,
                 );
               },
               child: Text(strings.chatResendAction),
@@ -2539,11 +2656,16 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   /// ぺったん（スタンプ）選択時の送信処理。バイトデータのアップロードを
   /// 伴わないため添付ファイルより単純だが、失敗時のバナー表示・再送導線は
   /// [_handleAttachmentPicked]と同じパターンを踏襲する（2026-08-11追加）。
-  Future<void> _handleStickerPicked(Sticker sticker) async {
+  Future<void> _handleStickerPicked(
+    Sticker sticker, {
+    DateTime? resendAt,
+  }) async {
     final onSendSticker = widget.onSendSticker;
     if (onSendSticker == null) return;
+    // 送信予定の日時が設定されていれば、このぺったんを予定にする（再送では同じ日時を使う）。
+    final sendAt = resendAt ?? _takeScheduledAt();
     try {
-      await onSendSticker(sticker);
+      await onSendSticker(sticker, sendAt: sendAt);
       unawaited(
         ref.read(recentStickersProvider.notifier).record(sticker.stickerId),
       );
@@ -2558,7 +2680,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
           TextButton(
             onPressed: () {
               dismissAutoDismissBanner();
-              _handleStickerPicked(sticker);
+              _handleStickerPicked(sticker, resendAt: sendAt);
             },
             child: Text(strings.chatResendAction),
           ),
@@ -2774,7 +2896,9 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
       for (final a in picked)
         if (a.contentType != 'image' && a.contentType != 'video') a,
     ];
-    if (immediate.isNotEmpty) _handleAttachmentsPicked(immediate);
+    if (immediate.isNotEmpty) {
+      _handleAttachmentsPicked(immediate, sendAt: _takeScheduledAt());
+    }
     if (staged.isEmpty) return;
     final room = kMaxMultiAttachments - _pendingAttachments.length;
     setState(() => _pendingAttachments.addAll(staged.take(room)));
@@ -2795,11 +2919,17 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   Future<void> _sendPendingAttachments({
     String? caption,
     Message? replyTo,
+    DateTime? sendAt,
   }) async {
     if (_pendingAttachments.isEmpty) return;
     final toSend = List<PickedAttachment>.of(_pendingAttachments);
     setState(_pendingAttachments.clear);
-    await _handleAttachmentsPicked(toSend, caption: caption, replyTo: replyTo);
+    await _handleAttachmentsPicked(
+      toSend,
+      caption: caption,
+      replyTo: replyTo,
+      sendAt: sendAt,
+    );
   }
 
   /// トレイに画像・動画を足した後・外した後・拡大を閉じた後に、入力欄へフォーカスを戻す
@@ -3525,6 +3655,13 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                               isGlass: isGlass,
                               isGekiga: isGekiga,
                             ),
+                          if (_scheduledAt case final scheduledAt?)
+                            ScheduledSendChip(
+                              sendAt: scheduledAt,
+                              strings: strings,
+                              onClear: () =>
+                                  setState(() => _scheduledAt = null),
+                            ),
                           if (_pendingAttachments.isNotEmpty)
                             _pendingTray(
                               strings,
@@ -3559,6 +3696,20 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                                       strings: strings,
                                       isGekiga: isGekiga,
                                       onPicked: _onAttachmentsChosen,
+                                      onScheduleTime:
+                                          widget.scheduledSendEnabled
+                                          ? _chooseScheduledTime
+                                          : null,
+                                      onScheduleList:
+                                          widget.scheduledSendEnabled
+                                          ? _openScheduledList
+                                          : null,
+                                      scheduleListLabel:
+                                          widget.scheduledSendEnabled
+                                          ? strings.scheduledListMenuLabel(
+                                              _scheduledPendingCount(),
+                                            )
+                                          : null,
                                     ),
                                   Expanded(
                                     child: TutorialTarget(
@@ -3875,8 +4026,12 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                                               // 抑制する（2026-08-12）。
                                               canRequestFocus: false,
                                               onTap: _send,
-                                              onLongPress: () =>
-                                                  _send(silent: true),
+                                              onLongPress:
+                                                  widget.scheduledSendEnabled
+                                                  ? () => _openSendOptions(
+                                                      context,
+                                                    )
+                                                  : () => _send(silent: true),
                                               child: Padding(
                                                 padding: const EdgeInsets.all(
                                                   12,

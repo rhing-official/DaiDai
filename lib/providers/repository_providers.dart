@@ -28,6 +28,7 @@ import '../repositories/spam_config_repository.dart';
 import '../repositories/sticker_repository.dart';
 import '../repositories/user_repository.dart';
 import '../repositories/bot_repository.dart';
+import '../repositories/scheduled_message_repository.dart';
 import '../repositories/webhook_repository.dart';
 
 final authRepositoryProvider = Provider<AuthRepository>((ref) {
@@ -54,6 +55,12 @@ final directMessageRepositoryProvider = Provider<DirectMessageRepository>((
 final groupRepositoryProvider = Provider<GroupRepository>((ref) {
   return FirestoreGroupRepository();
 });
+
+final scheduledMessageRepositoryProvider = Provider<ScheduledMessageRepository>(
+  (ref) {
+    return FirestoreScheduledMessageRepository();
+  },
+);
 
 final callRepositoryProvider = Provider<CallRepository>((ref) {
   return FirestoreCallRepository();

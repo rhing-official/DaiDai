@@ -3484,6 +3484,7 @@ class _FriendRequestTile extends ConsumerWidget {
                     silent = false,
                     replyTo,
                     mentions = MessageMentions.none,
+                    sendAt,
                   }) async {},
               disabled: true,
               banner: _PendingApprovalBanner(
@@ -3681,6 +3682,7 @@ class _PendingGroupJoinRequestTile extends ConsumerWidget {
                   silent = false,
                   replyTo,
                   mentions = MessageMentions.none,
+                  sendAt,
                 }) async {},
             disabled: true,
             // 承認待ち→却下に変わった時に、開いたままの画面も追従する

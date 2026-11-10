@@ -77,6 +77,11 @@ import { checkRequest, checkRespond, ISSUED_QR_TTL_MS } from "./qrLoginIssued";
 import { parseAllowedUrl, resolveReferer, resolveUserAgent } from "./urlFetchRelay";
 import { resolveMentionRecipients } from "./mentions";
 import { excludeBlockers } from "./block";
+import {
+  SCHEDULED_BATCH_LIMIT,
+  isFailedScheduledExpired,
+  scheduledSendFailure,
+} from "./scheduledMessages";
 import { severanceNotifyTarget } from "./severanceNotify";
 import { filterTurnIceServers } from "./turnCredentials";
 import {
@@ -3695,6 +3700,125 @@ export const onDmMessageCreated = onDocumentCreated(
         message,
       }),
     ]);
+  },
+);
+
+// ---------------------------------------------------------------------------
+// 送信予定（2026-11-10追加）
+//
+// クライアントが`scheduledMessages/{id}`に、送るメッセージ（`message`）と送信時刻（`sendAt`）を
+// 保存する。毎分、時刻を過ぎた予定を`messages`へ書き出す。通知・未読の加算は、書き出した
+// メッセージに対する既存の`onDmMessageCreated`/`onGroupMessageCreated`が行う。
+// ---------------------------------------------------------------------------
+
+/** 予定1件を送る。送れなければ`failed`にして理由を残す。 */
+async function dispatchScheduledMessage(
+  ref: FirebaseFirestore.DocumentReference,
+): Promise<void> {
+  // 二重送信を避ける為、`pending`のものだけを`sending`に確保する。
+  const claimed = await db.runTransaction(async (tx) => {
+    const snap = await tx.get(ref);
+    const data = snap.data();
+    if (!data || data.status !== "pending") return null;
+    tx.update(ref, { status: "sending" });
+    return data;
+  });
+  if (!claimed) return;
+
+  const scope = claimed.scope;
+  const conversationId = String(claimed.conversationId ?? "");
+  const roomId = String(claimed.roomId ?? "");
+  const messageId = String(claimed.messageId ?? "");
+  const senderId = claimed.createdBy;
+  const message = claimed.message as Record<string, unknown> | undefined;
+
+  const fail = (reason: string) =>
+    ref.update({
+      status: "failed",
+      failReason: reason,
+      failedAt: FieldValue.serverTimestamp(),
+    });
+
+  if (!message || !conversationId || !roomId || !messageId) {
+    await fail("invalid");
+    return;
+  }
+
+  const convRef = db
+    .collection(scope === "dm" ? "directMessages" : "groups")
+    .doc(conversationId);
+  const roomRef = convRef
+    .collection("rooms")
+    .doc(roomId);
+  const [convSnap, roomSnap] = await Promise.all([convRef.get(), roomRef.get()]);
+  const failure = scheduledSendFailure({
+    scope,
+    senderId,
+    dmParticipants: convSnap.data()?.participants ?? null,
+    groupMemberIds: convSnap.data()?.memberIds ?? null,
+    roomMemberIds:
+      scope === "dm"
+        ? roomSnap.data()?.participants ?? null
+        : roomSnap.data()?.memberIds ?? null,
+    conversationExists: convSnap.exists,
+    roomExists: roomSnap.exists,
+  });
+  if (failure) {
+    await fail(failure);
+    return;
+  }
+
+  const batch = db.batch();
+  // 同じメッセージIDで`create`する為、再実行しても二重には送られない。
+  batch.create(roomRef.collection("messages").doc(messageId), {
+    ...message,
+    sentAt: FieldValue.serverTimestamp(),
+  });
+  batch.update(roomRef, { lastMessageAt: FieldValue.serverTimestamp() });
+  batch.update(convRef, {
+    lastMessageAt: FieldValue.serverTimestamp(),
+    lastMessageSenderId: senderId,
+    lastMessageContentType: claimed.lastMessageContentType ?? "text",
+    lastMessagePreview: claimed.lastMessagePreview ?? null,
+  });
+  batch.delete(ref);
+  try {
+    await batch.commit();
+  } catch (error) {
+    logger.error("送信予定の送信に失敗", { id: ref.id, error });
+    await fail("invalid");
+  }
+}
+
+export const sendScheduledMessages = onSchedule(
+  { schedule: "every 1 minutes", region: "asia-northeast1" },
+  async () => {
+    const due = await db
+      .collection("scheduledMessages")
+      .where("status", "==", "pending")
+      .where("sendAt", "<=", Timestamp.now())
+      .limit(SCHEDULED_BATCH_LIMIT)
+      .get();
+    for (const doc of due.docs) {
+      try {
+        await dispatchScheduledMessage(doc.ref);
+      } catch (error) {
+        logger.error("送信予定の処理に失敗", { id: doc.id, error });
+      }
+    }
+    // 失敗したまま長く残った予定を掃除する。
+    const nowMs = Date.now();
+    const failed = await db
+      .collection("scheduledMessages")
+      .where("status", "==", "failed")
+      .limit(SCHEDULED_BATCH_LIMIT)
+      .get();
+    for (const doc of failed.docs) {
+      const at = (doc.data().failedAt as Timestamp | undefined)?.toMillis();
+      if (at !== undefined && isFailedScheduledExpired(at, nowMs)) {
+        await doc.ref.delete();
+      }
+    }
   },
 );
 

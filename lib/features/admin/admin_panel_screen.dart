@@ -103,6 +103,7 @@ class _AnnouncementSectionState extends ConsumerState<_AnnouncementSection> {
     bool silent = false,
     Message? replyTo,
     MessageMentions mentions = MessageMentions.none,
+    DateTime? sendAt,
   }) => ref.read(announcementRepositoryProvider).broadcast(content);
 
   @override

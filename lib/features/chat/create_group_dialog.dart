@@ -41,7 +41,7 @@ final _candidateFriendsProvider = StreamProvider.family<List<AppUser>, String>((
 });
 
 /// 広場（グループ）作成ポップアップ（2026-07-29、画面遷移からポップアップ化）。
-/// 3人以上（自分＋2人以上）で作成する。「＋」ボタンのメニューポップアップの
+/// 1人（自分だけ）からでも作成できる（2026-11-10、以前は3人以上）。「＋」ボタンのメニューポップアップの
 /// 上に重ねて表示される（`TalksTab._showAddMenu`参照）。
 ///
 /// 手順1（広場名・寄合を複数作るか決める）→手順2（友達をチェックボックスで
@@ -113,15 +113,6 @@ class _CreateGroupDialogContentState
   }
 
   Future<void> _createGroup() async {
-    if (_members.length < 2) {
-      setState(
-        () => _errorMessage = ref
-            .read(appStringsProvider)
-            .createGroupMinMembersError(2 - _members.length),
-      );
-      return;
-    }
-
     setState(() {
       _isCreating = true;
       _errorMessage = null;
@@ -288,16 +279,7 @@ class _CreateGroupDialogContentState
     final isGekiga = ref.watch(appUiStyleProvider) == AppUiStyle.gekiga;
     final strings = ref.watch(appStringsProvider);
     return [
-      Row(
-        children: [
-          IconButton(
-            icon: const Icon(Icons.arrow_back),
-            onPressed: _isCreating ? null : _goBackToStep1,
-          ),
-          const SizedBox(width: 4),
-          Expanded(child: Text(strings.createGroupMemberStepTitle)),
-        ],
-      ),
+      Text(strings.createGroupMemberStepTitle),
       const SizedBox(height: 8),
       isGekiga
           ? GekigaTextField(
@@ -425,14 +407,22 @@ class _CreateGroupDialogContentState
         Text(_errorMessage!, style: const TextStyle(color: Colors.red)),
       ],
       const SizedBox(height: 16),
-      SizedBox(
-        width: double.infinity,
-        child: ElevatedButton(
-          onPressed: _isCreating ? null : _createGroup,
-          child: _isCreating
-              ? const SizedBox.shrink()
-              : Text(strings.commonCreate),
-        ),
+      Row(
+        children: [
+          OutlinedButton(
+            onPressed: _isCreating ? null : _goBackToStep1,
+            child: Text(strings.back),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: ElevatedButton(
+              onPressed: _isCreating ? null : _createGroup,
+              child: _isCreating
+                  ? const SizedBox.shrink()
+                  : Text(strings.commonCreate),
+            ),
+          ),
+        ],
       ),
     ];
   }

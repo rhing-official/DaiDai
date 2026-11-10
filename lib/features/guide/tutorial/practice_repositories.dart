@@ -20,6 +20,8 @@ import '../../../repositories/calendar_event_repository.dart';
 import '../../../repositories/call_repository.dart';
 import '../../../repositories/group_call_repository.dart';
 import '../../../repositories/note_repository.dart';
+import '../../../repositories/scheduled_message_repository.dart';
+import '../../../models/scheduled_message.dart';
 import '../../../repositories/poll_repository.dart';
 import '../../../repositories/schedule_coordination_repository.dart';
 import '../../../repositories/conversation_prefs_repository.dart';
@@ -199,6 +201,7 @@ class PracticeDirectMessageRepository implements DirectMessageRepository {
     bool silent = false,
     Message? replyTo,
     MessageMentions mentions = MessageMentions.none,
+    DateTime? sendAt,
   }) async {
     _messages.insert(
       0,
@@ -436,3 +439,19 @@ class PracticeCallRepository with InertRepository implements CallRepository {}
 class PracticeGroupCallRepository
     with InertRepository
     implements GroupCallRepository {}
+
+/// 練習中の送信予定（常に空。本物の`scheduledMessages`は読み書きしない）。
+class PracticeScheduledMessageRepository implements ScheduledMessageRepository {
+  @override
+  Stream<List<ScheduledMessage>> watch({
+    required String userId,
+    required String conversationId,
+    required String roomId,
+  }) => Stream.value(const <ScheduledMessage>[]);
+
+  @override
+  Future<void> reschedule(String id, DateTime sendAt) async {}
+
+  @override
+  Future<void> cancel(ScheduledMessage scheduled) async {}
+}
