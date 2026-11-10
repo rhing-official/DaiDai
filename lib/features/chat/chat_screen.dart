@@ -6,6 +6,7 @@ import 'dart:io' show File, Platform, Process;
 import 'dart:math' as math;
 import 'dart:ui' as ui;
 
+import 'package:flutter/gestures.dart' show LongPressGestureRecognizer;
 import 'package:flutter/foundation.dart'
     show TargetPlatform, debugPrint, defaultTargetPlatform, kIsWeb;
 import 'package:flutter/material.dart';
@@ -2505,6 +2506,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     final picked = await pickScheduledDateTime(
       context: context,
       strings: strings,
+      conversationId: conversationId ?? '',
       initial: _scheduledAt,
     );
     if (picked == null || !mounted) return;
@@ -2513,13 +2515,18 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   }
 
   /// 送信ボタンの長押しメニュー（通知なしで送信／日時を指定して送信）。
+  SendOptionsMenuHandle? _sendMenu;
+
   Future<void> _openSendOptions(BuildContext buttonContext) async {
     final box = buttonContext.findRenderObject() as RenderBox;
-    final choice = await showSendOptionsMenu(
+    final handle = showSendOptionsMenu(
       context: context,
       strings: ref.read(appStringsProvider),
-      globalPosition: box.localToGlobal(Offset.zero),
+      anchorBox: box,
     );
+    _sendMenu = handle;
+    final choice = await handle.result;
+    if (identical(_sendMenu, handle)) _sendMenu = null;
     if (!mounted) return;
     switch (choice) {
       case SendOptionChoice.silent:
@@ -3696,10 +3703,6 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                                       strings: strings,
                                       isGekiga: isGekiga,
                                       onPicked: _onAttachmentsChosen,
-                                      onScheduleTime:
-                                          widget.scheduledSendEnabled
-                                          ? _chooseScheduledTime
-                                          : null,
                                       onScheduleList:
                                           widget.scheduledSendEnabled
                                           ? _openScheduledList
@@ -4015,34 +4018,78 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                                           child: Material(
                                             color: Colors.transparent,
                                             shape: const CircleBorder(),
-                                            child: InkWell(
-                                              customBorder:
-                                                  const CircleBorder(),
-                                              // タップでこのボタン自身が
-                                              // フォーカスを奪うと、テキスト欄が
-                                              // フォーカスを失いモバイルで
-                                              // ソフトウェアキーボードが閉じて
-                                              // しまうため、フォーカス移動を
-                                              // 抑制する（2026-08-12）。
-                                              canRequestFocus: false,
-                                              onTap: _send,
-                                              onLongPress:
-                                                  widget.scheduledSendEnabled
-                                                  ? () => _openSendOptions(
-                                                      context,
-                                                    )
-                                                  : () => _send(silent: true),
-                                              child: Padding(
-                                                padding: const EdgeInsets.all(
-                                                  12,
-                                                ),
-                                                child: Icon(
-                                                  Icons.send,
-                                                  // フラット・ガラスは文字色に合わせる
-                                                  // （劇画は従来のまま）。
-                                                  color: isGekiga
-                                                      ? colorScheme.primary
-                                                      : colorScheme.onSurface,
+                                            child: Builder(
+                                              builder: (buttonContext) => RawGestureDetector(
+                                                // 長押しの秒数は標準（0.5秒）の半分（2026-11-10、ユーザー指示）。
+                                                gestures: {
+                                                  LongPressGestureRecognizer:
+                                                      GestureRecognizerFactoryWithHandlers<
+                                                        LongPressGestureRecognizer
+                                                      >(
+                                                        () => LongPressGestureRecognizer(
+                                                          duration:
+                                                              const Duration(
+                                                                milliseconds:
+                                                                    250,
+                                                              ),
+                                                        ),
+                                                        (recognizer) {
+                                                          if (widget
+                                                              .scheduledSendEnabled) {
+                                                            // 長押しのまま項目へなぞって離すと選べる。
+                                                            recognizer
+                                                                .onLongPress = () =>
+                                                                _openSendOptions(
+                                                                  buttonContext,
+                                                                );
+                                                            recognizer
+                                                                .onLongPressMoveUpdate = (d) {
+                                                              _sendMenu?.update(
+                                                                d.globalPosition,
+                                                              );
+                                                            };
+                                                            recognizer
+                                                                .onLongPressEnd = (d) {
+                                                              _sendMenu?.release(
+                                                                d.globalPosition,
+                                                              );
+                                                            };
+                                                          } else {
+                                                            recognizer
+                                                                    .onLongPress =
+                                                                () => _send(
+                                                                  silent: true,
+                                                                );
+                                                          }
+                                                        },
+                                                      ),
+                                                },
+                                                child: InkWell(
+                                                  customBorder:
+                                                      const CircleBorder(),
+                                                  // タップでこのボタン自身が
+                                                  // フォーカスを奪うと、テキスト欄が
+                                                  // フォーカスを失いモバイルで
+                                                  // ソフトウェアキーボードが閉じて
+                                                  // しまうため、フォーカス移動を
+                                                  // 抑制する（2026-08-12）。
+                                                  canRequestFocus: false,
+                                                  onTap: _send,
+                                                  child: Padding(
+                                                    padding:
+                                                        const EdgeInsets.all(
+                                                          12,
+                                                        ),
+                                                    child: Icon(
+                                                      Icons.send,
+                                                      // フラット・ガラスは文字色に合わせる
+                                                      // （劇画は従来のまま）。
+                                                      color: isGekiga
+                                                          ? colorScheme.primary
+                                                          : colorScheme
+                                                                .onSurface,
+                                                    ),
+                                                  ),
                                                 ),
                                               ),
                                             ),

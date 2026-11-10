@@ -7,7 +7,13 @@ import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+
 import '../../l10n/strings.dart';
+import '../../models/app_ui_style.dart';
+import '../../providers/app_ui_style_provider.dart';
+import '../../theme/gekiga/gekiga_colors.dart';
+import '../../theme/popup_surface_colors.dart';
 import '../../models/message.dart';
 import '../../utils/attachment_upload.dart';
 import '../../utils/camera_presence/camera_presence.dart';
@@ -31,14 +37,7 @@ class PickedAttachment {
   final String contentType;
 }
 
-enum _AttachmentMenuItem {
-  file,
-  image,
-  video,
-  capture,
-  scheduleTime,
-  scheduleList,
-}
+enum _AttachmentMenuItem { file, image, video, capture, scheduleList }
 
 /// ポインター位置がこの距離未満しか動かないまま指が離れた場合、
 /// 「押した瞬間にポップアップを開くだけの単純なタップ」とみなし、
@@ -59,7 +58,6 @@ class AttachmentPopupButton extends StatefulWidget {
     required this.strings,
     required this.isGekiga,
     required this.onPicked,
-    this.onScheduleTime,
     this.onScheduleList,
     this.scheduleListLabel,
     super.key,
@@ -77,8 +75,7 @@ class AttachmentPopupButton extends StatefulWidget {
   /// 上限（[kMaxMultiAttachments]）の切り詰めは呼び出し側が行う。
   final void Function(List<PickedAttachment> attachments) onPicked;
 
-  /// 送信予定（2026-11-10）。「送信日時を指定」と「送信予定の一覧」の項目を足す。nullなら出さない。
-  final VoidCallback? onScheduleTime;
+  /// 送信予定（2026-11-10）。「送信予定の一覧」の項目を足す。nullなら出さない。
   final VoidCallback? onScheduleList;
   final String? scheduleListLabel;
 
@@ -155,12 +152,6 @@ class _AttachmentPopupButtonState extends State<AttachmentPopupButton> {
           label: strings.chatAttachCapture,
           icon: Icons.photo_camera_outlined,
         ),
-      if (widget.onScheduleTime != null)
-        (
-          item: _AttachmentMenuItem.scheduleTime,
-          label: strings.scheduledSendOptionSchedule,
-          icon: Icons.schedule_send_outlined,
-        ),
       if (widget.onScheduleList != null)
         (
           item: _AttachmentMenuItem.scheduleList,
@@ -181,8 +172,6 @@ class _AttachmentPopupButtonState extends State<AttachmentPopupButton> {
         await _pickVideo();
       case _AttachmentMenuItem.capture:
         await _openCamera();
-      case _AttachmentMenuItem.scheduleTime:
-        widget.onScheduleTime?.call();
       case _AttachmentMenuItem.scheduleList:
         widget.onScheduleList?.call();
     }
@@ -310,6 +299,14 @@ class _AttachmentPopupButtonState extends State<AttachmentPopupButton> {
     _geometry = geometry;
     _highlightIndex.value = -1;
 
+    // 文字・アイコンはアクセントカラーにせず、UIスタイルごとの固定色（他のポップアップと共通）。
+    final uiStyle = ProviderScope.containerOf(context).read(appUiStyleProvider);
+    final brightness = Theme.of(context).brightness;
+    final fg = popupCardForeground(brightness, uiStyle);
+    final highlightColor = uiStyle == AppUiStyle.gekiga
+        ? GekigaColors.onPanel.withValues(alpha: 0.2)
+        : colorScheme.primary.withValues(alpha: 0.15);
+
     _overlayEntry = OverlayEntry(
       builder: (overlayContext) => Stack(
         children: [
@@ -325,58 +322,63 @@ class _AttachmentPopupButtonState extends State<AttachmentPopupButton> {
             top: geometry.top,
             width: geometry.width,
             height: geometry.height,
-            child: Material(
-              color: colorScheme.surfaceContainer,
-              elevation: 3,
-              shadowColor: colorScheme.shadow,
-              shape: const RoundedRectangleBorder(
-                borderRadius: BorderRadius.all(Radius.circular(4)),
-              ),
-              child: ValueListenableBuilder<int>(
-                valueListenable: _highlightIndex,
-                builder: (_, highlighted, _) => Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    for (var i = 0; i < items.length; i++)
-                      InkWell(
-                        onTap: () {
-                          _removeOverlay();
-                          _handleSelection(items[i].item);
-                        },
-                        child: Container(
-                          height: kDragMenuItemHeight,
-                          alignment: AlignmentDirectional.centerStart,
-                          padding: const EdgeInsets.symmetric(horizontal: hPad),
-                          color: i == highlighted
-                              ? colorScheme.primary.withValues(alpha: 0.12)
-                              : Colors.transparent,
-                          child: Row(
-                            children: [
-                              Icon(
-                                items[i].icon,
-                                size: 20,
+            child: DecoratedBox(
+              decoration: popupCardDecoration(context, brightness, uiStyle),
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(14),
+                child: DecoratedBox(
+                  position: DecorationPosition.foreground,
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(
+                      color: popupCardBorder(brightness, uiStyle),
+                      width: uiStyle == AppUiStyle.block
+                          ? BlockTheme.borderWidth
+                          : 1,
+                    ),
+                  ),
+                  child: Material(
+                    color: Colors.transparent,
+                    child: ValueListenableBuilder<int>(
+                      valueListenable: _highlightIndex,
+                      builder: (_, highlighted, _) => Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          for (var i = 0; i < items.length; i++)
+                            InkWell(
+                              onTap: () {
+                                _removeOverlay();
+                                _handleSelection(items[i].item);
+                              },
+                              child: Container(
+                                height: kDragMenuItemHeight,
+                                alignment: AlignmentDirectional.centerStart,
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: hPad,
+                                ),
                                 color: i == highlighted
-                                    ? colorScheme.primary
-                                    : colorScheme.onSurface,
-                              ),
-                              const SizedBox(width: 12),
-                              Expanded(
-                                child: Text(
-                                  items[i].label,
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: textStyle.copyWith(
-                                    color: i == highlighted
-                                        ? colorScheme.primary
-                                        : null,
-                                  ),
+                                    ? highlightColor
+                                    : Colors.transparent,
+                                child: Row(
+                                  children: [
+                                    Icon(items[i].icon, size: 20, color: fg),
+                                    const SizedBox(width: 12),
+                                    Expanded(
+                                      child: Text(
+                                        items[i].label,
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                        style: textStyle.copyWith(color: fg),
+                                      ),
+                                    ),
+                                  ],
                                 ),
                               ),
-                            ],
-                          ),
-                        ),
+                            ),
+                        ],
                       ),
-                  ],
+                    ),
+                  ),
                 ),
               ),
             ),

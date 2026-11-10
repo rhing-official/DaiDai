@@ -66,8 +66,8 @@ import '../../utils/pending_join_requests.dart';
 import '../../utils/kana_sort.dart';
 import '../../utils/message_time.dart';
 import '../../utils/platform_info.dart';
-import '../../widgets/gekiga/monochrome_box.dart';
 import '../../widgets/gekiga/gekiga_icon_badge.dart';
+import '../../widgets/two_choice_dialog.dart';
 import '../../widgets/gekiga/gekiga_panel_box.dart';
 import '../../widgets/gekiga/gekiga_text_field.dart';
 import '../../widgets/glass/glass_avatar.dart';
@@ -1359,146 +1359,41 @@ class _TalksTabState extends ConsumerState<TalksTab>
   Future<void> _showAddMenu() async {
     final strings = ref.read(appStringsProvider);
     final vocab = ref.read(vocabularyProvider);
-    final uiStyle = ref.read(appUiStyleProvider);
-    final isGlass = uiStyle == AppUiStyle.glass;
-    // 劇画・版画は、全体を1つの意匠の箱（劇画のギザギザの太線・版画の太枠と硬い影）にして、
-    // 2つの選択肢の間にその意匠の区切り線を入れる（2026-11-10、UIスタイルに沿わせた）。
-    final isBoxed = uiStyle == AppUiStyle.gekiga || uiStyle == AppUiStyle.block;
-    await showGeneralDialog<void>(
+    await showTwoChoiceDialog<void>(
       context: context,
-      barrierDismissible: true,
       barrierLabel: strings.navTalk,
-      barrierColor: Colors.black54,
-      transitionDuration: const Duration(milliseconds: 280),
-      pageBuilder: (dialogContext, animation, secondaryAnimation) {
-        // 注意: DialogをMaterial(color: transparent)で余分に包むと、
-        // その外側Materialがタップを吸収してしまいバリアの外側タップ dismiss が効かなくなる
-        // （実装内容.mdの経緯参照）。Dialogを直接Centerの子にすること。
-        // 以前は縦積みのListTile2つ（無駄な余白が目立つ）だったが、
-        // 中央の区切り線で左右2分割した大きめのカードに変更（2026-07-29）。
-        // GlassSurfaceも同じ理由でMaterialを持たない実装にしており、
-        // 中身の実サイズにフィットする為、この注意点は引き続き問題ない。
-        final colorScheme = Theme.of(dialogContext).colorScheme;
-        final menuContent = SwipeDownToDismiss(
-          onDismiss: () => Navigator.of(dialogContext).pop(),
-          child: IntrinsicHeight(
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                Expanded(
-                  child: _AddMenuOption(
-                    uiStyle: uiStyle,
-                    icon: Icons.person_add_outlined,
-                    title: strings.addMenuDmTitleTemplate(vocab.dm),
-                    subtitle: strings.addMenuDmSubtitle,
-                    borderRadius: const BorderRadius.horizontal(
-                      left: Radius.circular(20),
-                    ),
-                    onTap: () => _showStackedDialog(
-                      dialogContext,
-                      (closeSelf) => AddChatDialogContent(
-                        currentUser: widget.currentUser,
-                        onClose: closeSelf,
-                        onCompleted: () {
-                          closeSelf();
-                          Navigator.of(dialogContext).pop();
-                        },
-                      ),
-                    ),
-                  ),
-                ),
-                VerticalDivider(
-                  // 劇画の枠（ギザギザの太線）の内側に収める。
-                  indent: uiStyle == AppUiStyle.gekiga ? 12 : 0,
-                  endIndent: uiStyle == AppUiStyle.gekiga ? 12 : 0,
-                  width: isBoxed ? 6 : 1,
-                  thickness: switch (uiStyle) {
-                    AppUiStyle.gekiga => 3,
-                    AppUiStyle.block => BlockTheme.borderWidth,
-                    _ => 1,
-                  },
-                  color: switch (uiStyle) {
-                    AppUiStyle.gekiga => GekigaColors.onPanel,
-                    AppUiStyle.block => BlockTheme.lineColor(
-                      Theme.of(dialogContext).brightness,
-                    ),
-                    _ => colorScheme.outlineVariant,
-                  },
-                ),
-                Expanded(
-                  child: _AddMenuOption(
-                    uiStyle: uiStyle,
-                    icon: Icons.groups_outlined,
-                    title: strings.addMenuGroupTitleTemplate(vocab.plaza),
-                    subtitle: strings.addMenuGroupSubtitle,
-                    borderRadius: const BorderRadius.horizontal(
-                      right: Radius.circular(20),
-                    ),
-                    onTap: () => _showStackedDialog(
-                      dialogContext,
-                      (closeSelf) => CreateGroupDialogContent(
-                        currentUser: widget.currentUser,
-                        onClose: closeSelf,
-                        onCompleted: () {
-                          closeSelf();
-                          Navigator.of(dialogContext).pop();
-                        },
-                      ),
-                    ),
-                  ),
-                ),
-              ],
-            ),
+      left: TwoChoiceOption(
+        icon: Icons.person_add_outlined,
+        title: strings.addMenuDmTitleTemplate(vocab.dm),
+        subtitle: strings.addMenuDmSubtitle,
+        onTap: (dialogContext) => _showStackedDialog(
+          dialogContext,
+          (closeSelf) => AddChatDialogContent(
+            currentUser: widget.currentUser,
+            onClose: closeSelf,
+            onCompleted: () {
+              closeSelf();
+              Navigator.of(dialogContext).pop();
+            },
           ),
-        );
-        final content = ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 560),
-          child: menuContent,
-        );
-        if (isBoxed) {
-          // 箱の影が切れないよう余白を取る。
-          return Center(
-            child: Dialog(
-              backgroundColor: Colors.transparent,
-              elevation: 0,
-              shadowColor: Colors.transparent,
-              insetPadding: const EdgeInsets.all(24),
-              child: Padding(
-                padding: const EdgeInsets.only(right: 4, bottom: 4),
-                child: uiStyle == AppUiStyle.gekiga
-                    ? _GekigaRectBox(child: content)
-                    : blockMaterialBox(
-                        dialogContext,
-                        color:
-                            Theme.of(dialogContext).brightness ==
-                                Brightness.light
-                            ? Colors.white
-                            : colorScheme.surface,
-                        child: content,
-                      ),
-              ),
-            ),
-          );
-        }
-        return Center(
-          child: Dialog(
-            backgroundColor: isGlass ? Colors.transparent : null,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(20),
-            ),
-            child: isGlass
-                ? GlassSurface(
-                    variant: GlassVariant.floating,
-                    borderRadius: BorderRadius.circular(20),
-                    child: content,
-                  )
-                : content,
+        ),
+      ),
+      right: TwoChoiceOption(
+        icon: Icons.groups_outlined,
+        title: strings.addMenuGroupTitleTemplate(vocab.plaza),
+        subtitle: strings.addMenuGroupSubtitle,
+        onTap: (dialogContext) => _showStackedDialog(
+          dialogContext,
+          (closeSelf) => CreateGroupDialogContent(
+            currentUser: widget.currentUser,
+            onClose: closeSelf,
+            onCompleted: () {
+              closeSelf();
+              Navigator.of(dialogContext).pop();
+            },
           ),
-        );
-      },
-      // 設定の画面遷移の種類に従う（2026-11-06、以前は固定の弾む動き）。
-      transitionBuilder: (context, animation, secondaryAnimation, child) =>
-          buildDialogTransition(animation, child),
+        ),
+      ),
     );
   }
 
@@ -5093,103 +4988,6 @@ class _ConversationGesturesState extends ConsumerState<_ConversationGestures> {
 
 /// 「＋」ポップアップの左右どちらか半分を占める、大きめのタップ可能領域
 /// （2026-07-29、縦積みのListTileから中央区切り線の2分割カードへ変更）。
-/// 劇画の長方形の箱（ギザギザの太線）。中身の大きさに合わせて枠を描く
-/// （`GekigaBadgeShape`は正方形で描くため、横長の箱には使えない）。
-class _GekigaRectBox extends StatelessWidget {
-  const _GekigaRectBox({required this.child});
-
-  final Widget child;
-
-  @override
-  Widget build(BuildContext context) {
-    return Stack(
-      children: [
-        Positioned.fill(
-          child: LayoutBuilder(
-            builder: (context, constraints) {
-              final size = constraints.biggest;
-              return CustomPaint(
-                painter: MonochromeBoxPainter(
-                  vertices: [
-                    Offset.zero,
-                    Offset(size.width, 0),
-                    Offset(size.width, size.height),
-                    Offset(0, size.height),
-                  ],
-                  thicknessBase: kGekigaBoxThicknessBase,
-                  fillColor: GekigaColors.panel,
-                  seed: 0,
-                ),
-              );
-            },
-          ),
-        ),
-        child,
-      ],
-    );
-  }
-}
-
-class _AddMenuOption extends StatelessWidget {
-  const _AddMenuOption({
-    required this.icon,
-    required this.title,
-    required this.subtitle,
-    required this.onTap,
-    required this.borderRadius,
-    required this.uiStyle,
-  });
-
-  final IconData icon;
-  final String title;
-  final String subtitle;
-  final VoidCallback onTap;
-  final BorderRadius borderRadius;
-  final AppUiStyle uiStyle;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final colorScheme = theme.colorScheme;
-    final isGekiga = uiStyle == AppUiStyle.gekiga;
-    final isBlock = uiStyle == AppUiStyle.block;
-    // 文字・アイコンはアクセントカラーにしない（背景と反対の中立色、CLAUDE.md）。
-    final fg = isGekiga ? GekigaColors.onPanel : colorScheme.onSurface;
-    final sub = isGekiga
-        ? GekigaColors.onPanel.withValues(alpha: 0.75)
-        : colorScheme.onSurfaceVariant;
-    final body = Padding(
-      padding: const EdgeInsets.symmetric(vertical: 40, horizontal: 20),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(
-            icon,
-            size: 40,
-            color: isGekiga || isBlock ? fg : colorScheme.primary,
-          ),
-          const SizedBox(height: 16),
-          Text(
-            title,
-            textAlign: TextAlign.center,
-            style: theme.textTheme.titleMedium?.copyWith(
-              fontWeight: FontWeight.bold,
-              color: isGekiga || isBlock ? fg : null,
-            ),
-          ),
-          const SizedBox(height: 6),
-          Text(
-            subtitle,
-            textAlign: TextAlign.center,
-            style: theme.textTheme.bodySmall?.copyWith(color: sub),
-          ),
-        ],
-      ),
-    );
-    return InkWell(onTap: onTap, borderRadius: borderRadius, child: body);
-  }
-}
-
 /// 分割ビューで会話が未選択の時に右側に表示するプレースホルダー。
 /// 以前はアイコンを中央表示していたが、ユーザー指示により何も表示しない
 /// 方針に変更した（2026-08-12）。

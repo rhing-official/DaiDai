@@ -1,3 +1,4 @@
+import 'date_time_pick.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
@@ -182,61 +183,26 @@ class _CalendarEventFormDialogState
   /// `_pickDateTime`は使わず直接`showDatePicker`→`showTimePicker`を呼ぶ。
   Future<void> _pickDeadline() async {
     final initial = _rsvpDeadline ?? _startAt;
-    final date = await showDatePicker(
-      context: context,
-      initialDate: initial,
+    final picked = await pickDateAndTime(
+      context,
+      conversationId: widget.conversationId,
+      initial: initial,
       firstDate: DateTime(initial.year - 5),
       lastDate: DateTime(initial.year + 5),
-      builder: _resetDialogConstraints,
     );
-    if (date == null || !mounted) return;
-    final time = await showTimePicker(
-      context: context,
-      initialTime: TimeOfDay.fromDateTime(initial),
-      builder: _resetDialogConstraints,
-    );
-    if (time == null) return;
-    setState(
-      () => _rsvpDeadline = DateTime(
-        date.year,
-        date.month,
-        date.day,
-        time.hour,
-        time.minute,
-      ),
-    );
+    if (picked == null || !mounted) return;
+    setState(() => _rsvpDeadline = picked);
   }
 
-  // アプリ全体のdialogTheme.constraints（確認ダイアログの横長対策、
-  // 2026-09-01追加）がFlutter標準のTimePickerDialog/DatePickerDialogにも
-  // 継承され、レイアウトが崩れる回帰が発覚した。builder経由でこの範囲だけ
-  // dialogThemeを既定（制約なし）に戻し、標準ピッカーは本来のサイズで
-  // 表示させる。
-  Widget _resetDialogConstraints(BuildContext context, Widget? child) {
-    final theme = Theme.of(context);
-    return Theme(
-      data: theme.copyWith(dialogTheme: const DialogThemeData()),
-      child: child!,
-    );
-  }
-
-  Future<DateTime?> _pickDateTime(DateTime initial) async {
-    final date = await showDatePicker(
-      context: context,
-      initialDate: initial,
+  Future<DateTime?> _pickDateTime(DateTime initial) {
+    return pickDateAndTime(
+      context,
+      conversationId: widget.conversationId,
+      initial: initial,
       firstDate: DateTime(initial.year - 5),
       lastDate: DateTime(initial.year + 5),
-      builder: _resetDialogConstraints,
+      withTime: !_isAllDay,
     );
-    if (date == null || !mounted) return null;
-    if (_isAllDay) return DateTime(date.year, date.month, date.day);
-    final time = await showTimePicker(
-      context: context,
-      initialTime: TimeOfDay.fromDateTime(initial),
-      builder: _resetDialogConstraints,
-    );
-    if (time == null) return null;
-    return DateTime(date.year, date.month, date.day, time.hour, time.minute);
   }
 
   Future<void> _save() async {

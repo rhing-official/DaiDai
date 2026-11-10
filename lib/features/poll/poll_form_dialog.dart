@@ -1,3 +1,4 @@
+import '../calendar/date_time_pick.dart';
 import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
@@ -108,43 +109,17 @@ class _PollFormDialogState extends ConsumerState<_PollFormDialog> {
     super.dispose();
   }
 
-  // アプリ全体のdialogTheme.constraints（確認ダイアログの横長対策）が
-  // Flutter標準のTimePickerDialog/DatePickerDialogにも継承され、レイアウトが
-  // 崩れる回帰を防ぐため、この範囲だけdialogThemeを既定に戻す
-  // （calendar_event_form_dialog.dartの_resetDialogConstraintsと同じ）。
-  Widget _resetDialogConstraints(BuildContext context, Widget? child) {
-    final theme = Theme.of(context);
-    return Theme(
-      data: theme.copyWith(dialogTheme: const DialogThemeData()),
-      child: child!,
-    );
-  }
-
   Future<void> _pickDeadline() async {
     final initial = _deadline ?? DateTime.now();
-    final date = await showDatePicker(
-      context: context,
-      initialDate: initial,
+    final picked = await pickDateAndTime(
+      context,
+      conversationId: widget.conversationId,
+      initial: initial,
       firstDate: DateTime(initial.year - 5),
       lastDate: DateTime(initial.year + 5),
-      builder: _resetDialogConstraints,
     );
-    if (date == null || !mounted) return;
-    final time = await showTimePicker(
-      context: context,
-      initialTime: TimeOfDay.fromDateTime(initial),
-      builder: _resetDialogConstraints,
-    );
-    if (time == null) return;
-    setState(
-      () => _deadline = DateTime(
-        date.year,
-        date.month,
-        date.day,
-        time.hour,
-        time.minute,
-      ),
-    );
+    if (picked == null || !mounted) return;
+    setState(() => _deadline = picked);
   }
 
   void _addOption() => setState(() => _options.add(_OptionDraft()));

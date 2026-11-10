@@ -10,6 +10,7 @@ import '../../providers/app_ui_style_provider.dart';
 import '../../providers/repository_providers.dart';
 import '../../utils/auto_dismiss_banner.dart';
 import '../../widgets/glass/glass_dialog.dart';
+import 'date_time_pick.dart';
 import 'multi_date_picker_dialog.dart';
 import '../../widgets/dialog_keyboard_shortcuts.dart';
 import '../../widgets/app_dialog.dart';
@@ -83,18 +84,6 @@ class _ScheduleCoordinationFormDialogState
     super.dispose();
   }
 
-  // アプリ全体のdialogTheme.constraints（確認ダイアログの横長対策）が
-  // Flutter標準のTimePickerDialog/DatePickerDialogにも継承され、レイアウトが
-  // 崩れる回帰を防ぐため、この範囲だけdialogThemeを既定に戻す
-  // （calendar_event_form_dialog.dartの_resetDialogConstraintsと同じ）。
-  Widget _resetDialogConstraints(BuildContext context, Widget? child) {
-    final theme = Theme.of(context);
-    return Theme(
-      data: theme.copyWith(dialogTheme: const DialogThemeData()),
-      child: child!,
-    );
-  }
-
   Future<void> _pickCandidates() async {
     final result = await showMultiDatePickerDialog(
       context,
@@ -121,29 +110,15 @@ class _ScheduleCoordinationFormDialogState
   Future<void> _pickDeadline() async {
     final initial =
         _deadline ?? _candidates.reduce((a, b) => a.isBefore(b) ? a : b);
-    final date = await showDatePicker(
-      context: context,
-      initialDate: initial,
+    final picked = await pickDateAndTime(
+      context,
+      conversationId: widget.conversationId,
+      initial: initial,
       firstDate: DateTime(initial.year - 5),
       lastDate: DateTime(initial.year + 5),
-      builder: _resetDialogConstraints,
     );
-    if (date == null || !mounted) return;
-    final time = await showTimePicker(
-      context: context,
-      initialTime: TimeOfDay.fromDateTime(initial),
-      builder: _resetDialogConstraints,
-    );
-    if (time == null) return;
-    setState(
-      () => _deadline = DateTime(
-        date.year,
-        date.month,
-        date.day,
-        time.hour,
-        time.minute,
-      ),
-    );
+    if (picked == null || !mounted) return;
+    setState(() => _deadline = picked);
   }
 
   Future<void> _save() async {

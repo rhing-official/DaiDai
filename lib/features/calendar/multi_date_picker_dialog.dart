@@ -29,6 +29,173 @@ Future<Set<DateTime>?> showMultiDatePickerDialog(
   );
 }
 
+/// 日付を1つ選ぶダイアログ（2026-11-10追加、送信予約の日付用）。週の始まりはその語らいの
+/// カレンダーの設定に従い、月は「2026/11」、選択中の日付は「11/10(火)」と、`/`で表記する。
+/// [firstDate]より前（過去）は選べず、前の月へも戻れない。キャンセルなら`null`。
+Future<DateTime?> showSingleDatePickerDialog(
+  BuildContext context, {
+  required DateTime initialDate,
+  required DateTime firstDate,
+  required DateTime lastDate,
+  required String conversationId,
+  String? title,
+}) {
+  return showAppDialog<DateTime>(
+    context: context,
+    builder: (_) => _SingleDatePickerDialog(
+      initialDate: initialDate,
+      firstDate: firstDate,
+      lastDate: lastDate,
+      conversationId: conversationId,
+      title: title,
+    ),
+  );
+}
+
+class _SingleDatePickerDialog extends ConsumerStatefulWidget {
+  const _SingleDatePickerDialog({
+    required this.initialDate,
+    required this.firstDate,
+    required this.lastDate,
+    required this.conversationId,
+    this.title,
+  });
+
+  final DateTime initialDate;
+  final DateTime firstDate;
+  final DateTime lastDate;
+  final String conversationId;
+  final String? title;
+
+  @override
+  ConsumerState<_SingleDatePickerDialog> createState() =>
+      _SingleDatePickerDialogState();
+}
+
+class _SingleDatePickerDialogState
+    extends ConsumerState<_SingleDatePickerDialog> {
+  late DateTime _picked = _dateOnly(widget.initialDate);
+  late DateTime _visibleMonth = DateTime(
+    widget.initialDate.year,
+    widget.initialDate.month,
+  );
+
+  bool get _canGoPrevious => DateTime(
+    _visibleMonth.year,
+    _visibleMonth.month - 1,
+  ).isAfter(DateTime(widget.firstDate.year, widget.firstDate.month - 1));
+
+  bool get _canGoNext => DateTime(
+    _visibleMonth.year,
+    _visibleMonth.month + 1,
+  ).isBefore(DateTime(widget.lastDate.year, widget.lastDate.month + 1));
+
+  @override
+  Widget build(BuildContext context) {
+    final strings = ref.watch(appStringsProvider);
+    final localeCode = ref.watch(appLocaleProvider).languageCode;
+    final isGlass = ref.watch(appUiStyleProvider) == AppUiStyle.glass;
+    final colorScheme = Theme.of(context).colorScheme;
+    final weekStart = ref.watch(
+      effectiveWeekStartProvider(widget.conversationId),
+    );
+    final monthLabel =
+        '${_visibleMonth.year}/${_visibleMonth.month.toString().padLeft(2, '0')}';
+    final pickedLabel =
+        '${_picked.month}/${_picked.day}(${DateFormat.E(localeCode).format(_picked)})';
+
+    final content = SizedBox(
+      width: 400,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Align(
+            alignment: Alignment.centerLeft,
+            child: Padding(
+              padding: const EdgeInsets.only(bottom: 8),
+              child: Text(
+                pickedLabel,
+                style: Theme.of(context).textTheme.headlineSmall,
+              ),
+            ),
+          ),
+          Row(
+            children: [
+              IconButton(
+                icon: const Icon(Icons.chevron_left),
+                tooltip: '',
+                onPressed: _canGoPrevious
+                    ? () => setState(
+                        () => _visibleMonth = DateTime(
+                          _visibleMonth.year,
+                          _visibleMonth.month - 1,
+                        ),
+                      )
+                    : null,
+              ),
+              Expanded(
+                child: Text(
+                  monthLabel,
+                  textAlign: TextAlign.center,
+                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+              IconButton(
+                icon: const Icon(Icons.chevron_right),
+                tooltip: '',
+                onPressed: _canGoNext
+                    ? () => setState(
+                        () => _visibleMonth = DateTime(
+                          _visibleMonth.year,
+                          _visibleMonth.month + 1,
+                        ),
+                      )
+                    : null,
+              ),
+            ],
+          ),
+          _WeekdayHeaderRow(localeCode: localeCode, weekStart: weekStart),
+          _SelectableMonthGrid(
+            weekStart: weekStart,
+            visibleMonth: _visibleMonth,
+            selected: {_picked},
+            firstDate: _dateOnly(widget.firstDate),
+            lastDate: _dateOnly(widget.lastDate),
+            colorScheme: colorScheme,
+            onToggle: (day) => setState(() => _picked = day),
+          ),
+        ],
+      ),
+    );
+    final title = widget.title == null ? null : Text(widget.title!);
+    final actions = [
+      TextButton(
+        onPressed: () => Navigator.of(context).pop(),
+        child: Text(strings.cancel),
+      ),
+      FilledButton(
+        onPressed: () => Navigator.of(context).pop(_picked),
+        child: Text(strings.done),
+      ),
+    ];
+    return isGlass
+        ? GlassAlertDialog(
+            title: title,
+            content: content,
+            actions: actions,
+            constraints: const BoxConstraints(maxWidth: 460),
+          )
+        : KeyboardAlertDialog(
+            title: title,
+            content: content,
+            actions: actions,
+            constraints: const BoxConstraints(maxWidth: 460),
+          );
+  }
+}
+
 DateTime _dateOnly(DateTime date) => DateTime(date.year, date.month, date.day);
 
 class _MultiDatePickerDialog extends ConsumerStatefulWidget {
