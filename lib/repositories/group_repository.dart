@@ -632,6 +632,7 @@ class FirestoreGroupRepository implements GroupRepository {
         permissions: const {
           GroupPermission.createInvite,
           GroupPermission.playBgm,
+          GroupPermission.editProfileCard,
         },
         isEveryone: true,
       ).toJson(),

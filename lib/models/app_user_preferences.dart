@@ -40,6 +40,7 @@ class AppUserPreferences {
     this.holidayObservances,
     this.holidayReligions,
     this.guideSeen,
+    this.communityPromptSeen,
   });
 
   static const empty = AppUserPreferences();
@@ -130,6 +131,11 @@ class AppUserPreferences {
   /// 未視聴／true＝視聴済みまたはスキップ済み**。新規作成時に`false`で保存する。
   final bool? guideSeen;
 
+  /// 「Rhingコミュニティ」への参加のおすすめを出したか（2026-11-11追加）。**null＝既存住人
+  /// （出さない）／false＝新規登録で未表示／true＝表示済み**。新規作成時に`false`で保存し、
+  /// 使い方ガイドの後のホームで1度だけ出す。
+  final bool? communityPromptSeen;
+
   factory AppUserPreferences.fromJson(Map<String, dynamic>? json) {
     if (json == null) return empty;
     return AppUserPreferences(
@@ -173,6 +179,7 @@ class AppUserPreferences {
       holidayObservances: json['holidayObservances'] as bool?,
       holidayReligions: (json['holidayReligions'] as List?)?.cast<String>(),
       guideSeen: json['guideSeen'] as bool?,
+      communityPromptSeen: json['communityPromptSeen'] as bool?,
     );
   }
 
@@ -216,6 +223,8 @@ class AppUserPreferences {
       if (holidayObservances != null) 'holidayObservances': holidayObservances,
       if (holidayReligions != null) 'holidayReligions': holidayReligions,
       if (guideSeen != null) 'guideSeen': guideSeen,
+      if (communityPromptSeen != null)
+        'communityPromptSeen': communityPromptSeen,
     };
   }
 }

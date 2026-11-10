@@ -225,6 +225,11 @@ class GroupSettingsPopup extends ConsumerWidget {
       userId: userId,
       permission: GroupPermission.manageJoinRequests,
     );
+    final canEditProfileCard = hasGroupPermission(
+      group: liveGroup,
+      userId: userId,
+      permission: GroupPermission.editProfileCard,
+    );
     final canManageBots = hasGroupPermission(
       group: liveGroup,
       userId: userId,
@@ -240,12 +245,15 @@ class GroupSettingsPopup extends ConsumerWidget {
       ListTile(
         leading: const Icon(Icons.badge_outlined),
         title: Text(strings.groupMenuProfileCard),
-        onTap: () => _openSubDialog(
-          context,
-          GroupProfileCardPopup(group: liveGroup),
-          isGlass: isGlass,
-          bare: true,
-        ),
+        enabled: canEditProfileCard,
+        onTap: !canEditProfileCard
+            ? null
+            : () => _openSubDialog(
+                context,
+                GroupProfileCardPopup(group: liveGroup),
+                isGlass: isGlass,
+                bare: true,
+              ),
       ),
       if (currentUser.profileCards.length > 1)
         ListTile(

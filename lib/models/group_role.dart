@@ -34,6 +34,11 @@ class GroupPermission {
   /// 上げない。基準ロール（全員）に初期で含める（既存の広場は一度きりの移行で追加する）。
   static const playBgm = 'playBgm';
 
+  /// 広場のプロフィールカード（名前・説明・アイコン等。カード名＝広場名）の編集
+  /// （2026-11-11追加）。以前はメンバー全員が編集できたため、基準ロール（全員）に
+  /// 初期で含める。既存の広場は含まれていないので、長が権限の管理の「全員」列で付ける。
+  static const editProfileCard = 'editProfileCard';
+
   static const all = {
     manageRooms,
     manageRoles,
@@ -43,6 +48,7 @@ class GroupPermission {
     manageBots,
     managePermissions,
     playBgm,
+    editProfileCard,
   };
 }
 

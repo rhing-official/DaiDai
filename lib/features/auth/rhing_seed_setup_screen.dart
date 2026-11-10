@@ -57,7 +57,10 @@ class _RhingSeedSetupScreenState extends ConsumerState<RhingSeedSetupScreen> {
         rhingSeed: rhingSeed.toLowerCase(),
         // 新規登録者には初回の使い方ガイドを出す（2026-10-17追加）。既存住人は
         // この値がnullのため出ない。
-        preferences: const AppUserPreferences(guideSeen: false),
+        preferences: const AppUserPreferences(
+          guideSeen: false,
+          communityPromptSeen: false,
+        ),
       );
       await userRepository.createUser(appUser);
 

@@ -8,7 +8,6 @@ import '../../l10n/strings.dart';
 import '../../l10n/vocabulary.dart';
 import '../../models/app_ui_style.dart';
 import '../../providers/app_ui_style_provider.dart';
-import '../../utils/text_truncate.dart';
 import '../../widgets/gekiga/gekiga_panel_box.dart';
 import '../../widgets/gekiga/gekiga_text_field.dart';
 import '../../widgets/glass/glass_dialog.dart';
@@ -232,11 +231,7 @@ class _RoomListPaneState extends ConsumerState<RoomListPane> {
         return GekigaTileContent(
           selected: isSelected,
           leading: tagIcon,
-          title: Text(
-            truncateName(room.name, 6),
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-          ),
+          title: Text(room.name, maxLines: 1, overflow: TextOverflow.ellipsis),
           trailing: room.unreadCount > 0
               ? UnreadBadge(count: room.unreadCount)
               : null,
@@ -261,7 +256,7 @@ class _RoomListPaneState extends ConsumerState<RoomListPane> {
                 textColor: colorScheme.onSurfaceVariant,
                 leading: tagIcon,
                 title: Text(
-                  truncateName(room.name, 6),
+                  room.name,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                 ),
@@ -293,7 +288,7 @@ class _RoomListPaneState extends ConsumerState<RoomListPane> {
                 textColor: fg,
                 leading: tagIcon,
                 title: Text(
-                  truncateName(room.name, 6),
+                  room.name,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                 ),
@@ -313,11 +308,7 @@ class _RoomListPaneState extends ConsumerState<RoomListPane> {
         selectedTileColor: colorScheme.primary,
         selectedColor: colorScheme.onPrimary,
         leading: tagIcon,
-        title: Text(
-          truncateName(room.name, 6),
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-        ),
+        title: Text(room.name, maxLines: 1, overflow: TextOverflow.ellipsis),
         trailing: room.unreadCount > 0
             ? UnreadBadge(count: room.unreadCount)
             : null,
@@ -352,7 +343,7 @@ class _RoomListPaneState extends ConsumerState<RoomListPane> {
                     // ボタンより下にずれる）。
                     heightFactor: 1,
                     child: TalksNameChip(
-                      label: truncateName(widget.conversationName, 8),
+                      label: widget.conversationName,
                     ),
                   ),
                 ),

@@ -109,7 +109,7 @@ import '../../widgets/slide_drilldown.dart';
 import '../auth/passcode_setup_dialog.dart';
 import '../auth/two_factor_setup_dialog.dart';
 import '../chat/announcement_screen.dart';
-import '../../router/app_router.dart' show goRouterProvider;
+import '../chat/join_group_screen.dart';
 import '../../utils/community_group.dart';
 import '../chat/group_member_list_screen.dart';
 import 'owned_sticker_packs_popup.dart';
@@ -1644,8 +1644,13 @@ class _SupportPage extends ConsumerWidget {
         if (kCommunityGroupId.isNotEmpty)
           _ActionRow(
             label: strings.settingsCommunity,
-            onTap: () =>
-                ref.read(goRouterProvider).push('/join/$kCommunityGroupId'),
+            onTap: () => showAppDialog<void>(
+              context: context,
+              builder: (_) => const JoinGroupScreen(
+                groupId: kCommunityGroupId,
+                asDialog: true,
+              ),
+            ),
           ),
         _ActionRow(label: strings.settingsUsageGuide, onTap: onOpenGuide),
         _ActionRow(

@@ -133,13 +133,13 @@ void main() {
       Strings.of(
         AppLocale.japanese,
       ).groupPermissionLabel(GroupPermission.manageBots),
-      'botとWebhookの管理',
+      'BOTの管理',
     );
     expect(
       Strings.of(
         AppLocale.britishEnglish,
       ).groupPermissionLabel(GroupPermission.manageBots),
-      'Manage bots and webhooks',
+      'Manage bots',
     );
   });
 
@@ -184,7 +184,7 @@ void main() {
 
     testWidgets('作成するとURLを1回だけ表示し、閉じると再表示されない', (tester) async {
       await pump(tester);
-      await tester.tap(find.text('Webhookを作成'));
+      await tester.tap(find.text('BOTを作成'));
       await tester.pumpAndSettle();
       await tester.enterText(find.byType(TextField), 'デプロイ通知');
       await tester.pump();

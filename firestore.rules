@@ -982,10 +982,15 @@ service cloud.firestore {
       allow update: if request.auth != null
         && request.auth.uid in resource.data.memberIds
         && (
-          // プロフィールカードの編集（メンバー全員可能）。カード名は広場名と
-          // 同一の値として扱うため、nameも同時に変更できるようにする
-          // （2026-07-25、カード編集画面から広場名も変更できるようにした変更）。
-          request.resource.data.diff(resource.data).affectedKeys().hasOnly(['profileCard', 'name'])
+          // プロフィールカードの編集（長、またはeditProfileCard権限を持つメンバー、
+          // 2026-11-11。以前はメンバー全員）。カード名は広場名と同一の値として扱うため、
+          // nameも同時に変更できるようにする（2026-07-25、カード編集画面から広場名も
+          // 変更できるようにした変更）。
+          (
+            request.resource.data.diff(resource.data).affectedKeys().hasOnly(['profileCard', 'name'])
+            && (request.auth.uid == resource.data.ownerId
+              || 'editProfileCard' in resource.data.memberPermissions[request.auth.uid])
+          )
           // 他メンバーを含むmemberIds/memberRolesの書き換え（強制退会等）は
           // 長のみ（2026-07-28、「モデレーター」概念の廃止に伴いownerId基準に
           // 変更。対応する強制退会UI機能は現状無い）。

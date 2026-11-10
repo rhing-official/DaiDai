@@ -4,6 +4,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../l10n/strings.dart';
+import '../../utils/community_group.dart';
+import '../../widgets/app_dialog.dart';
+import '../chat/join_group_screen.dart';
+import '../../providers/repository_providers.dart';
 import '../../router/back_stack.dart';
 import '../../models/app_user.dart';
 import '../../models/nav_chip_layout.dart';
@@ -141,9 +145,51 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
   void initState() {
     super.initState();
     ref.read(itemPickBridgeProvider).register(_chipPickTarget);
+    WidgetsBinding.instance.addPostFrameCallback(
+      (_) => _maybeRecommendCommunity(),
+    );
     _dragController = ref.read(homeTabDragControllerProvider)
       ..onDelta = _onDragDelta
       ..onEnd = _onDragEnd;
+  }
+
+  /// 新規登録した人に、Rhingコミュニティへの参加を1度だけおすすめする（2026-11-11）。
+  Future<void> _maybeRecommendCommunity() async {
+    if (!mounted || kCommunityGroupId.isEmpty) return;
+    if (widget.currentUser.preferences.communityPromptSeen != false) return;
+    final userId = widget.currentUser.userId;
+    final userRepository = ref.read(userRepositoryProvider);
+    // 先に記録しておく（途中で閉じても繰り返さない）。
+    await userRepository.updateUserPreference(
+      userId,
+      'communityPromptSeen',
+      true,
+    );
+    if (!mounted) return;
+    final strings = ref.read(appStringsProvider);
+    final join = await showAppDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: Text(strings.settingsCommunity),
+        content: Text(strings.communityPromptBody),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(false),
+            child: Text(strings.communityPromptLater),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(dialogContext).pop(true),
+            child: Text(strings.communityPromptJoin),
+          ),
+        ],
+      ),
+    );
+    if (join != true || !mounted) return;
+    await showAppDialog<void>(
+      context: context,
+      builder: (_) =>
+          const JoinGroupScreen(groupId: kCommunityGroupId, asDialog: true),
+    );
   }
 
   @override
