@@ -1113,6 +1113,8 @@ final Strings _stringsFr = Strings._(
   noteSelectionCopy: 'Copier',
   noteSelectionPaste: 'Coller',
   noteInsertTooltip: 'Insérer',
+  noteModeToReadLabel: 'Passer en lecture',
+  noteModeToEditLabel: 'Passer en édition',
   noteSelectedPrefix: 'Sélection',
   noteCharsUnit: 'caractères',
   noteBlockMoveTooltip: 'Faire glisser pour déplacer',

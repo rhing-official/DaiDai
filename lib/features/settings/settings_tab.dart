@@ -3350,7 +3350,7 @@ class _TextColorFolderState extends ConsumerState<_TextColorFolder> {
           Container(
             width: 48,
             height: 48,
-            margin: const EdgeInsets.only(top: 4),
+            margin: EdgeInsets.only(top: 4 + _blockLabelOffset(context)),
             decoration: BoxDecoration(
               color: color,
               shape: BoxShape.circle,
@@ -3482,6 +3482,13 @@ class _TextColorFolderState extends ConsumerState<_TextColorFolder> {
       ],
     );
   }
+}
+
+/// 版画では入力欄の上にラベルが出て箱が下がる。見本の丸を箱と横に揃えるための、ラベルぶんの高さ
+/// （`BlockFieldFrame`のラベル: 文字12px＋下の余白6px。文字の拡大率に追従）。
+double _blockLabelOffset(BuildContext context) {
+  if (!isBlockTheme(context)) return 0;
+  return MediaQuery.textScalerOf(context).scale(12) * 1.3 + 6;
 }
 
 /// カラーコード欄の横幅。入力の桁数（最低6桁）だけで決め、ラベルやヒントの長さ・
@@ -6012,7 +6019,7 @@ class _OnAccentColorFieldState extends ConsumerState<_OnAccentColorField> {
         Container(
           width: 48,
           height: 48,
-          margin: const EdgeInsets.only(top: 4),
+          margin: EdgeInsets.only(top: 4 + _blockLabelOffset(context)),
           alignment: Alignment.center,
           decoration: BoxDecoration(
             color: accent,

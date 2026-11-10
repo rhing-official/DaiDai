@@ -932,6 +932,8 @@ class Strings {
     required this.noteSelectionCopy,
     required this.noteSelectionPaste,
     required this.noteInsertTooltip,
+    required this.noteModeToReadLabel,
+    required this.noteModeToEditLabel,
     required this.noteSelectedPrefix,
     required this.noteCharsUnit,
     required this.noteBlockMoveTooltip,
@@ -2333,6 +2335,8 @@ class Strings {
   final String noteSelectionCopy;
   final String noteSelectionPaste;
   final String noteInsertTooltip;
+  final String noteModeToReadLabel;
+  final String noteModeToEditLabel;
   final String noteSelectedPrefix;
   final String noteCharsUnit;
   final String noteBlockMoveTooltip;
@@ -3483,6 +3487,8 @@ class Strings {
     noteSelectionCopy: 'コピー',
     noteSelectionPaste: '貼り付け',
     noteInsertTooltip: '挿入',
+    noteModeToReadLabel: '閲覧モードにする',
+    noteModeToEditLabel: '編集モードにする',
     noteSelectedPrefix: '選択',
     noteCharsUnit: '文字',
     noteBlockMoveTooltip: 'ドラッグして移動',
@@ -4748,6 +4754,8 @@ class Strings {
     noteSelectionCopy: 'Copy',
     noteSelectionPaste: 'Paste',
     noteInsertTooltip: 'Insert',
+    noteModeToReadLabel: 'Switch to reading mode',
+    noteModeToEditLabel: 'Switch to editing mode',
     noteSelectedPrefix: 'Selected',
     noteCharsUnit: 'characters',
     noteBlockMoveTooltip: 'Drag to move',

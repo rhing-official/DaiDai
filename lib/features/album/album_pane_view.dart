@@ -412,35 +412,52 @@ class _AlbumPaneViewState extends ConsumerState<AlbumPaneView> {
       onPressed: _uploading ? null : _deleteAlbum,
     );
 
-    // 幅が狭い（縦画面）時は、ボタンの行と題名の行を分ける（題名の文字サイズは縮めない）。
+    // 幅が狭い（縦画面）時は、ボタンをハンバーガーにまとめて題名に全幅を使わせる（題名の文字サイズは縮めない）。
     return LayoutBuilder(
       builder: (context, constraints) {
-        final twoRows = paneNeedsTitleRow(
+        final needsMenu = paneNeedsMenu(
           maxWidth: constraints.maxWidth,
           actionCount: 2,
           titleFontSize: 24,
           textScale: MediaQuery.textScalerOf(context).scale(1),
         );
-        final bottom = twoRows
-            ? paneTitleRowBottom(
-                context: context,
-                titleField: title,
-                titleFontSize: 24,
-              )
-            : null;
+        final actions = needsMenu
+            ? <Widget>[
+                paneHamburgerMenu<String>(
+                  enabled: !_uploading,
+                  onSelected: (v) =>
+                      v == 'delete' ? _deleteAlbum() : _onAddSource(v),
+                  items: [
+                    PressDragMenuItem(
+                      value: 'device',
+                      icon: Icons.smartphone_outlined,
+                      label: strings.albumAddSourceDeviceLabel,
+                    ),
+                    PressDragMenuItem(
+                      value: 'message',
+                      icon: Icons.forum_outlined,
+                      label: strings.albumAddSourceMessageLabel,
+                    ),
+                    PressDragMenuItem(
+                      value: 'delete',
+                      icon: Icons.delete_outline,
+                      label: strings.albumDeleteAction,
+                    ),
+                  ],
+                ),
+              ]
+            : <Widget>[addAction, deleteAction];
         return Scaffold(
           appBar: isGlass
               ? GlassAppBar(
                   automaticallyImplyLeading: false,
-                  title: twoRows ? null : title,
-                  bottom: bottom,
-                  actions: [addAction, deleteAction],
+                  title: title,
+                  actions: actions,
                 )
               : AppBar(
                   automaticallyImplyLeading: false,
-                  title: twoRows ? null : title,
-                  bottom: bottom,
-                  actions: [addAction, deleteAction],
+                  title: title,
+                  actions: actions,
                 ),
           body: PaneKeyFocus(
             onKeyEvent: (node, event) {

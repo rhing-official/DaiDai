@@ -56,6 +56,7 @@ import '../../widgets/confirm_download_dialog.dart';
 import '../../widgets/dialog_keyboard_shortcuts.dart';
 import '../../widgets/app_dialog.dart';
 import '../../widgets/pane_title_row_app_bar.dart';
+import '../../widgets/press_drag_menu.dart';
 
 /// Obsidianの既定テーマに寄せた固定パレット（2026-09-26追加、ユーザー指示。
 /// アクセントカラーに依存しない固定値という点で劇画UIの`GekigaColors`と
@@ -1484,12 +1485,13 @@ class _NotePaneViewState extends ConsumerState<NotePaneView>
         }
         return KeyEventResult.ignored;
       },
-      // 幅が狭い（縦画面）時は、ボタンの行と題名の行を分ける（題名の文字サイズは縮めない、
+      // 幅が狭い（縦画面）時は、ボタンをハンバーガーにまとめる（題名の文字サイズは縮めない、
       // 2026-11-10、ユーザー指示。マークダウン・ドロー共通）。
       child: LayoutBuilder(
         builder: (context, constraints) {
+          final showInsert = isMobile && !_isDraw && !_readOnly;
           final actions = <Widget>[
-            if (isMobile && !_isDraw && !_readOnly) insertAction,
+            if (showInsert) insertAction,
             if (!_isDraw) modeAction,
             forwardAction,
             shareAction,
@@ -1498,19 +1500,74 @@ class _NotePaneViewState extends ConsumerState<NotePaneView>
           ];
           final titleFontSize =
               Theme.of(context).textTheme.titleMedium?.fontSize ?? 16;
-          final twoRows = paneNeedsTitleRow(
+          final needsMenu = paneNeedsMenu(
             maxWidth: constraints.maxWidth,
             actionCount: actions.length,
             titleFontSize: titleFontSize,
             textScale: MediaQuery.textScalerOf(context).scale(1),
           );
-          final bottom = twoRows
-              ? paneTitleRowBottom(
-                  context: context,
-                  titleField: titleField,
-                  titleFontSize: titleFontSize,
-                )
-              : null;
+          final shownActions = needsMenu
+              ? <Widget>[
+                  paneHamburgerMenu<String>(
+                    enabled: _noteLoaded,
+                    onSelected: (v) {
+                      switch (v) {
+                        case 'insert':
+                          if (_editorState != null) _openInsertBottomSheet();
+                        case 'mode':
+                          _toggleReadOnly();
+                        case 'forward':
+                          _forward();
+                        case 'share':
+                          _share();
+                        case 'download':
+                          _download();
+                        case 'delete':
+                          _deleteNote();
+                      }
+                    },
+                    items: [
+                      if (showInsert)
+                        PressDragMenuItem(
+                          value: 'insert',
+                          icon: Icons.add,
+                          label: strings.noteInsertTooltip,
+                        ),
+                      if (!_isDraw)
+                        PressDragMenuItem(
+                          value: 'mode',
+                          icon: _readOnly
+                              ? Icons.edit_outlined
+                              : Icons.menu_book_outlined,
+                          label: _readOnly
+                              ? strings.noteModeToEditLabel
+                              : strings.noteModeToReadLabel,
+                        ),
+                      PressDragMenuItem(
+                        value: 'forward',
+                        icon: Icons.forward_outlined,
+                        label: strings.mediaForwardTooltip,
+                      ),
+                      PressDragMenuItem(
+                        value: 'share',
+                        icon: Icons.share_outlined,
+                        label: strings.mediaShareTooltip,
+                      ),
+                      PressDragMenuItem(
+                        value: 'download',
+                        icon: Icons.download,
+                        label: strings.downloadConfirmButton,
+                      ),
+                      if (canDelete)
+                        PressDragMenuItem(
+                          value: 'delete',
+                          icon: Icons.delete_outline,
+                          label: strings.noteDeleteAction,
+                        ),
+                    ],
+                  ),
+                ]
+              : actions;
           return Scaffold(
             backgroundColor: noteColors.background,
             appBar: isGlass
@@ -1518,17 +1575,15 @@ class _NotePaneViewState extends ConsumerState<NotePaneView>
                     // 戻る矢印は出さない（ダイアログで開くため。閉じるのはEsc・暗幕・戻る操作、
                     // 2026-11-05、ユーザー指示）。
                     automaticallyImplyLeading: false,
-                    title: twoRows ? null : titleField,
-                    bottom: bottom,
-                    actions: actions,
+                    title: titleField,
+                    actions: shownActions,
                   )
                 : AppBar(
                     backgroundColor: noteColors.background,
                     foregroundColor: noteColors.text,
                     automaticallyImplyLeading: false,
-                    title: twoRows ? null : titleField,
-                    bottom: bottom,
-                    actions: actions,
+                    title: titleField,
+                    actions: shownActions,
                   ),
             // 下スワイプで閉じる（既存）。右スワイプは画面全体（AppBar込み）を
             // `InteractiveSwipeBackTransition`で包む（下の`return`参照）。

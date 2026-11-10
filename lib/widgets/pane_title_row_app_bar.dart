@@ -1,27 +1,35 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-/// アルバム・ノート（マークダウン・ドロー）のペイン上部で、幅が狭い時に「メニュー（ボタン）の行」と
-/// 「題名の行」を分けるための部品（2026-11-10、ユーザー指示）。
+import '../models/app_ui_style.dart';
+import '../providers/app_ui_style_provider.dart';
+import '../theme/block/block_theme.dart';
+import 'gekiga/gekiga_icon_badge.dart';
+import 'glass/glass_icon_badge.dart';
+import 'press_drag_menu.dart';
+
+/// アルバム・ノート（マークダウン・ドロー）のペイン上部で、幅が狭い時に右端のボタン群を
+/// ハンバーガーメニュー1つにまとめるための部品（2026-11-10、ユーザー指示）。
 ///
 /// 縦画面の狭いペインでは、題名の入力欄がボタンの幅を引いた残りしか使えず、題名が途中で切れる。
 /// 題名の文字サイズは中（アプリの文字サイズ設定・題名欄の指定）で決めているので縮めず、
-/// 狭い時だけ`AppBar`を2段（1段目＝ボタン、2段目＝題名）にする。
+/// 狭い時だけボタンをハンバーガーに畳んで、題名に全幅を使わせる（行は分けない）。
 
 /// ボタン1つぶんの幅（`IconButton`の既定）。
 const double kPaneActionWidth = 48;
 
-/// 題名に最低でも残したい文字数（これだけ入らなければ2段にする）。
+/// 題名に最低でも残したい文字数（これだけ入らなければハンバーガーにまとめる）。
 const double kPaneTitleMinChars = 9;
 
-/// 題名の行（2段目）の左右の余白（`AppBar`の`titleSpacing`と同じ）。
+/// 題名の左右の余白（`AppBar`の`titleSpacing`と同じ）。
 const double kPaneTitleRowPadding = 16;
 
-/// 題名の行が1行目のボタンと同じ行に収まらないか。
+/// ボタンを題名と同じ行に並べると、題名の幅が足りなくなるか。
 ///
 /// [maxWidth]はペイン自身の幅、[actionCount]は右端に並ぶボタンの数、[titleFontSize]は題名の
 /// 文字サイズ、[textScale]はアプリ全体の文字の拡大率。題名に約[kPaneTitleMinChars]文字ぶんの幅が
-/// 残らなければtrue（2段にする）。
-bool paneNeedsTitleRow({
+/// 残らなければtrue（ハンバーガーにまとめる）。
+bool paneNeedsMenu({
   required double maxWidth,
   required int actionCount,
   required double titleFontSize,
@@ -32,25 +40,40 @@ bool paneNeedsTitleRow({
       actionCount * kPaneActionWidth + titleMinWidth + kPaneTitleRowPadding * 2;
 }
 
-/// 題名の行（`AppBar.bottom`に渡す）。高さは題名の文字サイズ（文字の拡大率込み）に追従する。
-PreferredSizeWidget paneTitleRowBottom({
-  required BuildContext context,
-  required Widget titleField,
-  required double titleFontSize,
+/// ボタン群をまとめるハンバーガーメニュー（押して離す／なぞって選ぶ）。
+/// アイコンはメッセージ画面のハンバーガーと同じくUIスタイルで出し分ける。
+Widget paneHamburgerMenu<T>({
+  required List<PressDragMenuItem<T>> items,
+  required ValueChanged<T> onSelected,
+  bool enabled = true,
 }) {
-  final scaled = MediaQuery.textScalerOf(context).scale(titleFontSize);
-  final height = (scaled * 1.4 + 24).clamp(kToolbarHeight, double.infinity);
-  return PreferredSize(
-    preferredSize: Size.fromHeight(height),
-    child: Align(
-      alignment: Alignment.centerLeft,
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: kPaneTitleRowPadding),
-        child: SizedBox(
-          height: height,
-          child: Center(child: titleField),
-        ),
-      ),
+  return PressDragMenuButton<T>(
+    enabled: enabled,
+    items: items,
+    onSelected: onSelected,
+    child: Consumer(
+      builder: (context, ref, _) {
+        final uiStyle = ref.watch(appUiStyleProvider);
+        return IconButton(
+          tooltip: '',
+          icon: switch (uiStyle) {
+            AppUiStyle.gekiga => const GekigaIconBadge(
+              icon: Icons.menu,
+              size: 32,
+              seed: gekigaToolbarIconSeed,
+            ),
+            AppUiStyle.glass => const GlassIconBadge(
+              icon: Icons.menu,
+              size: 32,
+              opaque: true,
+            ),
+            AppUiStyle.block => const BlockIconBadge(icon: Icons.menu),
+            AppUiStyle.flat => const Icon(Icons.menu),
+          },
+          // 押下はPressDragMenuButton（Listener）が受ける。
+          onPressed: enabled ? () {} : null,
+        );
+      },
     ),
   );
 }
