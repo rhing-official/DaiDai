@@ -14,10 +14,12 @@ import '../../providers/repository_providers.dart';
 import '../../utils/auto_dismiss_banner.dart';
 import '../../widgets/app_dialog.dart';
 import '../calendar/date_time_pick.dart';
+import '../../theme/block/block_theme.dart';
 import '../../theme/gekiga/gekiga_colors.dart';
 import '../../theme/popup_surface_colors.dart';
 import '../../widgets/gekiga/gekiga_rect_box.dart';
 import '../../widgets/glass/glass_dialog.dart';
+import '../../widgets/media_viewer_screen.dart';
 
 /// その寄合の、自分の送信予定（一覧・件数の表示に使う）。
 final scheduledMessagesProvider = StreamProvider.autoDispose
@@ -406,7 +408,20 @@ class _ScheduledMessagesDialog extends ConsumerWidget {
           return ListView.separated(
             shrinkWrap: true,
             itemCount: items.length,
-            separatorBuilder: (_, _) => const Divider(height: 1),
+            separatorBuilder: (_, _) => Divider(
+              height: 1,
+              thickness: 1.5,
+              // 薄くて見えにくかったので、文字色に近い濃さにする。
+              color: switch (uiStyle) {
+                AppUiStyle.gekiga => GekigaColors.onPanel,
+                AppUiStyle.block => BlockTheme.lineColor(
+                  Theme.of(context).brightness,
+                ),
+                _ => Theme.of(
+                  context,
+                ).colorScheme.onSurface.withValues(alpha: 0.55),
+              },
+            ),
             itemBuilder: (context, index) {
               final item = items[index];
               final files = item.files;
@@ -428,7 +443,7 @@ class _ScheduledMessagesDialog extends ConsumerWidget {
                               _ScheduledThumb.sticker(sticker)
                             else
                               for (final file in files)
-                                _ScheduledThumb.file(file),
+                                _ScheduledThumb.file(file, siblings: files),
                           ],
                         ),
                       ),
@@ -666,7 +681,10 @@ class _EditScheduledDialogState extends ConsumerState<_EditScheduledDialog> {
                           onRemove: busy
                               ? null
                               : () => setState(() => _kept.removeAt(i)),
-                          child: _ScheduledThumb.file(_kept[i]),
+                          child: _ScheduledThumb.file(
+                            _kept[i],
+                            siblings: _kept,
+                          ),
                         ),
                       for (var i = 0; i < _added.length; i++)
                         _RemovableThumb(
@@ -763,16 +781,18 @@ class _RemovableThumb extends StatelessWidget {
 
 /// 送信予約の一覧の添付1つ分の小さなサムネイル（画像は画像、動画・ファイルはアイコンと名前）。
 class _ScheduledThumb extends StatelessWidget {
-  const _ScheduledThumb.file(MessageFileMetadata file)
+  const _ScheduledThumb.file(MessageFileMetadata file, {this.siblings})
     : _url = null,
       _file = file,
       _picked = null;
   const _ScheduledThumb.sticker(String url)
-    : _url = url,
+    : siblings = null,
+      _url = url,
       _file = null,
       _picked = null;
   const _ScheduledThumb.picked(PickedAttachment picked)
-    : _url = null,
+    : siblings = null,
+      _url = null,
       _file = null,
       _picked = picked;
 
@@ -780,7 +800,32 @@ class _ScheduledThumb extends StatelessWidget {
   final MessageFileMetadata? _file;
   final PickedAttachment? _picked;
 
+  /// 同じメッセージの添付一覧。タップで拡大する時に、画像・動画だけを順にめくれる。
+  final List<MessageFileMetadata>? siblings;
+
   static const double _size = 56;
+
+  void _open(BuildContext context, MessageFileMetadata file) {
+    final media = [
+      for (final f in siblings ?? [file])
+        if (f.isImage || f.isVideo) f,
+    ];
+    openMediaViewer(
+      context,
+      items: [
+        for (var i = 0; i < media.length; i++)
+          MediaViewerItem(
+            id: 'scheduled-$i',
+            url: media[i].url,
+            contentType: media[i].isVideo ? 'video' : 'image',
+            fileName: media[i].fileName,
+            thumbnailUrl: media[i].thumbnailUrl,
+            playbackUrl: media[i].playbackUrl,
+          ),
+      ],
+      initialIndex: media.indexOf(file).clamp(0, media.length - 1),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -845,7 +890,7 @@ class _ScheduledThumb extends StatelessWidget {
         ),
       );
     }
-    return Container(
+    final box = Container(
       width: _size,
       height: _size,
       clipBehavior: Clip.antiAlias,
@@ -856,5 +901,13 @@ class _ScheduledThumb extends StatelessWidget {
       alignment: Alignment.center,
       child: child,
     );
+    if (file != null && (file.isImage || file.isVideo)) {
+      return GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: () => _open(context, file),
+        child: box,
+      );
+    }
+    return box;
   }
 }

@@ -5656,6 +5656,7 @@ class _MessageRow extends ConsumerWidget {
                     message.contentType == 'video' ||
                     isMultiMediaOnly ||
                     isMultiSplit ||
+                    isPdfPreview ||
                     isAudioWithCaption;
                 return mediaOnly ? wrapInBubble(text) : text;
               },
@@ -7321,10 +7322,25 @@ class _MessageRow extends ConsumerWidget {
         for (final i in files)
           if (_FileAttachmentBlock.isPlayableAudio(message.attachments[i])) i,
       ];
+      bool isPdfCard(int i) =>
+          isPreviewablePdf(message.attachments[i]) &&
+          message.attachments[i].sizeBytes <= kMaxPdfThumbnailBytes;
+      // プレビュー付きのPDFは、ファイル名の行とプレビューがそれぞれ自分の枠を持つため、
+      // 外側に吹き出しを付けない（単独送信と同じ見た目）。
+      final pdfs = [
+        for (final i in files)
+          if (isPdfCard(i)) i,
+      ];
       final others = [
         for (final i in files)
-          if (!_FileAttachmentBlock.isPlayableAudio(message.attachments[i])) i,
+          if (!_FileAttachmentBlock.isPlayableAudio(message.attachments[i]) &&
+              !isPdfCard(i))
+            i,
       ];
+      for (final i in pdfs) {
+        if (children.isNotEmpty) children.add(SizedBox(height: groupGap));
+        children.add(fileBlock(i));
+      }
       for (final group in [(audio, true), (others, false)]) {
         if (group.$1.isEmpty) continue;
         if (children.isNotEmpty) children.add(SizedBox(height: groupGap));
