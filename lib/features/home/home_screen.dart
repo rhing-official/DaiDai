@@ -68,11 +68,12 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
   late final AnimationController _settle = AnimationController(vsync: this);
   late final HomeTabDragController _dragController;
 
-  /// 「アカウント」のチップを出すか。保存したアカウントが2つ以上で、かつ縦画面（狭い画面）
-  /// の時だけ（2026-11-11）。横表示は、設定を開けば最初からアカウント（切り替え）が開くので
+  /// 「アカウント」のチップを出すか。保存したアカウントが2つ以上で、縦画面（狭い画面）で、
+  /// 設定（端末ごと）でオンの時だけ（2026-11-11）。横表示は、設定を開けば最初からアカウント（切り替え）が開くので
   /// 出さない。
   bool _accountChipShown() =>
       ref.read(accountTabVisibleProvider) &&
+      ref.read(navChipLayoutProvider).accountChipEnabled &&
       MediaQuery.sizeOf(context).width < _kWideLayoutBreakpoint;
 
   /// 今チップを並べる順（論理インデックス）。
@@ -464,7 +465,10 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
     // 並びは狭い画面（下部）・広い画面（サイドバー）とも設定に従う。揃えは狭い画面
     // だけ（2026-11-01）。各チップは論理インデックス`i`のまま、並ぶ順だけが変わる。
     final chipLayout = ref.watch(navChipLayoutProvider);
-    final showAccount = ref.watch(accountTabVisibleProvider) && !isWide;
+    final showAccount =
+        ref.watch(accountTabVisibleProvider) &&
+        chipLayout.accountChipEnabled &&
+        !isWide;
     final displayOrder = visibleNavChipIndexes(
       chipLayout.order,
       showAccount: showAccount,

@@ -717,6 +717,8 @@ class _CategoryList extends ConsumerWidget {
               // 下寄せの時は逆向きのスクロールにして、内容が短くても下に寄せる
               // （並びは変わらない。長ければこれまでどおりスクロールする）。
               reverse: bottom,
+              // モバイルは滑らせて選ぶので、一覧自体はスクロールさせない（2026-11-11）。
+              physics: narrow ? const NeverScrollableScrollPhysics() : null,
               padding: const EdgeInsets.symmetric(horizontal: 8),
               child: GekigaJointedTileList(
                 seeds: [
@@ -747,6 +749,7 @@ class _CategoryList extends ConsumerWidget {
           bottom: bottom,
           ListView(
             shrinkWrap: bottom,
+            physics: narrow ? const NeverScrollableScrollPhysics() : null,
             padding: EdgeInsets.fromLTRB(8, 0, 8, bottom ? 8 : 0),
             children: [
               for (var i = 0; i < categories.length; i++)
@@ -4306,6 +4309,7 @@ class NavChipLayoutFolder extends ConsumerWidget {
 
     final accountChipListed =
         ref.watch(accountTabVisibleProvider) &&
+        layout.accountChipEnabled &&
         MediaQuery.sizeOf(context).width < kNavChipWideBreakpoint;
     final orderControl = Align(
       alignment: Alignment.centerLeft,
@@ -4440,8 +4444,53 @@ class NavChipLayoutFolder extends ConsumerWidget {
             ),
           ),
           listVerticalControl,
+          const SizedBox(height: 8),
+          _AccountChipSwitch(strings: strings),
         ],
       ],
+    );
+  }
+}
+
+/// 縦画面の「アカウント」のチップを出すか（2026-11-11、端末ごとの保存、標準オン）。
+/// チップは保存したアカウントが2つ以上の時だけ出る。
+class _AccountChipSwitch extends ConsumerWidget {
+  const _AccountChipSwitch({required this.strings});
+
+  final Strings strings;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final enabled = ref.watch(
+      navChipLayoutProvider.select((l) => l.accountChipEnabled),
+    );
+    final isGekiga = ref.watch(appUiStyleProvider) == AppUiStyle.gekiga;
+    void set(bool value) =>
+        ref.read(navChipLayoutProvider.notifier).setAccountChipEnabled(value);
+    if (isGekiga) {
+      return GekigaJointedTileList(
+        seeds: const [2],
+        selectedFlags: const [false],
+        children: [
+          GekigaTileContent(
+            selected: false,
+            title: Text(strings.settingsNavChipsAccountTitle),
+            subtitle: Text(strings.settingsNavChipsAccountSubtitle),
+            trailing: AppSwitch(
+              value: enabled,
+              onChanged: set,
+              onDarkSurface: true,
+            ),
+            onTap: () => set(!enabled),
+          ),
+        ],
+      );
+    }
+    return AppSwitchListTile(
+      value: enabled,
+      title: Text(strings.settingsNavChipsAccountTitle),
+      subtitle: Text(strings.settingsNavChipsAccountSubtitle),
+      onChanged: set,
     );
   }
 }

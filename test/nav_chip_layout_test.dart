@@ -57,6 +57,18 @@ void main() {
     ]);
   });
 
+  test('「アカウント」チップの表示設定は端末ごとに保存され、未保存の端末は表示（オン）', () async {
+    SharedPreferences.setMockInitialValues({});
+    expect((await loadInitialNavChipLayout()).accountChipEnabled, isTrue);
+    final container = ProviderContainer();
+    addTearDown(container.dispose);
+    await container
+        .read(navChipLayoutProvider.notifier)
+        .setAccountChipEnabled(false);
+    expect(container.read(navChipLayoutProvider).accountChipEnabled, isFalse);
+    expect((await loadInitialNavChipLayout()).accountChipEnabled, isFalse);
+  });
+
   test('横表示の揃えは縦表示と別に保存され、未保存の端末は縦表示の値を引き継ぐ', () async {
     SharedPreferences.setMockInitialValues({'navChipAlignment': 'start'});
     final migrated = await loadInitialNavChipLayout();

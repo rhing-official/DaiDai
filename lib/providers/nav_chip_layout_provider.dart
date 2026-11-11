@@ -6,6 +6,7 @@ import '../models/nav_chip_layout.dart';
 const _alignmentKey = 'navChipAlignment';
 const _wideAlignmentKey = 'navChipAlignmentWide';
 const _orderKey = 'navChipOrder';
+const _accountChipKey = 'navChipAccountEnabled';
 
 /// 端末に保存されている初期のメニューチップの揃え・並び（2026-11-01）。アカウントには保存せず、
 /// 端末毎に持つ（画面の幅や持ち方が端末で違うため。同日ユーザー指示）。main()で起動前に
@@ -23,6 +24,7 @@ Future<NavChipLayout> loadInitialNavChipLayout() async {
     wideAlignment: prefs.containsKey(_wideAlignmentKey)
         ? NavChipAlignment.fromName(prefs.getString(_wideAlignmentKey))
         : alignment,
+    accountChipEnabled: prefs.getBool(_accountChipKey) ?? true,
     order: normalizeNavChipOrder(prefs.getStringList(_orderKey)),
   );
 }
@@ -41,6 +43,12 @@ class NavChipLayoutNotifier extends Notifier<NavChipLayout> {
     state = state.copyWith(wideAlignment: alignment);
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString(_wideAlignmentKey, alignment.name);
+  }
+
+  Future<void> setAccountChipEnabled(bool enabled) async {
+    state = state.copyWith(accountChipEnabled: enabled);
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(_accountChipKey, enabled);
   }
 
   Future<void> setOrder(List<HomeTabId> order) async {

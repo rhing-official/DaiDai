@@ -50,6 +50,7 @@ class NavChipLayout {
   const NavChipLayout({
     this.alignment = NavChipAlignment.center,
     this.wideAlignment = NavChipAlignment.center,
+    this.accountChipEnabled = true,
     this.order = const [
       HomeTabId.talk,
       HomeTabId.profile,
@@ -67,16 +68,22 @@ class NavChipLayout {
   /// 共通で「上揃え＝左揃え」として扱っていたのを、別々に保存するように分けた）。
   final NavChipAlignment wideAlignment;
 
+  /// 縦画面で、保存したアカウントが2つ以上の時に「アカウント」のチップを出すか（2026-11-11、
+  /// 端末ごとの保存。標準はオン）。
+  final bool accountChipEnabled;
+
   /// チップを左から並べるタブの順。
   final List<HomeTabId> order;
 
   NavChipLayout copyWith({
     NavChipAlignment? alignment,
     NavChipAlignment? wideAlignment,
+    bool? accountChipEnabled,
     List<HomeTabId>? order,
   }) => NavChipLayout(
     alignment: alignment ?? this.alignment,
     wideAlignment: wideAlignment ?? this.wideAlignment,
+    accountChipEnabled: accountChipEnabled ?? this.accountChipEnabled,
     order: order ?? this.order,
   );
 }

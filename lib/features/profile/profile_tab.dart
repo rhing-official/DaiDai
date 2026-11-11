@@ -1004,6 +1004,8 @@ class _ProfileCategoryList extends ConsumerWidget {
               // 下寄せの時は逆向きのスクロールにして、内容が短くても下に寄せる
               // （並びは変わらない。長ければこれまでどおりスクロールする）。
               reverse: bottom,
+              // モバイルは滑らせて選ぶので、一覧自体はスクロールさせない（2026-11-11）。
+              physics: narrow ? const NeverScrollableScrollPhysics() : null,
               padding: const EdgeInsets.symmetric(horizontal: 8),
               child: GekigaJointedTileList(
                 seeds: [
@@ -1034,6 +1036,7 @@ class _ProfileCategoryList extends ConsumerWidget {
           bottom: bottom,
           ListView(
             shrinkWrap: bottom,
+            physics: narrow ? const NeverScrollableScrollPhysics() : null,
             padding: EdgeInsets.fromLTRB(8, 0, 8, bottom ? 8 : 0),
             children: [
               for (var i = 0; i < categories.length; i++)
