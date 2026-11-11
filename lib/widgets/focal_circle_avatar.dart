@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../models/profile_card.dart';
 import '../theme/block/block_theme.dart';
+import '../utils/avatar_backdrop.dart';
 import 'focal_image.dart';
 
 /// 一覧・メッセージ画面等の円形アイコン（`CircleAvatar`相当）。工房で編集した
@@ -33,6 +34,9 @@ class FocalCircleAvatar extends StatelessWidget {
   Widget build(BuildContext context) {
     final url = this.url;
     final focal = this.focal;
+    final backdrop = url != null
+        ? avatarBackdropColor(context)
+        : Colors.transparent;
     if (blockFrame && isBlockTheme(context)) {
       final theme = Theme.of(context);
       final size = radius * 2;
@@ -59,23 +63,26 @@ class FocalCircleAvatar extends StatelessWidget {
         ),
         child: ClipRRect(
           borderRadius: inner,
-          child: url != null
-              ? (focal != null && !focal.isDefault
-                    ? FocalImage(url: url, focal: focal)
-                    : Image.network(url, fit: BoxFit.cover))
-              : Center(
-                  child: IconTheme(
-                    data: IconThemeData(color: foregroundColor),
-                    child: fallback,
+          child: ColoredBox(
+            color: backdrop,
+            child: url != null
+                ? (focal != null && !focal.isDefault
+                      ? FocalImage(url: url, focal: focal)
+                      : Image.network(url, fit: BoxFit.cover))
+                : Center(
+                    child: IconTheme(
+                      data: IconThemeData(color: foregroundColor),
+                      child: fallback,
+                    ),
                   ),
-                ),
+          ),
         ),
       );
     }
     if (url != null && focal != null && !focal.isDefault) {
       return CircleAvatar(
         radius: radius,
-        backgroundColor: Colors.transparent,
+        backgroundColor: backdrop,
         child: ClipOval(
           child: SizedBox(
             width: radius * 2,
@@ -88,7 +95,7 @@ class FocalCircleAvatar extends StatelessWidget {
     return CircleAvatar(
       radius: radius,
       backgroundImage: url != null ? NetworkImage(url) : null,
-      backgroundColor: Colors.transparent,
+      backgroundColor: backdrop,
       foregroundColor: foregroundColor,
       child: url == null ? fallback : null,
     );

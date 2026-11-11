@@ -1,3 +1,4 @@
+import '../../utils/avatar_backdrop.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -365,7 +366,7 @@ class _CreateGroupDialogContentState
                               backgroundImage: icon != null
                                   ? NetworkImage(icon.url)
                                   : null,
-                              backgroundColor: Colors.transparent,
+                              backgroundColor: avatarBackdropColor(context),
                               foregroundColor: Theme.of(
                                 context,
                               ).colorScheme.onSurfaceVariant,

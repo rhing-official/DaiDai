@@ -1,3 +1,4 @@
+import '../utils/avatar_backdrop.dart';
 import 'dart:async';
 
 import 'package:flutter/material.dart';
@@ -579,7 +580,10 @@ class ProfileCardAvatar extends StatelessWidget {
       width: radius * 2,
       height: radius * 2,
       child: ClipOval(
-        child: FocalImage(url: icon.url, focal: focal),
+        child: ColoredBox(
+          color: avatarBackdropColor(context),
+          child: FocalImage(url: icon.url, focal: focal),
+        ),
       ),
     );
   }

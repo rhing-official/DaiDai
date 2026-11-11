@@ -1,3 +1,4 @@
+import '../../widgets/pick_zone.dart';
 import '../../theme/block/block_theme.dart';
 import 'package:flutter/foundation.dart' show setEquals;
 import 'package:flutter/material.dart';
@@ -352,17 +353,29 @@ class _RoomListPaneState extends ConsumerState<RoomListPane> {
                 ),
                 if (widget.onOpenConversationSettings != null) ...[
                   const SizedBox(width: 8),
-                  TalksControlButton(
-                    icon: Icons.settings_outlined,
-                    onPressed: widget.onOpenConversationSettings!,
+                  PickZone(
+                    onCommit: widget.onOpenConversationSettings,
+                    child: TalksControlButton(
+                      icon: Icons.settings_outlined,
+                      onPressed: widget.onOpenConversationSettings!,
+                    ),
                   ),
                 ],
                 if (widget.onCreateRoom != null) ...[
                   const SizedBox(width: 8),
-                  TalksControlButton(
-                    icon: Icons.add,
-                    onPressed: () =>
+                  PickZone(
+                    onCommit: () =>
                         _createRoom(context, strings, vocab, isGekiga, isGlass),
+                    child: TalksControlButton(
+                      icon: Icons.add,
+                      onPressed: () => _createRoom(
+                        context,
+                        strings,
+                        vocab,
+                        isGekiga,
+                        isGlass,
+                      ),
+                    ),
                   ),
                 ],
               ],

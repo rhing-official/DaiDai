@@ -1,3 +1,4 @@
+import '../../utils/avatar_backdrop.dart';
 import '../../utils/contact_alias.dart';
 import '../../providers/contact_alias_providers.dart';
 import '../../providers/talks_resume_provider.dart';
@@ -3601,7 +3602,7 @@ class _PendingGroupJoinRequestTile extends ConsumerWidget {
                 backgroundImage: preview?.iconUrl != null
                     ? NetworkImage(preview!.iconUrl!)
                     : null,
-                backgroundColor: Colors.transparent,
+                backgroundColor: avatarBackdropColor(context),
                 foregroundColor: Theme.of(context).colorScheme.onSurfaceVariant,
                 child: preview?.iconUrl == null ? Icon(statusIcon) : null,
               );

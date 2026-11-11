@@ -12,7 +12,7 @@ import '../../repositories/switch_session_repository.dart';
 import '../../services/account_switcher.dart';
 import '../../utils/kiwami.dart';
 import '../../widgets/app_dialog.dart';
-import '../../widgets/generated_avatar.dart';
+import '../../widgets/account_avatar.dart';
 import '../../widgets/gekiga/gekiga_icon_badge.dart';
 import '../../widgets/gekiga/gekiga_section_header.dart';
 import '../../widgets/gekiga/settings_tile.dart';
@@ -170,10 +170,11 @@ class AccountSwitcherSection extends ConsumerWidget {
         ),
         SettingsTile(
           contentPadding: const EdgeInsets.symmetric(horizontal: 16),
-          leading: GeneratedAvatar(
-            seed: currentUser.userId,
-            label: currentUser.rhingSeed,
-            size: 36,
+          leading: AccountAvatar(
+            uid: currentUser.userId,
+            rhingSeed: currentUser.rhingSeed,
+            iconUrl: currentUser.effectiveIcon?.url,
+            iconFocal: currentUser.effectiveIconFocalFor(null),
           ),
           title: Text('@${currentUser.rhingSeed}'),
           subtitle: Text(strings.switchAccountsCurrent),
@@ -182,10 +183,11 @@ class AccountSwitcherSection extends ConsumerWidget {
         for (final account in others)
           SettingsTile(
             contentPadding: const EdgeInsets.symmetric(horizontal: 16),
-            leading: GeneratedAvatar(
-              seed: account.uid,
-              label: account.rhingSeed,
-              size: 36,
+            leading: AccountAvatar(
+              uid: account.uid,
+              rhingSeed: account.rhingSeed,
+              iconUrl: account.iconUrl,
+              iconFocal: account.iconFocal,
             ),
             title: Text('@${account.rhingSeed}'),
             trailing: isGekiga

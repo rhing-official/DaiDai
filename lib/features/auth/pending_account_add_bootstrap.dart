@@ -34,6 +34,35 @@ class _PendingAccountAddBootstrapState
     if (kIsWeb) _complete();
   }
 
+  @override
+  void didUpdateWidget(PendingAccountAddBootstrap oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    final old = oldWidget.currentUser;
+    final now = widget.currentUser;
+    if (kIsWeb &&
+        (old.effectiveIcon?.url != now.effectiveIcon?.url ||
+            old.effectiveIconFocalFor(null)?.dx !=
+                now.effectiveIconFocalFor(null)?.dx ||
+            old.effectiveIconFocalFor(null)?.dy !=
+                now.effectiveIconFocalFor(null)?.dy ||
+            old.effectiveIconFocalFor(null)?.scale !=
+                now.effectiveIconFocalFor(null)?.scale)) {
+      _refreshIcon();
+    }
+  }
+
+  Future<void> _refreshIcon() async {
+    try {
+      if (await ref
+          .read(accountSwitcherProvider)
+          .refreshProfile(widget.currentUser)) {
+        ref.invalidate(savedAccountsProvider);
+      }
+    } on Object {
+      // 表示用の写しなので、失敗しても何もしない。
+    }
+  }
+
   Future<void> _complete() async {
     final strings = ref.read(appStringsProvider);
     final messenger = ScaffoldMessenger.maybeOf(context);
@@ -52,6 +81,7 @@ class _PendingAccountAddBootstrapState
     } on Object {
       message = strings.switchAccountsAddFailed;
     }
+    await _refreshIcon();
     ref.invalidate(savedAccountsProvider);
     if (message != null) {
       messenger?.showSnackBar(SnackBar(content: Text(message)));

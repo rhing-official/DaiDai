@@ -1,4 +1,5 @@
 import '../models/app_user.dart';
+import '../models/profile_card.dart';
 import '../models/saved_account.dart';
 import '../repositories/auth_repository.dart';
 import '../repositories/saved_accounts_store.dart';
@@ -52,7 +53,7 @@ class AccountSwitcher {
     final saved = await store.load();
     if (!saved.any((a) => a.uid == current.userId)) {
       final own = await sessions.createSession(rhingSeed: current.rhingSeed);
-      await store.save(own);
+      await store.save(_withIconOf(own, current));
     }
     final ticket = await sessions.createTicket();
     await store.savePending(
@@ -83,9 +84,31 @@ class AccountSwitcher {
       ticket: pending.ticket,
       rhingSeed: user.rhingSeed,
     );
-    await store.save(account);
+    await store.save(_withIconOf(account, user));
     return true;
   }
+
+  SavedAccount _withIconOf(SavedAccount account, AppUser user) => account
+      .withIcon(user.effectiveIcon?.url, user.effectiveIconFocalFor(null));
+
+  /// 保存済みの[user]のアカウントに、今の標準のアイコンを写す。保存が無い・変わって
+  /// いなければ何もしない。
+  Future<bool> refreshProfile(AppUser user) async {
+    final saved = await store.load();
+    final index = saved.indexWhere((a) => a.uid == user.userId);
+    if (index < 0) return false;
+    final old = saved[index];
+    final url = user.effectiveIcon?.url;
+    final focal = user.effectiveIconFocalFor(null);
+    if (old.iconUrl == url && _sameFocal(old.iconFocal, focal)) return false;
+    await store.save(old.withIcon(url, focal));
+    return true;
+  }
+
+  static bool _sameFocal(ImageFocal? a, ImageFocal? b) =>
+      (a?.dx ?? 0) == (b?.dx ?? 0) &&
+      (a?.dy ?? 0) == (b?.dy ?? 0) &&
+      (a?.scale ?? 1) == (b?.scale ?? 1);
 
   /// 追加を途中でやめた時のために、保留の追加を捨てる。
   Future<void> cancelPendingAdd() => store.clearPending();

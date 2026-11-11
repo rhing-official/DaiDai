@@ -61,6 +61,11 @@ class _SlideSelectListState extends ConsumerState<SlideSelectList>
   @override
   void dispose() {
     _bridge.unregister(this);
+    // なぞりの途中で破棄された時は、渡し先の強調を消す（2026-11-11）。
+    final target = _handoffTarget;
+    if (target != null && _handoffIndex != null) {
+      Future.microtask(() => target.pick(null, commit: false));
+    }
     super.dispose();
   }
 
@@ -163,13 +168,10 @@ class _SlideSelectListState extends ConsumerState<SlideSelectList>
       if (!ref.read(slidePickEnabledProvider)) return;
       _sliding = true;
     }
-    // はっきり横へ動いている間は、項目の強調・選択を動かさない（タブの横ドラッグ）。
-    if (_isHorizontalNow(delta)) {
-      if (_index != null) setState(() => _index = null);
-      return;
-    }
     // 指がこの一覧の外のチップ列などへ出たら、そちらへ選択を渡す（2026-11-05、
-    // 項目を押したままメニューチップへ滑らせてタブを切り替える）。
+    // 項目を押したままメニューチップへ滑らせてタブを切り替える）。横向きの判定より先に
+    // 行う（2026-11-11）。コンピューターではチップ列が一覧の左隣に縦に並び、チップへの
+    // 動きは横向きが主になる為、先に横向きで止めるとチップへ渡せなかった。
     final other = _bridge.targetAt(event.position);
     if (other != null && other != this) {
       final otherIndex = other.indexAt(event.position);
@@ -190,6 +192,11 @@ class _SlideSelectListState extends ConsumerState<SlideSelectList>
       return;
     }
     _clearHandoff();
+    // はっきり横へ動いている間は、項目の強調・選択を動かさない（タブの横ドラッグ）。
+    if (_isHorizontalNow(delta)) {
+      if (_index != null) setState(() => _index = null);
+      return;
+    }
     // 別のタブへ切り替わって見えなくなった一覧では、選択を動かさない。
     if (!_visible) return;
     final index = _indexAt(event.position);
@@ -220,9 +227,14 @@ class _SlideSelectListState extends ConsumerState<SlideSelectList>
     _handoffTarget = null;
     _handoffIndex = null;
     _reset();
-    // チップ列の上で離した時は、そのタブで確定する（項目は開かない）。
-    if (wasSliding && handoffTarget != null && handoffIndex != null) {
-      handoffTarget.pick(handoffIndex, commit: true);
+    // チップ列の上で離した時は、そのタブで確定する（項目は開かない）。横向きの動きでも
+    // 確定する（2026-11-11、渡し先が飛び出したまま残っていた）。
+    if (handoffTarget != null) {
+      if (handoffIndex != null) {
+        handoffTarget.pick(handoffIndex, commit: true);
+      } else {
+        handoffTarget.pick(null, commit: false);
+      }
       return;
     }
     if (wasSliding && index != null) widget.onSlideEnd?.call(index);
@@ -234,6 +246,8 @@ class _SlideSelectListState extends ConsumerState<SlideSelectList>
     return Listener(
       behavior: HitTestBehavior.translucent,
       onPointerDown: (event) {
+        // 前の操作の渡し先を引きずらない（2026-11-11）。
+        _clearHandoff();
         _down = event.position;
         _sliding = false;
         _index = null;

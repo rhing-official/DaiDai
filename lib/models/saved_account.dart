@@ -1,3 +1,5 @@
+import 'profile_card.dart';
+
 /// この端末に保存した、切り替え用のアカウント（2026-11-11、複数アカウント）。
 /// [secret]は切り替え用の合言葉で、サーバーにはそのハッシュだけがある。
 /// 端末の`flutter_secure_storage`にだけ保存し、外へ出さない。
@@ -7,6 +9,8 @@ class SavedAccount {
     required this.sessionId,
     required this.secret,
     required this.rhingSeed,
+    this.iconUrl,
+    this.iconFocal,
   });
 
   final String uid;
@@ -16,11 +20,28 @@ class SavedAccount {
   /// 一覧に出す表示用（保存した時点のRhing Seed）。
   final String rhingSeed;
 
+  /// 一覧に出す、そのアカウントの標準のアイコン（`AppUser.effectiveIcon`）の写し。
+  /// 未ログインのアカウントはFirestoreを読めないため、そのアカウントを使っている間に
+  /// 端末へ写す（2026-11-11）。nullなら生成アバターを出す。
+  final String? iconUrl;
+  final ImageFocal? iconFocal;
+
+  SavedAccount withIcon(String? url, ImageFocal? focal) => SavedAccount(
+    uid: uid,
+    sessionId: sessionId,
+    secret: secret,
+    rhingSeed: rhingSeed,
+    iconUrl: url,
+    iconFocal: focal,
+  );
+
   Map<String, dynamic> toJson() => {
     'uid': uid,
     'sessionId': sessionId,
     'secret': secret,
     'rhingSeed': rhingSeed,
+    if (iconUrl != null) 'iconUrl': iconUrl,
+    if (iconFocal != null) 'iconFocal': iconFocal!.toJson(),
   };
 
   static SavedAccount? tryFromJson(Object? json) {
@@ -37,6 +58,8 @@ class SavedAccount {
       sessionId: sessionId,
       secret: secret,
       rhingSeed: rhingSeed is String ? rhingSeed : '',
+      iconUrl: json['iconUrl'] is String ? json['iconUrl'] as String : null,
+      iconFocal: ImageFocal.fromJson(json['iconFocal']),
     );
   }
 }

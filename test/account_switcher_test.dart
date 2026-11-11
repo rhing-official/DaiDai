@@ -1,4 +1,6 @@
 import 'package:daidai/models/app_user.dart';
+import 'package:daidai/models/profile_card.dart';
+import 'package:daidai/models/profile_material.dart';
 import 'package:daidai/models/saved_account.dart';
 import 'package:daidai/repositories/auth_repository.dart';
 import 'package:daidai/repositories/saved_accounts_store.dart';
@@ -150,6 +152,34 @@ void main() {
     expect(store.accounts.map((a) => a.uid), ['A']);
     expect(store.pending?.ticket, 'T1');
     expect(store.pending?.fromUid, 'A');
+  });
+
+  test('標準のアイコンの写し: 保存済みのアカウントにだけ書き、変わらなければ書かない', () async {
+    final user = AppUser(
+      userId: 'A',
+      rhingSeed: 'A',
+      icons: const [
+        ProfileMaterial(id: 'i1', url: 'https://x/i1', storagePath: 'p/i1'),
+      ],
+      activeIconId: 'i1',
+    );
+    expect(await switcher.refreshProfile(user), isFalse); // 未保存
+    expect(store.accounts, isEmpty);
+    store.accounts.add(_saved('A'));
+    expect(await switcher.refreshProfile(user), isTrue);
+    expect(store.accounts.single.iconUrl, 'https://x/i1');
+    expect(await switcher.refreshProfile(user), isFalse); // 変化なし
+  });
+
+  test('保存したアカウントのJSON: アイコンの往復と、旧形式（アイコン無し）の読み込み', () {
+    final a = _saved('A').withIcon('u', const ImageFocal(dx: .5, scale: 2));
+    final back = SavedAccount.tryFromJson(a.toJson())!;
+    expect(back.iconUrl, 'u');
+    expect(back.iconFocal?.dx, .5);
+    expect(back.iconFocal?.scale, 2);
+    final old = SavedAccount.tryFromJson(_saved('B').toJson())!;
+    expect(old.iconUrl, isNull);
+    expect(old.iconFocal, isNull);
   });
 
   test('追加の開始: 既に保存済みなら自分用のセッションは作り直さない', () async {

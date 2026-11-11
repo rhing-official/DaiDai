@@ -1,3 +1,4 @@
+import '../../utils/avatar_backdrop.dart';
 import '../../utils/contact_alias.dart';
 import '../../providers/contact_alias_providers.dart';
 import 'package:flutter/material.dart';
@@ -58,6 +59,7 @@ class CallParticipantAvatar extends ConsumerWidget {
     if (iconUrl != null) {
       return CircleAvatar(
         radius: radius,
+        backgroundColor: avatarBackdropColor(context),
         backgroundImage: NetworkImage(iconUrl),
       );
     }

@@ -1,3 +1,4 @@
+import '../../utils/avatar_backdrop.dart';
 import '../../utils/contact_alias.dart';
 import '../../providers/contact_alias_providers.dart';
 import 'dart:async';
@@ -1817,7 +1818,7 @@ class _AddConversationCardDialogState
             )
           : CircleAvatar(
               backgroundImage: iconUrl != null ? NetworkImage(iconUrl) : null,
-              backgroundColor: Colors.transparent,
+              backgroundColor: avatarBackdropColor(context),
               foregroundColor: Theme.of(context).colorScheme.onSurfaceVariant,
               child: iconUrl == null ? const Icon(Icons.person) : null,
             ),

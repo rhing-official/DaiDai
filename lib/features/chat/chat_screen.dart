@@ -1,3 +1,4 @@
+import '../../utils/avatar_backdrop.dart';
 import '../../utils/contact_alias.dart';
 import '../../providers/contact_alias_providers.dart';
 import 'dart:async';
@@ -8803,6 +8804,49 @@ class _SenderAvatar extends ConsumerWidget {
         ),
         child: ClipRRect(
           borderRadius: inner,
+          child: ColoredBox(
+            color: iconUrl != null
+                ? avatarBackdropColor(context)
+                : Colors.transparent,
+            child: iconUrl != null && iconFocal != null && !iconFocal.isDefault
+                ? FocalImage(url: iconUrl, focal: iconFocal)
+                : iconUrl != null
+                ? AlwaysAnimatedImage(
+                    child: Image(
+                      image: NetworkImage(iconUrl),
+                      fit: BoxFit.cover,
+                    ),
+                  )
+                : ColoredBox(
+                    color: color,
+                    child: Center(
+                      child: Text(
+                        id[0].toUpperCase(),
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: fontSize,
+                        ),
+                      ),
+                    ),
+                  ),
+          ),
+        ),
+      );
+    }
+    // フラットも紙に墨で書いたような細い枠付きの円にする（旧デッサン
+    // スタイルの`DessinPhotoFrame`を統合、2026-08-27）。
+    return Container(
+      width: size,
+      height: size,
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        border: Border.all(color: Theme.of(context).colorScheme.outline),
+      ),
+      child: ClipOval(
+        child: ColoredBox(
+          color: iconUrl != null
+              ? avatarBackdropColor(context)
+              : Colors.transparent,
           child: iconUrl != null && iconFocal != null && !iconFocal.isDefault
               ? FocalImage(url: iconUrl, focal: iconFocal)
               : iconUrl != null
@@ -8819,33 +8863,6 @@ class _SenderAvatar extends ConsumerWidget {
                   ),
                 ),
         ),
-      );
-    }
-    // フラットも紙に墨で書いたような細い枠付きの円にする（旧デッサン
-    // スタイルの`DessinPhotoFrame`を統合、2026-08-27）。
-    return Container(
-      width: size,
-      height: size,
-      decoration: BoxDecoration(
-        shape: BoxShape.circle,
-        border: Border.all(color: Theme.of(context).colorScheme.outline),
-      ),
-      child: ClipOval(
-        child: iconUrl != null && iconFocal != null && !iconFocal.isDefault
-            ? FocalImage(url: iconUrl, focal: iconFocal)
-            : iconUrl != null
-            ? AlwaysAnimatedImage(
-                child: Image(image: NetworkImage(iconUrl), fit: BoxFit.cover),
-              )
-            : ColoredBox(
-                color: color,
-                child: Center(
-                  child: Text(
-                    id[0].toUpperCase(),
-                    style: TextStyle(color: Colors.white, fontSize: fontSize),
-                  ),
-                ),
-              ),
       ),
     );
   }
