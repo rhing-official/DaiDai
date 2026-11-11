@@ -1206,6 +1206,7 @@ final Strings _stringsFr = Strings._(
   signInFailedTemplate: (error) => 'Échec de la connexion : $error',
   signInTagline: 'Mettre de l’ordre. Rester en sécurité. S’approprier.',
   signInWithGoogleButton: 'Se connecter avec Google',
+  signInWithAppleButton: 'Se connecter avec Apple',
   authGateErrorTemplate: (error) => 'Erreur : $error',
   rhingSeedSetupAppBarTitle: 'Définir votre Rhing Seed',
   rhingSeedSetupIntro: 'Choisissez votre propre Rhing Seed.',

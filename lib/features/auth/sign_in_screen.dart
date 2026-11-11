@@ -6,11 +6,13 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../l10n/strings.dart';
 import '../../providers/repository_providers.dart';
 import '../../repositories/auth_repository.dart';
+import '../../utils/apple_sign_in.dart';
 import '../../utils/fullwidth_digits_formatter.dart';
 import '../../utils/totp_clipboard_autofill.dart';
 import '../../utils/platform_info.dart';
 import '../../widgets/branded_block_button.dart';
 import '../../widgets/fixed_font_theme.dart';
+import '../../widgets/apple_sign_in_button.dart';
 import '../../widgets/google_sign_in_button.dart';
 import 'passkey_recovery_dialog.dart';
 import 'passkey_sign_in_dialog.dart';
@@ -347,10 +349,16 @@ class _SignInScreenState extends ConsumerState<SignInScreen>
         loading: _isSigningIn,
         onPressed: () => _signIn((repo) => repo.signInWithGoogle()),
       ),
-      // Appleでのログインは、Apple Developer Program（有料）側でのService ID/
-      // 秘密鍵の設定が済むまで実際には使えない為、その設定を行うまでUIから
-      // 非表示にしている。AuthRepository.signInWithApple()自体は実装済みなので、
-      // 設定が完了したらボタンを復活させるだけでよい。
+      // Appleでのログインは、Apple Developer側のService ID/キーの設定とFirebaseの
+      // Appleプロバイダの設定が済むまで実際には使えない為、`kAppleSignInEnabled`が
+      // falseの間は非表示にしている（`lib/utils/apple_sign_in.dart`参照）。
+      if (kAppleSignInEnabled) ...[
+        const SizedBox(height: 12),
+        AppleSignInButton(
+          loading: _isSigningIn,
+          onPressed: () => _signIn((repo) => repo.signInWithApple()),
+        ),
+      ],
       // Rhing Seed＋パスキー（WebAuthn）でのログイン・新規アカウント作成
       // （2026-09-16追加）。Linuxはパスキー非対応のため導線ごと出さない
       // （`isPasskeyCapablePlatform`参照、当面Google/Appleログインのみ）。

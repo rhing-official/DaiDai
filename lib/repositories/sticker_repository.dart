@@ -1,5 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:cloud_functions/cloud_functions.dart';
+import '../services/app_functions.dart';
 
 import '../models/sticker.dart';
 import '../models/sticker_role.dart';
@@ -42,16 +42,15 @@ abstract class StickerRepository {
 class FirestoreStickerRepository implements StickerRepository {
   FirestoreStickerRepository({
     FirebaseFirestore? firestore,
-    FirebaseFunctions? functions,
+    AppFunctions? functions,
   }) : _firestore = firestore ?? FirebaseFirestore.instance,
        // Cloud Functions（functions/src/index.ts）はasia-northeast1に
        // デプロイしている為、呼び出し側もリージョンを明示する。
        _functions =
-           functions ??
-           FirebaseFunctions.instanceFor(region: 'asia-northeast1');
+           functions ?? AppFunctions.instanceFor(region: 'asia-northeast1');
 
   final FirebaseFirestore _firestore;
-  final FirebaseFunctions _functions;
+  final AppFunctions _functions;
 
   CollectionReference<Map<String, dynamic>> get _stickerPacks =>
       _firestore.collection('stickerPacks');

@@ -5,12 +5,15 @@ import '../../l10n/app_locale.dart';
 import '../../l10n/country_data.dart';
 import '../../l10n/prefecture_data.dart';
 import '../../l10n/strings.dart';
+import '../../models/app_ui_style.dart';
 import '../../models/residence.dart';
+import '../../providers/app_ui_style_provider.dart';
 import '../../providers/app_locale_provider.dart';
 import '../../providers/repository_providers.dart';
 import '../../widgets/fixed_font_theme.dart';
 import '../../widgets/app_dropdown.dart';
 import '../../widgets/app_dialog.dart';
+import '../../widgets/glass/glass_dialog.dart';
 
 /// 居住地アンケート画面（2026-10-16追加）。新規登録直後、及びまだ回答していない
 /// 住人（既存住人・daidai横丁で先にアカウントだけ作った人の初回ログイン後）に、
@@ -284,41 +287,43 @@ class _CountryPickerDialogState extends ConsumerState<_CountryPickerDialog> {
             c.code.toLowerCase() == query)
           c,
     ];
-    return AlertDialog(
-      title: Text(strings.residenceSurveyCountryLabel),
-      content: SizedBox(
-        width: 360,
-        height: 440,
-        child: Column(
-          children: [
-            TextField(
-              autofocus: true,
-              decoration: InputDecoration(
-                hintText: strings.residenceSurveySearchHint,
-                prefixIcon: const Icon(Icons.search),
-                border: const OutlineInputBorder(),
-              ),
-              onChanged: (value) => setState(() => _query = value),
+    final isGlass = ref.watch(appUiStyleProvider) == AppUiStyle.glass;
+    final title = Text(strings.residenceSurveyCountryLabel);
+    final content = SizedBox(
+      width: 360,
+      height: 440,
+      child: Column(
+        children: [
+          TextField(
+            autofocus: true,
+            decoration: InputDecoration(
+              hintText: strings.residenceSurveySearchHint,
+              prefixIcon: const Icon(Icons.search),
+              border: const OutlineInputBorder(),
             ),
-            const SizedBox(height: 8),
-            Expanded(
-              child: filtered.isEmpty
-                  ? Center(child: Text(strings.residenceSurveyNoResults))
-                  : ListView.builder(
-                      itemCount: filtered.length,
-                      itemBuilder: (context, index) {
-                        final c = filtered[index];
-                        return ListTile(
-                          title: Text(c.nameOf(widget.locale)),
-                          onTap: () => Navigator.of(context).pop(c.code),
-                        );
-                      },
-                    ),
-            ),
-          ],
-        ),
+            onChanged: (value) => setState(() => _query = value),
+          ),
+          const SizedBox(height: 8),
+          Expanded(
+            child: filtered.isEmpty
+                ? Center(child: Text(strings.residenceSurveyNoResults))
+                : ListView.builder(
+                    itemCount: filtered.length,
+                    itemBuilder: (context, index) {
+                      final c = filtered[index];
+                      return ListTile(
+                        title: Text(c.nameOf(widget.locale)),
+                        onTap: () => Navigator.of(context).pop(c.code),
+                      );
+                    },
+                  ),
+          ),
+        ],
       ),
     );
+    return isGlass
+        ? GlassAlertDialog(title: title, content: content)
+        : AlertDialog(title: title, content: content);
   }
 }
 
@@ -350,49 +355,51 @@ class _PrefecturePickerDialogState
             p.en.toLowerCase().contains(query))
           p,
     ];
-    return AlertDialog(
-      title: Text(strings.residenceSurveyPrefectureLabel),
-      content: SizedBox(
-        width: 360,
-        height: 440,
-        child: Column(
-          children: [
-            TextField(
-              autofocus: true,
-              decoration: InputDecoration(
-                hintText: strings.residenceSurveySearchHint,
-                prefixIcon: const Icon(Icons.search),
-                border: const OutlineInputBorder(),
-              ),
-              onChanged: (value) => setState(() => _query = value),
+    final isGlass = ref.watch(appUiStyleProvider) == AppUiStyle.glass;
+    final title = Text(strings.residenceSurveyPrefectureLabel);
+    final content = SizedBox(
+      width: 360,
+      height: 440,
+      child: Column(
+        children: [
+          TextField(
+            autofocus: true,
+            decoration: InputDecoration(
+              hintText: strings.residenceSurveySearchHint,
+              prefixIcon: const Icon(Icons.search),
+              border: const OutlineInputBorder(),
             ),
-            const SizedBox(height: 8),
-            Expanded(
-              child: ListView(
-                children: [
-                  if (query.isEmpty)
-                    ListTile(
-                      title: Text(strings.residenceSurveyNotSelected),
-                      onTap: () => Navigator.of(context).pop(''),
+            onChanged: (value) => setState(() => _query = value),
+          ),
+          const SizedBox(height: 8),
+          Expanded(
+            child: ListView(
+              children: [
+                if (query.isEmpty)
+                  ListTile(
+                    title: Text(strings.residenceSurveyNotSelected),
+                    onTap: () => Navigator.of(context).pop(''),
+                  ),
+                for (final p in filtered)
+                  ListTile(
+                    title: Text(p.nameOf(widget.locale)),
+                    onTap: () => Navigator.of(context).pop(p.isoCode),
+                  ),
+                if (filtered.isEmpty)
+                  Padding(
+                    padding: const EdgeInsets.all(16),
+                    child: Center(
+                      child: Text(strings.residenceSurveyNoResults),
                     ),
-                  for (final p in filtered)
-                    ListTile(
-                      title: Text(p.nameOf(widget.locale)),
-                      onTap: () => Navigator.of(context).pop(p.isoCode),
-                    ),
-                  if (filtered.isEmpty)
-                    Padding(
-                      padding: const EdgeInsets.all(16),
-                      child: Center(
-                        child: Text(strings.residenceSurveyNoResults),
-                      ),
-                    ),
-                ],
-              ),
+                  ),
+              ],
             ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
+    return isGlass
+        ? GlassAlertDialog(title: title, content: content)
+        : AlertDialog(title: title, content: content);
   }
 }

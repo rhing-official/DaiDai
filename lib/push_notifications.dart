@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:io' show Platform;
 import 'dart:typed_data';
 
 import 'package:firebase_core/firebase_core.dart';
@@ -60,8 +61,13 @@ String _channelLabelFor(String presetId) => switch (presetId) {
 /// コールバックが唯一の検知経路になる（アプリ起動中・バックグラウンドで
 /// エンジンが生きている間のタップはこちらで拾える。完全終了状態からの
 /// 起動＝cold startは[consumeLaunchNotificationPayload]で別途扱う）。
+/// `flutter_local_notifications`の初期化がAndroid向けの設定だけで足りないWindows、および
+/// 通知機能の対象外のLinuxでは、通知まわりの処理を行わない（2026-11-12）。
+bool get _localNotificationsUnavailable =>
+    !kIsWeb && (Platform.isWindows || Platform.isLinux);
+
 Future<void> initializeLocalNotifications() async {
-  if (kIsWeb) return;
+  if (kIsWeb || _localNotificationsUnavailable) return;
   final android = _localNotifications
       .resolvePlatformSpecificImplementation<
         AndroidFlutterLocalNotificationsPlugin
@@ -83,7 +89,7 @@ Future<void> initializeLocalNotifications() async {
 /// 最初のフレーム描画後に呼び、[globalRouter]が確実に埋まった状態で
 /// [navigateFromNotificationPayload]へ渡す（2026-09-02追加）。
 Future<String?> consumeLaunchNotificationPayload() async {
-  if (kIsWeb) return null;
+  if (kIsWeb || _localNotificationsUnavailable) return null;
   final details = await _localNotifications.getNotificationAppLaunchDetails();
   if (details?.didNotificationLaunchApp != true) return null;
   return details?.notificationResponse?.payload;

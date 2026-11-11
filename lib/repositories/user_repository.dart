@@ -2,7 +2,7 @@ import 'dart:io' show Platform;
 import 'dart:typed_data';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:cloud_functions/cloud_functions.dart';
+import '../services/app_functions.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter_image_compress/flutter_image_compress.dart';
@@ -44,7 +44,7 @@ abstract class UserRepository {
   Future<bool> isRhingSeedAvailable(String rhingSeed);
 
   /// Rhing Seedを[newSeed]へ変更する（Cloud Functions `changeRhingSeed`、2026-11-07）。
-  /// 100日に1回まで。形式違反・使用中・予約中・間隔未満は[FirebaseFunctionsException]。
+  /// 100日に1回まで。形式違反・使用中・予約中・間隔未満は[AppFunctionsException]。
   Future<void> changeRhingSeed(String newSeed);
 
   /// 次にRhing Seedを変更できる日時。まだ一度も変更していない（今すぐ変更できる）
@@ -249,18 +249,17 @@ class FirestoreUserRepository implements UserRepository {
   FirestoreUserRepository({
     FirebaseFirestore? firestore,
     FirebaseStorage? storage,
-    FirebaseFunctions? functions,
+    AppFunctions? functions,
   }) : _firestore = firestore ?? FirebaseFirestore.instance,
        _storage = storage ?? FirebaseStorage.instance,
        // Cloud Functions（functions/src/index.ts）はasia-northeast1に
        // デプロイしている為、呼び出し側もリージョンを明示する。
        _functions =
-           functions ??
-           FirebaseFunctions.instanceFor(region: 'asia-northeast1');
+           functions ?? AppFunctions.instanceFor(region: 'asia-northeast1');
 
   final FirebaseFirestore _firestore;
   final FirebaseStorage _storage;
-  final FirebaseFunctions _functions;
+  final AppFunctions _functions;
 
   CollectionReference<Map<String, dynamic>> get _users =>
       _firestore.collection('users');

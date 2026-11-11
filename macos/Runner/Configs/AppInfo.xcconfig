@@ -8,7 +8,7 @@
 PRODUCT_NAME = daidai
 
 // The application's bundle identifier
-PRODUCT_BUNDLE_IDENTIFIER = jp.rhing.daidai.daidai
+PRODUCT_BUNDLE_IDENTIFIER = jp.rhing.daidai
 
 // The copyright displayed in application information
 PRODUCT_COPYRIGHT = Copyright © 2026 jp.rhing.daidai. All rights reserved.

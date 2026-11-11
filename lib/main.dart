@@ -1,10 +1,12 @@
 import 'dart:async' show unawaited;
+import 'dart:io' show Platform;
 
 import 'package:appflowy_editor/appflowy_editor.dart'
     show AppFlowyEditorLocalizations;
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
+import 'package:flutter/foundation.dart' show kDebugMode, kIsWeb;
 import 'package:flutter/material.dart';
 import 'widgets/back_debug_overlay.dart';
 import 'widgets/always_animated_image.dart';
@@ -70,6 +72,32 @@ import 'theme/glass/glass_theme.dart';
 
 Future<void> main() async {
   AlwaysAnimateBinding.ensureInitialized();
+  // 【一時的な診断・原因が分かったら削除する】2026-11-12: 新規登録の直後に出る
+  // 「ProviderSubscription.read on a subscription that was closed」の発生元の部品を
+  // 特定するため、このエラーに限り、部品の名前と呼び出しの順序（スタック）を
+  // 「[DIAG-CLOSED]」で始まる1件のログにして2回だけ出す。Flutterは通常、最初の1件しか
+  // 詳細を出さず、以降は1行の要約になるため。
+  var closedSubscriptionReports = 0;
+  final previousOnError = FlutterError.onError;
+  if (kDebugMode) {
+    FlutterError.onError = (details) {
+      if (closedSubscriptionReports < 2 &&
+          details.exceptionAsString().contains('ProviderSubscription.read')) {
+        closedSubscriptionReports++;
+        final info =
+            details.informationCollector
+                ?.call()
+                .map((node) => node.toStringDeep())
+                .join('\n') ??
+            '';
+        debugPrint(
+          '[DIAG-CLOSED #$closedSubscriptionReports] ${details.context?.toStringDeep()}\n'
+          '$info\n${details.stack}',
+        );
+      }
+      previousOnError?.call(details);
+    };
+  }
   // 劇画UIスタイルの見出しフォント（Anton）はGoogle CDNから実行時取得せず、
   // アプリに同梱したファイルのみを使う（プライバシーファースト方針に
   // 合わせ、外部通信を発生させない為）。
@@ -95,7 +123,10 @@ Future<void> main() async {
   // バックグラウンドハンドラの登録・ローカル通知チャンネルの初期化は
   // 認証状態に関わらず一度だけ行う（実際のトークン登録・権限リクエストは
   // ログイン後に`PushNotificationBootstrap`が行う）。
-  FirebaseMessaging.onBackgroundMessage(firebaseMessagingBackgroundHandler);
+  // Windows・Linuxには`firebase_messaging`の実装が無いため登録しない（2026-11-12）。
+  if (kIsWeb || !(Platform.isWindows || Platform.isLinux)) {
+    FirebaseMessaging.onBackgroundMessage(firebaseMessagingBackgroundHandler);
+  }
   await initializeLocalNotifications();
   final initialAccentColor = await loadInitialAccentColor();
   final initialAccentColorsByStyle = await loadInitialAccentColorsByStyle();
@@ -147,6 +178,7 @@ Future<void> main() async {
   }
   runApp(
     ProviderScope(
+      observers: [if (kDebugMode) _DiagFailObserver()],
       overrides: [
         initialAccentColorProvider.overrideWithValue(initialAccentColor),
         initialAccentColorsByStyleProvider.overrideWithValue(
@@ -387,5 +419,31 @@ class DaiDaiApp extends ConsumerWidget {
       ),
       routerConfig: ref.watch(goRouterProvider),
     );
+  }
+}
+
+/// 【一時的な診断・原因が分かったら削除する】失敗したプロバイダーの名前を
+/// 「[DIAG-FAIL]」で始まるログに出す（Firestoreの購読が権限エラーで失敗している
+/// プロバイダーを特定するため、2026-11-12）。同じプロバイダーは5回まで。
+base class _DiagFailObserver extends ProviderObserver {
+  final _counts = <String, int>{};
+
+  @override
+  void providerDidFail(
+    ProviderObserverContext context,
+    Object error,
+    StackTrace stackTrace,
+  ) {
+    final name =
+        '${context.provider.name ?? context.provider.runtimeType}'
+        '(${context.provider.argument ?? ''})';
+    final count = _counts[name] = (_counts[name] ?? 0) + 1;
+    if (count > 5) return;
+    final message = error.toString().split('\n').first;
+    // 最初の1回だけ、呼び出しの順序（スタック）の先頭30行も出す。
+    final stack = count == 1
+        ? '\n${stackTrace.toString().split('\n').take(30).join('\n')}'
+        : '';
+    debugPrint('[DIAG-FAIL] $name #$count: $message$stack');
   }
 }

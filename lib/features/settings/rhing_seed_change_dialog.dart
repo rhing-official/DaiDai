@@ -1,4 +1,4 @@
-import 'package:cloud_functions/cloud_functions.dart';
+import '../../services/app_functions.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
@@ -105,7 +105,7 @@ class _RhingSeedChangeDialogState extends ConsumerState<RhingSeedChangeDialog> {
       await ref.read(userRepositoryProvider).changeRhingSeed(seed);
       if (!mounted) return;
       Navigator.of(context).pop(true);
-    } on FirebaseFunctionsException catch (e) {
+    } on AppFunctionsException catch (e) {
       if (!mounted) return;
       if (e.code == 'already-exists') {
         setState(() => _errorMessage = strings.rhingSeedSetupTakenError);

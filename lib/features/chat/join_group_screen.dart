@@ -25,10 +25,17 @@ class JoinGroupScreen extends StatelessWidget {
   const JoinGroupScreen({
     required this.groupId,
     this.asDialog = false,
+    this.currentUser,
     super.key,
   });
 
   final String groupId;
+
+  /// ポップアップで開く側が既に持っているログイン中のユーザー。渡すと、ユーザー情報の
+  /// 購読（`watchedUserProvider`）が取れるまで待たずに、すぐ表示を始める（2026-11-12）。
+  /// 新規登録の直後に、購読が失敗してポップアップがぐるぐるのまま進まなくなった為。
+  /// 渡さない場合は、従来どおり購読を待つ。
+  final AppUser? currentUser;
 
   /// trueなら、画面ではなくポップアップとして描く（[InviteScreen.asDialog]と同じ）。
   final bool asDialog;
@@ -40,9 +47,9 @@ class JoinGroupScreen extends StatelessWidget {
       return Consumer(
         builder: (context, ref, _) {
           final uid = ref.watch(authStateProvider).value?.uid;
-          final user = uid == null
-              ? null
-              : ref.watch(watchedUserProvider(uid)).value;
+          final user =
+              currentUser ??
+              (uid == null ? null : ref.watch(watchedUserProvider(uid)).value);
           if (user == null) {
             return const Dialog(
               child: SizedBox(
@@ -288,7 +295,12 @@ class _JoinGroupViewState extends ConsumerState<_JoinGroupView> {
   Widget _buildBody(BuildContext context, Strings strings) {
     switch (_status) {
       case _JoinStatus.loading:
-        return const SizedBox.shrink();
+        return const Center(
+          child: Padding(
+            padding: EdgeInsets.symmetric(vertical: 24),
+            child: CircularProgressIndicator(),
+          ),
+        );
       case _JoinStatus.invalid:
         return _Message(
           text: strings.groupJoinInvalid,
@@ -385,7 +397,11 @@ class _JoinGroupViewState extends ConsumerState<_JoinGroupView> {
             ElevatedButton(
               onPressed: _isSending ? null : _requestToJoin,
               child: _isSending
-                  ? const SizedBox.shrink()
+                  ? const SizedBox(
+                      width: 18,
+                      height: 18,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
                   : Text(
                       preview.requiresApproval
                           ? strings.groupJoinRequestButton

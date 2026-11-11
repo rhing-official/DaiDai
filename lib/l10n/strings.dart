@@ -1008,6 +1008,7 @@ class Strings {
     required this.signInFailedTemplate,
     required this.signInTagline,
     required this.signInWithGoogleButton,
+    required this.signInWithAppleButton,
     required this.authGateErrorTemplate,
     required this.rhingSeedSetupAppBarTitle,
     required this.rhingSeedSetupIntro,
@@ -2463,6 +2464,7 @@ class Strings {
   final String Function(Object error) signInFailedTemplate;
   final String signInTagline;
   final String signInWithGoogleButton;
+  final String signInWithAppleButton;
   final String Function(Object error) authGateErrorTemplate;
   final String rhingSeedSetupAppBarTitle;
   final String rhingSeedSetupIntro;
@@ -3674,6 +3676,7 @@ class Strings {
     signInFailedTemplate: (error) => 'ログインに失敗しました: $error',
     signInTagline: '整う、守る、私に馴染む。',
     signInWithGoogleButton: 'Googleでログイン',
+    signInWithAppleButton: 'Appleでサインイン',
     authGateErrorTemplate: (error) => 'エラー: $error',
     rhingSeedSetupAppBarTitle: 'Rhing Seedを設定',
     rhingSeedSetupIntro: 'あなただけのRhing Seedを決めて下さい。',
@@ -5004,6 +5007,7 @@ class Strings {
     signInFailedTemplate: (error) => 'Sign-in failed: $error',
     signInTagline: 'Tidy up. Stay safe. Make it yours.',
     signInWithGoogleButton: 'Sign in with Google',
+    signInWithAppleButton: 'Sign in with Apple',
     authGateErrorTemplate: (error) => 'Error: $error',
     rhingSeedSetupAppBarTitle: 'Set your Rhing Seed',
     rhingSeedSetupIntro: 'Choose your own Rhing Seed.',

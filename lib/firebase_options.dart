@@ -27,10 +27,7 @@ class DefaultFirebaseOptions {
       case TargetPlatform.macOS:
         return macos;
       case TargetPlatform.windows:
-        throw UnsupportedError(
-          'DefaultFirebaseOptions have not been configured for windows - '
-          'you can reconfigure this by running the FlutterFire CLI again.',
-        );
+        return windows;
       case TargetPlatform.linux:
         throw UnsupportedError(
           'DefaultFirebaseOptions have not been configured for linux - '
@@ -51,6 +48,18 @@ class DefaultFirebaseOptions {
     authDomain: 'daidai-rhing.firebaseapp.com',
     storageBucket: 'daidai-rhing.firebasestorage.app',
     measurementId: 'G-QV66GTTWPT',
+  );
+
+  /// Windows用。FlutterFire CLIの方式に合わせ、Firebaseプロジェクトに「daidai (windows)」という
+  /// Web種別のアプリを作って、その設定を使う（2026-11-12）。
+  static const FirebaseOptions windows = FirebaseOptions(
+    apiKey: 'AIzaSyAuX1o4MrRfacN4sQ_TMYrMl7PZXydQni4',
+    appId: '1:380243513330:web:17adc169ed0e25c10e656b',
+    messagingSenderId: '380243513330',
+    projectId: 'daidai-rhing',
+    authDomain: 'daidai-rhing.firebaseapp.com',
+    storageBucket: 'daidai-rhing.firebasestorage.app',
+    measurementId: 'G-WLDXLKJYHJ',
   );
 
   static const FirebaseOptions android = FirebaseOptions(

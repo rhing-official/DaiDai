@@ -1,5 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:cloud_functions/cloud_functions.dart';
+import '../services/app_functions.dart';
 
 import '../models/bot.dart';
 
@@ -20,14 +20,13 @@ abstract class BotRepository {
 class FirestoreBotRepository implements BotRepository {
   FirestoreBotRepository({
     FirebaseFirestore? firestore,
-    FirebaseFunctions? functions,
+    AppFunctions? functions,
   }) : _firestore = firestore ?? FirebaseFirestore.instance,
        _functions =
-           functions ??
-           FirebaseFunctions.instanceFor(region: 'asia-northeast1');
+           functions ?? AppFunctions.instanceFor(region: 'asia-northeast1');
 
   final FirebaseFirestore _firestore;
-  final FirebaseFunctions _functions;
+  final AppFunctions _functions;
 
   @override
   Stream<List<Bot>> watchMyBots(String userId) {

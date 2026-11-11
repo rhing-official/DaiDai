@@ -3,7 +3,7 @@ import 'dart:io' show Platform;
 import 'dart:typed_data';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:cloud_functions/cloud_functions.dart';
+import '../services/app_functions.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter_image_compress/flutter_image_compress.dart';
@@ -80,16 +80,15 @@ List<Message> announcementMessagesNewestFirst(
 class FirestoreAnnouncementRepository implements AnnouncementRepository {
   FirestoreAnnouncementRepository({
     FirebaseFirestore? firestore,
-    FirebaseFunctions? functions,
+    AppFunctions? functions,
     FirebaseStorage? storage,
   }) : _firestore = firestore ?? FirebaseFirestore.instance,
        _functions =
-           functions ??
-           FirebaseFunctions.instanceFor(region: 'asia-northeast1'),
+           functions ?? AppFunctions.instanceFor(region: 'asia-northeast1'),
        _storage = storage ?? FirebaseStorage.instance;
 
   final FirebaseFirestore _firestore;
-  final FirebaseFunctions _functions;
+  final AppFunctions _functions;
   final FirebaseStorage _storage;
 
   DocumentReference<Map<String, dynamic>> get _officialDoc =>

@@ -1,5 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:cloud_functions/cloud_functions.dart';
+import '../services/app_functions.dart';
 
 import '../models/webhook.dart';
 
@@ -27,14 +27,13 @@ abstract class WebhookRepository {
 class FirestoreWebhookRepository implements WebhookRepository {
   FirestoreWebhookRepository({
     FirebaseFirestore? firestore,
-    FirebaseFunctions? functions,
+    AppFunctions? functions,
   }) : _firestore = firestore ?? FirebaseFirestore.instance,
        _functions =
-           functions ??
-           FirebaseFunctions.instanceFor(region: 'asia-northeast1');
+           functions ?? AppFunctions.instanceFor(region: 'asia-northeast1');
 
   final FirebaseFirestore _firestore;
-  final FirebaseFunctions _functions;
+  final AppFunctions _functions;
 
   @override
   Stream<List<Webhook>> watchWebhooks(String groupId) {

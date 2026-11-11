@@ -199,8 +199,11 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
     if (join != true || !mounted) return;
     await showAppDialog<void>(
       context: context,
-      builder: (_) =>
-          const JoinGroupScreen(groupId: kCommunityGroupId, asDialog: true),
+      builder: (_) => JoinGroupScreen(
+        groupId: kCommunityGroupId,
+        asDialog: true,
+        currentUser: widget.currentUser,
+      ),
     );
   }
 

@@ -2,7 +2,7 @@ import 'dart:io' show Platform;
 import 'dart:typed_data';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:cloud_functions/cloud_functions.dart';
+import '../services/app_functions.dart';
 import 'package:collection/collection.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:flutter/foundation.dart' show ValueChanged, kIsWeb;
@@ -546,16 +546,15 @@ class FirestoreGroupRepository implements GroupRepository {
   FirestoreGroupRepository({
     FirebaseFirestore? firestore,
     FirebaseStorage? storage,
-    FirebaseFunctions? functions,
+    AppFunctions? functions,
   }) : _firestore = firestore ?? FirebaseFirestore.instance,
        _storage = storage ?? FirebaseStorage.instance,
        _functions =
-           functions ??
-           FirebaseFunctions.instanceFor(region: 'asia-northeast1');
+           functions ?? AppFunctions.instanceFor(region: 'asia-northeast1');
 
   final FirebaseFirestore _firestore;
   final FirebaseStorage _storage;
-  final FirebaseFunctions _functions;
+  final AppFunctions _functions;
 
   CollectionReference<Map<String, dynamic>> get _groups =>
       _firestore.collection('groups');

@@ -82,6 +82,8 @@ class FirebaseMessagingPushNotificationRepository
 
   @override
   Stream<String> onTokenRefresh(String userId) {
+    // Windows・Linuxには`firebase_messaging`の実装が無い（2026-11-12）。
+    if (!_supportedPlatform) return const Stream<String>.empty();
     return _messaging.onTokenRefresh.asyncMap((token) async {
       await _addToken(
         userId,

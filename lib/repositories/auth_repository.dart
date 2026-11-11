@@ -1,7 +1,7 @@
 import 'dart:convert';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:cloud_functions/cloud_functions.dart';
+import '../services/app_functions.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:google_sign_in/google_sign_in.dart';
@@ -206,20 +206,19 @@ class FirebaseAuthRepository implements AuthRepository {
     FirebaseAuth? auth,
     GoogleSignIn? googleSignIn,
     FirebaseFirestore? firestore,
-    FirebaseFunctions? functions,
+    AppFunctions? functions,
   }) : _auth = auth ?? FirebaseAuth.instance,
        _googleSignIn = googleSignIn ?? GoogleSignIn.instance,
        _firestore = firestore ?? FirebaseFirestore.instance,
        // Cloud Functions（functions/src/index.ts）はasia-northeast1に
        // デプロイしている為、呼び出し側もリージョンを明示する。
        _functions =
-           functions ??
-           FirebaseFunctions.instanceFor(region: 'asia-northeast1');
+           functions ?? AppFunctions.instanceFor(region: 'asia-northeast1');
 
   final FirebaseAuth _auth;
   final GoogleSignIn _googleSignIn;
   final FirebaseFirestore _firestore;
-  final FirebaseFunctions _functions;
+  final AppFunctions _functions;
 
   @override
   Stream<User?> authStateChanges() => _auth.authStateChanges();
@@ -258,12 +257,10 @@ class FirebaseAuthRepository implements AuthRepository {
 
   @override
   Future<User> signInWithApple() async {
-    // Appleは"email"/"name"スコープをリクエストしないとユーザーの氏名・メールアドレスを
-    // 取得出来ない（Googleと違い初回サインイン時のみクライアントに返る）。
-    // 但しDaiDaiはメールアドレスを収集しない方針の為、認証用途のみに使い保存しない。
-    final provider = OAuthProvider('apple.com')
-      ..addScope('email')
-      ..addScope('name');
+    // DaiDaiはメールアドレスを収集しない方針の為、Appleには"email"/"name"スコープを
+    // リクエストしない（2026-11-12）。Appleは氏名・メールアドレスを返さず、
+    // Firebase Authenticationにもメールが保存されない（`user.email`はnull）。
+    final provider = OAuthProvider('apple.com');
 
     // WebはFirebase Auth JS SDKのポップアップフローに任せる（Googleと同じ理由）。
     // Web以外（Android/Windows/Linux）はsignInWithProviderの汎用OAuthフローを使う。
@@ -334,9 +331,7 @@ class FirebaseAuthRepository implements AuthRepository {
         : GoogleAuthProvider.PROVIDER_ID;
 
     if (providerId == 'apple.com') {
-      final provider = OAuthProvider('apple.com')
-        ..addScope('email')
-        ..addScope('name');
+      final provider = OAuthProvider('apple.com');
       if (kIsWeb) {
         await user.reauthenticateWithPopup(provider);
       } else {
@@ -436,7 +431,7 @@ class FirebaseAuthRepository implements AuthRepository {
     return user;
   }
 
-  /// Cloud Functionsの`HttpsCallableResult.data`は（特にWeb版で）ネストした
+  /// Cloud Functionsの`AppCallableResult.data`は（特にWeb版で）ネストした
   /// マップが`Map<Object?, Object?>`として返ってくることがあり、そのままでは
   /// `Map<String, dynamic>`にキャスト出来ない。JSONを経由して往復させることで
   /// 純粋な`Map<String, dynamic>`/`List<dynamic>`構造に正規化する

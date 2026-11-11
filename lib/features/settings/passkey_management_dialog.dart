@@ -1,4 +1,4 @@
-import 'package:cloud_functions/cloud_functions.dart';
+import '../../services/app_functions.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -143,14 +143,14 @@ class _PasskeyManagementDialogState
 
   /// 例外の種類毎のコード名を[message]の末尾に付記する。ブラウザ層
   /// （`PasskeyAuthenticator().register()`、Web実装は`PlatformException`を
-  /// 投げる）由来かCloud Functions層（`FirebaseFunctionsException`）由来かで
+  /// 投げる）由来かCloud Functions層（`AppFunctionsException`）由来かで
   /// 原因が大きく異なる為、固定文言だけでは調査に手がかりが無かった
   /// （2026-09-18追加。本番でRP ID設定がlocalhost固定のままパスキー追加が
   /// 常に失敗していた不具合の調査で必要性が判明した）。
   String _withErrorCode(String message, Object error) {
     final code = switch (error) {
       PlatformException(:final code) => code,
-      FirebaseFunctionsException(:final code) => code,
+      AppFunctionsException(:final code) => code,
       _ => null,
     };
     return code == null ? message : '$message ($code)';

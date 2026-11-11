@@ -1,4 +1,4 @@
-import 'package:cloud_functions/cloud_functions.dart';
+import '../services/app_functions.dart';
 
 /// 通話の中継（TURN）サーバーの認証情報を取得する（2026-10-21追加）。
 /// 別回線同士など、直接つながれない通話の中継に使う。認証情報は短時間だけ有効で、
@@ -11,11 +11,11 @@ abstract class TurnCredentialsRepository {
 }
 
 class FirebaseTurnCredentialsRepository implements TurnCredentialsRepository {
-  FirebaseTurnCredentialsRepository({FirebaseFunctions? functions})
+  FirebaseTurnCredentialsRepository({AppFunctions? functions})
     : _functions =
-          functions ?? FirebaseFunctions.instanceFor(region: 'asia-northeast1');
+          functions ?? AppFunctions.instanceFor(region: 'asia-northeast1');
 
-  final FirebaseFunctions _functions;
+  final AppFunctions _functions;
 
   @override
   Future<List<Map<String, dynamic>>> fetchIceServers() async {

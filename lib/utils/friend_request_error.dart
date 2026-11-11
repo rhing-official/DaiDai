@@ -1,4 +1,4 @@
-import 'package:cloud_functions/cloud_functions.dart';
+import '../services/app_functions.dart';
 
 import '../l10n/strings.dart';
 
@@ -8,8 +8,7 @@ import '../l10n/strings.dart';
 /// 該当すると`resource-exhausted`で拒否する為、その場合だけ専用の文言に
 /// 差し替える。それ以外の失敗は既存の汎用エラー表示のまま。
 String friendRequestErrorMessage(Object error, Strings strings) {
-  if (error is FirebaseFunctionsException &&
-      error.code == 'resource-exhausted') {
+  if (error is AppFunctionsException && error.code == 'resource-exhausted') {
     return strings.friendRequestRateLimited;
   }
   return strings.genericErrorTemplate(error);

@@ -1,4 +1,4 @@
-import 'package:cloud_functions/cloud_functions.dart';
+import '../services/app_functions.dart';
 
 import '../models/saved_account.dart';
 
@@ -44,11 +44,11 @@ abstract class SwitchSessionRepository {
 }
 
 class FirebaseSwitchSessionRepository implements SwitchSessionRepository {
-  FirebaseSwitchSessionRepository({FirebaseFunctions? functions})
+  FirebaseSwitchSessionRepository({AppFunctions? functions})
     : _functions =
-          functions ?? FirebaseFunctions.instanceFor(region: 'asia-northeast1');
+          functions ?? AppFunctions.instanceFor(region: 'asia-northeast1');
 
-  final FirebaseFunctions _functions;
+  final AppFunctions _functions;
 
   Future<Map<String, dynamic>> _call(
     String name,
@@ -57,7 +57,7 @@ class FirebaseSwitchSessionRepository implements SwitchSessionRepository {
     try {
       final result = await _functions.httpsCallable(name).call(data);
       return Map<String, dynamic>.from(result.data as Map);
-    } on FirebaseFunctionsException catch (error) {
+    } on AppFunctionsException catch (error) {
       throw SwitchAccountException(_failureFor(error.code), error.message);
     }
   }
@@ -86,9 +86,7 @@ class FirebaseSwitchSessionRepository implements SwitchSessionRepository {
     String? ticket,
     String rhingSeed = '',
   }) async {
-    final data = await _call('createSwitchSession', {
-      'ticket': ?ticket,
-    });
+    final data = await _call('createSwitchSession', {'ticket': ?ticket});
     return SavedAccount(
       uid: data['uid'] as String,
       sessionId: data['sessionId'] as String,

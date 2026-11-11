@@ -1,4 +1,4 @@
-import 'package:cloud_functions/cloud_functions.dart';
+import '../../services/app_functions.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -149,7 +149,7 @@ class _PasskeyRecoveryDialogState extends ConsumerState<PasskeyRecoveryDialog> {
   }
 
   String _errorMessageFor(Object error, Strings strings) {
-    if (error is FirebaseFunctionsException) {
+    if (error is AppFunctionsException) {
       switch (error.code) {
         case 'not-found':
           return strings.passkeyRecoveryErrorNotFound;

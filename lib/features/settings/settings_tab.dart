@@ -10,7 +10,7 @@ import 'package:flutter/foundation.dart'
     show kIsWeb, LicenseEntry, LicenseParagraph, LicenseRegistry;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:cloud_functions/cloud_functions.dart';
+import '../../services/app_functions.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../providers/holiday_settings_provider.dart';
 import '../../providers/calendar_week_start_provider.dart';
@@ -1651,9 +1651,10 @@ class _SupportPage extends ConsumerWidget {
             label: strings.settingsCommunity,
             onTap: () => showAppDialog<void>(
               context: context,
-              builder: (_) => const JoinGroupScreen(
+              builder: (_) => JoinGroupScreen(
                 groupId: kCommunityGroupId,
                 asDialog: true,
+                currentUser: currentUser,
               ),
             ),
           ),
@@ -2206,8 +2207,7 @@ class _KiwamiRow extends ConsumerWidget {
             // 契約が無い（手動付与など）時だけ「見つからない」と案内し、
             // それ以外（Stripe側の設定・鍵の不備等）は別の文言にする。
             final notFound =
-                error is FirebaseFunctionsException &&
-                error.code == 'not-found';
+                error is AppFunctionsException && error.code == 'not-found';
             if (overlay != null) {
               showAutoDismissBannerIn(
                 overlay,
