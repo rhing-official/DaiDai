@@ -120,29 +120,37 @@ dev_dependencies:
   flutter_native_splash: ^2.4.8
 
 # アプリアイコン生成設定（flutter_launcher_icons）。
-# assets/branding/app_icon_source.png に最終的な素材（橙の皮を剥くモチーフ）を
-# 配置してから `dart run flutter_launcher_icons` を実行するとアイコンが生成される。
-# 素材未確定のため2026-08-17時点ではまだ配置していない。
+# 2026-11-12に素材を確定して各プラットフォームへ組み込み済み（橙に桜柄の封筒が紐で
+# ぶら下がる絵、背景は白、橙は#EE7800）。iOS・macOS・Android・Web・Windowsのアイコンは
+# `/home/arata/Rhing/ロゴ/DaiDai/`の書き出しをそのままコピーしてあり、`dart run
+# flutter_launcher_icons`を再実行すると同じ元画像から作り直す（macOSは未対応のため
+# 対象外で、白い角丸タイル＋周囲透過の書き出し版を手動でコピーしてある）。
+#   app_icon_source.png     : 完成版（白背景・橙は幅約70%、iOS/Web/Windows用）
+#   app_icon_foreground.png : Androidアダプティブの前景（透過、橙は元の大きさ）
+#   app_icon_monochrome.png : Android 13のテーマアイコン用（透過の単色）
 flutter_launcher_icons:
   image_path: "assets/branding/app_icon_source.png"
   android: true
   ios: true
+  adaptive_icon_background: "#FFFFFF"
+  adaptive_icon_foreground: "assets/branding/app_icon_foreground.png"
+  adaptive_icon_monochrome: "assets/branding/app_icon_monochrome.png"
   web:
     generate: true
   windows:
     generate: true
 
 # 起動スプラッシュ画面生成設定（flutter_native_splash）。
-# 上記と同じ素材を配置してから `dart run flutter_native_splash:create` を実行すると
+# 上記の透過の前景（app_icon_foreground.png）を使う。`dart run flutter_native_splash:create` を実行すると
 # Android/iOS/Webの起動画面が生成される。アクセントカラーは既定のアクセント
 # カラー（lib/providers/accent_color_provider.dart）ではなくブランドカラー
 # #EE7800 を背景に敷く。
 flutter_native_splash:
   color: "#FFF8F0"
-  image: "assets/branding/app_icon_source.png"
+  image: "assets/branding/app_icon_foreground.png"
   android_12:
     color: "#FFF8F0"
-    image: "assets/branding/app_icon_source.png"
+    image: "assets/branding/app_icon_foreground.png"
   web: true
 
 # For information on the generic Dart part of this file, see the
