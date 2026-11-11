@@ -219,6 +219,14 @@ service cloud.firestore {
         allow read, write: if false;
       }
 
+      // users/{userId}/switchSessions/{sessionId}: 複数アカウントの切り替え用の合言葉の
+      // ハッシュと、許可した極みのアカウント（2026-11-11）。発行・検証・失効は全て
+      // Cloud Functions（createSwitchSession/redeemSwitchSession/revokeSwitchSession、
+      // Admin SDK）で行い、クライアントからは読み書きとも一切禁止する。
+      match /switchSessions/{sessionId} {
+        allow read, write: if false;
+      }
+
       // users/{userId}/follows/{creatorId}: daidai横丁でフォローしている
       // クリエイターの一覧（存在＝フォロー中、2026-08-13追加）。集計値
       // （フォロワー数等）は持たないシンプルな設計のため、Cloud Functions
@@ -1651,6 +1659,13 @@ service cloud.firestore {
     // beginPasskeyAuthentication/finishPasskeyAuthentication、いずれも
     // Admin SDK経由）。
     match /passkeyChallenges/{challengeId} {
+      allow read, write: if false;
+    }
+
+    // switchTickets/{ticketHash}: 複数アカウントの追加チケット（2026-11-11、10分・1回限り）。
+    // ドキュメントIDはチケットのハッシュ。createSwitchTicket/createSwitchSession
+    // （Admin SDK）だけが読み書きし、クライアントからは一切許可しない。
+    match /switchTickets/{ticketHash} {
       allow read, write: if false;
     }
 

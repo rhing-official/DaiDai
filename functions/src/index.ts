@@ -36,6 +36,17 @@ import ffmpeg from "fluent-ffmpeg";
 import { path as ffmpegPath } from "@ffmpeg-installer/ffmpeg";
 import Stripe from "stripe";
 import { parseKiwamiReference } from "./kiwamiReference";
+import {
+  SWITCH_MAX_SESSIONS_PER_USER,
+  SWITCH_SESSION_TTL_MS,
+  SWITCH_TICKET_TTL_MS,
+  decideSessionOwner,
+  evaluateRedeem,
+  generateSecret,
+  hashSecret,
+  isKiwamiPlan,
+  verifySecret,
+} from "./switchSession";
 import { aliasExpiresAtMs, evaluateSeedChange } from "./rhingSeedChange";
 import {
   kMaxPlaybackSourceSeconds,
@@ -410,6 +421,11 @@ async function deleteAccount(
     db.collection("users").doc(userId).collection("private"),
     writer,
   );
+  // 複数アカウントの切り替え用の合言葉（2026-11-11）も残さない。
+  await deleteSubcollection(
+    db.collection("users").doc(userId).collection("switchSessions"),
+    writer,
+  );
   await writer.delete(db.collection("users").doc(userId));
   await writer.commit();
 
@@ -651,6 +667,230 @@ export const claimQrLoginSession = onCall(
       return getAuth().createCustomToken(data.approvedUid as string);
     });
     return { customToken };
+  },
+);
+
+/**
+ * 複数アカウントの切り替え（2026-11-11、極みの特典）。端末に保存した「切り替え用の合言葉」を
+ * サーバーが検証してカスタムトークンを発行する。判定は`switchSession.ts`（純関数）。
+ * 設計は`文書/複数アカウント.md`。保存先は`users/{uid}/switchSessions/{sessionId}`と
+ * `switchTickets/{ticketHash}`（どちらもクライアントから読み書き不可、Admin SDKのみ）。
+ */
+
+/** 別のアカウントを追加するための、10分・1回限りのチケット（極みのアカウントだけが発行できる）。 */
+export const createSwitchTicket = onCall(
+  { region: "asia-northeast1" },
+  async (request) => {
+    const uid = request.auth?.uid;
+    if (!uid) throw new HttpsError("unauthenticated", "ログインが必要です");
+    const userSnap = await db.collection("users").doc(uid).get();
+    if (!isKiwamiPlan(userSnap.data())) {
+      throw new HttpsError(
+        "failed-precondition",
+        "アカウントを追加するには、極みの契約が必要です",
+      );
+    }
+    const ticket = generateSecret();
+    const nowMs = Date.now();
+    const expiresAtMs = nowMs + SWITCH_TICKET_TTL_MS;
+    await db.collection("switchTickets").doc(hashSecret(ticket)).set({
+      ownerUid: uid,
+      createdAtMs: nowMs,
+      expiresAtMs,
+    });
+    return { ticket, expiresAtMs };
+  },
+);
+
+/**
+ * 今ログインしているアカウントの、切り替え用の合言葉を作る。極みのアカウントは自分で作れ、
+ * それ以外は[ticket]（極みのアカウントが発行）が要る。合言葉は一度だけ返し、サーバーには
+ * ハッシュだけを保存する。
+ */
+export const createSwitchSession = onCall(
+  { region: "asia-northeast1" },
+  async (request) => {
+    const uid = request.auth?.uid;
+    if (!uid) throw new HttpsError("unauthenticated", "ログインが必要です");
+    const ticket = request.data?.ticket;
+    const userRef = db.collection("users").doc(uid);
+    const sessionsRef = userRef.collection("switchSessions");
+    const sessionRef = sessionsRef.doc(randomUUID());
+    const secret = generateSecret();
+    const nowMs = Date.now();
+
+    await db.runTransaction(async (tx) => {
+      const userSnap = await tx.get(userRef);
+      const callerIsKiwami = isKiwamiPlan(userSnap.data());
+
+      let ticketRef: FirebaseFirestore.DocumentReference | undefined;
+      let ticketData: FirebaseFirestore.DocumentData | undefined;
+      let ticketOwnerIsKiwami = false;
+      if (!callerIsKiwami && typeof ticket === "string" && ticket.length > 0) {
+        ticketRef = db.collection("switchTickets").doc(hashSecret(ticket));
+        ticketData = (await tx.get(ticketRef)).data();
+        if (ticketData && typeof ticketData.ownerUid === "string") {
+          const ownerSnap = await tx.get(
+            db.collection("users").doc(ticketData.ownerUid),
+          );
+          ticketOwnerIsKiwami = isKiwamiPlan(ownerSnap.data());
+        }
+      }
+
+      const decision = decideSessionOwner({
+        callerUid: uid,
+        callerIsKiwami,
+        ticket: ticketData,
+        ticketOwnerIsKiwami,
+        nowMs,
+      });
+      if (!decision.ok) {
+        throw new HttpsError(
+          decision.code as "failed-precondition",
+          decision.message,
+        );
+      }
+
+      // 失効・期限切れのセッションは掃除し、残りが上限に達していれば作らせない。
+      const existing = await tx.get(sessionsRef.limit(SWITCH_MAX_SESSIONS_PER_USER + 1));
+      let active = 0;
+      for (const doc of existing.docs) {
+        const data = doc.data();
+        const alive =
+          data.revoked !== true &&
+          typeof data.expiresAtMs === "number" &&
+          data.expiresAtMs >= nowMs;
+        if (alive) {
+          active++;
+        } else {
+          tx.delete(doc.ref);
+        }
+      }
+      if (active >= SWITCH_MAX_SESSIONS_PER_USER) {
+        throw new HttpsError(
+          "resource-exhausted",
+          "保存できるアカウントの数が上限に達しています",
+        );
+      }
+
+      // 使ったチケットは消す（1回限り）。
+      if (ticketRef && !callerIsKiwami) tx.delete(ticketRef);
+      tx.set(sessionRef, {
+        secretHash: hashSecret(secret),
+        kiwamiOwnerUid: decision.kiwamiOwnerUid,
+        createdAtMs: nowMs,
+        lastUsedAt: FieldValue.serverTimestamp(),
+        expiresAtMs: nowMs + SWITCH_SESSION_TTL_MS,
+        failures: 0,
+        revoked: false,
+      });
+    });
+
+    return { uid, sessionId: sessionRef.id, secret };
+  },
+);
+
+/**
+ * 保存した合言葉で、そのアカウントへ切り替える（未ログインでも呼べる）。成功すると
+ * カスタムトークンを返す。極みの契約が切れていれば（所有者も本人も極みでなければ）
+ * 「切り替えだけ止める」。合言葉は使っても変わらず、期限だけが延びる（複数のタブで
+ * 同時に使っても壊れないように、更新はしない）。
+ */
+export const redeemSwitchSession = onCall(
+  { region: "asia-northeast1" },
+  async (request) => {
+    const { uid, sessionId, secret } = request.data ?? {};
+    if (
+      typeof uid !== "string" ||
+      typeof sessionId !== "string" ||
+      typeof secret !== "string" ||
+      !uid ||
+      !sessionId ||
+      !secret
+    ) {
+      throw new HttpsError("invalid-argument", "uid・sessionId・secretが必要です");
+    }
+    const userRef = db.collection("users").doc(uid);
+    const sessionRef = userRef.collection("switchSessions").doc(sessionId);
+    const nowMs = Date.now();
+
+    // 失敗の回数は、拒否する時も書き込む必要があるため、例外は取引の外で投げる。
+    const outcome = await db.runTransaction(async (tx) => {
+      const session = (await tx.get(sessionRef)).data();
+      const userData = (await tx.get(userRef)).data();
+      const ownerUid = session?.kiwamiOwnerUid;
+      let ownerData: FirebaseFirestore.DocumentData | undefined;
+      if (typeof ownerUid === "string") {
+        ownerData =
+          ownerUid === uid
+            ? userData
+            : (await tx.get(db.collection("users").doc(ownerUid))).data();
+      }
+      const result = evaluateRedeem({
+        session,
+        secret,
+        nowMs,
+        targetUser: userData,
+        ownerUser: ownerData,
+      });
+      if (result.kind === "ok") {
+        tx.update(sessionRef, {
+          lastUsedAt: FieldValue.serverTimestamp(),
+          expiresAtMs: nowMs + SWITCH_SESSION_TTL_MS,
+          failures: 0,
+        });
+      } else if (result.kind === "badSecret") {
+        tx.update(sessionRef, {
+          failures: FieldValue.increment(1),
+          ...(result.revoke ? { revoked: true } : {}),
+        });
+      }
+      return result;
+    });
+
+    if (outcome.kind === "deny") {
+      throw new HttpsError(outcome.code as "permission-denied", outcome.message);
+    }
+    if (outcome.kind === "badSecret") {
+      throw new HttpsError(
+        "permission-denied",
+        "切り替えできません。もう一度ログインしてください",
+      );
+    }
+    return { customToken: await getAuth().createCustomToken(uid) };
+  },
+);
+
+/**
+ * 保存したアカウントを取り外す（ログアウト・取り外し）。合言葉で本人の端末だと確かめて、
+ * セッションを消す。別のアカウントにログインしている時でも呼べるよう、ログインは要らない。
+ */
+export const revokeSwitchSession = onCall(
+  { region: "asia-northeast1" },
+  async (request) => {
+    const { uid, sessionId, secret } = request.data ?? {};
+    if (
+      typeof uid !== "string" ||
+      typeof sessionId !== "string" ||
+      typeof secret !== "string" ||
+      !uid ||
+      !sessionId ||
+      !secret
+    ) {
+      throw new HttpsError("invalid-argument", "uid・sessionId・secretが必要です");
+    }
+    const ref = db
+      .collection("users")
+      .doc(uid)
+      .collection("switchSessions")
+      .doc(sessionId);
+    const snap = await ref.get();
+    if (!snap.exists) return { ok: true }; // 既に無ければ、取り外せたものとして扱う。
+    if (!verifySecret(secret, snap.data()?.secretHash)) {
+      throw new HttpsError("permission-denied", "取り外せません");
+    }
+    await ref.delete();
+    return { ok: true };
   },
 );
 

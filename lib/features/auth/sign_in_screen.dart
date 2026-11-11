@@ -15,6 +15,7 @@ import 'passkey_recovery_dialog.dart';
 import 'passkey_sign_in_dialog.dart';
 import 'qr_login_dialog.dart';
 import 'qr_login_panel.dart';
+import 'saved_accounts_sign_in.dart';
 import 'scan_qr_login_dialog.dart';
 
 class SignInScreen extends ConsumerStatefulWidget {
@@ -259,6 +260,7 @@ class _SignInScreenState extends ConsumerState<SignInScreen>
       const SizedBox(height: 8),
       Text(strings.signInTagline),
       const SizedBox(height: 32),
+      const SavedAccountsSignIn(),
       if (_errorMessage != null) ...[
         Text(_errorMessage!, style: const TextStyle(color: Colors.red)),
         const SizedBox(height: 16),

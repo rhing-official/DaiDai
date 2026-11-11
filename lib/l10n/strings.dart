@@ -1095,6 +1095,26 @@ class Strings {
     required this.workshopRhingSeedFieldShortLabel,
     required this.settingsSeedSearchableTitle,
     required this.settingsSeedSearchableDescription,
+    required this.switchAccountsSection,
+    required this.switchAccountsAdd,
+    required this.switchAccountsAddHint,
+    required this.switchAccountsCurrent,
+    required this.switchAccountsRemove,
+    required this.switchAccountsRemoveTitle,
+    required this.switchAccountsRemoveBody,
+    required this.switchAccountsTrustTitle,
+    required this.switchAccountsTrustBody,
+    required this.switchAccountsTrustConfirm,
+    required this.switchAccountsLimit,
+    required this.switchAccountsKiwamiBody,
+    required this.switchAccountsKiwamiLapsed,
+    required this.switchAccountsReloginNeeded,
+    required this.switchAccountsFailed,
+    required this.switchAccountsAdded,
+    required this.switchAccountsAddFailed,
+    required this.switchAccountsAddingBanner,
+    required this.switchAccountsSavedTitle,
+    required this.switchAccountsCancelAdd,
     required this.workshopBirthdayNotRegisteredHint,
     required this.workshopFontLabel,
     required this.workshopFontShortLabel,
@@ -2531,6 +2551,26 @@ class Strings {
   final String workshopRhingSeedFieldShortLabel;
   final String settingsSeedSearchableTitle;
   final String settingsSeedSearchableDescription;
+  final String switchAccountsSection;
+  final String switchAccountsAdd;
+  final String switchAccountsAddHint;
+  final String switchAccountsCurrent;
+  final String switchAccountsRemove;
+  final String switchAccountsRemoveTitle;
+  final String switchAccountsRemoveBody;
+  final String switchAccountsTrustTitle;
+  final String switchAccountsTrustBody;
+  final String switchAccountsTrustConfirm;
+  final String switchAccountsLimit;
+  final String switchAccountsKiwamiBody;
+  final String switchAccountsKiwamiLapsed;
+  final String switchAccountsReloginNeeded;
+  final String switchAccountsFailed;
+  final String switchAccountsAdded;
+  final String switchAccountsAddFailed;
+  final String switchAccountsAddingBanner;
+  final String switchAccountsSavedTitle;
+  final String switchAccountsCancelAdd;
   final String workshopBirthdayNotRegisteredHint;
 
   final String workshopFontLabel;
@@ -3718,6 +3758,27 @@ class Strings {
     workshopFontShortLabel: 'デザイン',
     workshopFontColorLabel: 'フォントカラー',
     workshopFontColorShortLabel: 'カラー',
+    switchAccountsSection: 'アカウントの切り替え',
+    switchAccountsAdd: 'アカウントを追加',
+    switchAccountsAddHint: '別のアカウントを保存して、ワンタップで切り替えられます。最大3つまで。極みの機能です。',
+    switchAccountsCurrent: '使用中',
+    switchAccountsRemove: '取り外す',
+    switchAccountsRemoveTitle: 'このアカウントを取り外しますか？',
+    switchAccountsRemoveBody:
+        'この端末に保存した切り替えの情報を消します。アカウント自体は消えません。もう一度使うには、ログインして追加し直してください。',
+    switchAccountsTrustTitle: 'この端末にアカウントを保存しますか？',
+    switchAccountsTrustBody: '保存すると、この端末でワンタップで切り替えられます。共有の端末では、保存しないでください。',
+    switchAccountsTrustConfirm: '保存して追加',
+    switchAccountsLimit: '保存できるアカウントは3つまでです。',
+    switchAccountsKiwamiBody: 'アカウントの追加は、極みの機能です。',
+    switchAccountsKiwamiLapsed: '極みの契約が切れているため、アカウントを切り替えられません。',
+    switchAccountsReloginNeeded: '切り替えられませんでした。このアカウントでもう一度ログインしてください。',
+    switchAccountsFailed: 'アカウントを切り替えられませんでした。',
+    switchAccountsAdded: 'アカウントを追加しました。',
+    switchAccountsAddFailed: 'アカウントを追加できませんでした。',
+    switchAccountsAddingBanner: '追加するアカウントでログインしてください。',
+    switchAccountsSavedTitle: '保存したアカウントで続ける',
+    switchAccountsCancelAdd: '追加をやめる',
   );
 
   static final enGB = Strings._(
@@ -5028,6 +5089,31 @@ class Strings {
     workshopFontShortLabel: 'Design',
     workshopFontColorLabel: 'Font colour',
     workshopFontColorShortLabel: 'Colour',
+    switchAccountsSection: 'Switch account',
+    switchAccountsAdd: 'Add an account',
+    switchAccountsAddHint:
+        'Save another account and switch with one tap. Up to 3 accounts. A Premium feature.',
+    switchAccountsCurrent: 'In use',
+    switchAccountsRemove: 'Remove',
+    switchAccountsRemoveTitle: 'Remove this account?',
+    switchAccountsRemoveBody:
+        'This clears the saved sign-in on this device. The account itself is not deleted. To use it again, sign in and add it again.',
+    switchAccountsTrustTitle: 'Save accounts on this device?',
+    switchAccountsTrustBody:
+        'Saved accounts can be switched with one tap on this device. Do not save them on a shared device.',
+    switchAccountsTrustConfirm: 'Save and add',
+    switchAccountsLimit: 'You can save up to 3 accounts.',
+    switchAccountsKiwamiBody: 'Adding accounts is a Premium feature.',
+    switchAccountsKiwamiLapsed:
+        'Your Premium plan has ended, so you can\'t switch accounts.',
+    switchAccountsReloginNeeded:
+        'Couldn\'t switch. Please sign in to this account again.',
+    switchAccountsFailed: 'Couldn\'t switch account.',
+    switchAccountsAdded: 'Account added.',
+    switchAccountsAddFailed: 'Couldn\'t add the account.',
+    switchAccountsAddingBanner: 'Sign in to the account you want to add.',
+    switchAccountsSavedTitle: 'Continue with a saved account',
+    switchAccountsCancelAdd: 'Cancel adding',
   );
 
   /// `MaterialApp.locale`（[Localizations]）から対訳セットを引く。Riverpodを

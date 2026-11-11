@@ -1319,4 +1319,29 @@ final Strings _stringsFr = Strings._(
   workshopFontShortLabel: 'Design',
   workshopFontColorLabel: 'Couleur de police',
   workshopFontColorShortLabel: 'Couleur',
+  switchAccountsSection: 'Changer de compte',
+  switchAccountsAdd: 'Ajouter un compte',
+  switchAccountsAddHint:
+      'Enregistrez un autre compte et changez en un geste. 3 comptes au maximum. Fonction Premium.',
+  switchAccountsCurrent: 'Actuel',
+  switchAccountsRemove: 'Retirer',
+  switchAccountsRemoveTitle: 'Retirer ce compte ?',
+  switchAccountsRemoveBody:
+      'Cela efface la connexion enregistrée sur cet appareil. Le compte lui-même n\'est pas supprimé. Pour le réutiliser, reconnectez-vous et ajoutez-le de nouveau.',
+  switchAccountsTrustTitle: 'Enregistrer les comptes sur cet appareil ?',
+  switchAccountsTrustBody:
+      'Les comptes enregistrés se changent en un geste sur cet appareil. Ne les enregistrez pas sur un appareil partagé.',
+  switchAccountsTrustConfirm: 'Enregistrer et ajouter',
+  switchAccountsLimit: 'Vous pouvez enregistrer 3 comptes au maximum.',
+  switchAccountsKiwamiBody: 'L\'ajout de comptes est une fonction Premium.',
+  switchAccountsKiwamiLapsed:
+      'Votre abonnement Premium est terminé : vous ne pouvez plus changer de compte.',
+  switchAccountsReloginNeeded:
+      'Changement impossible. Reconnectez-vous à ce compte.',
+  switchAccountsFailed: 'Impossible de changer de compte.',
+  switchAccountsAdded: 'Compte ajouté.',
+  switchAccountsAddFailed: 'Impossible d\'ajouter le compte.',
+  switchAccountsAddingBanner: 'Connectez-vous au compte à ajouter.',
+  switchAccountsSavedTitle: 'Continuer avec un compte enregistré',
+  switchAccountsCancelAdd: 'Annuler l\'ajout',
 );

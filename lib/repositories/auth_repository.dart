@@ -120,6 +120,10 @@ abstract class AuthRepository {
   /// 呼ぶ。Cloud Functionsから受け取ったカスタムトークンでサインインまで行う。
   Future<User> claimQrLoginSession(String sessionId);
 
+  /// サーバー（複数アカウントの切り替え、`redeemSwitchSession`）が発行した
+  /// カスタムトークンでサインインする（2026-11-11）。
+  Future<User> signInWithCustomToken(String customToken);
+
   /// Rhing Seed＋パスキー（WebAuthn）による新規アカウント作成（2026-09-16追加）。
   /// デバイスの生体認証/画面ロックで新しいパスキーを作成し、対応する
   /// Firebase Authユーザーを作成してサインインする。この時点ではまだ
@@ -406,6 +410,16 @@ class FirebaseAuthRepository implements AuthRepository {
       'sessionId': sessionId,
       'approve': approve,
     });
+  }
+
+  @override
+  Future<User> signInWithCustomToken(String customToken) async {
+    final userCredential = await _auth.signInWithCustomToken(customToken);
+    final user = userCredential.user;
+    if (user == null) {
+      throw StateError('アカウントの切り替えに失敗しました');
+    }
+    return user;
   }
 
   @override

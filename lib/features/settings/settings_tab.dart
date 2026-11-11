@@ -24,6 +24,8 @@ import 'package:url_launcher/url_launcher.dart';
 import '../../providers/kiwami_providers.dart';
 import '../../utils/kiwami.dart';
 import '../../widgets/kiwami_only_dialog.dart';
+import '../../providers/account_switcher_providers.dart';
+import 'account_switcher_section.dart';
 import '../../router/back_stack.dart';
 import '../../l10n/app_locale.dart';
 import '../../l10n/strings.dart';
@@ -2053,6 +2055,8 @@ class _AccountPage extends ConsumerWidget {
         _SeedSearchableRow(strings: strings, currentUser: currentUser),
         // 居住地（伝書鳩・安否確認用の自己申告、2026-10-16追加）。
         _ActionRow(label: strings.settingsResidence, onTap: onOpenResidence),
+        // 複数アカウントの切り替え（2026-11-11、極みの特典、当面はWebだけ）。
+        AccountSwitcherSection(strings: strings, currentUser: currentUser),
         const Divider(height: 24),
         _SectionHeader(strings.settingsSecurity),
         _TwoFactorRow(strings: strings, rhingSeed: currentUser.rhingSeed),
@@ -2114,6 +2118,8 @@ class _AccountPage extends ConsumerWidget {
             await ref
                 .read(pushNotificationRepositoryProvider)
                 .unregisterCurrentToken(currentUser.userId);
+            // ログアウトしたアカウントは、切り替えの保存からも外す（2026-11-11）。
+            await ref.read(accountSwitcherProvider).forget(currentUser.userId);
             await ref.read(authRepositoryProvider).signOut();
           },
         ),
