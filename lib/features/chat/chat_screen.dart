@@ -8806,7 +8806,7 @@ class _SenderAvatar extends ConsumerWidget {
           borderRadius: inner,
           child: ColoredBox(
             color: iconUrl != null
-                ? avatarBackdropColor(context)
+                ? avatarBackdropColor(context, iconFocal)
                 : Colors.transparent,
             child: iconUrl != null && iconFocal != null && !iconFocal.isDefault
                 ? FocalImage(url: iconUrl, focal: iconFocal)
@@ -8845,7 +8845,7 @@ class _SenderAvatar extends ConsumerWidget {
       child: ClipOval(
         child: ColoredBox(
           color: iconUrl != null
-              ? avatarBackdropColor(context)
+              ? avatarBackdropColor(context, iconFocal)
               : Colors.transparent,
           child: iconUrl != null && iconFocal != null && !iconFocal.isDefault
               ? FocalImage(url: iconUrl, focal: iconFocal)

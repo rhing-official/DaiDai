@@ -38,12 +38,14 @@ class CallParticipantAvatar extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final user = ref.watch(watchedUserProvider(userId)).value;
     final iconUrl = user?.effectiveIconFor(conversationId)?.url;
+    final iconFocal = user?.effectiveIconFocalFor(conversationId);
     final isGlass = ref.watch(appUiStyleProvider) == AppUiStyle.glass;
     final initial = rhingSeed.isNotEmpty ? rhingSeed[0].toUpperCase() : '?';
     final resolvedFontSize = fontSize ?? radius * 0.7;
     if (isGlass) {
       return GlassAvatar(
         size: radius * 2,
+        focal: iconFocal,
         image: iconUrl != null ? NetworkImage(iconUrl) : null,
         fallback: iconUrl != null
             ? null
@@ -59,7 +61,7 @@ class CallParticipantAvatar extends ConsumerWidget {
     if (iconUrl != null) {
       return CircleAvatar(
         radius: radius,
-        backgroundColor: avatarBackdropColor(context),
+        backgroundColor: avatarBackdropColor(context, iconFocal),
         backgroundImage: NetworkImage(iconUrl),
       );
     }

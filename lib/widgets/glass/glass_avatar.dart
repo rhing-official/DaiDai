@@ -40,7 +40,7 @@ class GlassAvatar extends StatelessWidget {
         child: ClipOval(
           child: ColoredBox(
             color: image != null
-                ? avatarBackdropColor(context)
+                ? avatarBackdropColor(context, focal)
                 : Colors.transparent,
             child: image is NetworkImage && focal != null && !focal!.isDefault
                 ? SizedBox(

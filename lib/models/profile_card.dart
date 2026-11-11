@@ -11,7 +11,7 @@ const kMaxWorkshopCardNameLength = 20;
 /// 〜[kMaxImageFocalScale]の拡大率。カード単位で持つ（同じ素材を複数のカードが
 /// 使える為、構図は素材ではなくカードの属性）。
 class ImageFocal {
-  const ImageFocal({this.dx = 0, this.dy = 0, this.scale = 1});
+  const ImageFocal({this.dx = 0, this.dy = 0, this.scale = 1, this.background});
 
   static const center = ImageFocal();
 
@@ -19,15 +19,29 @@ class ImageFocal {
   final double dy;
   final double scale;
 
-  bool get isDefault => dx == 0 && dy == 0 && scale == 1;
+  /// アイコン用の背景色（ARGBの整数、2026-11-12）。透過PNGの透過部分に敷く色で、
+  /// 持ち主が選ぶ。null（既定）は透明＝後ろの面の色がそのまま透ける。見る人の
+  /// 外観（ライト/ダーク）やアクセントカラーに左右されず、持ち主の指定どおりに見せる為、
+  /// 構図と同じ[ImageFocal]に持たせた（アイコンの表示箇所は全て構図を受け取っている）。
+  /// 背景画像側の[ImageFocal]では使わない。
+  final int? background;
 
-  ImageFocal copyWith({double? dx, double? dy, double? scale}) => ImageFocal(
+  bool get isDefault => dx == 0 && dy == 0 && scale == 1 && background == null;
+
+  ImageFocal copyWith({
+    double? dx,
+    double? dy,
+    double? scale,
+    int? background,
+    bool clearBackground = false,
+  }) => ImageFocal(
     dx: (dx ?? this.dx).clamp(-1.0, 1.0),
     dy: (dy ?? this.dy).clamp(-1.0, 1.0),
     scale: (scale ?? this.scale).clamp(1.0, kMaxImageFocalScale),
+    background: clearBackground ? null : (background ?? this.background),
   );
 
-  /// 欠損・不正な値は中央・等倍にフォールバックする（古いデータとの互換）。
+  /// 欠損・不正な値は中央・等倍・背景なしにフォールバックする（古いデータとの互換）。
   static ImageFocal? fromJson(Object? json) {
     if (json is! Map) return null;
     double read(String key, double fallback) {
@@ -35,24 +49,32 @@ class ImageFocal {
       return v is num && v.isFinite ? v.toDouble() : fallback;
     }
 
+    final bg = json['bg'];
     return ImageFocal.center.copyWith(
       dx: read('dx', 0),
       dy: read('dy', 0),
       scale: read('scale', 1),
+      background: bg is int ? bg & 0xFFFFFFFF : null,
     );
   }
 
-  Map<String, dynamic> toJson() => {'dx': dx, 'dy': dy, 'scale': scale};
+  Map<String, dynamic> toJson() => {
+    'dx': dx,
+    'dy': dy,
+    'scale': scale,
+    if (background != null) 'bg': background,
+  };
 
   @override
   bool operator ==(Object other) =>
       other is ImageFocal &&
       other.dx == dx &&
       other.dy == dy &&
-      other.scale == scale;
+      other.scale == scale &&
+      other.background == background;
 
   @override
-  int get hashCode => Object.hash(dx, dy, scale);
+  int get hashCode => Object.hash(dx, dy, scale, background);
 }
 
 /// 画像の拡大率の上限。

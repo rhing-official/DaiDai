@@ -366,7 +366,10 @@ class _CreateGroupDialogContentState
                               backgroundImage: icon != null
                                   ? NetworkImage(icon.url)
                                   : null,
-                              backgroundColor: avatarBackdropColor(context),
+                              backgroundColor: avatarBackdropColor(
+                                context,
+                                friend.activeProfileCard?.iconFocal,
+                              ),
                               foregroundColor: Theme.of(
                                 context,
                               ).colorScheme.onSurfaceVariant,

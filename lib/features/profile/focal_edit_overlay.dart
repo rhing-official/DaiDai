@@ -2,6 +2,11 @@ import 'dart:math' as math;
 
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+
+import '../../l10n/strings.dart';
+import '../../utils/color_hex.dart';
+import '../../widgets/app_dialog.dart';
 
 import '../../models/profile_card.dart';
 import '../../widgets/focal_image.dart';
@@ -16,7 +21,7 @@ import '../../widgets/focal_image.dart';
 /// [circle]がtrueならアイコン用（暗い背景の中央に円形のプレビューを出す。円は
 /// カード内のアイコンと同じ正方形の枠・円形クロップなので、構図がそのまま
 /// 反映される）、falseなら背景画像用（カード全面にプレビューを出す）。
-class FocalEditOverlay extends StatefulWidget {
+class FocalEditOverlay extends ConsumerStatefulWidget {
   const FocalEditOverlay({
     required this.imageUrl,
     required this.circle,
@@ -31,10 +36,10 @@ class FocalEditOverlay extends StatefulWidget {
   final void Function(ImageFocal focal) onChanged;
 
   @override
-  State<FocalEditOverlay> createState() => _FocalEditOverlayState();
+  ConsumerState<FocalEditOverlay> createState() => _FocalEditOverlayState();
 }
 
-class _FocalEditOverlayState extends State<FocalEditOverlay> {
+class _FocalEditOverlayState extends ConsumerState<FocalEditOverlay> {
   Size? _imageSize;
   double _lastScale = 1;
   Offset _lastFocalPoint = Offset.zero;
@@ -89,7 +94,14 @@ class _FocalEditOverlayState extends State<FocalEditOverlay> {
                   ? SizedBox(
                       width: side,
                       height: side,
-                      child: ClipOval(child: preview),
+                      child: ClipOval(
+                        child: ColoredBox(
+                          color: widget.focal.background == null
+                              ? Colors.transparent
+                              : Color(widget.focal.background!),
+                          child: preview,
+                        ),
+                      ),
                     )
                   : preview,
             ),
@@ -139,9 +151,164 @@ class _FocalEditOverlayState extends State<FocalEditOverlay> {
                 ),
               ),
             ),
+            if (widget.circle)
+              Positioned(
+                left: 0,
+                right: 0,
+                bottom: 6,
+                child: _BackgroundPicker(
+                  strings: ref.watch(appStringsProvider),
+                  focal: widget.focal,
+                  imageUrl: widget.imageUrl,
+                  onChanged: widget.onChanged,
+                ),
+              ),
           ],
         );
       },
+    );
+  }
+}
+
+/// アイコンの背景色の選択（2026-11-12）。透過PNGの透過部分に敷く色を、持ち主が選ぶ。
+/// 左の2つは、選んだ背景でライト・ダークの面に載せた時の見え方（色が被って
+/// 見えなくなっていないかの確認用）。右は色の選択肢（透明・白・黒・灰・任意）。
+class _BackgroundPicker extends StatelessWidget {
+  const _BackgroundPicker({
+    required this.strings,
+    required this.focal,
+    required this.imageUrl,
+    required this.onChanged,
+  });
+
+  final Strings strings;
+  final ImageFocal focal;
+  final String imageUrl;
+  final void Function(ImageFocal focal) onChanged;
+
+  static const _presets = [0xFFFFFFFF, 0xFF000000, 0xFF808080];
+
+  Future<void> _pickCustom(BuildContext context) async {
+    final controller = TextEditingController(
+      text: focal.background == null
+          ? ''
+          : Color(focal.background!).toHexString(),
+    );
+    final picked = await showAppDialog<Color>(
+      context: context,
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (context, setState) {
+          final parsed = tryParseHexColor(controller.text);
+          return AlertDialog(
+            title: Text(strings.workshopIconBackground),
+            content: TextField(
+              controller: controller,
+              autofocus: true,
+              decoration: const InputDecoration(hintText: '#RRGGBB'),
+              onChanged: (_) => setState(() {}),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(dialogContext).pop(),
+                child: Text(strings.workshopFocalCancel),
+              ),
+              FilledButton(
+                onPressed: parsed == null
+                    ? null
+                    : () => Navigator.of(dialogContext).pop(parsed),
+                child: Text(strings.workshopFocalDone),
+              ),
+            ],
+          );
+        },
+      ),
+    );
+    controller.dispose();
+    if (picked != null) {
+      onChanged(focal.copyWith(background: picked.toARGB32()));
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final current = focal.background;
+    Widget swatch({
+      required Color? color,
+      required String tooltip,
+      required bool selected,
+      required VoidCallback onTap,
+      Widget? child,
+    }) => Tooltip(
+      message: tooltip,
+      child: GestureDetector(
+        onTap: onTap,
+        child: Container(
+          width: 26,
+          height: 26,
+          margin: const EdgeInsets.symmetric(horizontal: 3),
+          alignment: Alignment.center,
+          decoration: BoxDecoration(
+            color: color,
+            shape: BoxShape.circle,
+            border: Border.all(
+              color: selected ? Colors.orangeAccent : Colors.white54,
+              width: selected ? 3 : 1,
+            ),
+          ),
+          child: child,
+        ),
+      ),
+    );
+    Widget preview(Color surface) => Container(
+      width: 34,
+      height: 34,
+      margin: const EdgeInsets.symmetric(horizontal: 3),
+      decoration: BoxDecoration(color: surface, shape: BoxShape.circle),
+      child: ClipOval(
+        child: ColoredBox(
+          color: current == null ? Colors.transparent : Color(current),
+          child: FocalImage(url: imageUrl, focal: focal),
+        ),
+      ),
+    );
+    return FittedBox(
+      fit: BoxFit.scaleDown,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
+        decoration: BoxDecoration(
+          color: Colors.black54,
+          borderRadius: BorderRadius.circular(24),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            preview(Colors.white),
+            preview(const Color(0xFF1E1E1E)),
+            const SizedBox(width: 8),
+            swatch(
+              color: null,
+              tooltip: strings.workshopIconBackgroundTransparent,
+              selected: current == null,
+              onTap: () => onChanged(focal.copyWith(clearBackground: true)),
+              child: const Icon(Icons.block, size: 16, color: Colors.white70),
+            ),
+            for (final argb in _presets)
+              swatch(
+                color: Color(argb),
+                tooltip: Color(argb).toHexString(),
+                selected: current == argb,
+                onTap: () => onChanged(focal.copyWith(background: argb)),
+              ),
+            swatch(
+              color: null,
+              tooltip: strings.workshopIconBackgroundCustom,
+              selected: current != null && !_presets.contains(current),
+              onTap: () => _pickCustom(context),
+              child: const Icon(Icons.colorize, size: 16, color: Colors.white),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }

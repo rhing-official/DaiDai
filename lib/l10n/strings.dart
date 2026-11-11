@@ -422,6 +422,9 @@ class Strings {
     required this.workshopFocalDone,
     required this.workshopFocalReset,
     required this.workshopFocalCancel,
+    required this.workshopIconBackground,
+    required this.workshopIconBackgroundTransparent,
+    required this.workshopIconBackgroundCustom,
     required this.workshopLayoutLabel,
     required this.workshopLayoutBottomLeft,
     required this.workshopLayoutBottomCenter,
@@ -1625,6 +1628,11 @@ class Strings {
   final String workshopFocalDone;
   final String workshopFocalReset;
   final String workshopFocalCancel;
+
+  /// アイコンの背景色（透過PNGの透過部分に敷く色、2026-11-12）。
+  final String workshopIconBackground;
+  final String workshopIconBackgroundTransparent;
+  final String workshopIconBackgroundCustom;
   final String workshopLayoutLabel;
   final String workshopLayoutBottomLeft;
   final String workshopLayoutBottomCenter;
@@ -3049,6 +3057,9 @@ class Strings {
     workshopFocalDone: '完了',
     workshopFocalReset: 'リセット',
     workshopFocalCancel: 'キャンセル',
+    workshopIconBackground: 'アイコンの背景色',
+    workshopIconBackgroundTransparent: '透明',
+    workshopIconBackgroundCustom: '色を指定',
     workshopLayoutLabel: '配置',
     workshopLayoutBottomLeft: '左下',
     workshopLayoutBottomCenter: '中央下',
@@ -4317,6 +4328,9 @@ class Strings {
     workshopFocalDone: 'Done',
     workshopFocalReset: 'Reset',
     workshopFocalCancel: 'Cancel',
+    workshopIconBackground: 'Icon background colour',
+    workshopIconBackgroundTransparent: 'Transparent',
+    workshopIconBackgroundCustom: 'Choose a colour',
     workshopLayoutLabel: 'Layout',
     workshopLayoutBottomLeft: 'Bottom left',
     workshopLayoutBottomCenter: 'Bottom centre',

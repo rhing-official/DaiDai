@@ -581,7 +581,7 @@ class ProfileCardAvatar extends StatelessWidget {
       height: radius * 2,
       child: ClipOval(
         child: ColoredBox(
-          color: avatarBackdropColor(context),
+          color: avatarBackdropColor(context, focal),
           child: FocalImage(url: icon.url, focal: focal),
         ),
       ),

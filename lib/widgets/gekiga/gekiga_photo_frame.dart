@@ -1,3 +1,4 @@
+import '../../utils/avatar_backdrop.dart';
 import 'package:flutter/material.dart';
 
 import '../../theme/gekiga/gekiga_shapes.dart';
@@ -68,14 +69,24 @@ class GekigaPhotoFrame extends StatelessWidget {
                   vertices: vertices,
                   inset: size * 0.15,
                 ),
-                child:
-                    image is NetworkImage && focal != null && !focal!.isDefault
-                    ? FocalImage(url: (image as NetworkImage).url, focal: focal)
-                    : image != null
-                    ? AlwaysAnimatedImage(
-                        child: Image(image: image!, fit: BoxFit.cover),
-                      )
-                    : (fallback ?? const SizedBox.shrink()),
+                child: ColoredBox(
+                  color: image != null
+                      ? avatarBackdropColor(context, focal)
+                      : Colors.transparent,
+                  child:
+                      image is NetworkImage &&
+                          focal != null &&
+                          !focal!.isDefault
+                      ? FocalImage(
+                          url: (image as NetworkImage).url,
+                          focal: focal,
+                        )
+                      : image != null
+                      ? AlwaysAnimatedImage(
+                          child: Image(image: image!, fit: BoxFit.cover),
+                        )
+                      : (fallback ?? const SizedBox.shrink()),
+                ),
               ),
             ),
           ],

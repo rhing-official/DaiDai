@@ -1805,12 +1805,14 @@ class _AddConversationCardDialogState
     final otherUserId = dm.otherUserId(widget.userId);
     final otherUser = ref.watch(watchedUserProvider(otherUserId)).value;
     final iconUrl = otherUser?.effectiveIconFor(dm.dmId)?.url;
+    final iconFocal = otherUser?.effectiveIconFocalFor(dm.dmId);
     final isGlass = ref.watch(appUiStyleProvider) == AppUiStyle.glass;
     return _buildSelectableTile(
       id: dm.dmId,
       avatar: isGlass
           ? GlassAvatar(
               size: 40,
+              focal: iconFocal,
               image: iconUrl != null ? NetworkImage(iconUrl) : null,
               fallback: iconUrl != null
                   ? null
@@ -1821,7 +1823,7 @@ class _AddConversationCardDialogState
             )
           : CircleAvatar(
               backgroundImage: iconUrl != null ? NetworkImage(iconUrl) : null,
-              backgroundColor: avatarBackdropColor(context),
+              backgroundColor: avatarBackdropColor(context, iconFocal),
               foregroundColor: Theme.of(context).colorScheme.onSurfaceVariant,
               child: iconUrl == null ? const Icon(Icons.person) : null,
             ),

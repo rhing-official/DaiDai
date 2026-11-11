@@ -400,6 +400,7 @@ class _JoinRequestTile extends ConsumerWidget {
     // 従来どおり@rhingSeedと汎用アイコン。
     final requester = ref.watch(watchedUserProvider(request.requesterId)).value;
     final iconUrl = requester?.effectiveIconFor(request.groupId)?.url;
+    final iconFocal = requester?.effectiveIconFocalFor(request.groupId);
     final nickname = requester?.effectiveNicknameFor(request.groupId)?.text;
     // 自分が指定した呼び名があれば優先する（2026-11-06）。
     final label = resolveDisplayName(
@@ -420,12 +421,13 @@ class _JoinRequestTile extends ConsumerWidget {
       leading: isGlass
           ? GlassAvatar(
               size: 40,
+              focal: iconFocal,
               image: iconUrl != null ? NetworkImage(iconUrl) : null,
               fallback: iconUrl != null ? null : placeholder,
             )
           : CircleAvatar(
               backgroundImage: iconUrl != null ? NetworkImage(iconUrl) : null,
-              backgroundColor: avatarBackdropColor(context),
+              backgroundColor: avatarBackdropColor(context, iconFocal),
               foregroundColor: onSurfaceVariant,
               child: iconUrl == null ? placeholder : null,
             ),
@@ -497,6 +499,7 @@ class _MemberTile extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final iconUrl = user.effectiveIconFor(groupId)?.url;
+    final iconFocal = user.effectiveIconFocalFor(groupId);
     final nickname = user.effectiveNicknameFor(groupId)?.text;
     // 自分が指定した呼び名があれば優先する（2026-11-06）。
     final label = resolveDisplayName(
@@ -511,6 +514,7 @@ class _MemberTile extends ConsumerWidget {
       leading: isGlass
           ? GlassAvatar(
               size: 40,
+              focal: iconFocal,
               image: iconUrl != null ? NetworkImage(iconUrl) : null,
               fallback: iconUrl != null
                   ? null
@@ -521,7 +525,7 @@ class _MemberTile extends ConsumerWidget {
             )
           : CircleAvatar(
               backgroundImage: iconUrl != null ? NetworkImage(iconUrl) : null,
-              backgroundColor: avatarBackdropColor(context),
+              backgroundColor: avatarBackdropColor(context, iconFocal),
               foregroundColor: Theme.of(context).colorScheme.onSurfaceVariant,
               child: iconUrl == null ? const Icon(Icons.person) : null,
             ),

@@ -3602,7 +3602,10 @@ class _PendingGroupJoinRequestTile extends ConsumerWidget {
                 backgroundImage: preview?.iconUrl != null
                     ? NetworkImage(preview!.iconUrl!)
                     : null,
-                backgroundColor: avatarBackdropColor(context),
+                backgroundColor: avatarBackdropColor(
+                  context,
+                  preview?.iconFocal,
+                ),
                 foregroundColor: Theme.of(context).colorScheme.onSurfaceVariant,
                 child: preview?.iconUrl == null ? Icon(statusIcon) : null,
               );

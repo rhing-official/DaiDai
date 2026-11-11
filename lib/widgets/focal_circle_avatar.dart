@@ -35,7 +35,7 @@ class FocalCircleAvatar extends StatelessWidget {
     final url = this.url;
     final focal = this.focal;
     final backdrop = url != null
-        ? avatarBackdropColor(context)
+        ? avatarBackdropColor(context, focal)
         : Colors.transparent;
     if (blockFrame && isBlockTheme(context)) {
       final theme = Theme.of(context);
