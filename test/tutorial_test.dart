@@ -432,6 +432,9 @@ void main() {
     await tester.pump();
     expect(find.text('このガイドは準備中です'), findsOneWidget);
     expect(container.read(tutorialControllerProvider), isNull);
+    // バナーは3秒で消える（タイマーを残さない）。
+    await tester.pump(const Duration(seconds: 4));
+    expect(find.text('このガイドは準備中です'), findsNothing);
   });
 }
 

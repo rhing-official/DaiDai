@@ -1,3 +1,4 @@
+import '../../utils/auto_dismiss_banner.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -19,9 +20,7 @@ class GuideTopicListPage extends ConsumerWidget {
     final script = tutorialScriptOf(topic.id);
     if (script == null) {
       final locale = ref.read(appLocaleProvider);
-      ScaffoldMessenger.of(context)
-        ..hideCurrentSnackBar()
-        ..showSnackBar(SnackBar(content: Text(guideComingSoon.of(locale))));
+      showAutoDismissBanner(context, message: guideComingSoon.of(locale));
       return;
     }
     // ガイド専用ルートを今の画面の上に開いて始める（今の画面は下に残り、

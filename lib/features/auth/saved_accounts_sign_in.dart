@@ -1,3 +1,4 @@
+import '../../utils/auto_dismiss_banner.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -56,15 +57,12 @@ class SavedAccountsSignIn extends ConsumerWidget {
                   await ref.read(accountSwitcherProvider).switchTo(account);
                 } on SwitchAccountException catch (error) {
                   if (context.mounted) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(
-                        content: Text(
-                          switchAccountFailureMessage(
-                            strings,
-                            error,
-                            fallback: strings.switchAccountsFailed,
-                          ),
-                        ),
+                    showAutoDismissBanner(
+                      context,
+                      message: switchAccountFailureMessage(
+                        strings,
+                        error,
+                        fallback: strings.switchAccountsFailed,
                       ),
                     );
                   }

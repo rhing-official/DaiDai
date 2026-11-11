@@ -7,6 +7,7 @@ final Strings _stringsFr = Strings._(
   navTalk: 'Discussions',
   navProfile: 'Profil',
   navSettings: 'Réglages',
+  navAccount: 'Comptes',
   addMenuDmTitleTemplate: (dmTerm) => 'Démarrer un $dmTerm',
   addMenuDmSubtitle: 'Ajouter quelqu’un pour discuter en tête-à-tête',
   addMenuGroupTitleTemplate: (plazaTerm) => 'Créer une $plazaTerm',
@@ -1344,4 +1345,11 @@ final Strings _stringsFr = Strings._(
   switchAccountsAddingBanner: 'Connectez-vous au compte à ajouter.',
   switchAccountsSavedTitle: 'Continuer avec un compte enregistré',
   switchAccountsCancelAdd: 'Annuler l\'ajout',
+  switchAccountsLongPressHint:
+      'Appuyez longuement sur un compte pour le retirer ou vous déconnecter',
+  switchAccountsLogoutTitle: 'Se déconnecter de ce compte ?',
+  switchAccountsLogoutBody:
+      'Les informations de changement enregistrées sur cet appareil seront supprimées et vous passerez à un autre compte enregistré. Le compte lui-même n’est pas supprimé. Pour le réutiliser, reconnectez-vous et ajoutez-le de nouveau.',
+  switchAccountsLogout: 'Se déconnecter',
+  switchAccountsSwitching: 'Changement en cours…',
 );

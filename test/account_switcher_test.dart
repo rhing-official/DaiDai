@@ -275,6 +275,29 @@ void main() {
     expect(log, isEmpty);
   });
 
+  test('ログアウト切り替え: 切り替え先の検証が通ってから今のアカウントの保存を消し、サインインする', () async {
+    store.accounts.addAll([_saved('A'), _saved('B')]);
+    await switcher.switchTo(_saved('B'), forgetUid: 'A');
+    expect(log, ['redeem:B', 'revoke:A', 'signIn:token-B', 'reset', 'reload']);
+    expect(store.accounts.map((a) => a.uid), ['B']);
+  });
+
+  test('ログアウト切り替え: 切り替え先をサーバーが拒否したら、今のアカウントの保存は消さない', () async {
+    store.accounts.addAll([_saved('A'), _saved('B')]);
+    final failing = AccountSwitcher(
+      sessions: _RejectingSessions(),
+      store: store,
+      auth: _FakeAuth(log),
+      resetLocalState: () async => log.add('reset'),
+      reloadPage: () => log.add('reload'),
+    );
+    await expectLater(
+      failing.switchTo(_saved('B'), forgetUid: 'A'),
+      throwsA(isA<SwitchAccountException>()),
+    );
+    expect(store.accounts.map((a) => a.uid), ['A', 'B']);
+  });
+
   test('取り外し: サーバーの失効に失敗しても、端末の保存は必ず消す', () async {
     store.accounts.addAll([_saved('A'), _saved('B')]);
     sessions.revokeFails = true;

@@ -18,7 +18,10 @@ enum NavChipAlignment {
 enum HomeTabId {
   talk,
   profile,
-  settings;
+  settings,
+
+  /// 保存したアカウントが2つ以上の時だけ出る、アカウント切り替えのタブ（2026-11-11）。
+  account;
 
   static HomeTabId? tryParse(String? name) {
     for (final tab in HomeTabId.values) {
@@ -28,7 +31,7 @@ enum HomeTabId {
   }
 }
 
-/// 保存された並び[names]を、常に3タブ全てを1回ずつ含む並びに直す。不明な名前・重複は
+/// 保存された並び[names]を、常に全タブ（[HomeTabId.values]）を1回ずつ含む並びに直す。不明な名前・重複は
 /// 捨て、足りないタブは標準の順で末尾へ補う（別の版で保存された値でも壊れないように）。
 List<HomeTabId> normalizeNavChipOrder(Iterable<String>? names) {
   final order = <HomeTabId>[];
@@ -47,7 +50,12 @@ class NavChipLayout {
   const NavChipLayout({
     this.alignment = NavChipAlignment.center,
     this.wideAlignment = NavChipAlignment.center,
-    this.order = const [HomeTabId.talk, HomeTabId.profile, HomeTabId.settings],
+    this.order = const [
+      HomeTabId.talk,
+      HomeTabId.profile,
+      HomeTabId.settings,
+      HomeTabId.account,
+    ],
   });
 
   static const standard = NavChipLayout();
@@ -72,3 +80,13 @@ class NavChipLayout {
     order: order ?? this.order,
   );
 }
+
+/// 画面に出すチップの並び（論理インデックス）。[showAccount]が偽なら、保存済みの並びに
+/// 含まれていても[HomeTabId.account]は出さない（2026-11-11）。
+List<int> visibleNavChipIndexes(
+  Iterable<HomeTabId> order, {
+  required bool showAccount,
+}) => [
+  for (final tab in order)
+    if (tab != HomeTabId.account || showAccount) tab.index,
+];

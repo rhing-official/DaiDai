@@ -1,3 +1,5 @@
+import '../../providers/account_switcher_providers.dart';
+import '../account/account_tab.dart';
 import '../../theme/motion.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
@@ -66,9 +68,18 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
   late final AnimationController _settle = AnimationController(vsync: this);
   late final HomeTabDragController _dragController;
 
-  List<int> _displayOrderNow() => [
-    for (final tab in ref.read(navChipLayoutProvider).order) tab.index,
-  ];
+  /// 「アカウント」のチップを出すか。保存したアカウントが2つ以上で、かつ縦画面（狭い画面）
+  /// の時だけ（2026-11-11）。横表示は、設定を開けば最初からアカウント（切り替え）が開くので
+  /// 出さない。
+  bool _accountChipShown() =>
+      ref.read(accountTabVisibleProvider) &&
+      MediaQuery.sizeOf(context).width < _kWideLayoutBreakpoint;
+
+  /// 今チップを並べる順（論理インデックス）。
+  List<int> _displayOrderNow() => visibleNavChipIndexes(
+    ref.read(navChipLayoutProvider).order,
+    showAccount: _accountChipShown(),
+  );
 
   /// ドラッグの単位はタブ数（画面幅1つ分＝1タブ）。画面幅を超えて引けば2つ以上先へ進める。
   void _onDragDelta(double dx) {
@@ -285,7 +296,10 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
   // 判定する為に使う（2026-07-29変更、以前はフリック時の速度だけで隣へ
   // 1段階移動する実装だった。指を離すまで連続的に、語らいから設定まで
   // 1回のドラッグで移動出来るようにする為、位置ベースの追従に変更）。
-  late final List<GlobalKey> _chipKeys = List.generate(3, (_) => GlobalKey());
+  late final List<GlobalKey> _chipKeys = List.generate(
+    HomeTabId.values.length,
+    (_) => GlobalKey(),
+  );
 
   /// 各チップの画面上（global座標）での矩形。まだ描画されていないチップは
   /// nullのまま。
@@ -350,9 +364,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
     // なぞり遷移が一切効かなくなっていた（2026-10-10修正）。透明ルートを
     // 数えない`hasOpenOverlay`で判定する。
     if (ref.read(backStackControllerProvider).hasOpenOverlay) return;
-    final order = [
-      for (final tab in ref.read(navChipLayoutProvider).order) tab.index,
-    ];
+    final order = _displayOrderNow();
     final hit = _hitTestChips(globalPosition, vertical, order);
     final selectionChanged =
         hit.hovered != null && hit.hovered != _selectedIndex;
@@ -390,12 +402,13 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
     Icons.forum_outlined,
     Icons.face_outlined,
     Icons.settings_outlined,
+    Icons.switch_account_outlined,
   ];
 
   /// [_icons]の各グリフの見た目の密度差を補正する表示サイズ
   /// （2026-08-27追加）。face_outlined/settings_outlinedはforum_outlinedより
   /// グリフ内側の余白が大きく同じ24でも小さく見える為、個別に拡大する。
-  static const _iconSizes = [24.0, 28.0, 28.0];
+  static const _iconSizes = [24.0, 28.0, 28.0, 26.0];
 
   static const _chipSize = kNavChipSize;
   static const _chipGap = kNavChipGap;
@@ -425,7 +438,12 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
     });
 
     final strings = ref.watch(appStringsProvider);
-    final titles = [strings.navTalk, strings.navProfile, strings.navSettings];
+    final titles = [
+      strings.navTalk,
+      strings.navProfile,
+      strings.navSettings,
+      strings.navAccount,
+    ];
 
     // チップのタップ・なぞりの`setState`のたびに各タブが再構築されないよう、
     // `currentUser`が変わった時だけ作り直す（2026-10-10追加）。語らいタブは
@@ -436,6 +454,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
         TalksTab(currentUser: widget.currentUser),
         ProfileTab(currentUser: widget.currentUser),
         SettingsTab(currentUser: widget.currentUser),
+        AccountTab(currentUser: widget.currentUser),
       ];
     }
     final tabs = _cachedTabs!;
@@ -445,7 +464,20 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
     // 並びは狭い画面（下部）・広い画面（サイドバー）とも設定に従う。揃えは狭い画面
     // だけ（2026-11-01）。各チップは論理インデックス`i`のまま、並ぶ順だけが変わる。
     final chipLayout = ref.watch(navChipLayoutProvider);
-    final displayOrder = [for (final tab in chipLayout.order) tab.index];
+    final showAccount = ref.watch(accountTabVisibleProvider) && !isWide;
+    final displayOrder = visibleNavChipIndexes(
+      chipLayout.order,
+      showAccount: showAccount,
+    );
+    // 「アカウント」のチップが消えた時（保存が2つ未満に戻った・画面が横表示になった）、
+    // そのタブを開いていたら語らいへ戻す（2026-11-11）。
+    if (!showAccount && _selectedIndex == HomeTabId.account.index) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted && _selectedIndex == HomeTabId.account.index) {
+          setState(() => _setSelectedIndex(kTalksTabIndex));
+        }
+      });
+    }
     final chips = [
       for (final i in displayOrder)
         NavChip(
@@ -519,11 +551,13 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
                 for (final i in order)
                   Visibility(
                     key: ValueKey('home-tab-$i'),
+                    // 並びに無いタブ（保存が2つ未満の「アカウント」）は、選ばれている時以外は出さない。
                     visible: appearing
                         ? (i == _selectedIndex || i == from)
                         : (i == _selectedIndex ||
                               i == from ||
-                              (posOf(i) - current).abs() < 1),
+                              (displayOrder.contains(i) &&
+                                  (posOf(i) - current).abs() < 1)),
                     maintainState: true,
                     child: FractionalTranslation(
                       translation: appearing

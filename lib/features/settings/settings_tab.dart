@@ -2022,9 +2022,7 @@ class _AccountPage extends ConsumerWidget {
         currentSeed: liveSeed,
       );
       if (changed == true && context.mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text(strings.rhingSeedChangeDone)));
+        showAutoDismissBanner(context, message: strings.rhingSeedChangeDone);
       }
     }
 
@@ -2194,7 +2192,7 @@ class _KiwamiRow extends ConsumerWidget {
     return _ActionRow(
       label: kiwami ? strings.kiwamiManage : strings.kiwamiPurchase,
       onTap: () async {
-        final messenger = ScaffoldMessenger.of(context);
+        final overlay = Overlay.maybeOf(context);
         final Uri uri;
         if (kiwami) {
           try {
@@ -2207,15 +2205,14 @@ class _KiwamiRow extends ConsumerWidget {
             final notFound =
                 error is FirebaseFunctionsException &&
                 error.code == 'not-found';
-            messenger.showSnackBar(
-              SnackBar(
-                content: Text(
-                  notFound
-                      ? strings.kiwamiManageFailed
-                      : strings.kiwamiManageUnavailable,
-                ),
-              ),
-            );
+            if (overlay != null) {
+              showAutoDismissBannerIn(
+                overlay,
+                message: notFound
+                    ? strings.kiwamiManageFailed
+                    : strings.kiwamiManageUnavailable,
+              );
+            }
             return;
           }
         } else {
@@ -4177,12 +4174,14 @@ class NavChipLayoutFolder extends ConsumerWidget {
     HomeTabId.talk: Icons.forum_outlined,
     HomeTabId.profile: Icons.face_outlined,
     HomeTabId.settings: Icons.settings_outlined,
+    HomeTabId.account: Icons.switch_account_outlined,
   };
 
   String _tabLabel(HomeTabId tab) => switch (tab) {
     HomeTabId.talk => strings.navTalk,
     HomeTabId.profile => strings.navProfile,
     HomeTabId.settings => strings.navSettings,
+    HomeTabId.account => strings.navAccount,
   };
 
   /// 広い画面（幅600px以上、`home_screen.dart`の縦並びサイドバー）では上・下、
@@ -4305,13 +4304,31 @@ class NavChipLayoutFolder extends ConsumerWidget {
             ),
           );
 
+    final accountChipListed =
+        ref.watch(accountTabVisibleProvider) &&
+        MediaQuery.sizeOf(context).width < kNavChipWideBreakpoint;
     final orderControl = Align(
       alignment: Alignment.centerLeft,
       child: SizedBox(
         width: 220,
         child: _NavChipOrderList(
-          order: layout.order,
-          onReorder: notifier.setOrder,
+          // 「アカウント」のチップは、保存したアカウントが2つ以上で縦画面の時だけ出る。
+          // 横表示（設定が分割表示になる幅）では出ないので、並べ替えの対象にもしない。
+          order: [
+            for (final t in layout.order)
+              if (t != HomeTabId.account || accountChipListed) t,
+          ],
+          onReorder: (list) {
+            if (accountChipListed) {
+              notifier.setOrder(list);
+              return;
+            }
+            // 並べ替えの対象外の間は、「アカウント」の位置を今のまま残す。
+            final at = layout.order.indexOf(HomeTabId.account);
+            final merged = [...list]
+              ..insert(at.clamp(0, list.length), HomeTabId.account);
+            notifier.setOrder(merged);
+          },
           tileBuilder: (tab, handle) {
             // `ListTile`は枠の高さが足りない（劇画の箱の内側など）と中身が下へはみ出し、
             // 文字が縦に中央からずれる為、`Row`で縦中央に揃えて自前で組む。

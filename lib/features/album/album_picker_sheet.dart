@@ -1,3 +1,4 @@
+import '../../utils/auto_dismiss_banner.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -13,7 +14,7 @@ import '../../widgets/app_dialog.dart';
 
 /// メッセージ長押しメニューの「アルバムに登録」から開くボトムシート
 /// （2026-08-30追加）。その寄合の既存アルバム一覧から選ぶか、その場で
-/// 新規作成してすぐ登録する。成功/失敗のSnackBar表示までここで完結させる。
+/// 新規作成してすぐ登録する。成功/失敗のバナー表示までここで完結させる。
 Future<void> showAlbumPickerSheet(
   BuildContext context, {
   required bool isDm,
@@ -70,7 +71,7 @@ class _AlbumPickerSheetState extends ConsumerState<_AlbumPickerSheet> {
     setState(() => _submitting = true);
     final strings = ref.read(appStringsProvider);
     final navigator = Navigator.of(context);
-    final messenger = ScaffoldMessenger.of(context);
+    final overlay = Overlay.maybeOf(context);
     try {
       await ref
           .read(albumRepositoryProvider)
@@ -83,14 +84,18 @@ class _AlbumPickerSheetState extends ConsumerState<_AlbumPickerSheet> {
             addedBy: widget.currentUserId,
           );
       navigator.pop();
-      messenger.showSnackBar(
-        SnackBar(content: Text(strings.albumAddedSnackbarMessage)),
-      );
+      if (overlay != null) {
+        showAutoDismissBannerIn(
+          overlay,
+          message: strings.albumAddedSnackbarMessage,
+        );
+      }
     } catch (_) {
       if (!mounted) return;
       setState(() => _submitting = false);
-      messenger.showSnackBar(
-        SnackBar(content: Text(strings.albumAddFailedSnackbarMessage)),
+      showAutoDismissBanner(
+        context,
+        message: strings.albumAddFailedSnackbarMessage,
       );
     }
   }

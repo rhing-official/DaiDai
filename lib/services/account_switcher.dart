@@ -120,8 +120,12 @@ class AccountSwitcher {
 
   /// [account]へ切り替える。サーバーで検証し、カスタムトークンでサインインし、
   /// 前のアカウントの端末内の状態を消して、ページを再読み込みする。
-  Future<void> switchTo(SavedAccount account) async {
+  ///
+  /// [forgetUid]を渡すと、切り替え先の検証が通った後に、そのアカウント（今使っているもの）の
+  /// 保存を消す（管理>×のログアウト、2026-11-11）。検証に失敗した時は何も消さない。
+  Future<void> switchTo(SavedAccount account, {String? forgetUid}) async {
     final token = await sessions.redeem(account);
+    if (forgetUid != null) await forget(forgetUid);
     await auth.signInWithCustomToken(token);
     await resetLocalState();
     // サインイン状態の保存が終わる前に再読み込みしないよう、少し待つ。

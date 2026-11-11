@@ -14,6 +14,7 @@ class Strings {
     required this.navTalk,
     required this.navProfile,
     required this.navSettings,
+    required this.navAccount,
     required this.addMenuDmTitleTemplate,
     required this.addMenuDmSubtitle,
     required this.addMenuGroupTitleTemplate,
@@ -1115,6 +1116,11 @@ class Strings {
     required this.switchAccountsAddingBanner,
     required this.switchAccountsSavedTitle,
     required this.switchAccountsCancelAdd,
+    required this.switchAccountsLongPressHint,
+    required this.switchAccountsLogoutTitle,
+    required this.switchAccountsLogoutBody,
+    required this.switchAccountsLogout,
+    required this.switchAccountsSwitching,
     required this.workshopBirthdayNotRegisteredHint,
     required this.workshopFontLabel,
     required this.workshopFontShortLabel,
@@ -1125,6 +1131,7 @@ class Strings {
   final String navTalk;
   final String navProfile;
   final String navSettings;
+  final String navAccount;
 
   /// 一対/DM等の用語を差し込んだタイトルを組み立てる（例: 「一対を始める」）。
   final String Function(String dmTerm) addMenuDmTitleTemplate;
@@ -1989,7 +1996,7 @@ class Strings {
   final String workshopConversationCardAddDialogTitle;
 
   /// 上記ダイアログで、選べる語らい（まだ標準カードのままの語らい）が
-  /// 1件も無い場合に表示するメッセージ（SnackBar）。
+  /// 1件も無い場合に表示するメッセージ（バナー）。
   final String workshopConversationCardAddEmpty;
 
   /// 上記ダイアログ内の、名前で絞り込む検索ボックスのヒント文言。
@@ -2136,7 +2143,7 @@ class Strings {
   /// ごみ箱アイコンの代わり）。用語（「寄合」等）を差し込む。
   final String Function(String term) roomMenuDeleteLabel;
 
-  /// 最後の1つの寄合を削除しようとした時のエラー表示（SnackBar）。
+  /// 最後の1つの寄合を削除しようとした時のエラー表示（バナー）。
   final String roomDeleteLastRoomError;
 
   /// ハンバーガーメニューの「寄合機能を無くす」項目（2026-09-07追加、寄合が
@@ -2571,6 +2578,11 @@ class Strings {
   final String switchAccountsAddingBanner;
   final String switchAccountsSavedTitle;
   final String switchAccountsCancelAdd;
+  final String switchAccountsLongPressHint;
+  final String switchAccountsLogoutTitle;
+  final String switchAccountsLogoutBody;
+  final String switchAccountsLogout;
+  final String switchAccountsSwitching;
   final String workshopBirthdayNotRegisteredHint;
 
   final String workshopFontLabel;
@@ -2587,6 +2599,7 @@ class Strings {
     navTalk: '語らい',
     navProfile: '身だしなみ',
     navSettings: '設定',
+    navAccount: 'アカウント',
     addMenuDmTitleTemplate: (dmTerm) => '$dmTermを始める',
     addMenuDmSubtitle: '1対1で話す相手を追加する',
     addMenuGroupTitleTemplate: (plazaTerm) => '$plazaTermを作る',
@@ -3779,12 +3792,19 @@ class Strings {
     switchAccountsAddingBanner: '追加するアカウントでログインしてください。',
     switchAccountsSavedTitle: '保存したアカウントで続ける',
     switchAccountsCancelAdd: '追加をやめる',
+    switchAccountsLongPressHint: 'アカウントを長押しすると、取り外し・ログアウトできます',
+    switchAccountsLogoutTitle: 'このアカウントからログアウトしますか？',
+    switchAccountsLogoutBody:
+        'この端末に保存した切り替えの情報を消し、保存した別のアカウントへ切り替えます。アカウント自体は消えません。もう一度使うには、ログインして追加し直してください。',
+    switchAccountsLogout: 'ログアウト',
+    switchAccountsSwitching: '切り替えています…',
   );
 
   static final enGB = Strings._(
     navTalk: 'Talks',
     navProfile: 'Profile',
     navSettings: 'Settings',
+    navAccount: 'Accounts',
     addMenuDmTitleTemplate: (dmTerm) => 'Start a $dmTerm',
     addMenuDmSubtitle: 'Add someone to talk to one-on-one',
     addMenuGroupTitleTemplate: (plazaTerm) => 'Create a $plazaTerm',
@@ -5114,6 +5134,13 @@ class Strings {
     switchAccountsAddingBanner: 'Sign in to the account you want to add.',
     switchAccountsSavedTitle: 'Continue with a saved account',
     switchAccountsCancelAdd: 'Cancel adding',
+    switchAccountsLongPressHint:
+        'Press and hold an account to remove it or log out',
+    switchAccountsLogoutTitle: 'Log out of this account?',
+    switchAccountsLogoutBody:
+        'This removes the switching details saved on this device and switches to another saved account. The account itself is not deleted. To use it again, sign in and add it again.',
+    switchAccountsLogout: 'Log out',
+    switchAccountsSwitching: 'Switching…',
   );
 
   /// `MaterialApp.locale`（[Localizations]）から対訳セットを引く。Riverpodを

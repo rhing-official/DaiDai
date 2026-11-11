@@ -3420,7 +3420,7 @@ class _GroupMenuButtonState extends ConsumerState<_GroupMenuButton> {
                 ),
                 // 寄合一覧サイドバーのごみ箱アイコンの代わり
                 // （2026-07-30変更）。最後の1つの寄合は選べても実際には
-                // 削除出来ず、リポジトリがStateErrorを投げてSnackBarで
+                // 削除出来ず、リポジトリがStateErrorを投げてバナーで
                 // 案内する（`handle`参照）。
                 _MenuTile(
                   label: strings.roomMenuDeleteLabel(vocabulary.textChannel),

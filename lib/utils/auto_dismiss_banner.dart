@@ -37,11 +37,27 @@ Timer showAutoDismissBanner(
   List<Widget>? actions,
   Timer? previousTimer,
   Duration duration = const Duration(seconds: 3),
+}) => showAutoDismissBannerIn(
+  Overlay.of(context),
+  message: message,
+  actions: actions,
+  previousTimer: previousTimer,
+  duration: duration,
+);
+
+/// [showAutoDismissBanner]の、`Overlay`を直接渡す版（2026-11-11）。画面が閉じた後や
+/// 非同期処理の後に出す時は、`BuildContext`が使えなくなっている為、閉じる前に取っておいた
+/// `Overlay.maybeOf(context)`を渡す。
+Timer showAutoDismissBannerIn(
+  OverlayState overlay, {
+  required String message,
+  List<Widget>? actions,
+  Timer? previousTimer,
+  Duration duration = const Duration(seconds: 3),
 }) {
   previousTimer?.cancel();
   dismissAutoDismissBanner();
 
-  final overlay = Overlay.of(context);
   late final OverlayEntry entry;
   void dismiss() {
     entry.remove();

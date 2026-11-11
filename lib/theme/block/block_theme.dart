@@ -298,18 +298,6 @@ class BlockTheme {
           shadowOffset: const Offset(3, 3),
         ),
       ),
-      snackBarTheme: SnackBarThemeData(
-        backgroundColor: panel,
-        contentTextStyle: TextStyle(color: scheme.onSurface),
-        actionTextColor: scheme.onSurface,
-        behavior: SnackBarBehavior.floating,
-        elevation: 0,
-        shape: BlockShapeBorder(
-          borderRadius: BorderRadius.circular(radius),
-          lineColor: line,
-          shadowColor: isDark ? accent : line,
-        ),
-      ),
       elevatedButtonTheme: ElevatedButtonThemeData(
         style: filled(minimumSize: const Size.fromHeight(52)),
       ),

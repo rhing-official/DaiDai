@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../models/saved_account.dart';
@@ -37,3 +38,11 @@ final savedAccountsProvider = FutureProvider.autoDispose<List<SavedAccount>>(
 final hasPendingAccountAddProvider = FutureProvider.autoDispose<bool>(
   (ref) => ref.watch(accountSwitcherProvider).hasPendingAdd(),
 );
+
+/// 4つ目のメニューチップ「アカウント」を出すか（2026-11-11）。Webで、この端末に保存した
+/// アカウントが2つ以上ある時だけ。
+final accountTabVisibleProvider = Provider<bool>((ref) {
+  if (!kIsWeb) return false;
+  final saved = ref.watch(savedAccountsProvider).value ?? const [];
+  return saved.length >= 2;
+});

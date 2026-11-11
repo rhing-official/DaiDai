@@ -12,13 +12,22 @@ void main() {
       HomeTabId.settings,
       HomeTabId.talk,
       HomeTabId.profile,
+      HomeTabId.account,
     ]);
+  });
+
+  test('「アカウント」は、保存済みの3タブの並びを壊さず末尾に補われ、出すか出さないかを選べる', () {
+    final order = normalizeNavChipOrder(['settings', 'talk', 'profile']);
+    expect(order.last, HomeTabId.account);
+    expect(visibleNavChipIndexes(order, showAccount: false), [2, 0, 1]);
+    expect(visibleNavChipIndexes(order, showAccount: true), [2, 0, 1, 3]);
   });
 
   test('タブの論理インデックスはenumの宣言順（ホーム画面の前提）', () {
     expect(HomeTabId.talk.index, 0);
     expect(HomeTabId.profile.index, 1);
     expect(HomeTabId.settings.index, 2);
+    expect(HomeTabId.account.index, 3);
   });
 
   test('揃えの標準は中央、不明な値も中央', () {
@@ -44,6 +53,7 @@ void main() {
       HomeTabId.settings,
       HomeTabId.talk,
       HomeTabId.profile,
+      HomeTabId.account,
     ]);
   });
 

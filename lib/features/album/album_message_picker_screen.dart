@@ -1,3 +1,4 @@
+import '../../utils/auto_dismiss_banner.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -77,7 +78,7 @@ class _AlbumMessagePickerScreenState
     if (_selected.isEmpty || _submitting) return;
     setState(() => _submitting = true);
     final strings = ref.read(appStringsProvider);
-    final messenger = ScaffoldMessenger.of(context);
+    final overlay = Overlay.maybeOf(context);
     final repository = ref.read(albumRepositoryProvider);
     try {
       for (final message in messages) {
@@ -92,15 +93,21 @@ class _AlbumMessagePickerScreenState
         );
       }
       widget.onClose();
-      messenger.showSnackBar(
-        SnackBar(content: Text(strings.albumAddedSnackbarMessage)),
-      );
+      if (overlay != null) {
+        showAutoDismissBannerIn(
+          overlay,
+          message: strings.albumAddedSnackbarMessage,
+        );
+      }
     } catch (_) {
       if (!mounted) return;
       setState(() => _submitting = false);
-      messenger.showSnackBar(
-        SnackBar(content: Text(strings.albumAddFailedSnackbarMessage)),
-      );
+      if (overlay != null) {
+        showAutoDismissBannerIn(
+          overlay,
+          message: strings.albumAddFailedSnackbarMessage,
+        );
+      }
     }
   }
 

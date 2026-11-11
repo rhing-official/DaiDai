@@ -1,3 +1,4 @@
+import '../../utils/auto_dismiss_banner.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -65,7 +66,7 @@ class _PendingAccountAddBootstrapState
 
   Future<void> _complete() async {
     final strings = ref.read(appStringsProvider);
-    final messenger = ScaffoldMessenger.maybeOf(context);
+    final overlay = Overlay.maybeOf(context);
     String? message;
     try {
       final added = await ref
@@ -83,8 +84,8 @@ class _PendingAccountAddBootstrapState
     }
     await _refreshIcon();
     ref.invalidate(savedAccountsProvider);
-    if (message != null) {
-      messenger?.showSnackBar(SnackBar(content: Text(message)));
+    if (message != null && overlay != null) {
+      showAutoDismissBannerIn(overlay, message: message);
     }
   }
 

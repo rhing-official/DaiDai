@@ -1,3 +1,4 @@
+import '../../utils/auto_dismiss_banner.dart';
 import 'dart:async';
 
 import 'package:flutter/material.dart';
@@ -31,9 +32,7 @@ Future<void> startScanQrLogin(BuildContext context, Strings strings) async {
   );
   if (scanned == null || !context.mounted) return;
   if (!scanned.startsWith(kQrIssuePrefix)) {
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(SnackBar(content: Text(strings.qrLoginInvalidQrError)));
+    showAutoDismissBanner(context, message: strings.qrLoginInvalidQrError);
     return;
   }
   await showAppDialog<bool>(

@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../l10n/strings.dart';
 import '../../models/app_user.dart';
 import '../../models/residence.dart';
+import '../../providers/account_switcher_providers.dart';
 import '../../providers/repository_providers.dart';
 import '../../providers/user_preferences_sync.dart';
 import 'account_restore_screen.dart';
@@ -41,7 +42,7 @@ class AuthGate extends ConsumerWidget {
       ),
       data: (user) {
         if (user == null) {
-          return const SignInScreen();
+          return const _SignInGate();
         }
         return _AuthenticatedUserGate(userId: user.uid, builder: builder);
       },
@@ -225,5 +226,17 @@ class _AuthLoadErrorScreen extends ConsumerWidget {
         ),
       ),
     );
+  }
+}
+
+/// 未ログイン時のログイン画面。アカウントの追加の途中（[hasPendingAccountAddProvider]）なら、
+/// 全画面ではなくポップアップで出す（2026-11-11）。
+class _SignInGate extends ConsumerWidget {
+  const _SignInGate();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final adding = ref.watch(hasPendingAccountAddProvider).value ?? false;
+    return SignInScreen(popup: adding);
   }
 }

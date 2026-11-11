@@ -1,3 +1,4 @@
+import '../../../utils/auto_dismiss_banner.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -60,7 +61,7 @@ class _CallBgmSheet extends ConsumerWidget {
   final CallBgmBinding binding;
 
   Future<void> _add(BuildContext context, Strings strings) async {
-    final messenger = ScaffoldMessenger.maybeOf(context);
+    final overlay = Overlay.maybeOf(context);
     try {
       final file = await FilePicker.pickFile(type: FileType.audio);
       if (file == null) return;
@@ -70,9 +71,9 @@ class _CallBgmSheet extends ConsumerWidget {
         bytes: await file.readAsBytes(),
       );
     } catch (_) {
-      messenger?.showSnackBar(
-        SnackBar(content: Text(strings.callBgmAddFailed)),
-      );
+      if (overlay != null) {
+        showAutoDismissBannerIn(overlay, message: strings.callBgmAddFailed);
+      }
     }
   }
 

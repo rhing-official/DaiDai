@@ -1,3 +1,4 @@
+import '../../providers/account_switcher_providers.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -19,7 +20,11 @@ import 'saved_accounts_sign_in.dart';
 import 'scan_qr_login_dialog.dart';
 
 class SignInScreen extends ConsumerStatefulWidget {
-  const SignInScreen({super.key});
+  const SignInScreen({this.popup = false, super.key});
+
+  /// trueなら、全画面ではなく中央のポップアップ（カード）で出す。アカウントの追加の途中
+  /// （別のアカウントにログインして保存する間）に使う（2026-11-11）。
+  final bool popup;
 
   @override
   ConsumerState<SignInScreen> createState() => _SignInScreenState();
@@ -109,6 +114,7 @@ class _SignInScreenState extends ConsumerState<SignInScreen>
     final strings = ref.watch(appStringsProvider);
     final colorScheme = Theme.of(context).colorScheme;
     final resolver = _resolver;
+    if (widget.popup) return _buildPopup(context, colorScheme, strings);
     return FixedFontTheme(
       child: Scaffold(
         body: Center(
@@ -137,6 +143,73 @@ class _SignInScreenState extends ConsumerState<SignInScreen>
                   ),
                 );
               },
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// アカウントの追加の途中のログイン（2026-11-11）。今のアカウントはサインアウト済みで
+  /// 背後に見せる画面が無いため、暗い背景の上に中央のカードを出す。×で追加をやめる。
+  Widget _buildPopup(
+    BuildContext context,
+    ColorScheme colorScheme,
+    Strings strings,
+  ) {
+    return FixedFontTheme(
+      child: Scaffold(
+        backgroundColor: Colors.black54,
+        body: Center(
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 420),
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Material(
+                color: colorScheme.surfaceContainerHigh,
+                borderRadius: BorderRadius.circular(24),
+                clipBehavior: Clip.antiAlias,
+                child: Stack(
+                  children: [
+                    SingleChildScrollView(
+                      padding: const EdgeInsets.fromLTRB(24, 32, 24, 24),
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          Text(
+                            strings.switchAccountsAddingBanner,
+                            textAlign: TextAlign.center,
+                            style: Theme.of(context).textTheme.titleMedium,
+                          ),
+                          const SizedBox(height: 24),
+                          ..._resolver != null
+                              ? _buildTwoFactorChallenge(strings)
+                              : _buildSignInButtons(
+                                  context,
+                                  colorScheme,
+                                  compact: true,
+                                ),
+                        ],
+                      ),
+                    ),
+                    Positioned(
+                      top: 4,
+                      right: 4,
+                      child: IconButton(
+                        tooltip: strings.switchAccountsCancelAdd,
+                        icon: const Icon(Icons.close),
+                        onPressed: () async {
+                          await ref
+                              .read(accountSwitcherProvider)
+                              .cancelPendingAdd();
+                          ref.invalidate(hasPendingAccountAddProvider);
+                        },
+                      ),
+                    ),
+                  ],
+                ),
+              ),
             ),
           ),
         ),
@@ -246,21 +319,26 @@ class _SignInScreenState extends ConsumerState<SignInScreen>
     BuildContext context,
     ColorScheme colorScheme, {
     bool showQrButton = true,
+    bool compact = false,
   }) {
     final strings = ref.watch(appStringsProvider);
     return [
-      Text(
-        'DaiDai',
-        style: TextStyle(
-          fontSize: 40,
-          fontWeight: FontWeight.bold,
-          color: colorScheme.primary,
+      // 追加の途中のポップアップ（[compact]）は、ロゴ・キャッチコピー・保存済みアカウントを
+      // 出さない（保存済みは既に切り替えられる）。
+      if (!compact) ...[
+        Text(
+          'DaiDai',
+          style: TextStyle(
+            fontSize: 40,
+            fontWeight: FontWeight.bold,
+            color: colorScheme.primary,
+          ),
         ),
-      ),
-      const SizedBox(height: 8),
-      Text(strings.signInTagline),
-      const SizedBox(height: 32),
-      const SavedAccountsSignIn(),
+        const SizedBox(height: 8),
+        Text(strings.signInTagline),
+        const SizedBox(height: 32),
+        const SavedAccountsSignIn(),
+      ],
       if (_errorMessage != null) ...[
         Text(_errorMessage!, style: const TextStyle(color: Colors.red)),
         const SizedBox(height: 16),
