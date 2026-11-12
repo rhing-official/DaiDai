@@ -207,7 +207,7 @@ final Strings _stringsFr = Strings._(
   soundPresetPopLabel: 'Pop',
   soundPresetHappyLabel: 'Joyeux',
   soundUploadOptionLabel: 'Importer',
-  soundUploadTooLargeError: 'Le fichier est trop volumineux (3 Mo maximum)',
+  soundUploadTooLargeError: 'Le fichier est trop volumineux (5 Mo maximum)',
   soundUploadUnsupportedFormatError:
       'Format non pris en charge (choisissez mp3, wav, m4a, ogg ou aac)',
   settingsAccountInfoSection: 'Informations du compte',

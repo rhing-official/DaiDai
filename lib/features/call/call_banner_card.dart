@@ -56,8 +56,10 @@ class CallBannerCard extends ConsumerWidget {
       required VoidCallback? onPressed,
     }) => Padding(
       padding: const EdgeInsets.only(left: 8),
-      child: Tooltip(
-        message: tooltip,
+      // バナーはNavigatorの外（`MaterialApp.builder`）にありOverlayが無いので、Tooltipは使えない。
+      child: Semantics(
+        button: true,
+        label: tooltip,
         child: Material(
           color: onPressed == null ? color.withValues(alpha: 0.5) : color,
           shape: const CircleBorder(

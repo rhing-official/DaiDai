@@ -245,6 +245,10 @@ class ActiveCallSessionNotifier extends Notifier<ActiveCallSession?> {
         await controller.soundPlayer.stopRingtone();
         controller.dispose();
       case GroupCallSession(:final controller):
+        // `notifyListeners`の最中（`leave()`・終了の検知）にこの関数が呼ばれるため、その場で
+        // `dispose`するとリスナーの一覧が通知の途中で空になり、リリース版では`RangeError`で
+        // 画面へ通知が届かず、通話画面が閉じなくなる（2026-11-12）。通知が終わってから破棄する。
+        await Future<void>.delayed(Duration.zero);
         controller.dispose();
     }
   }

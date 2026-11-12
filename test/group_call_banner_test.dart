@@ -80,10 +80,10 @@ void main() {
     await tester.tap(find.text('広場A'));
     expect(joined, 0);
 
-    await tester.tap(find.byTooltip('応答'));
+    await tester.tap(find.bySemanticsLabel('応答'));
     expect(joined, 1);
 
-    await tester.tap(find.byTooltip('拒否'));
+    await tester.tap(find.bySemanticsLabel('拒否'));
     await tester.pump();
     expect(container.read(groupCallBannersProvider), isEmpty);
     expect(stopped, 1);

@@ -2807,7 +2807,7 @@ class Strings {
     soundPresetPopLabel: 'ポップ',
     soundPresetHappyLabel: 'ハッピー',
     soundUploadOptionLabel: 'アップロード',
-    soundUploadTooLargeError: 'ファイルサイズが大きすぎます（3MB以下にして下さい）',
+    soundUploadTooLargeError: 'ファイルサイズが大きすぎます（5MB以下にして下さい）',
     soundUploadUnsupportedFormatError:
         '対応していない形式です（mp3・wav・m4a・ogg・aacのいずれかを選んで下さい）',
     settingsAccountInfoSection: 'アカウント情報',
@@ -4036,7 +4036,7 @@ class Strings {
     soundPresetPopLabel: 'Pop',
     soundPresetHappyLabel: 'Happy',
     soundUploadOptionLabel: 'Upload',
-    soundUploadTooLargeError: 'File is too large (must be 3MB or smaller)',
+    soundUploadTooLargeError: 'File is too large (must be 5MB or smaller)',
     soundUploadUnsupportedFormatError:
         'Unsupported format (choose mp3, wav, m4a, ogg, or aac)',
     settingsAccountInfoSection: 'Account information',

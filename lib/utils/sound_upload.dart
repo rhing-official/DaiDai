@@ -3,18 +3,25 @@ import 'dart:typed_data';
 /// 着信音・呼出音のカスタムアップロードの容量上限。数秒〜十数秒程度の
 /// 短い音源を想定した現実的な上限（Telegramの300KB/5秒・Discordの
 /// チャンネル音512KBより緩め）。長さそのものの厳密なバリデーションは
-/// v1では行わない。2026-09-07にユーザー指示で2MB→3MBへ引き上げ。
-const int kMaxSoundUploadSizeBytes = 3 * 1024 * 1024;
+/// v1では行わない。2026-09-07にユーザー指示で2MB→3MBへ引き上げ、2026-11-12に5MBへ引き上げ（wav・flacの
+/// 16bit・ステレオ・44.1kHzで約29秒＝呼び出しの30秒に足りる大きさ）。`storage.rules`の
+/// `userSounds`の上限（5MB）と同じ値にそろえること。
+const int kMaxSoundUploadSizeBytes = 5 * 1024 * 1024;
 
-const Set<String> kAllowedSoundExtensions = {'mp3', 'wav', 'm4a', 'ogg', 'aac'};
-
-/// チャット添付で音声としてインライン再生する拡張子（2026-10-31追加）。
-/// 着信音の許可集合（[kAllowedSoundExtensions]、3MB上限）とは分け、
-/// 可逆圧縮のflacは添付の再生だけに足す。
-const Set<String> kPlayableAudioExtensions = {
-  ...kAllowedSoundExtensions,
+/// 着信音・呼出音・通知音として登録できる拡張子。メッセージ画面でプレビュー再生できる
+/// 拡張子（[kPlayableAudioExtensions]）と同じ（2026-11-12、flacを追加）。
+const Set<String> kAllowedSoundExtensions = {
+  'mp3',
+  'wav',
+  'm4a',
+  'ogg',
+  'aac',
   'flac',
 };
+
+/// チャット添付で音声としてインライン再生する拡張子（2026-10-31追加）。2026-11-12から
+/// 着信音の許可集合（[kAllowedSoundExtensions]）と同じ。
+const Set<String> kPlayableAudioExtensions = kAllowedSoundExtensions;
 
 /// [kMaxSoundUploadSizeBytes]超過。呼び出し元のUIがエラーメッセージを
 /// 出し分ける為の専用型（`attachment_upload.dart`の
