@@ -47,6 +47,8 @@ class FocalCircleAvatar extends StatelessWidget {
         width: size,
         height: size,
         decoration: BoxDecoration(
+          // 透過部分に影（アクセントカラー）が透けないよう外観の面色を敷く。
+          color: theme.colorScheme.surface,
           borderRadius: BorderRadius.circular(BlockTheme.radius),
           border: Border.all(
             color: BlockTheme.lineColor(theme.brightness),
