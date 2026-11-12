@@ -31,6 +31,26 @@ void main() {
       expect(calls, ['album', 'note']);
     });
 
+    test('bypassGuardsBrieflyの間は、遷移を戻る操作として横取りしない（通知タップ用）', () {
+      fakeAsync((async) {
+        final c = BackStackController();
+        final calls = <String>[];
+        c.add(() => calls.add('history'), scope: BackScope.talks);
+        c.add(() => calls.add('note'), scope: BackScope.talks, layer: true);
+
+        // 何もしなければ、トークンの消失は戻る操作として履歴を1つ戻し、遷移を中止する。
+        c.bypassGuardsBriefly();
+        expect(c.interceptTokenExit(), isFalse);
+        expect(c.closeTopLayer(), isFalse);
+        expect(calls, isEmpty);
+
+        // 時間が経てば、通常どおり横取りする。
+        async.elapse(const Duration(seconds: 2));
+        expect(c.interceptTokenExit(), isTrue);
+        expect(calls, ['note']);
+      });
+    });
+
     test('allowNextChatExitは次の1回だけ、層があってもcloseTopLayerを素通しする', () {
       final c = BackStackController();
       final calls = <String>[];

@@ -1,5 +1,4 @@
 import '../../utils/auto_dismiss_banner.dart';
-import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -17,7 +16,6 @@ class SavedAccountsSignIn extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    if (!kIsWeb) return const SizedBox.shrink();
     final strings = ref.watch(appStringsProvider);
     final saved = ref.watch(savedAccountsProvider).value ?? const [];
     final pending = ref.watch(hasPendingAccountAddProvider).value ?? false;

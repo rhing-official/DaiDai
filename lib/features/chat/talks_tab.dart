@@ -663,14 +663,14 @@ class _TalksTabState extends ConsumerState<TalksTab>
     if (group != null) {
       ref.read(pendingGroupSelectionProvider.notifier).clear();
       _selectCategory(_TalksCategory.group);
-      _openGroup(group);
+      _openGroup(group, fullscreen: _takePendingFullscreen());
       return;
     }
     final dm = ref.read(pendingDmSelectionProvider);
     if (dm != null) {
       ref.read(pendingDmSelectionProvider.notifier).clear();
       _selectCategory(_TalksCategory.dm);
-      _openDirectMessage(dm);
+      _openDirectMessage(dm, fullscreen: _takePendingFullscreen());
       return;
     }
     final hit = ref.read(pendingMessageSearchHitProvider);
@@ -1056,7 +1056,40 @@ class _TalksTabState extends ConsumerState<TalksTab>
     });
   }
 
-  Future<void> _openDirectMessage(DirectMessage dm) async {
+  /// [pendingChatFullscreenProvider]（通知のタップ用）を読んで消す。
+  bool _takePendingFullscreen() {
+    final value = ref.read(pendingChatFullscreenProvider);
+    if (value) ref.read(pendingChatFullscreenProvider.notifier).set(false);
+    return value;
+  }
+
+  /// [fullscreen]がtrueなら、アイコン＋寄合一覧のレイアウトで会話を「選択」するだけで
+  /// 止めず、チャット画面を直接開く（通知のタップ、2026-11-12）。アイコン＋寄合一覧では
+  /// 会話を選択した状態にして、寄合のタブバー無しの見た目で開く（寄合一覧から開いた時と
+  /// 同じ）。分割表示・タブレットの同時表示では、選択するだけでチャット本体が見えるので、
+  /// 従来どおり。
+  Future<void> _openDirectMessage(
+    DirectMessage dm, {
+    bool fullscreen = false,
+  }) async {
+    if (fullscreen && !_isSplit && !_showIconSplitPeek) {
+      // アイコン＋寄合一覧のレイアウト（複数寄合の会話）では、その会話を選択した状態
+      // （戻った時に寄合一覧が出る）にした上で、寄合一覧の寄合をタップして開いた時と
+      // 同じ見た目（寄合のタブバー無し）のチャット画面を開く。
+      final iconSplit =
+          dm.roomsEnabled &&
+          ref.read(talksListLayoutStyleProvider) ==
+              TalksListLayoutStyle.iconSplit;
+      if (iconSplit) {
+        _setIconSplitCollapse(0);
+        setState(() {
+          _selectedDm = dm;
+          _selectedPendingScreen = null;
+        });
+      }
+      await _pushDmRoomFullscreen(dm, showRoomTabBar: !iconSplit);
+      return;
+    }
     // 縦表示のアイコン＋寄合一覧レイアウト（`TalksListLayoutStyle.iconSplit`）
     // では、複数寄合モードの会話は広い画面の分割表示と同じく選択状態にして
     // 右側に寄合一覧を出す。タブレット・コンピューター縦表示
@@ -1157,7 +1190,23 @@ class _TalksTabState extends ConsumerState<TalksTab>
         );
   }
 
-  Future<void> _openGroup(Group group) async {
+  Future<void> _openGroup(Group group, {bool fullscreen = false}) async {
+    // [_openDirectMessage]と同じ（通知のタップ）。
+    if (fullscreen && !_isSplit && !_showIconSplitPeek) {
+      final iconSplit =
+          group.roomsEnabled &&
+          ref.read(talksListLayoutStyleProvider) ==
+              TalksListLayoutStyle.iconSplit;
+      if (iconSplit) {
+        _setIconSplitCollapse(0);
+        setState(() {
+          _selectedGroup = group;
+          _selectedPendingScreen = null;
+        });
+      }
+      await _pushGroupRoomFullscreen(group, showRoomTabBar: !iconSplit);
+      return;
+    }
     // [_openDirectMessage]と同じ理由（2026-09-11追加、2026-09-12更新、
     // 2026-09-16修正）。
     final useIconSplitSelection =
@@ -1423,7 +1472,7 @@ class _TalksTabState extends ConsumerState<TalksTab>
       // 切り替える（_categoryが広場のままだと_buildDetailPaneが広場側を
       // 表示し続けてしまうため）。
       _selectCategory(_TalksCategory.dm);
-      _openDirectMessage(next);
+      _openDirectMessage(next, fullscreen: _takePendingFullscreen());
     });
     // 通話ミニ表示（PinnedCallOverlay）タップでの復帰用（2026-08-19追加）。
     // 上のDM版と同じ橋渡しパターン。
@@ -1431,7 +1480,7 @@ class _TalksTabState extends ConsumerState<TalksTab>
       if (next == null) return;
       ref.read(pendingGroupSelectionProvider.notifier).clear();
       _selectCategory(_TalksCategory.group);
-      _openGroup(next);
+      _openGroup(next, fullscreen: _takePendingFullscreen());
     });
     // 語らい検索フルページ（`TalksSearchScreen`）からのメッセージ内容一致
     // （2026-10-11追加）。
@@ -5046,6 +5095,7 @@ class _SwipeToOpenRoomPreviewState
       InteractiveSwipeBackController(
         vsync: this,
         onCommit: _handleCommitted,
+        onWillCommit: _handleWillCommit,
         // 同上。ルートをpopするジェスチャーではない（2026-10-07）。
         notifyNavigator: false,
       );
@@ -5097,6 +5147,12 @@ class _SwipeToOpenRoomPreviewState
   final PageStorageBucket _pageStorageBucket = PageStorageBucket();
 
   void _syncOverlay() {
+    if (kDebugMode) {
+      debugPrint(
+        '[DIAG-SWIPE] overlay sync warm=${_warm.value} '
+        'hasEntry=${_overlayEntry != null} progress=${_controller.progress.value}',
+      );
+    }
     if (_warm.value && _overlayEntry == null) {
       final entry = OverlayEntry(
         builder: (context) => Positioned.fill(
@@ -5166,20 +5222,118 @@ class _SwipeToOpenRoomPreviewState
     }
   }
 
-  void _handleCommitted() {
+  /// 診断ログ（debugのみ、2026-11-12。寄合一覧の横スワイプが反応しない原因の切り分け用）。
+  void _diag(String message) {
+    if (kDebugMode) debugPrint('[DIAG-SWIPE] $message');
+  }
+
+  /// 横のフリック（速度[velocity]、左が負）を、ゆっくり引いた時と同じ操作として行う。
+  void _applyFlick(double velocity) {
+    if (!_switchTabMode && velocity < 0) {
+      // 左のフリック: プレビューを一瞬だけ出して、開き切らせる。
+      _warm.value = true;
+      _controller
+        ..syncFromExternalDrag(context, 1)
+        ..endExternalDrag(context, -velocity);
+      return;
+    }
+    // 右のフリック（先に右へ引いた時はタブの切り替え）、またはタブ切り替えの設定。
+    _warm.value = false;
+    final drag = ref.read(homeTabDragControllerProvider);
+    drag.onDelta?.call(velocity < 0 ? -1 : 1);
+    drag.onEnd?.call(velocity);
+  }
+
+  // ---- 生のポインタからのフリック検出（2026-11-12） ----
+  // 速いスワイプは、ドラッグとして認識される前に取り消されたり（縦スクロールとの判定、
+  // 移動が認識の最小距離に届かない）、速度が測れないまま終わったりする（Androidの実機。
+  // ブラウザでは起きない）。`GestureDetector`の判定に頼らず、押した位置と離した位置・
+  // かかった時間から、明らかな横のフリックを拾う。`Listener`は判定に参加しないので、
+  // 他のジェスチャーの邪魔をしない。ドラッグ側で処理された時は何もしない。
+  Offset? _downPosition;
+  Duration? _downTime;
+  int? _downPointer;
+
+  /// このタッチを、ドラッグ側（`GestureDetector`）が処理したか。
+  bool _handled = false;
+
+  void _onPointerDown(PointerDownEvent event) {
+    if (_downPointer != null) return; // 複数の指は対象外
+    _downPointer = event.pointer;
+    _downPosition = event.position;
+    _downTime = event.timeStamp;
+    _handled = false;
+  }
+
+  void _onPointerUp(PointerUpEvent event) {
+    if (event.pointer != _downPointer) return;
+    final start = _downPosition;
+    final startTime = _downTime;
+    _downPointer = null;
+    _downPosition = null;
+    _downTime = null;
+    if (start == null || startTime == null) return;
+    final delta = event.position - start;
+    final seconds = (event.timeStamp - startTime).inMicroseconds / 1e6;
+    // 明らかな横のフリックだけ: 一定の距離以上、縦より横が大きく、素早い。
+    if (delta.dx.abs() < 48 ||
+        delta.dx.abs() < delta.dy.abs() * 1.5 ||
+        seconds <= 0 ||
+        seconds > 0.5) {
+      return;
+    }
+    final velocity = delta.dx / seconds;
+    if (velocity.abs() < 400) return;
+    // ドラッグ側の`onHorizontalDragEnd`は、この後（同じイベントの処理の中）に呼ばれる。
+    // 処理済みかは、それが済んでから見る。
+    Future.microtask(() {
+      if (!mounted || _handled || _controller.isGestureActive) return;
+      _diag('pointer flick dx=${delta.dx.round()} v=${velocity.round()}');
+      _applyFlick(velocity);
+    });
+  }
+
+  /// 確定が決まり、開き切るアニメーションを始める時。本物のメッセージ画面を、透明にして
+  /// 先に積む（2026-11-12）。プレビューが開き切るまでの間に、本物の画面が作られて
+  /// メッセージを読み込む。開き切った瞬間（[_handleCommitted]）に透明を解除して入れ替える
+  /// ので、入れ替えの瞬間に空白の画面が見えて点滅することが無い。寄合のブロックをタップして
+  /// 開く時はプレビューが無く、この二重の作成が起きない。
+  void _handleWillCommit() {
+    _diag('will commit -> hold + onOpen');
+    chatOpenHold.value = true;
     widget.onOpen();
-    // 実際のpushが（同フレーム内、又は次フレームまでに）画面最前面へ
-    // 反映された後で進捗をリセットする。ここで即座にリセットすると、
-    // pushされた本物の画面がまだ乗る前の1フレームだけ寄合一覧が
-    // 露出してしまう（一瞬だけ後退して見える）ため、
-    // `addPostFrameCallback`で1フレーム遅らせる。
+    // 万一、開き切る処理が来なかった時に、透明のまま固まらないようにする。
+    _holdTimer?.cancel();
+    _holdTimer = Timer(const Duration(seconds: 3), _releaseHold);
+  }
+
+  Timer? _holdTimer;
+
+  void _releaseHold() {
+    _holdTimer?.cancel();
+    _holdTimer = null;
+    if (chatOpenHold.value) chatOpenHold.value = false;
+  }
+
+  void _handleCommitted() {
+    _diag(
+      'committed -> release hold warm=${_warm.value} '
+      'progress=${_controller.progress.value}',
+    );
+    // 本物の画面は、もう積まれて読み込み済み。透明を解除し、同じフレームでプレビューを
+    // 消す（`progress`を0へ戻す→`_maybeCoolDown`が消す）。
+    _releaseHold();
     WidgetsBinding.instance.addPostFrameCallback((_) {
+      _diag(
+        'post-commit reset mounted=$mounted overlay=${_overlayEntry != null}',
+      );
       if (mounted) _controller.progress.value = 0;
     });
   }
 
   @override
   void dispose() {
+    _releaseHold();
     _controller.progress.removeListener(_maybeCoolDown);
     _warm.removeListener(_syncOverlay);
     _removeOverlay();
@@ -5191,14 +5345,16 @@ class _SwipeToOpenRoomPreviewState
   @override
   Widget build(BuildContext context) {
     _controller.maxDrag = MediaQuery.sizeOf(context).width;
-    return GestureDetector(
+    final detector = GestureDetector(
       behavior: HitTestBehavior.translucent,
       onHorizontalDragDown: (_) {
+        _diag('down switchTabMode=$_switchTabMode');
         // 横スワイプをタブの切り替えに割り当てている間は、メッセージ画面を開く準備
         // （プレビューの先行マウント）はしない（2026-11-08）。
         if (!_switchTabMode) _warm.value = true;
       },
       onHorizontalDragCancel: () {
+        _diag('cancel tabDragging=$_tabDragging');
         if (_tabDragging) {
           _tabDragging = false;
           ref.read(homeTabDragControllerProvider).onEnd?.call(0);
@@ -5213,9 +5369,11 @@ class _SwipeToOpenRoomPreviewState
         _warm.value = false;
       },
       onHorizontalDragStart: (_) {
+        _diag('start progress=${_controller.progress.value}');
         _cumulativeDx = _controller.progress.value;
       },
       onHorizontalDragUpdate: (details) {
+        _handled = true;
         // 開く向き（左）へ動く前に右へ引いたら、隣のタブへの切り替えにする。
         if (_switchTabMode ||
             _tabDragging ||
@@ -5240,6 +5398,10 @@ class _SwipeToOpenRoomPreviewState
         }
       },
       onHorizontalDragEnd: (details) {
+        _diag(
+          'end tabDragging=$_tabDragging active=${_controller.isGestureActive} '
+          'cumulativeDx=$_cumulativeDx velocity=${details.primaryVelocity}',
+        );
         if (_tabDragging) {
           _tabDragging = false;
           _warm.value = false;
@@ -5250,8 +5412,18 @@ class _SwipeToOpenRoomPreviewState
           return;
         }
         if (!_controller.isGestureActive) {
-          // `onHorizontalDragStart`は発火したが、終始右方向にしか
-          // 動かさなかった等で`syncFromExternalDrag`が一度も呼ばれず
+          // `onHorizontalDragStart`は発火したが、`onHorizontalDragUpdate`が一度も来ずに
+          // 指が離れたケース（`progress`が0のまま）。速いスワイプ（フリック）では、
+          // ドラッグと判定された直後に指が離れ、移動量が積まれない。その時も、離す
+          // 瞬間の速度が十分なら、ゆっくり引いた時と同じ操作として扱う（2026-11-12、
+          // 以前は速度を見ずに終わり、ゆっくり引かないと反応しなかった）。
+          final flick = details.primaryVelocity ?? 0;
+          if (flick.abs() >= kSwipeGestureVelocityThreshold) {
+            _handled = true;
+            _applyFlick(flick);
+            return;
+          }
+          // 終始右方向にしか動かさなかった等で`syncFromExternalDrag`が一度も呼ばれず
           // `progress`が0のまま推移したケース。`_maybeCoolDown`は
           // `progress`の変化をトリガーに動くため、ここで明示的に倒す
           // 必要がある。
@@ -5267,6 +5439,19 @@ class _SwipeToOpenRoomPreviewState
         );
       },
       child: widget.roomList,
+    );
+    return Listener(
+      behavior: HitTestBehavior.translucent,
+      onPointerDown: _onPointerDown,
+      onPointerUp: _onPointerUp,
+      onPointerCancel: (event) {
+        if (event.pointer == _downPointer) {
+          _downPointer = null;
+          _downPosition = null;
+          _downTime = null;
+        }
+      },
+      child: detector,
     );
   }
 }

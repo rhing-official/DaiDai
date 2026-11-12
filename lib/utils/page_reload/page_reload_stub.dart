@@ -1,3 +1,7 @@
-/// Web以外では再読み込みの手段が無いので何もしない（複数アカウントの切り替えは、
-/// 当面Webだけで提供する）。
-void reloadPage() {}
+import 'app_restart.dart';
+
+/// Web以外では、ページの再読み込みの代わりに、アプリ全体の状態を作り直す
+/// （`main.dart`の`_launchApp`、2026-11-12）。
+void reloadPage() {
+  appRestartHook?.call();
+}

@@ -4,6 +4,7 @@ import 'package:daidai/models/app_user.dart';
 import 'package:daidai/models/saved_account.dart';
 import 'package:daidai/models/app_ui_style.dart';
 import 'package:daidai/providers/account_switcher_providers.dart';
+import 'package:daidai/providers/accent_color_provider.dart';
 import 'package:daidai/providers/app_ui_style_provider.dart';
 import 'package:daidai/repositories/auth_repository.dart';
 import 'package:daidai/repositories/saved_accounts_store.dart';
@@ -54,12 +55,17 @@ class _Store implements SavedAccountsStore {
 SavedAccount _saved(String uid) =>
     SavedAccount(uid: uid, sessionId: 's', secret: 'x', rhingSeed: uid);
 
-Future<void> _pump(WidgetTester tester, List<SavedAccount> saved) async {
+Future<void> _pump(
+  WidgetTester tester,
+  List<SavedAccount> saved, {
+  AppUiStyle style = AppUiStyle.flat,
+}) async {
   await tester.pumpWidget(
     ProviderScope(
       overrides: [
         accountSwitcherProvider.overrideWithValue(_switcher(_Store(saved))),
-        initialAppUiStyleProvider.overrideWithValue(AppUiStyle.flat),
+        initialAppUiStyleProvider.overrideWithValue(style),
+        initialAccentColorProvider.overrideWithValue(kDefaultAccentColor),
       ],
       child: MaterialApp(
         home: Scaffold(
@@ -123,4 +129,18 @@ void main() {
     await tester.pumpAndSettle();
     expect(store.accounts.map((a) => a.uid), ['A']);
   });
+
+  for (final style in [AppUiStyle.gekiga, AppUiStyle.glass, AppUiStyle.block]) {
+    testWidgets('${style.name}でも、区画が崩れず並び、押して切り替えられる', (tester) async {
+      await _pump(tester, [_saved('A'), _saved('B')], style: style);
+      expect(tester.takeException(), isNull);
+      expect(find.text('@alice'), findsOneWidget);
+      expect(find.text('@B'), findsOneWidget);
+      // 3区画（今のアカウント・もう1つ・追加）が、横に並んでいる。
+      final alice = tester.getRect(find.text('@alice'));
+      final other = tester.getRect(find.text('@B'));
+      expect(alice.center.dy, closeTo(other.center.dy, 1));
+      expect(alice.center.dx, lessThan(other.center.dx));
+    });
+  }
 }

@@ -139,7 +139,7 @@ final Strings _stringsFr = Strings._(
   settingsRoomListSwipeTitle: 'Balayage de la liste des salons',
   settingsRoomListSwipeNote:
       'Action du balayage latéral sur la liste des salons de « Icônes + liste des salons », sur téléphone en mode portrait. Enregistré sur cet appareil uniquement.',
-  settingsRoomListSwipeOpenTitle: 'Ouvrir les messages',
+  settingsRoomListSwipeOpenTitle: 'Ouvrir les messages β',
   settingsRoomListSwipeOpenDescription:
       'Balayez vers la gauche pour ouvrir les messages du salon sélectionné. Balayez d’abord vers la droite pour passer à l’onglet voisin.',
   settingsRoomListSwipeTabTitle: 'Changer d’onglet du menu',
@@ -1293,6 +1293,8 @@ final Strings _stringsFr = Strings._(
   callConnectionUnstableEllipsis: 'La connexion est instable…',
   callConnectionUnstable: 'La connexion est instable',
   callFullMessageTemplate: (max) => 'Cet appel est complet (limite : $max)',
+  callDeclineButton: 'Refuser',
+  callAnswerButton: 'Répondre',
   groupCallParticipantCountTemplate: (count) =>
       '$count participant${count == 1 ? '' : 's'}',
   groupCallWaitingForOthers: 'En attente des autres participants…',

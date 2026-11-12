@@ -11,6 +11,8 @@
     <!-- プッシュ通知（FCM）用。Android 13+はランタイム許可も必要
          （firebase_messagingのrequestPermission()が内包、2026-08-31追加）。 -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
+    <!-- 通話の着信通知（CallStyle）を、ロック画面で全画面表示するため（2026-11-12）。 -->
+    <uses-permission android:name="android.permission.USE_FULL_SCREEN_INTENT"/>
     <!-- パスコードロック機能の生体認証（Android BiometricPrompt）用（2026-09-11追加）。 -->
     <uses-permission android:name="android.permission.USE_BIOMETRIC"/>
     <!-- スクリーンショットを写真ライブラリへ保存する`gal`パッケージ用
@@ -22,7 +24,7 @@
     <uses-feature android:name="android.hardware.camera" android:required="false"/>
     <uses-feature android:name="android.hardware.camera.autofocus" android:required="false"/>
     <application
-        android:label="daidai"
+        android:label="DaiDai"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher"
         android:requestLegacyExternalStorage="true">
@@ -49,6 +51,19 @@
                 <category android:name="android.intent.category.LAUNCHER"/>
             </intent-filter>
         </activity>
+        <!-- 通話の着信・取消しのFCMメッセージを受け、着信通知（CallStyle）を出す（2026-11-12）。 -->
+        <receiver
+            android:name=".CallNotificationReceiver"
+            android:exported="true"
+            android:permission="com.google.android.c2dm.permission.SEND">
+            <intent-filter>
+                <action android:name="com.google.android.c2dm.intent.RECEIVE"/>
+            </intent-filter>
+        </receiver>
+        <!-- 着信通知の「拒否」ボタン（アプリを開かずに処理する）。 -->
+        <receiver
+            android:name=".CallActionReceiver"
+            android:exported="false"/>
         <!-- Don't delete the meta-data below.
              This is used by the Flutter tool to generate GeneratedPluginRegistrant.java -->
         <meta-data

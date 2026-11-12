@@ -30,11 +30,16 @@ class InteractiveSwipeBackController {
   InteractiveSwipeBackController({
     required TickerProvider vsync,
     required this.onCommit,
+    this.onWillCommit,
     this.consumeBack,
     this.notifyNavigator = true,
   }) : _animationController = AnimationController(vsync: vsync);
 
   final VoidCallback onCommit;
+
+  /// 確定すると決まり、開き切る（[onCommit]）アニメーションを始める時に、先に呼ばれる
+  /// （2026-11-12）。開く画面を、動きの最中に先に用意しておく用途（寄合一覧の左スワイプ）。
+  final VoidCallback? onWillCommit;
 
   /// 戻るを確定する時（指を離した時）に先に呼ばれ、内側の階層を1つ閉じたら`true`を
   /// 返す（2026-10-15）。`true`なら外側の戻る（[onCommit]）はせず、画面は元の位置へ
@@ -140,6 +145,7 @@ class InteractiveSwipeBackController {
     );
 
     _stopNavigatorGesture();
+    if (commit) onWillCommit?.call();
 
     _animationController
       ..duration = duration

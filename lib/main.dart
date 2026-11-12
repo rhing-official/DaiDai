@@ -62,6 +62,7 @@ import 'providers/on_accent_color_provider.dart';
 import 'providers/text_color_provider.dart';
 import 'providers/theme_mode_provider.dart';
 import 'router/app_router.dart';
+import 'utils/page_reload/app_restart.dart';
 import 'router/back_stack.dart';
 import 'utils/always_animate_binding.dart';
 import 'utils/android_notification_sound_sync.dart';
@@ -128,6 +129,15 @@ Future<void> main() async {
     FirebaseMessaging.onBackgroundMessage(firebaseMessagingBackgroundHandler);
   }
   await initializeLocalNotifications();
+  // Web以外では、アカウントを切り替えた後に、この関数でアプリ全体の状態を作り直す
+  // （Webはページの再読み込み、2026-11-12）。
+  appRestartHook = () => _launchApp(firstLaunch: false);
+  await _launchApp(firstLaunch: true);
+}
+
+/// 端末内の設定を読み込んで、`ProviderScope`ごとアプリを起動する。切り替えの後は、
+/// 新しい`ProviderScope`（`UniqueKey`）で、前のアカウントの状態を捨てて作り直す。
+Future<void> _launchApp({required bool firstLaunch}) async {
   final initialAccentColor = await loadInitialAccentColor();
   final initialAccentColorsByStyle = await loadInitialAccentColorsByStyle();
   final initialTextColorLight = await loadInitialTextColorLight();
@@ -178,6 +188,7 @@ Future<void> main() async {
   }
   runApp(
     ProviderScope(
+      key: UniqueKey(),
       observers: [if (kDebugMode) _DiagFailObserver()],
       overrides: [
         initialAccentColorProvider.overrideWithValue(initialAccentColor),
@@ -275,6 +286,7 @@ Future<void> main() async {
   // 完全終了状態（cold start）から通知タップで起動された場合のディープ
   // リンク（2026-09-02追加）。`globalRouter`は`MaterialApp.router`が
   // `goRouterProvider`を読む最初のフレームで埋まる為、その後まで待つ。
+  if (!firstLaunch) return;
   final launchPayload = await consumeLaunchNotificationPayload();
   if (launchPayload != null) {
     WidgetsBinding.instance.addPostFrameCallback(

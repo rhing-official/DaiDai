@@ -1,7 +1,12 @@
+import 'dart:io' show Platform;
+
 import 'package:firebase_messaging/firebase_messaging.dart';
+import 'package:flutter/foundation.dart' show debugPrint, kDebugMode, kIsWeb;
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../providers/call_answer_providers.dart';
 import '../providers/repository_providers.dart';
 import '../push_notifications.dart';
 
@@ -30,6 +35,40 @@ class _PushNotificationBootstrapState
   void initState() {
     super.initState();
     _maybeAutoRequest();
+    _listenCallAnswers();
+  }
+
+  /// Androidの着信通知（CallStyle）の「応答」で開かれた時の応答を受け取る（2026-11-12）。
+  /// 起動時に溜まっている分と、開いている間に届く分の両方。
+  static const _callActionChannel = MethodChannel(
+    'jp.rhing.daidai/call_action',
+  );
+
+  Future<void> _listenCallAnswers() async {
+    if (kIsWeb || !Platform.isAndroid) return;
+    _callActionChannel.setMethodCallHandler((call) async {
+      if (call.method == 'answer') _setAnswer(call.arguments);
+    });
+    try {
+      _setAnswer(await _callActionChannel.invokeMethod('takePendingAction'));
+    } on MissingPluginException {
+      // 想定外の環境。何もしない。
+    }
+  }
+
+  void _setAnswer(Object? arguments) {
+    if (!mounted || arguments is! Map) return;
+    final callId = arguments['callId'] as String?;
+    if (callId == null || callId.isEmpty) return;
+    ref
+        .read(pendingCallAnswerProvider.notifier)
+        .set(
+          PendingCallAnswer(
+            kind: arguments['kind'] as String? ?? 'dm',
+            callId: callId,
+            groupId: arguments['groupId'] as String?,
+          ),
+        );
   }
 
   /// 設定タブのトグルで明示的にオフにされていた場合（[AppUser.
@@ -40,6 +79,12 @@ class _PushNotificationBootstrapState
     final user = await ref
         .read(userRepositoryProvider)
         .getUser(widget.currentUserId);
+    if (kDebugMode) {
+      debugPrint(
+        '[DIAG-PUSH] bootstrap pushNotificationsEnabled='
+        '${user?.pushNotificationsEnabled}',
+      );
+    }
     if (user?.pushNotificationsEnabled == false) return;
     await ref
         .read(pushNotificationRepositoryProvider)
@@ -54,6 +99,9 @@ class _PushNotificationBootstrapState
     // 自前でローカル通知を出す（Webはshow側でno-op、push_notifications.dart参照）。
     ref.listen(_fcmForegroundMessageProvider, (previous, next) {
       final message = next.asData?.value;
+      if (kDebugMode && message != null) {
+        debugPrint('[DIAG-PUSH] onMessage data=${message.data.keys.toList()}');
+      }
       if (message != null) showRemoteMessageNotification(message);
     });
     return widget.child;

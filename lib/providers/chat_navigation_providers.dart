@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart' show ValueNotifier;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../models/direct_message.dart';
@@ -43,6 +44,29 @@ final pendingGroupSelectionProvider =
     NotifierProvider<PendingGroupSelectionNotifier, Group?>(
       PendingGroupSelectionNotifier.new,
     );
+
+/// 次に[pendingDmSelectionProvider]/[pendingGroupSelectionProvider]で開く会話を、
+/// 一覧での「選択」ではなく、チャット画面そのものとして開く指定（2026-11-12）。
+/// 通知のタップ用。アイコン＋寄合一覧のレイアウトでは、一覧で会話をタップしても
+/// 1回目は選択（寄合一覧を出す）だけで、2回目でチャットが開く設計だが、通知は
+/// 開きたい寄合が決まっているので、直接チャット画面を開く。`TalksTab`が読んで消す。
+class PendingChatFullscreenNotifier extends Notifier<bool> {
+  @override
+  bool build() => false;
+
+  void set(bool value) => state = value;
+}
+
+final pendingChatFullscreenProvider =
+    NotifierProvider<PendingChatFullscreenNotifier, bool>(
+      PendingChatFullscreenNotifier.new,
+    );
+
+/// 寄合一覧の左スワイプで開く、本物のメッセージ画面を、透明にして先に積んでおく間だけtrue
+/// （2026-11-12）。スワイプの動きの最中に本物の画面を先に作って読み込ませ、開き切った
+/// 瞬間に透明を解除してプレビューと入れ替える。入れ替えの瞬間に、本物の画面が空白の
+/// まま見える（点滅する）のを防ぐ。画面の中身（木の形）は変えず、描かない・触れないだけ。
+final ValueNotifier<bool> chatOpenHold = ValueNotifier<bool>(false);
 
 /// 会話（一対/広場）の識別子。通話セッションがどの会話のものかを表す
 /// （`ActiveCallSession.conversation`）。

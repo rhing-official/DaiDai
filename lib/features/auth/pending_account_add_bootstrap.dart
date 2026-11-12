@@ -1,5 +1,4 @@
 import '../../utils/auto_dismiss_banner.dart';
-import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -32,7 +31,7 @@ class _PendingAccountAddBootstrapState
   @override
   void initState() {
     super.initState();
-    if (kIsWeb) _complete();
+    _complete();
   }
 
   @override
@@ -40,14 +39,13 @@ class _PendingAccountAddBootstrapState
     super.didUpdateWidget(oldWidget);
     final old = oldWidget.currentUser;
     final now = widget.currentUser;
-    if (kIsWeb &&
-        (old.effectiveIcon?.url != now.effectiveIcon?.url ||
-            old.effectiveIconFocalFor(null)?.dx !=
-                now.effectiveIconFocalFor(null)?.dx ||
-            old.effectiveIconFocalFor(null)?.dy !=
-                now.effectiveIconFocalFor(null)?.dy ||
-            old.effectiveIconFocalFor(null)?.scale !=
-                now.effectiveIconFocalFor(null)?.scale)) {
+    if ((old.effectiveIcon?.url != now.effectiveIcon?.url ||
+        old.effectiveIconFocalFor(null)?.dx !=
+            now.effectiveIconFocalFor(null)?.dx ||
+        old.effectiveIconFocalFor(null)?.dy !=
+            now.effectiveIconFocalFor(null)?.dy ||
+        old.effectiveIconFocalFor(null)?.scale !=
+            now.effectiveIconFocalFor(null)?.scale)) {
       _refreshIcon();
     }
   }

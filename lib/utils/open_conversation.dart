@@ -25,11 +25,15 @@ import '../router/app_router.dart';
 /// [roomId]を渡すと、その寄合を開く（`lastOpenedRoomProvider`へ先に記録し、
 /// どのレイアウトでも「最後に開いた寄合」として拾われる）。省略時は、最後に
 /// 開いた寄合（無ければ先頭）。
+///
+/// [fullscreen]をtrueにすると、アイコン＋寄合一覧のレイアウトでも、会話の選択だけで
+/// 止めず、その寄合のチャット画面を直接開く（通知のタップ用、2026-11-12）。
 Future<void> openGroupInTalks(
   WidgetRef ref,
   Group group, {
   String? roomId,
   bool goHome = true,
+  bool fullscreen = false,
 }) async {
   if (roomId != null) {
     await ref
@@ -37,6 +41,7 @@ Future<void> openGroupInTalks(
         .setLastRoom(ViewedGroup(group.groupId), roomId);
   }
   if (goHome) _goToTalksTab(ref);
+  ref.read(pendingChatFullscreenProvider.notifier).set(fullscreen);
   ref.read(pendingGroupSelectionProvider.notifier).set(group);
 }
 
@@ -46,6 +51,7 @@ Future<void> openDmInTalks(
   DirectMessage dm, {
   String? roomId,
   bool goHome = true,
+  bool fullscreen = false,
 }) async {
   if (roomId != null) {
     await ref
@@ -53,6 +59,7 @@ Future<void> openDmInTalks(
         .setLastRoom(ViewedDm(dm.dmId), roomId);
   }
   if (goHome) _goToTalksTab(ref);
+  ref.read(pendingChatFullscreenProvider.notifier).set(fullscreen);
   ref.read(pendingDmSelectionProvider.notifier).set(dm);
 }
 

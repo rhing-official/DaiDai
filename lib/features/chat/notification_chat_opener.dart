@@ -1,4 +1,5 @@
 import 'package:collection/collection.dart';
+import 'package:flutter/foundation.dart' show debugPrint, kDebugMode;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -8,6 +9,7 @@ import '../../models/direct_message.dart';
 import '../../models/group.dart';
 import '../../providers/repository_providers.dart';
 import '../../utils/open_conversation.dart';
+import '../../router/back_stack.dart' show backStackControllerProvider;
 
 /// プッシュ通知タップ時、`dmId`/`groupId`（＋任意の`roomId`）だけから
 /// 該当の語らいを開くための解決役（2026-09-02追加）。
@@ -53,22 +55,46 @@ class _NotificationChatOpenerState
   }
 
   Future<void> _redirect() async {
+    if (kDebugMode) {
+      debugPrint(
+        '[DIAG-TAP] opener isDm=${widget.isDm} id=${widget.conversationId} '
+        'room=${widget.roomId}',
+      );
+    }
     if (widget.isDm) {
       final resolved = await _resolveDm();
+      if (kDebugMode) {
+        debugPrint('[DIAG-TAP] opener dm resolved=${resolved != null}');
+      }
       if (!mounted) return;
       if (resolved == null) {
         context.go('/');
         return;
       }
-      await openDmInTalks(ref, resolved.dm, roomId: resolved.roomId);
+      ref.read(backStackControllerProvider).bypassGuardsBriefly();
+      await openDmInTalks(
+        ref,
+        resolved.dm,
+        roomId: resolved.roomId,
+        fullscreen: true,
+      );
     } else {
       final resolved = await _resolveGroup();
+      if (kDebugMode) {
+        debugPrint('[DIAG-TAP] opener group resolved=${resolved != null}');
+      }
       if (!mounted) return;
       if (resolved == null) {
         context.go('/');
         return;
       }
-      await openGroupInTalks(ref, resolved.group, roomId: resolved.roomId);
+      ref.read(backStackControllerProvider).bypassGuardsBriefly();
+      await openGroupInTalks(
+        ref,
+        resolved.group,
+        roomId: resolved.roomId,
+        fullscreen: true,
+      );
     }
   }
 

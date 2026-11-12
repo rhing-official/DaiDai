@@ -119,6 +119,7 @@ import '../guide/tutorial/tutorial_target.dart';
 import '../../widgets/app_dialog.dart';
 import '../../widgets/toggles/app_checkbox.dart';
 import '../../widgets/delayed_spinner.dart';
+import '../../widgets/keyboard_stable_body.dart';
 
 /// 劇画UIの吹き出し・入力欄の枠取りの太さ（[MonochromeBoxPainter]の
 /// thicknessBase）。以前は`size.shortestSide`（箱の短辺）に比例させて
@@ -3231,937 +3232,960 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
       // セットで、アイコンの奥をメッセージがスクロールして通っていくように
       // 見せる）。
       extendBodyBehindAppBar: true,
+      // モバイルでは、キーボードでbodyを縮めず、`KeyboardStableBody`が画面全体を
+      // 平行移動する（縮めると一覧のビューポートと入力欄の高さが変わり、
+      // キーボードの開閉でメッセージが跳ねる、2026-11-12）。
+      resizeToAvoidBottomInset: !KeyboardStableBody.enabledOnPlatform,
       appBar: appBar,
-      body: Column(
-        // 幅を常に画面いっぱいにする（2026-11-08）。指定しないと、Columnは一番幅の広い
-        // 子の幅になり、メッセージ一覧がまだ無い最初の数フレーム（読み込み表示だけ）は
-        // 下のStackの幅が0になっていた。すると、Stackに重ねた入力欄が幅0で配置され、
-        // 入力欄の文字が1文字ずつ折り返して最大6行ぶんの高さ（実測192〜254px）になり、
-        // それを「安定した高さ」と誤判定して一覧の下余白に使い、直後に72pxへ縮んで
-        // 内容全体が約180px動いて見えていた（画面を開いた直後のカクつきの根本原因）。
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          // extendBodyBehindAppBarによりbodyはAppBarの裏（y=0）から始まる
-          // ため、バナーをそのまま置くとAppBarの矩形と重なり、AppBar側の
-          // Materialがタップを吸収してしまいバナーに届かない（2026-09-04
-          // 発覚・修正）。AppBarの実高さ分だけ明示的に下げることで、
-          // AppBarの裏を通り抜けるのはメッセージ一覧だけにする。
-          if (widget.banner != null)
-            Padding(
-              padding: EdgeInsets.only(
-                top:
-                    appBar.preferredSize.height +
-                    MediaQuery.paddingOf(context).top,
-              ),
-              child: widget.banner!,
-            ),
-          Expanded(
-            child: Stack(
-              key: _autoScrollAreaKey,
-              children: [
-                StreamBuilder<List<Message>>(
-                  stream: widget.messagesStream,
-                  builder: (context, snapshot) {
-                    // snapshot.hasDataも確認する（2026-08-20追加）。
-                    // streamが（何らかの理由で）再購読された場合でも、
-                    // 既にデータを表示済みならメッセージ一覧のListView
-                    // （＝スクロール位置）を再構築でリセットしない為の
-                    // 防御的な措置。根本的な対策は呼び出し元
-                    // （`DmChatPane`/`GroupChatPane`）がmessagesStream
-                    // 自体のidentityを固定していること。
-                    if (snapshot.connectionState == ConnectionState.waiting &&
-                        !snapshot.hasData) {
-                      return Padding(
-                        padding: EdgeInsets.only(bottom: _composerAreaHeight),
-                        child: const DelayedSpinner(),
-                      );
-                    }
-                    if (snapshot.hasError) {
-                      return Padding(
-                        padding: EdgeInsets.only(bottom: _composerAreaHeight),
-                        child: Center(
-                          child: Text(
-                            ref
-                                .read(appStringsProvider)
-                                .genericErrorTemplate(snapshot.error ?? ''),
-                          ),
-                        ),
-                      );
-                    }
-                    final messages = snapshot.data ?? [];
-                    _notifyViewed(messages);
-                    if (messages.isEmpty) {
-                      return Padding(
-                        padding: EdgeInsets.only(bottom: _composerAreaHeight),
-                        child: Center(
-                          child: Text(
-                            ref.read(appStringsProvider).chatNoMessagesYet,
-                          ),
-                        ),
-                      );
-                    }
-                    _markUnreadMessages(messages);
-
-                    // 直近50件（messages、購読中）に、返信先ジャンプで一時的に
-                    // 取得したメッセージ（_extraMessages、購読していない）を
-                    // マージして表示する。同じidがあればmessages側を優先する
-                    // （購読中で最新の為）。既にmessagesに含まれるようになった
-                    // 分はもう保持しておく必要が無いので削除する。
-                    _extraMessages.removeWhere(
-                      (id, _) => messages.any((m) => m.messageId == id),
-                    );
-                    // messagesは呼び出し元（DmChatPane/GroupChatPane）で
-                    // 既にsentAt降順ソート済み。_extraMessages（返信先ジャンプ
-                    // で一時取得した分）が空の時（大半のケース）は、
-                    // 追加のO(n log n)ソートを省略する（2026-09-07、遡るたびの
-                    // カクつき対策）。
-                    final combined = _extraMessages.isEmpty
-                        ? messages
-                        : ([...messages, ..._extraMessages.values]..sort((
-                            a,
-                            b,
-                          ) {
-                            final aTime = a.sentAt?.toDate() ?? DateTime.now();
-                            final bTime = b.sentAt?.toDate() ?? DateTime.now();
-                            return bTime.compareTo(aTime);
-                          }));
-                    _cachedMessages = combined;
-
-                    // 返信元メッセージの引用プレビュー・返信先ジャンプに使う。
-                    // 現在ロード済み（直近50件＋ジャンプで追加取得した分）の
-                    // 範囲に返信元があれば、こちらを優先して表示する（編集済み
-                    // なら最新の内容を反映出来る）。範囲外ならMessage側の
-                    // 非正規化フィールド（replyToSnippet等）にフォールバックする
-                    // （_MessageRow参照）。
-                    final messagesById = {
-                      for (final m in combined) m.messageId: m,
-                    };
-
-                    // 画像/動画の拡大表示（`_MediaViewerScreen`）での
-                    // 前後スワイプ・矢印キーナビゲーション用（2026-08-14
-                    // 追加）。`combined`は新しい順なので反転して古い順にする
-                    // （右スワイプ＝前＝古い方向、という仕様に合わせる為）。
-                    final mediaMessages = combined
-                        .where(
-                          (m) =>
-                              m.contentType == 'image' ||
-                              m.contentType == 'video' ||
-                              (m.contentType == 'multi' &&
-                                  m.attachments.any((a) => a.isMedia)),
-                        )
-                        .toList()
-                        .reversed
-                        .toList();
-
-                    // combinedは新しい順（index 0が最新）。日付区切りを「その日の
-                    // 最初のメッセージの直上」に挿入したいので、一旦古い順に走査して
-                    // 区切り込みのリストを組み立ててから反転する。reverse:trueの
-                    // ListViewにそのまま渡すと、index 0（リストの末尾＝一番新しい
-                    // 要素）が画面下端に来て、見た目は上から古い順（区切り→その日の
-                    // メッセージ…）に正しく並ぶ。
-                    final screenshotEffectiveIds = _screenshotSelecting
-                        ? _screenshotEffectiveIds(combined)
-                        : const <String>{};
-
-                    final entries = <_ChatListEntry>[];
-                    // 1日単位ページネーション対応の呼び出し元
-                    // （onLoadOlderMessagesが非null）の場合のみ、一覧の
-                    // 一番古いメッセージ側の端（entries[0]、reverse:trueの
-                    // ListViewでは画面上端）にローディング／終端表示を
-                    // 追加する（2026-08-20追加）。
-                    if (widget.onLoadOlderMessages != null) {
-                      if (widget.isLoadingOlderMessages) {
-                        entries.add(const _ChatLoadingHeaderEntry());
-                      } else if (!widget.hasMoreHistory) {
-                        entries.add(const _ChatNoMoreHistoryEntry());
-                      }
-                    }
-                    DateTime? currentDay;
-                    for (var i = combined.length - 1; i >= 0; i--) {
-                      final message = combined[i];
-                      final sentAt = message.sentAt?.toDate();
-                      if (sentAt != null &&
-                          (currentDay == null ||
-                              !isSameDay(sentAt, currentDay))) {
-                        currentDay = sentAt;
-                        entries.add(_ChatDateSeparatorEntry(sentAt));
-                      }
-                      entries.add(_ChatMessageEntry(message, sentAt));
-                    }
-                    final reversedEntries = entries.reversed.toList();
-
-                    // 返信先ジャンプ機能（_jumpToMessage）用に、messageIdから
-                    // ScrollablePositionedList上のインデックスを引けるように
-                    // しておく（2026-08-21、ItemScrollController.jumpTo(index:)
-                    // は対象が未ビルドでも確定的にジャンプ出来る為、旧実装の
-                    // ような「ロード済みは最新50件程度」という前提は不要）。
-                    // Widgetではなく軽量なエントリのリストから計算する為、
-                    // 件数が多くてもコストは無視出来る（2026-09-07）。
-                    _entryCount = reversedEntries.length;
-                    _messageIndexById = {
-                      for (var i = 0; i < reversedEntries.length; i++)
-                        if (reversedEntries[i] case _ChatMessageEntry(
-                          :final message,
-                        ))
-                          message.messageId: i,
-                    };
-                    _messageIdByIndex = [
-                      for (final entry in reversedEntries)
-                        if (entry case _ChatMessageEntry(:final message))
-                          message.messageId
-                        else
-                          null,
-                    ];
-                    // 離れる直前に見ていたメッセージのアンカーから、現在の
-                    // 一覧でのindexを引き直す（新着でindexがずれても同じ
-                    // メッセージに戻る）。見つからなければ最新から始める。
-                    final initialAnchor = widget.initialScrollAnchor;
-                    final anchoredIndex = initialAnchor == null
-                        ? null
-                        : _messageIndexById[initialAnchor.messageId];
-                    final initialScrollIndex = anchoredIndex ?? 0;
-
-                    // メッセージ一覧は入力欄の裏まで全画面分の高さで敷き、
-                    // 入力欄自体はStack最前面のオーバーレイとして重ねる
-                    // （下記Positioned参照）。下部余白（bottomInset）を
-                    // 入力欄の実測高さに合わせてTweenAnimationBuilderで
-                    // アニメーションさせることで、入力欄が伸び縮みする際に
-                    // メッセージがその下へ滑らかに潜り込むように見せている
-                    // （2026-07-30、入力欄の直前でメッセージが唐突に
-                    // 途切れて見える不具合の修正）。
-
-                    // 読み込み済みの内容が画面を埋めきらない（＝そもそも
-                    // スクロールする余地が無い）場合、ユーザーのスクロール
-                    // 操作を待つ`_maybeLoadOlderMessages`（スクロール通知
-                    // 起点）が一切発火しない。フレーム描画後にその状態を
-                    // 検知し、スクロール無しでも自動的に次の日を読み込む
-                    // （2026-08-21、直近日のメッセージ数が少ない語らいで
-                    // 過去日が全く読み込まれない不具合の修正）。
-                    WidgetsBinding.instance.addPostFrameCallback((_) {
-                      if (mounted) _maybeLoadOlderMessages();
-                    });
-
-                    // 実際に表示される範囲＋cacheExtent分のみ呼ばれる
-                    // （`ScrollablePositionedList`が要求したindexの分だけ
-                    // その場で構築する、2026-09-07）。`_MessageRow`の
-                    // 引数はこれまで`entries`構築ループ内で直接渡していた
-                    // ものと同一で、いずれもこのStreamBuilder.builderの
-                    // クロージャスコープ内にあるためそのまま参照出来る。
-                    Widget buildEntry(_ChatListEntry entry) => switch (entry) {
-                      _ChatLoadingHeaderEntry() => const SizedBox.shrink(),
-                      _ChatNoMoreHistoryEntry() => Padding(
-                        padding: const EdgeInsets.all(16),
-                        child: Center(
-                          child: Text(
-                            strings.chatNoMoreHistory,
-                            style: TextStyle(
-                              color: colorScheme.onSurfaceVariant,
-                              fontSize: 12,
-                            ),
-                          ),
-                        ),
-                      ),
-                      _ChatDateSeparatorEntry(:final date) => _DateSeparator(
-                        date: date,
-                        locale: locale,
-                        uiStyle: uiStyle,
-                      ),
-                      _ChatMessageEntry(:final message, :final sentAt) =>
-                        _MessageRow(
-                          key: ValueKey(message.messageId),
-                          message: message,
-                          isMe: _isMine(message),
-                          currentUserId: widget.currentUserId,
-                          timeLabel: sentAt != null
-                              ? formatMessageTime(sentAt, timeFormat)
-                              : null,
-                          colorScheme: colorScheme,
-                          floatingShadow: floatingShadow,
-                          uiStyle: uiStyle,
-                          readReceiptsEnabled: widget.readReceiptsEnabled,
-                          layoutStyle: layoutStyle,
-                          isDm: widget.isDm,
-                          forceShowSenderInfo: widget.forceShowSenderInfo,
-                          conversationId: widget.conversationId,
-                          roomId: widget.roomId,
-                          onSenderTap: (_selecting || _screenshotSelecting)
-                              ? null
-                              : widget.onSenderTap,
-                          senderNameColorResolver:
-                              widget.senderNameColorResolver,
-                          mentionRoleColors: widget.mentionRoleColors,
-                          selecting: _selecting || _screenshotSelecting,
-                          selected: _selecting
-                              ? _selectedMessageIds.contains(message.messageId)
-                              : screenshotEffectiveIds.contains(
-                                  message.messageId,
-                                ),
-                          canSelect: widget.onHideMessages != null,
-                          onEnterSelection: _enterSelectionMode,
-                          onEnterScreenshotSelection: _enterScreenshotSelection,
-                          textCopySelecting:
-                              _textCopyMessageId == message.messageId,
-                          onEnterTextCopy: _enterTextCopyMode,
-                          partialCopyController: _partialCopyController,
-                          onCopyPartialSelection: _copyPartialSelectionAndExit,
-                          onCopyMessage: _copyMessageText,
-                          onToggleSelected: _selecting
-                              ? _toggleSelected
-                              : (_screenshotSelecting
-                                    ? _toggleScreenshotSelected
-                                    : null),
-                          messagesById: messagesById,
-                          mediaMessages: mediaMessages,
-                          onReply: widget.onSend != null ? _startReply : null,
-                          onEdit: widget.onEditMessage != null
-                              ? _startEdit
-                              : null,
-                          onUnsend: widget.onUnsendMessage,
-                          onSetReaction: widget.onSetReaction,
-                          onAddToAlbum:
-                              widget.conversationId != null &&
-                                  widget.roomId != null
-                              ? _addToAlbum
-                              : null,
-                          onOpenCalendarEvent:
-                              widget.conversationId != null &&
-                                  widget.roomId != null
-                              ? _openCalendarEvent
-                              : null,
-                          onOpenScheduleCoordination:
-                              widget.conversationId != null &&
-                                  widget.roomId != null
-                              ? _openScheduleCoordination
-                              : null,
-                          onOpenPoll:
-                              widget.conversationId != null &&
-                                  widget.roomId != null
-                              ? _openPoll
-                              : null,
-                          pollConversationId: widget.conversationId,
-                          pollRoomId: widget.roomId,
-                          onOpenNote:
-                              widget.conversationId != null &&
-                                  widget.roomId != null
-                              ? _openNote
-                              : null,
-                          pinnedMessageIds: widget.pinnedMessageIds,
-                          onPinMessage: widget.onPinMessage,
-                          onUnpinMessage: widget.onUnpinMessage,
-                          onJumpToReply: _jumpToReplyTarget,
-                          onSendSticker: widget.onSendSticker != null
-                              ? _handleStickerPicked
-                              : null,
-                          stickerButtonKey: _stickerButtonKey,
-                          onOpenStickerDock: (packId) => _setStickerDockStage(
-                            StickerDockStage.half,
-                            packId: packId,
-                          ),
-                          highlighted:
-                              _highlightedMessageId == message.messageId,
-                          timeFormat: timeFormat,
-                          onDeclineAccountDeletionNotice:
-                              widget.onDeclineAccountDeletionNotice,
-                          onDeleteAfterAccountDeletion:
-                              widget.onDeleteAfterAccountDeletion,
-                          vocabulary: vocabulary,
-                        ),
-                    };
-
-                    return TweenAnimationBuilder<double>(
-                      tween: Tween<double>(
-                        end:
-                            (_selecting ||
-                                _screenshotSelecting ||
-                                _stickerDockStage == StickerDockStage.expanded)
-                            ? 0
-                            : _composerAreaHeight + _stickerPanelHeight,
-                      ),
-                      // 滑らかに動かすのは、入力中（フォーカス中）の伸び縮みと
-                      // 返信/編集バーの開閉だけ。開いた直後などフォーカスの無い
-                      // 高さの変化（フォント読み込み・下書き復元等）をアニメー
-                      // ションすると、メッセージ全体が下がって見える。
-                      duration:
-                          _composerAreaMeasured &&
-                              _composerAnimationReady &&
-                              (_composerFocusNode.hasFocus ||
-                                  _replyingTo != null ||
-                                  _editingMessage != null)
-                          ? const Duration(milliseconds: 180)
-                          : Duration.zero,
-                      curve: Curves.easeOut,
-                      builder: (context, bottomInset, _) => Opacity(
-                        // 入力欄の高さが安定するまでは一覧を見せない（過渡的な
-                        // 高さで一瞬配置され、安定時に一気にずれて見える為）。
-                        opacity: _composerAreaMeasured ? 1 : 0,
-                        child: ScrollablePositionedList.builder(
-                          itemScrollController: _itemScrollController,
-                          scrollOffsetController: _scrollOffsetController,
-                          itemPositionsListener: _itemPositionsListener,
-                          reverse: true,
-                          itemCount: reversedEntries.length,
-                          itemBuilder: (context, index) =>
-                              buildEntry(reversedEntries[index]),
-                          initialScrollIndex: initialScrollIndex,
-                          initialAlignment: anchoredIndex == null
-                              ? 0
-                              : initialAnchor!.leadingEdge,
-                          padding: EdgeInsets.fromLTRB(
-                            12,
-                            12,
-                            12,
-                            12 + bottomInset,
-                          ),
-                        ),
-                      ),
-                    );
-                  },
+      body: KeyboardStableBody(
+        // キーボードが出ている間、上部バーの裏にずらしたメッセージが透けないようにする。
+        topClip:
+            appBar.preferredSize.height + MediaQuery.paddingOf(context).top,
+        child: Column(
+          // 幅を常に画面いっぱいにする（2026-11-08）。指定しないと、Columnは一番幅の広い
+          // 子の幅になり、メッセージ一覧がまだ無い最初の数フレーム（読み込み表示だけ）は
+          // 下のStackの幅が0になっていた。すると、Stackに重ねた入力欄が幅0で配置され、
+          // 入力欄の文字が1文字ずつ折り返して最大6行ぶんの高さ（実測192〜254px）になり、
+          // それを「安定した高さ」と誤判定して一覧の下余白に使い、直後に72pxへ縮んで
+          // 内容全体が約180px動いて見えていた（画面を開いた直後のカクつきの根本原因）。
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            // extendBodyBehindAppBarによりbodyはAppBarの裏（y=0）から始まる
+            // ため、バナーをそのまま置くとAppBarの矩形と重なり、AppBar側の
+            // Materialがタップを吸収してしまいバナーに届かない（2026-09-04
+            // 発覚・修正）。AppBarの実高さ分だけ明示的に下げることで、
+            // AppBarの裏を通り抜けるのはメッセージ一覧だけにする。
+            if (widget.banner != null)
+              Padding(
+                padding: EdgeInsets.only(
+                  top:
+                      appBar.preferredSize.height +
+                      MediaQuery.paddingOf(context).top,
                 ),
-                if (!_selecting &&
-                    !_screenshotSelecting &&
-                    widget.onSend != null &&
-                    _stickerDockStage != StickerDockStage.expanded)
-                  Positioned(
-                    left: 0,
-                    right: 0,
-                    bottom: 0,
-                    child: _buildComposerArea(
-                      isGlass: isGlass,
-                      isGekiga: isGekiga,
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          if (_replyingTo != null || _editingMessage != null)
-                            _ComposerContextBar(
-                              replyingTo: _replyingTo,
-                              replyingTo2: _replyingTo2,
-                              onRemoveReply: _removeReplyTarget,
-                              editing: _editingMessage != null,
-                              strings: strings,
-                              onCancel: _cancelComposerContext,
-                              vocabulary: vocabulary,
+                child: widget.banner!,
+              ),
+            Expanded(
+              child: Stack(
+                key: _autoScrollAreaKey,
+                children: [
+                  StreamBuilder<List<Message>>(
+                    stream: widget.messagesStream,
+                    builder: (context, snapshot) {
+                      // snapshot.hasDataも確認する（2026-08-20追加）。
+                      // streamが（何らかの理由で）再購読された場合でも、
+                      // 既にデータを表示済みならメッセージ一覧のListView
+                      // （＝スクロール位置）を再構築でリセットしない為の
+                      // 防御的な措置。根本的な対策は呼び出し元
+                      // （`DmChatPane`/`GroupChatPane`）がmessagesStream
+                      // 自体のidentityを固定していること。
+                      if (snapshot.connectionState == ConnectionState.waiting &&
+                          !snapshot.hasData) {
+                        return Padding(
+                          padding: EdgeInsets.only(bottom: _composerAreaHeight),
+                          child: const DelayedSpinner(),
+                        );
+                      }
+                      if (snapshot.hasError) {
+                        return Padding(
+                          padding: EdgeInsets.only(bottom: _composerAreaHeight),
+                          child: Center(
+                            child: Text(
+                              ref
+                                  .read(appStringsProvider)
+                                  .genericErrorTemplate(snapshot.error ?? ''),
                             ),
-                          if (_mentionQuery != null &&
-                              _mentionMatches.isNotEmpty)
-                            MentionSuggestionList(
-                              candidates: _mentionMatches,
-                              selectedIndex: _mentionIndex,
-                              onPick: _pickMention,
-                              strings: strings,
-                              plazaLabel:
-                                  (vocabulary ?? Vocabulary.japanese).plaza,
-                              isGlass: isGlass,
-                              isGekiga: isGekiga,
+                          ),
+                        );
+                      }
+                      final messages = snapshot.data ?? [];
+                      _notifyViewed(messages);
+                      if (messages.isEmpty) {
+                        return Padding(
+                          padding: EdgeInsets.only(bottom: _composerAreaHeight),
+                          child: Center(
+                            child: Text(
+                              ref.read(appStringsProvider).chatNoMessagesYet,
                             ),
-                          if (_scheduledAt case final scheduledAt?)
-                            ScheduledSendChip(
-                              sendAt: scheduledAt,
-                              strings: strings,
-                              onClear: () =>
-                                  setState(() => _scheduledAt = null),
+                          ),
+                        );
+                      }
+                      _markUnreadMessages(messages);
+
+                      // 直近50件（messages、購読中）に、返信先ジャンプで一時的に
+                      // 取得したメッセージ（_extraMessages、購読していない）を
+                      // マージして表示する。同じidがあればmessages側を優先する
+                      // （購読中で最新の為）。既にmessagesに含まれるようになった
+                      // 分はもう保持しておく必要が無いので削除する。
+                      _extraMessages.removeWhere(
+                        (id, _) => messages.any((m) => m.messageId == id),
+                      );
+                      // messagesは呼び出し元（DmChatPane/GroupChatPane）で
+                      // 既にsentAt降順ソート済み。_extraMessages（返信先ジャンプ
+                      // で一時取得した分）が空の時（大半のケース）は、
+                      // 追加のO(n log n)ソートを省略する（2026-09-07、遡るたびの
+                      // カクつき対策）。
+                      final combined = _extraMessages.isEmpty
+                          ? messages
+                          : ([...messages, ..._extraMessages.values]
+                              ..sort((a, b) {
+                                final aTime =
+                                    a.sentAt?.toDate() ?? DateTime.now();
+                                final bTime =
+                                    b.sentAt?.toDate() ?? DateTime.now();
+                                return bTime.compareTo(aTime);
+                              }));
+                      _cachedMessages = combined;
+
+                      // 返信元メッセージの引用プレビュー・返信先ジャンプに使う。
+                      // 現在ロード済み（直近50件＋ジャンプで追加取得した分）の
+                      // 範囲に返信元があれば、こちらを優先して表示する（編集済み
+                      // なら最新の内容を反映出来る）。範囲外ならMessage側の
+                      // 非正規化フィールド（replyToSnippet等）にフォールバックする
+                      // （_MessageRow参照）。
+                      final messagesById = {
+                        for (final m in combined) m.messageId: m,
+                      };
+
+                      // 画像/動画の拡大表示（`_MediaViewerScreen`）での
+                      // 前後スワイプ・矢印キーナビゲーション用（2026-08-14
+                      // 追加）。`combined`は新しい順なので反転して古い順にする
+                      // （右スワイプ＝前＝古い方向、という仕様に合わせる為）。
+                      final mediaMessages = combined
+                          .where(
+                            (m) =>
+                                m.contentType == 'image' ||
+                                m.contentType == 'video' ||
+                                (m.contentType == 'multi' &&
+                                    m.attachments.any((a) => a.isMedia)),
+                          )
+                          .toList()
+                          .reversed
+                          .toList();
+
+                      // combinedは新しい順（index 0が最新）。日付区切りを「その日の
+                      // 最初のメッセージの直上」に挿入したいので、一旦古い順に走査して
+                      // 区切り込みのリストを組み立ててから反転する。reverse:trueの
+                      // ListViewにそのまま渡すと、index 0（リストの末尾＝一番新しい
+                      // 要素）が画面下端に来て、見た目は上から古い順（区切り→その日の
+                      // メッセージ…）に正しく並ぶ。
+                      final screenshotEffectiveIds = _screenshotSelecting
+                          ? _screenshotEffectiveIds(combined)
+                          : const <String>{};
+
+                      final entries = <_ChatListEntry>[];
+                      // 1日単位ページネーション対応の呼び出し元
+                      // （onLoadOlderMessagesが非null）の場合のみ、一覧の
+                      // 一番古いメッセージ側の端（entries[0]、reverse:trueの
+                      // ListViewでは画面上端）にローディング／終端表示を
+                      // 追加する（2026-08-20追加）。
+                      if (widget.onLoadOlderMessages != null) {
+                        if (widget.isLoadingOlderMessages) {
+                          entries.add(const _ChatLoadingHeaderEntry());
+                        } else if (!widget.hasMoreHistory) {
+                          entries.add(const _ChatNoMoreHistoryEntry());
+                        }
+                      }
+                      DateTime? currentDay;
+                      for (var i = combined.length - 1; i >= 0; i--) {
+                        final message = combined[i];
+                        final sentAt = message.sentAt?.toDate();
+                        if (sentAt != null &&
+                            (currentDay == null ||
+                                !isSameDay(sentAt, currentDay))) {
+                          currentDay = sentAt;
+                          entries.add(_ChatDateSeparatorEntry(sentAt));
+                        }
+                        entries.add(_ChatMessageEntry(message, sentAt));
+                      }
+                      final reversedEntries = entries.reversed.toList();
+
+                      // 返信先ジャンプ機能（_jumpToMessage）用に、messageIdから
+                      // ScrollablePositionedList上のインデックスを引けるように
+                      // しておく（2026-08-21、ItemScrollController.jumpTo(index:)
+                      // は対象が未ビルドでも確定的にジャンプ出来る為、旧実装の
+                      // ような「ロード済みは最新50件程度」という前提は不要）。
+                      // Widgetではなく軽量なエントリのリストから計算する為、
+                      // 件数が多くてもコストは無視出来る（2026-09-07）。
+                      _entryCount = reversedEntries.length;
+                      _messageIndexById = {
+                        for (var i = 0; i < reversedEntries.length; i++)
+                          if (reversedEntries[i] case _ChatMessageEntry(
+                            :final message,
+                          ))
+                            message.messageId: i,
+                      };
+                      _messageIdByIndex = [
+                        for (final entry in reversedEntries)
+                          if (entry case _ChatMessageEntry(:final message))
+                            message.messageId
+                          else
+                            null,
+                      ];
+                      // 離れる直前に見ていたメッセージのアンカーから、現在の
+                      // 一覧でのindexを引き直す（新着でindexがずれても同じ
+                      // メッセージに戻る）。見つからなければ最新から始める。
+                      final initialAnchor = widget.initialScrollAnchor;
+                      final anchoredIndex = initialAnchor == null
+                          ? null
+                          : _messageIndexById[initialAnchor.messageId];
+                      final initialScrollIndex = anchoredIndex ?? 0;
+
+                      // メッセージ一覧は入力欄の裏まで全画面分の高さで敷き、
+                      // 入力欄自体はStack最前面のオーバーレイとして重ねる
+                      // （下記Positioned参照）。下部余白（bottomInset）を
+                      // 入力欄の実測高さに合わせてTweenAnimationBuilderで
+                      // アニメーションさせることで、入力欄が伸び縮みする際に
+                      // メッセージがその下へ滑らかに潜り込むように見せている
+                      // （2026-07-30、入力欄の直前でメッセージが唐突に
+                      // 途切れて見える不具合の修正）。
+
+                      // 読み込み済みの内容が画面を埋めきらない（＝そもそも
+                      // スクロールする余地が無い）場合、ユーザーのスクロール
+                      // 操作を待つ`_maybeLoadOlderMessages`（スクロール通知
+                      // 起点）が一切発火しない。フレーム描画後にその状態を
+                      // 検知し、スクロール無しでも自動的に次の日を読み込む
+                      // （2026-08-21、直近日のメッセージ数が少ない語らいで
+                      // 過去日が全く読み込まれない不具合の修正）。
+                      WidgetsBinding.instance.addPostFrameCallback((_) {
+                        if (mounted) _maybeLoadOlderMessages();
+                      });
+
+                      // 実際に表示される範囲＋cacheExtent分のみ呼ばれる
+                      // （`ScrollablePositionedList`が要求したindexの分だけ
+                      // その場で構築する、2026-09-07）。`_MessageRow`の
+                      // 引数はこれまで`entries`構築ループ内で直接渡していた
+                      // ものと同一で、いずれもこのStreamBuilder.builderの
+                      // クロージャスコープ内にあるためそのまま参照出来る。
+                      Widget buildEntry(
+                        _ChatListEntry entry,
+                      ) => switch (entry) {
+                        _ChatLoadingHeaderEntry() => const SizedBox.shrink(),
+                        _ChatNoMoreHistoryEntry() => Padding(
+                          padding: const EdgeInsets.all(16),
+                          child: Center(
+                            child: Text(
+                              strings.chatNoMoreHistory,
+                              style: TextStyle(
+                                color: colorScheme.onSurfaceVariant,
+                                fontSize: 12,
+                              ),
                             ),
-                          if (_pendingAttachments.isNotEmpty)
-                            _pendingTray(
-                              strings,
-                              isGekiga: isGekiga,
-                              isGlass: isGlass,
+                          ),
+                        ),
+                        _ChatDateSeparatorEntry(:final date) => _DateSeparator(
+                          date: date,
+                          locale: locale,
+                          uiStyle: uiStyle,
+                        ),
+                        _ChatMessageEntry(:final message, :final sentAt) =>
+                          _MessageRow(
+                            key: ValueKey(message.messageId),
+                            message: message,
+                            isMe: _isMine(message),
+                            currentUserId: widget.currentUserId,
+                            timeLabel: sentAt != null
+                                ? formatMessageTime(sentAt, timeFormat)
+                                : null,
+                            colorScheme: colorScheme,
+                            floatingShadow: floatingShadow,
+                            uiStyle: uiStyle,
+                            readReceiptsEnabled: widget.readReceiptsEnabled,
+                            layoutStyle: layoutStyle,
+                            isDm: widget.isDm,
+                            forceShowSenderInfo: widget.forceShowSenderInfo,
+                            conversationId: widget.conversationId,
+                            roomId: widget.roomId,
+                            onSenderTap: (_selecting || _screenshotSelecting)
+                                ? null
+                                : widget.onSenderTap,
+                            senderNameColorResolver:
+                                widget.senderNameColorResolver,
+                            mentionRoleColors: widget.mentionRoleColors,
+                            selecting: _selecting || _screenshotSelecting,
+                            selected: _selecting
+                                ? _selectedMessageIds.contains(
+                                    message.messageId,
+                                  )
+                                : screenshotEffectiveIds.contains(
+                                    message.messageId,
+                                  ),
+                            canSelect: widget.onHideMessages != null,
+                            onEnterSelection: _enterSelectionMode,
+                            onEnterScreenshotSelection:
+                                _enterScreenshotSelection,
+                            textCopySelecting:
+                                _textCopyMessageId == message.messageId,
+                            onEnterTextCopy: _enterTextCopyMode,
+                            partialCopyController: _partialCopyController,
+                            onCopyPartialSelection:
+                                _copyPartialSelectionAndExit,
+                            onCopyMessage: _copyMessageText,
+                            onToggleSelected: _selecting
+                                ? _toggleSelected
+                                : (_screenshotSelecting
+                                      ? _toggleScreenshotSelected
+                                      : null),
+                            messagesById: messagesById,
+                            mediaMessages: mediaMessages,
+                            onReply: widget.onSend != null ? _startReply : null,
+                            onEdit: widget.onEditMessage != null
+                                ? _startEdit
+                                : null,
+                            onUnsend: widget.onUnsendMessage,
+                            onSetReaction: widget.onSetReaction,
+                            onAddToAlbum:
+                                widget.conversationId != null &&
+                                    widget.roomId != null
+                                ? _addToAlbum
+                                : null,
+                            onOpenCalendarEvent:
+                                widget.conversationId != null &&
+                                    widget.roomId != null
+                                ? _openCalendarEvent
+                                : null,
+                            onOpenScheduleCoordination:
+                                widget.conversationId != null &&
+                                    widget.roomId != null
+                                ? _openScheduleCoordination
+                                : null,
+                            onOpenPoll:
+                                widget.conversationId != null &&
+                                    widget.roomId != null
+                                ? _openPoll
+                                : null,
+                            pollConversationId: widget.conversationId,
+                            pollRoomId: widget.roomId,
+                            onOpenNote:
+                                widget.conversationId != null &&
+                                    widget.roomId != null
+                                ? _openNote
+                                : null,
+                            pinnedMessageIds: widget.pinnedMessageIds,
+                            onPinMessage: widget.onPinMessage,
+                            onUnpinMessage: widget.onUnpinMessage,
+                            onJumpToReply: _jumpToReplyTarget,
+                            onSendSticker: widget.onSendSticker != null
+                                ? _handleStickerPicked
+                                : null,
+                            stickerButtonKey: _stickerButtonKey,
+                            onOpenStickerDock: (packId) => _setStickerDockStage(
+                              StickerDockStage.half,
+                              packId: packId,
                             ),
-                          SafeArea(
-                            top: false,
-                            // ぺったんドックが下に出ている間は、ドック側が下端の
-                            // 安全領域を持つため二重に空けない。
-                            bottom:
-                                _stickerDockStage == StickerDockStage.closed,
-                            child: Padding(
-                              padding: const EdgeInsets.all(8),
-                              child: Row(
-                                crossAxisAlignment: CrossAxisAlignment.end,
-                                children: [
-                                  // ＋ボタン（技術仕様書5.6参照）。左端に配置し、
-                                  // 送信ボタンとは反対側に置くことでタップ位置を
-                                  // 明確に分ける（2026-08-10変更、以前はテキスト欄の
-                                  // 右・送信ボタンの左にあった）。TextFieldの
-                                  // suffixIconとして持たせると、TextField自身が
-                                  // 持つタップ検出（ジェスチャーアリーナに
-                                  // 参加しない`Listener`ベースの独自実装と
-                                  // 競合しない側）がこのタップも検出してしまい、
-                                  // ソフトウェアキーボードが開いてポップアップの
-                                  // 表示位置がズレる不具合があった為、TextFieldの
-                                  // 外（Rowの兄弟要素）に出している。
-                                  if (widget.onSendAttachment != null &&
-                                      !widget.disabled)
-                                    AttachmentPopupButton(
-                                      strings: strings,
-                                      isGekiga: isGekiga,
-                                      onPicked: _onAttachmentsChosen,
-                                      onScheduleList:
-                                          widget.scheduledSendEnabled
-                                          ? _openScheduledList
-                                          : null,
-                                      scheduleListLabel:
-                                          widget.scheduledSendEnabled
-                                          ? strings.scheduledListMenuLabel(
-                                              _scheduledPendingCount(),
-                                            )
-                                          : null,
-                                    ),
-                                  Expanded(
-                                    child: TutorialTarget(
-                                      id: TutorialTargetIds.chatInput,
-                                      child: Focus(
-                                        onKeyEvent: _handleKeyEvent,
-                                        child: isGekiga
-                                            ? _GekigaComposerField(
-                                                // ぺったんアイコンを固定位置に
-                                                // 保つため、Stack+Positioned
-                                                // （確定後サイズを基準に位置
-                                                // 決めする間接的な仕組み）は
-                                                // 狙った通りに動かなかったため
-                                                // 撤回し、Row+
-                                                // CrossAxisAlignment.endに
-                                                // 変更した（2026-08-12修正、
-                                                // 当初.startとしていたのは
-                                                // 誤りだったため再修正）。
-                                                // 入力欄コンテナ自体は画面下端
-                                                // にPositioned(bottom: 0)で
-                                                // 固定されており、行数が増える
-                                                // とボックスは上方向にしか
-                                                // 伸びない。そのため固定48×48
-                                                // のアイコンをRowの下端に揃え
-                                                // れば、アイコンの絶対位置は
-                                                // 行数によらず常に変化しない
-                                                // （逆に上揃えだと、行が増える
-                                                // たびにアイコンが上へ動いて
-                                                // しまっていた）。
-                                                child: Row(
-                                                  crossAxisAlignment:
-                                                      CrossAxisAlignment.end,
-                                                  children: [
-                                                    Expanded(
-                                                      // Rowが.end（下揃え）の
-                                                      // ため、1行だけの場合
-                                                      // TextField自身の高さが
-                                                      // 48×48のアイコンより
-                                                      // 低いと、その差分だけ
-                                                      // TextFieldの上に空白が
-                                                      // でき、textAlignVertical
-                                                      // .centerで中央寄せして
-                                                      // いても見た目上は下寄り
-                                                      // に見えていた
-                                                      // （2026-08-12修正）。
-                                                      // 最小高さをアイコンと
-                                                      // 揃えることで、1行の
-                                                      // 時もアイコンと同じ
-                                                      // 48px基準で縦中央に
-                                                      // なるようにする。
-                                                      child: ConstrainedBox(
-                                                        constraints:
-                                                            const BoxConstraints(
-                                                              minHeight: 48,
+                            highlighted:
+                                _highlightedMessageId == message.messageId,
+                            timeFormat: timeFormat,
+                            onDeclineAccountDeletionNotice:
+                                widget.onDeclineAccountDeletionNotice,
+                            onDeleteAfterAccountDeletion:
+                                widget.onDeleteAfterAccountDeletion,
+                            vocabulary: vocabulary,
+                          ),
+                      };
+
+                      return TweenAnimationBuilder<double>(
+                        tween: Tween<double>(
+                          end:
+                              (_selecting ||
+                                  _screenshotSelecting ||
+                                  _stickerDockStage ==
+                                      StickerDockStage.expanded)
+                              ? 0
+                              : _composerAreaHeight + _stickerPanelHeight,
+                        ),
+                        // 滑らかに動かすのは、入力中（フォーカス中）の伸び縮みと
+                        // 返信/編集バーの開閉だけ。開いた直後などフォーカスの無い
+                        // 高さの変化（フォント読み込み・下書き復元等）をアニメー
+                        // ションすると、メッセージ全体が下がって見える。
+                        duration:
+                            _composerAreaMeasured &&
+                                _composerAnimationReady &&
+                                (_composerFocusNode.hasFocus ||
+                                    _replyingTo != null ||
+                                    _editingMessage != null)
+                            ? const Duration(milliseconds: 180)
+                            : Duration.zero,
+                        curve: Curves.easeOut,
+                        builder: (context, bottomInset, _) => Opacity(
+                          // 入力欄の高さが安定するまでは一覧を見せない（過渡的な
+                          // 高さで一瞬配置され、安定時に一気にずれて見える為）。
+                          opacity: _composerAreaMeasured ? 1 : 0,
+                          child: ScrollablePositionedList.builder(
+                            itemScrollController: _itemScrollController,
+                            scrollOffsetController: _scrollOffsetController,
+                            itemPositionsListener: _itemPositionsListener,
+                            reverse: true,
+                            itemCount: reversedEntries.length,
+                            itemBuilder: (context, index) =>
+                                buildEntry(reversedEntries[index]),
+                            initialScrollIndex: initialScrollIndex,
+                            initialAlignment: anchoredIndex == null
+                                ? 0
+                                : initialAnchor!.leadingEdge,
+                            padding: EdgeInsets.fromLTRB(
+                              12,
+                              12,
+                              12,
+                              12 + bottomInset,
+                            ),
+                          ),
+                        ),
+                      );
+                    },
+                  ),
+                  if (!_selecting &&
+                      !_screenshotSelecting &&
+                      widget.onSend != null &&
+                      _stickerDockStage != StickerDockStage.expanded)
+                    Positioned(
+                      left: 0,
+                      right: 0,
+                      bottom: 0,
+                      child: _buildComposerArea(
+                        isGlass: isGlass,
+                        isGekiga: isGekiga,
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            if (_replyingTo != null || _editingMessage != null)
+                              _ComposerContextBar(
+                                replyingTo: _replyingTo,
+                                replyingTo2: _replyingTo2,
+                                onRemoveReply: _removeReplyTarget,
+                                editing: _editingMessage != null,
+                                strings: strings,
+                                onCancel: _cancelComposerContext,
+                                vocabulary: vocabulary,
+                              ),
+                            if (_mentionQuery != null &&
+                                _mentionMatches.isNotEmpty)
+                              MentionSuggestionList(
+                                candidates: _mentionMatches,
+                                selectedIndex: _mentionIndex,
+                                onPick: _pickMention,
+                                strings: strings,
+                                plazaLabel:
+                                    (vocabulary ?? Vocabulary.japanese).plaza,
+                                isGlass: isGlass,
+                                isGekiga: isGekiga,
+                              ),
+                            if (_scheduledAt case final scheduledAt?)
+                              ScheduledSendChip(
+                                sendAt: scheduledAt,
+                                strings: strings,
+                                onClear: () =>
+                                    setState(() => _scheduledAt = null),
+                              ),
+                            if (_pendingAttachments.isNotEmpty)
+                              _pendingTray(
+                                strings,
+                                isGekiga: isGekiga,
+                                isGlass: isGlass,
+                              ),
+                            SafeArea(
+                              top: false,
+                              // ぺったんドックが下に出ている間は、ドック側が下端の
+                              // 安全領域を持つため二重に空けない。
+                              bottom:
+                                  _stickerDockStage == StickerDockStage.closed,
+                              child: Padding(
+                                padding: const EdgeInsets.all(8),
+                                child: Row(
+                                  crossAxisAlignment: CrossAxisAlignment.end,
+                                  children: [
+                                    // ＋ボタン（技術仕様書5.6参照）。左端に配置し、
+                                    // 送信ボタンとは反対側に置くことでタップ位置を
+                                    // 明確に分ける（2026-08-10変更、以前はテキスト欄の
+                                    // 右・送信ボタンの左にあった）。TextFieldの
+                                    // suffixIconとして持たせると、TextField自身が
+                                    // 持つタップ検出（ジェスチャーアリーナに
+                                    // 参加しない`Listener`ベースの独自実装と
+                                    // 競合しない側）がこのタップも検出してしまい、
+                                    // ソフトウェアキーボードが開いてポップアップの
+                                    // 表示位置がズレる不具合があった為、TextFieldの
+                                    // 外（Rowの兄弟要素）に出している。
+                                    if (widget.onSendAttachment != null &&
+                                        !widget.disabled)
+                                      AttachmentPopupButton(
+                                        strings: strings,
+                                        isGekiga: isGekiga,
+                                        onPicked: _onAttachmentsChosen,
+                                        onScheduleList:
+                                            widget.scheduledSendEnabled
+                                            ? _openScheduledList
+                                            : null,
+                                        scheduleListLabel:
+                                            widget.scheduledSendEnabled
+                                            ? strings.scheduledListMenuLabel(
+                                                _scheduledPendingCount(),
+                                              )
+                                            : null,
+                                      ),
+                                    Expanded(
+                                      child: TutorialTarget(
+                                        id: TutorialTargetIds.chatInput,
+                                        child: Focus(
+                                          onKeyEvent: _handleKeyEvent,
+                                          child: isGekiga
+                                              ? _GekigaComposerField(
+                                                  // ぺったんアイコンを固定位置に
+                                                  // 保つため、Stack+Positioned
+                                                  // （確定後サイズを基準に位置
+                                                  // 決めする間接的な仕組み）は
+                                                  // 狙った通りに動かなかったため
+                                                  // 撤回し、Row+
+                                                  // CrossAxisAlignment.endに
+                                                  // 変更した（2026-08-12修正、
+                                                  // 当初.startとしていたのは
+                                                  // 誤りだったため再修正）。
+                                                  // 入力欄コンテナ自体は画面下端
+                                                  // にPositioned(bottom: 0)で
+                                                  // 固定されており、行数が増える
+                                                  // とボックスは上方向にしか
+                                                  // 伸びない。そのため固定48×48
+                                                  // のアイコンをRowの下端に揃え
+                                                  // れば、アイコンの絶対位置は
+                                                  // 行数によらず常に変化しない
+                                                  // （逆に上揃えだと、行が増える
+                                                  // たびにアイコンが上へ動いて
+                                                  // しまっていた）。
+                                                  child: Row(
+                                                    crossAxisAlignment:
+                                                        CrossAxisAlignment.end,
+                                                    children: [
+                                                      Expanded(
+                                                        // Rowが.end（下揃え）の
+                                                        // ため、1行だけの場合
+                                                        // TextField自身の高さが
+                                                        // 48×48のアイコンより
+                                                        // 低いと、その差分だけ
+                                                        // TextFieldの上に空白が
+                                                        // でき、textAlignVertical
+                                                        // .centerで中央寄せして
+                                                        // いても見た目上は下寄り
+                                                        // に見えていた
+                                                        // （2026-08-12修正）。
+                                                        // 最小高さをアイコンと
+                                                        // 揃えることで、1行の
+                                                        // 時もアイコンと同じ
+                                                        // 48px基準で縦中央に
+                                                        // なるようにする。
+                                                        child: ConstrainedBox(
+                                                          constraints:
+                                                              const BoxConstraints(
+                                                                minHeight: 48,
+                                                              ),
+                                                          // 劇画テーマ全体の
+                                                          // 選択ハイライトは白
+                                                          // 基準だが、この入力欄
+                                                          // だけ白背景・黒文字
+                                                          // 固定（fillColor:
+                                                          // Colors.white、
+                                                          // _GekigaComposerField
+                                                          // Painter参照）の為、
+                                                          // 選択色も黒系にローカル
+                                                          // 上書きしないと白地に
+                                                          // 白ハイライトで見えなく
+                                                          // なる（2026-09-14）。
+                                                          child: TextSelectionTheme(
+                                                            data: const TextSelectionThemeData(
+                                                              cursorColor:
+                                                                  Colors.black,
+                                                              selectionColor:
+                                                                  Color.fromRGBO(
+                                                                    0,
+                                                                    0,
+                                                                    0,
+                                                                    0.25,
+                                                                  ),
+                                                              selectionHandleColor:
+                                                                  Colors.black,
                                                             ),
-                                                        // 劇画テーマ全体の
-                                                        // 選択ハイライトは白
-                                                        // 基準だが、この入力欄
-                                                        // だけ白背景・黒文字
-                                                        // 固定（fillColor:
-                                                        // Colors.white、
-                                                        // _GekigaComposerField
-                                                        // Painter参照）の為、
-                                                        // 選択色も黒系にローカル
-                                                        // 上書きしないと白地に
-                                                        // 白ハイライトで見えなく
-                                                        // なる（2026-09-14）。
-                                                        child: TextSelectionTheme(
-                                                          data: const TextSelectionThemeData(
-                                                            cursorColor:
-                                                                Colors.black,
-                                                            selectionColor:
-                                                                Color.fromRGBO(
-                                                                  0,
-                                                                  0,
-                                                                  0,
-                                                                  0.25,
-                                                                ),
-                                                            selectionHandleColor:
-                                                                Colors.black,
-                                                          ),
-                                                          child: TextField(
-                                                            controller:
-                                                                _textController,
-                                                            focusNode:
-                                                                _composerFocusNode,
-                                                            enabled: !widget
-                                                                .disabled,
-                                                            minLines: 1,
-                                                            maxLines: 6,
-                                                            textAlignVertical:
-                                                                TextAlignVertical
-                                                                    .center,
-                                                            textInputAction:
-                                                                TextInputAction
-                                                                    .newline,
-                                                            keyboardType:
-                                                                TextInputType
-                                                                    .multiline,
-                                                            style:
-                                                                const TextStyle(
+                                                            child: TextField(
+                                                              controller:
+                                                                  _textController,
+                                                              focusNode:
+                                                                  _composerFocusNode,
+                                                              enabled: !widget
+                                                                  .disabled,
+                                                              minLines: 1,
+                                                              maxLines: 6,
+                                                              textAlignVertical:
+                                                                  TextAlignVertical
+                                                                      .center,
+                                                              textInputAction:
+                                                                  TextInputAction
+                                                                      .newline,
+                                                              keyboardType:
+                                                                  TextInputType
+                                                                      .multiline,
+                                                              style:
+                                                                  const TextStyle(
+                                                                    color: Colors
+                                                                        .black,
+                                                                  ),
+                                                              decoration: InputDecoration(
+                                                                hintText: strings
+                                                                    .chatInputHint,
+                                                                hintStyle: TextStyle(
                                                                   color: Colors
-                                                                      .black,
+                                                                      .black
+                                                                      .withValues(
+                                                                        alpha:
+                                                                            0.4,
+                                                                      ),
                                                                 ),
-                                                            decoration: InputDecoration(
-                                                              hintText: strings
-                                                                  .chatInputHint,
-                                                              hintStyle: TextStyle(
-                                                                color: Colors
-                                                                    .black
-                                                                    .withValues(
-                                                                      alpha:
-                                                                          0.4,
+                                                                filled: false,
+                                                                border:
+                                                                    InputBorder
+                                                                        .none,
+                                                                enabledBorder:
+                                                                    InputBorder
+                                                                        .none,
+                                                                focusedBorder:
+                                                                    InputBorder
+                                                                        .none,
+                                                                // 内容量に応じて
+                                                                // 箱の高さがぴったり
+                                                                // 詰まる為、上下に
+                                                                // 8pxの余白を確保
+                                                                // して文字が上端に
+                                                                // 張り付いて見え
+                                                                // ないようにする。
+                                                                // 水平方向も明示
+                                                                // しないと0pxに
+                                                                // なり左端に文字が
+                                                                // 寄って見えていた
+                                                                // ため、4pxを確保
+                                                                // する
+                                                                // （2026-08-12修正）。
+                                                                contentPadding:
+                                                                    const EdgeInsets.symmetric(
+                                                                      horizontal:
+                                                                          4,
+                                                                      vertical:
+                                                                          8,
                                                                     ),
                                                               ),
-                                                              filled: false,
-                                                              border:
-                                                                  InputBorder
-                                                                      .none,
-                                                              enabledBorder:
-                                                                  InputBorder
-                                                                      .none,
-                                                              focusedBorder:
-                                                                  InputBorder
-                                                                      .none,
-                                                              // 内容量に応じて
-                                                              // 箱の高さがぴったり
-                                                              // 詰まる為、上下に
-                                                              // 8pxの余白を確保
-                                                              // して文字が上端に
-                                                              // 張り付いて見え
-                                                              // ないようにする。
-                                                              // 水平方向も明示
-                                                              // しないと0pxに
-                                                              // なり左端に文字が
-                                                              // 寄って見えていた
-                                                              // ため、4pxを確保
-                                                              // する
-                                                              // （2026-08-12修正）。
-                                                              contentPadding:
-                                                                  const EdgeInsets.symmetric(
-                                                                    horizontal:
-                                                                        4,
-                                                                    vertical: 8,
-                                                                  ),
                                                             ),
                                                           ),
                                                         ),
                                                       ),
-                                                    ),
-                                                    if (widget.onSendSticker !=
-                                                            null &&
-                                                        !widget.disabled)
-                                                      SizedBox(
-                                                        width: 48,
-                                                        height: 48,
-                                                        child:
-                                                            _stickerComposerButton(
-                                                              isGekiga: true,
+                                                      if (widget.onSendSticker !=
+                                                              null &&
+                                                          !widget.disabled)
+                                                        SizedBox(
+                                                          width: 48,
+                                                          height: 48,
+                                                          child:
+                                                              _stickerComposerButton(
+                                                                isGekiga: true,
+                                                              ),
+                                                        ),
+                                                    ],
+                                                  ),
+                                                )
+                                              : _ComposerBlockBox(
+                                                  child: Stack(
+                                                    children: [
+                                                      TextField(
+                                                        controller:
+                                                            _textController,
+                                                        focusNode:
+                                                            _composerFocusNode,
+                                                        enabled:
+                                                            !widget.disabled,
+                                                        minLines: 1,
+                                                        maxLines: 6,
+                                                        textAlignVertical:
+                                                            const TextAlignVertical(
+                                                              y: 0.4,
                                                             ),
+                                                        textInputAction:
+                                                            TextInputAction
+                                                                .newline,
+                                                        keyboardType:
+                                                            TextInputType
+                                                                .multiline,
+                                                        decoration: InputDecoration(
+                                                          hintText: strings
+                                                              .chatInputHint,
+                                                          // フラットは、入力欄の面（塗り）を持たない（2026-11-01、ユーザー指示）。
+                                                          // 入力欄エリアの背景にそのまま文字を置く。無効時だけ薄く塗る。
+                                                          filled:
+                                                              !isGlass &&
+                                                              !isBlockTheme(
+                                                                context,
+                                                              ) &&
+                                                              widget.disabled,
+                                                          fillColor: isGlass
+                                                              ? null
+                                                              : Color.alphaBlend(
+                                                                  Theme.of(
+                                                                        context,
+                                                                      )
+                                                                      .disabledColor
+                                                                      .withValues(
+                                                                        alpha:
+                                                                            0.08,
+                                                                      ),
+                                                                  Theme.of(
+                                                                    context,
+                                                                  ).scaffoldBackgroundColor,
+                                                                ),
+                                                          // ガラスUIでは、既に入力欄
+                                                          // コンテナ自体がすりガラス
+                                                          // （GlassSurface）の為、
+                                                          // ここでさらに別スタイルの
+                                                          // 縁取りされた箱を重ねない
+                                                          // （二重の箱に見えて
+                                                          // フラットUIっぽく見えて
+                                                          // しまう不具合の修正、
+                                                          // 2026-08-29）。
+                                                          border:
+                                                              isGlass ||
+                                                                  isBlockTheme(
+                                                                    context,
+                                                                  )
+                                                              ? InputBorder.none
+                                                              : OutlineInputBorder(
+                                                                  borderRadius:
+                                                                      BorderRadius.circular(
+                                                                        24,
+                                                                      ),
+                                                                  borderSide:
+                                                                      BorderSide
+                                                                          .none,
+                                                                ),
+                                                          enabledBorder:
+                                                              isGlass ||
+                                                                  isBlockTheme(
+                                                                    context,
+                                                                  )
+                                                              ? InputBorder.none
+                                                              : null,
+                                                          focusedBorder:
+                                                              isGlass ||
+                                                                  isBlockTheme(
+                                                                    context,
+                                                                  )
+                                                              ? InputBorder.none
+                                                              : null,
+                                                          // suffixIconは既定で常に
+                                                          // 縦中央揃えになり、複数
+                                                          // 行になるほど絶対位置が
+                                                          // 動いてしまう。実アイコン
+                                                          // はStack最前面のPositioned
+                                                          // （下揃え固定）で描くため、
+                                                          // ここでは同じ横幅48pxだけ
+                                                          // を確保するダミーにする
+                                                          // （2026-08-12修正）。
+                                                          suffixIcon:
+                                                              widget.onSendSticker !=
+                                                                      null &&
+                                                                  !widget
+                                                                      .disabled
+                                                              ? const SizedBox(
+                                                                  width: 48,
+                                                                )
+                                                              : null,
+                                                        ),
                                                       ),
-                                                  ],
+                                                      if (widget.onSendSticker !=
+                                                              null &&
+                                                          !widget.disabled)
+                                                        Positioned(
+                                                          bottom: 0,
+                                                          right: 4,
+                                                          height: 48,
+                                                          child:
+                                                              _stickerComposerButton(
+                                                                isGekiga: false,
+                                                              )!,
+                                                        ),
+                                                    ],
+                                                  ),
                                                 ),
-                                              )
-                                            : _ComposerBlockBox(
-                                                child: Stack(
-                                                  children: [
-                                                    TextField(
-                                                      controller:
-                                                          _textController,
-                                                      focusNode:
-                                                          _composerFocusNode,
-                                                      enabled: !widget.disabled,
-                                                      minLines: 1,
-                                                      maxLines: 6,
-                                                      textAlignVertical:
-                                                          const TextAlignVertical(
-                                                            y: 0.4,
-                                                          ),
-                                                      textInputAction:
-                                                          TextInputAction
-                                                              .newline,
-                                                      keyboardType:
-                                                          TextInputType
-                                                              .multiline,
-                                                      decoration: InputDecoration(
-                                                        hintText: strings
-                                                            .chatInputHint,
-                                                        // フラットは、入力欄の面（塗り）を持たない（2026-11-01、ユーザー指示）。
-                                                        // 入力欄エリアの背景にそのまま文字を置く。無効時だけ薄く塗る。
-                                                        filled:
-                                                            !isGlass &&
-                                                            !isBlockTheme(
-                                                              context,
-                                                            ) &&
-                                                            widget.disabled,
-                                                        fillColor: isGlass
-                                                            ? null
-                                                            : Color.alphaBlend(
-                                                                Theme.of(
-                                                                      context,
-                                                                    )
-                                                                    .disabledColor
-                                                                    .withValues(
-                                                                      alpha:
-                                                                          0.08,
-                                                                    ),
-                                                                Theme.of(
-                                                                  context,
-                                                                ).scaffoldBackgroundColor,
-                                                              ),
-                                                        // ガラスUIでは、既に入力欄
-                                                        // コンテナ自体がすりガラス
-                                                        // （GlassSurface）の為、
-                                                        // ここでさらに別スタイルの
-                                                        // 縁取りされた箱を重ねない
-                                                        // （二重の箱に見えて
-                                                        // フラットUIっぽく見えて
-                                                        // しまう不具合の修正、
-                                                        // 2026-08-29）。
-                                                        border:
-                                                            isGlass ||
-                                                                isBlockTheme(
-                                                                  context,
-                                                                )
-                                                            ? InputBorder.none
-                                                            : OutlineInputBorder(
-                                                                borderRadius:
-                                                                    BorderRadius.circular(
-                                                                      24,
-                                                                    ),
-                                                                borderSide:
-                                                                    BorderSide
-                                                                        .none,
-                                                              ),
-                                                        enabledBorder:
-                                                            isGlass ||
-                                                                isBlockTheme(
-                                                                  context,
-                                                                )
-                                                            ? InputBorder.none
-                                                            : null,
-                                                        focusedBorder:
-                                                            isGlass ||
-                                                                isBlockTheme(
-                                                                  context,
-                                                                )
-                                                            ? InputBorder.none
-                                                            : null,
-                                                        // suffixIconは既定で常に
-                                                        // 縦中央揃えになり、複数
-                                                        // 行になるほど絶対位置が
-                                                        // 動いてしまう。実アイコン
-                                                        // はStack最前面のPositioned
-                                                        // （下揃え固定）で描くため、
-                                                        // ここでは同じ横幅48pxだけ
-                                                        // を確保するダミーにする
-                                                        // （2026-08-12修正）。
-                                                        suffixIcon:
-                                                            widget.onSendSticker !=
-                                                                    null &&
-                                                                !widget.disabled
-                                                            ? const SizedBox(
-                                                                width: 48,
-                                                              )
-                                                            : null,
-                                                      ),
-                                                    ),
-                                                    if (widget.onSendSticker !=
-                                                            null &&
-                                                        !widget.disabled)
-                                                      Positioned(
-                                                        bottom: 0,
-                                                        right: 4,
-                                                        height: 48,
-                                                        child:
-                                                            _stickerComposerButton(
-                                                              isGekiga: false,
-                                                            )!,
-                                                      ),
-                                                  ],
-                                                ),
-                                              ),
+                                        ),
                                       ),
                                     ),
-                                  ),
-                                  // 物理キーボード接続の判定に関わらず、何か入力されている間は
-                                  // 常に送信ボタンを表示する（判定を誤っても送信手段が
-                                  // 無くならないようにする為）。disabled時は入力自体が
-                                  // 出来ない為、送信ボタンも常に出さない。
-                                  if (!widget.disabled)
-                                    ValueListenableBuilder<TextEditingValue>(
-                                      valueListenable: _textController,
-                                      builder: (context, value, _) {
-                                        if (value.text.isEmpty &&
-                                            _pendingAttachments.isEmpty) {
-                                          return const SizedBox.shrink();
-                                        }
-                                        // コンピューターでも送信ボタンを表示する（2026-11-07）。
-                                        // 長押しで通知せず送信できる操作をモバイルと揃える為。
-                                        return TutorialTarget(
-                                          id: TutorialTargetIds.chatSend,
-                                          child: Material(
-                                            color: Colors.transparent,
-                                            shape: const CircleBorder(),
-                                            child: Builder(
-                                              builder: (buttonContext) => RawGestureDetector(
-                                                // 長押しの秒数は標準（0.5秒）の半分（2026-11-10、ユーザー指示）。
-                                                gestures: {
-                                                  LongPressGestureRecognizer:
-                                                      GestureRecognizerFactoryWithHandlers<
-                                                        LongPressGestureRecognizer
-                                                      >(
-                                                        () => LongPressGestureRecognizer(
-                                                          duration:
-                                                              const Duration(
-                                                                milliseconds:
-                                                                    250,
-                                                              ),
+                                    // 物理キーボード接続の判定に関わらず、何か入力されている間は
+                                    // 常に送信ボタンを表示する（判定を誤っても送信手段が
+                                    // 無くならないようにする為）。disabled時は入力自体が
+                                    // 出来ない為、送信ボタンも常に出さない。
+                                    if (!widget.disabled)
+                                      ValueListenableBuilder<TextEditingValue>(
+                                        valueListenable: _textController,
+                                        builder: (context, value, _) {
+                                          if (value.text.isEmpty &&
+                                              _pendingAttachments.isEmpty) {
+                                            return const SizedBox.shrink();
+                                          }
+                                          // コンピューターでも送信ボタンを表示する（2026-11-07）。
+                                          // 長押しで通知せず送信できる操作をモバイルと揃える為。
+                                          return TutorialTarget(
+                                            id: TutorialTargetIds.chatSend,
+                                            child: Material(
+                                              color: Colors.transparent,
+                                              shape: const CircleBorder(),
+                                              child: Builder(
+                                                builder: (buttonContext) => RawGestureDetector(
+                                                  // 長押しの秒数は標準（0.5秒）の半分（2026-11-10、ユーザー指示）。
+                                                  gestures: {
+                                                    LongPressGestureRecognizer:
+                                                        GestureRecognizerFactoryWithHandlers<
+                                                          LongPressGestureRecognizer
+                                                        >(
+                                                          () => LongPressGestureRecognizer(
+                                                            duration:
+                                                                const Duration(
+                                                                  milliseconds:
+                                                                      250,
+                                                                ),
+                                                          ),
+                                                          (recognizer) {
+                                                            if (widget
+                                                                .scheduledSendEnabled) {
+                                                              // 長押しのまま項目へなぞって離すと選べる。
+                                                              recognizer
+                                                                  .onLongPress = () =>
+                                                                  _openSendOptions(
+                                                                    buttonContext,
+                                                                  );
+                                                              recognizer
+                                                                  .onLongPressMoveUpdate = (d) {
+                                                                _sendMenu?.update(
+                                                                  d.globalPosition,
+                                                                );
+                                                              };
+                                                              recognizer
+                                                                  .onLongPressEnd = (d) {
+                                                                _sendMenu?.release(
+                                                                  d.globalPosition,
+                                                                );
+                                                              };
+                                                            } else {
+                                                              recognizer
+                                                                      .onLongPress =
+                                                                  () => _send(
+                                                                    silent:
+                                                                        true,
+                                                                  );
+                                                            }
+                                                          },
                                                         ),
-                                                        (recognizer) {
-                                                          if (widget
-                                                              .scheduledSendEnabled) {
-                                                            // 長押しのまま項目へなぞって離すと選べる。
-                                                            recognizer
-                                                                .onLongPress = () =>
-                                                                _openSendOptions(
-                                                                  buttonContext,
-                                                                );
-                                                            recognizer
-                                                                .onLongPressMoveUpdate = (d) {
-                                                              _sendMenu?.update(
-                                                                d.globalPosition,
-                                                              );
-                                                            };
-                                                            recognizer
-                                                                .onLongPressEnd = (d) {
-                                                              _sendMenu?.release(
-                                                                d.globalPosition,
-                                                              );
-                                                            };
-                                                          } else {
-                                                            recognizer
-                                                                    .onLongPress =
-                                                                () => _send(
-                                                                  silent: true,
-                                                                );
-                                                          }
-                                                        },
+                                                  },
+                                                  child: InkWell(
+                                                    customBorder:
+                                                        const CircleBorder(),
+                                                    // タップでこのボタン自身が
+                                                    // フォーカスを奪うと、テキスト欄が
+                                                    // フォーカスを失いモバイルで
+                                                    // ソフトウェアキーボードが閉じて
+                                                    // しまうため、フォーカス移動を
+                                                    // 抑制する（2026-08-12）。
+                                                    canRequestFocus: false,
+                                                    onTap: _send,
+                                                    child: Padding(
+                                                      padding:
+                                                          const EdgeInsets.all(
+                                                            12,
+                                                          ),
+                                                      child: Icon(
+                                                        Icons.send,
+                                                        // フラット・ガラスは文字色に合わせる
+                                                        // （劇画は従来のまま）。
+                                                        color: isGekiga
+                                                            ? colorScheme
+                                                                  .primary
+                                                            : colorScheme
+                                                                  .onSurface,
                                                       ),
-                                                },
-                                                child: InkWell(
-                                                  customBorder:
-                                                      const CircleBorder(),
-                                                  // タップでこのボタン自身が
-                                                  // フォーカスを奪うと、テキスト欄が
-                                                  // フォーカスを失いモバイルで
-                                                  // ソフトウェアキーボードが閉じて
-                                                  // しまうため、フォーカス移動を
-                                                  // 抑制する（2026-08-12）。
-                                                  canRequestFocus: false,
-                                                  onTap: _send,
-                                                  child: Padding(
-                                                    padding:
-                                                        const EdgeInsets.all(
-                                                          12,
-                                                        ),
-                                                    child: Icon(
-                                                      Icons.send,
-                                                      // フラット・ガラスは文字色に合わせる
-                                                      // （劇画は従来のまま）。
-                                                      color: isGekiga
-                                                          ? colorScheme.primary
-                                                          : colorScheme
-                                                                .onSurface,
                                                     ),
                                                   ),
                                                 ),
                                               ),
                                             ),
-                                          ),
-                                        );
-                                      },
-                                    ),
-                                ],
+                                          );
+                                        },
+                                      ),
+                                  ],
+                                ),
                               ),
                             ),
-                          ),
-                        ],
+                          ],
+                        ),
                       ),
                     ),
-                  ),
-                // 候補のぺったん（2026-10-29）。入力欄エリアの外（真上）に重ねる為、
-                // 入力欄の高さ（_composerAreaHeight）に含まれず、「最新へジャンプ」
-                // ボタンが候補の出ている間だけ上にずれることも無い。
-                if (!_selecting &&
-                    !_screenshotSelecting &&
-                    widget.onSend != null &&
-                    _stickerSuggestions.isNotEmpty)
-                  Positioned(
-                    left: 8,
-                    right: 8,
-                    bottom: _composerAreaHeight + 8,
-                    child: StickerSuggestionStrip(
-                      key: _stickerPanelKey,
-                      stickers: _stickerSuggestions,
-                      onStickerTap: _handleSuggestionTap,
-                    ),
-                  ),
-                // 引用から返信先へ飛んだ後、元のメッセージへ戻るブロック（2026-11-06）。
-                if (!_selecting &&
-                    !_screenshotSelecting &&
-                    _returnToMessageId != null)
-                  Positioned(
-                    left: 12,
-                    right: 12,
-                    bottom:
-                        (widget.onSend != null ? _composerAreaHeight : 0) + 12,
-                    child: Center(
-                      child: _ReturnToMessageBlock(
-                        uiStyle: uiStyle,
-                        label: strings.chatReturnToOriginalMessage,
-                        onPressed: _returnToOriginalMessage,
-                        onClose: () =>
-                            setState(() => _returnToMessageId = null),
+                  // 候補のぺったん（2026-10-29）。入力欄エリアの外（真上）に重ねる為、
+                  // 入力欄の高さ（_composerAreaHeight）に含まれず、「最新へジャンプ」
+                  // ボタンが候補の出ている間だけ上にずれることも無い。
+                  if (!_selecting &&
+                      !_screenshotSelecting &&
+                      widget.onSend != null &&
+                      _stickerSuggestions.isNotEmpty)
+                    Positioned(
+                      left: 8,
+                      right: 8,
+                      bottom: _composerAreaHeight + 8,
+                      child: StickerSuggestionStrip(
+                        key: _stickerPanelKey,
+                        stickers: _stickerSuggestions,
+                        onStickerTap: _handleSuggestionTap,
                       ),
                     ),
-                  ),
-                // 最新メッセージが画面外へスクロールされている間だけ、右下に
-                // 「最新へジャンプ」ボタンを出す（2026-10-04追加）。
-                if (!_selecting && !_screenshotSelecting)
-                  Positioned(
-                    right: 12,
-                    bottom:
-                        (widget.onSend != null ? _composerAreaHeight : 0) + 12,
-                    child: ValueListenableBuilder<bool>(
-                      valueListenable: _showJumpToLatest,
-                      builder: (context, show, _) => show
-                          ? _JumpToLatestButton(
-                              uiStyle: uiStyle,
-                              onPressed: _scrollToLatestMessage,
-                            )
-                          : const SizedBox.shrink(),
+                  // 引用から返信先へ飛んだ後、元のメッセージへ戻るブロック（2026-11-06）。
+                  if (!_selecting &&
+                      !_screenshotSelecting &&
+                      _returnToMessageId != null)
+                    Positioned(
+                      left: 12,
+                      right: 12,
+                      bottom:
+                          (widget.onSend != null ? _composerAreaHeight : 0) +
+                          12,
+                      child: Center(
+                        child: _ReturnToMessageBlock(
+                          uiStyle: uiStyle,
+                          label: strings.chatReturnToOriginalMessage,
+                          onPressed: _returnToOriginalMessage,
+                          onClose: () =>
+                              setState(() => _returnToMessageId = null),
+                        ),
+                      ),
                     ),
-                  ),
-              ],
+                  // 最新メッセージが画面外へスクロールされている間だけ、右下に
+                  // 「最新へジャンプ」ボタンを出す（2026-10-04追加）。
+                  if (!_selecting && !_screenshotSelecting)
+                    Positioned(
+                      right: 12,
+                      bottom:
+                          (widget.onSend != null ? _composerAreaHeight : 0) +
+                          12,
+                      child: ValueListenableBuilder<bool>(
+                        valueListenable: _showJumpToLatest,
+                        builder: (context, show, _) => show
+                            ? _JumpToLatestButton(
+                                uiStyle: uiStyle,
+                                onPressed: _scrollToLatestMessage,
+                              )
+                            : const SizedBox.shrink(),
+                      ),
+                    ),
+                ],
+              ),
             ),
-          ),
-          StickerPickerDock(
-            key: const ValueKey('stickerDock'),
-            stage: _stickerDockStage,
-            initialPackId: _stickerDockPackId,
-            conversationKey: _stickerTabKey,
-            onStageChanged: _setStickerDockStage,
-            // 送信後も開いたまま（続けて送れる）。
-            onStickerSelected: _handleStickerPicked,
-          ),
-        ],
+            StickerPickerDock(
+              key: const ValueKey('stickerDock'),
+              stage: _stickerDockStage,
+              initialPackId: _stickerDockPackId,
+              conversationKey: _stickerTabKey,
+              onStageChanged: _setStickerDockStage,
+              // 送信後も開いたまま（続けて送れる）。
+              onStickerSelected: _handleStickerPicked,
+            ),
+          ],
+        ),
       ),
     );
 

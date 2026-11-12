@@ -17,6 +17,7 @@ import 'rhing_seed_setup_screen.dart';
 import 'sign_in_screen.dart';
 import 'terms_consent_screen.dart';
 import '../../widgets/delayed_spinner.dart';
+import '../../widgets/home_skeleton.dart';
 
 /// 認証状態・Rhing Seed登録状態に応じて表示を切り替える汎用ゲート。
 /// ログイン済み・Rhing Seed登録済みになった時点で[builder]を呼ぶ。
@@ -113,7 +114,12 @@ class _AuthenticatedUserGateState
       future: _future,
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
-          return const Scaffold(body: DelayedSpinner());
+          // アカウントの追加の途中でログインした直後は、読み込みが進んでいることが分かる
+          // ようにスケルトンを出す（2026-11-12）。それ以外は従来のスピナー。
+          final adding = ref.watch(hasPendingAccountAddProvider).value ?? false;
+          return adding
+              ? const HomeSkeleton()
+              : const Scaffold(body: DelayedSpinner());
         }
         // 住人データの取得・パースに失敗した場合（例: 2026-09-23の
         // rhingId→rhingSeedリネーム移行漏れで`AppUser.fromJson`が例外を

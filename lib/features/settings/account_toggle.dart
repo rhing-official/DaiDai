@@ -16,6 +16,7 @@ import '../../utils/auto_dismiss_banner.dart';
 import '../../utils/kiwami.dart';
 import '../../widgets/account_avatar.dart';
 import '../../widgets/app_dialog.dart';
+import '../../widgets/gekiga/gekiga_panel_box.dart';
 import '../../widgets/glass/glass_surface.dart';
 import '../../widgets/kiwami_only_dialog.dart';
 
@@ -95,6 +96,7 @@ class _AccountToggleState extends ConsumerState<AccountToggle> {
     if (ok != true) return;
     try {
       await switcher.startAdd(user);
+      ref.invalidate(hasPendingAccountAddProvider);
     } on SwitchAccountException catch (error) {
       _banner(
         switchAccountFailureMessage(
@@ -238,30 +240,61 @@ class _AccountToggleState extends ConsumerState<AccountToggle> {
         _Segment.add(label: _strings.switchAccountsAdd, onTap: _add),
     ];
     final busy = _switchingUid != null;
+    final uiStyle = ref.watch(appUiStyleProvider);
+    final isGekiga = uiStyle == AppUiStyle.gekiga;
+    final scheme = Theme.of(context).colorScheme;
+    // 区画の外の説明文の色。劇画は赤い背景に白、ガラスは面の上の中立色、
+    // それ以外はテーマの既定（CLAUDE.mdの方針: アクセントカラーにしない）。
+    final noteStyle = Theme.of(context).textTheme.bodySmall?.copyWith(
+      color: isGekiga
+          ? GekigaColors.onPanel
+          : (uiStyle == AppUiStyle.glass ? scheme.onSurfaceVariant : null),
+    );
+
+    Widget tile(_Segment segment) => _SegmentTile(
+      segment: segment,
+      switching: _switchingUid == segment.uid,
+      disabled: busy && _switchingUid != segment.uid,
+    );
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 16),
-          // 区画の高さをそろえる（`stretch`は縦が無限だと使えないので`IntrinsicHeight`）。
-          child: IntrinsicHeight(
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                for (var i = 0; i < segments.length; i++) ...[
-                  if (i > 0) const SizedBox(width: 8),
-                  Expanded(
-                    child: _SegmentTile(
-                      segment: segments[i],
-                      switching: _switchingUid == segments[i].uid,
-                      disabled: busy && _switchingUid != segments[i].uid,
-                    ),
+          child: isGekiga
+              // 劇画: 他の一覧と同じ、ギザギザの太線の箱（選択中=白地黒字、非選択=黒地白字）。
+              // 箱は中身の幅になるため、区画の数で均等に割った幅を与える。
+              ? LayoutBuilder(
+                  builder: (context, constraints) {
+                    final count = segments.length;
+                    final width =
+                        (constraints.maxWidth -
+                            GekigaJointedTileList.gap * (count - 1)) /
+                        count;
+                    return GekigaJointedTileList(
+                      axis: Axis.horizontal,
+                      seeds: [for (final s in segments) s.uid.hashCode],
+                      selectedFlags: [for (final s in segments) s.selected],
+                      children: [
+                        for (final s in segments)
+                          SizedBox(width: width, child: tile(s)),
+                      ],
+                    );
+                  },
+                )
+              // 区画の高さをそろえる（`stretch`は縦が無限だと使えないので`IntrinsicHeight`）。
+              : IntrinsicHeight(
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      for (var i = 0; i < segments.length; i++) ...[
+                        if (i > 0) const SizedBox(width: 8),
+                        Expanded(child: tile(segments[i])),
+                      ],
+                    ],
                   ),
-                ],
-              ],
-            ),
-          ),
+                ),
         ),
         if (busy)
           Padding(
@@ -269,7 +302,7 @@ class _AccountToggleState extends ConsumerState<AccountToggle> {
             child: Text(
               _strings.switchAccountsSwitching,
               textAlign: TextAlign.center,
-              style: Theme.of(context).textTheme.bodySmall,
+              style: noteStyle,
             ),
           ),
         if (others.isNotEmpty)
@@ -278,7 +311,7 @@ class _AccountToggleState extends ConsumerState<AccountToggle> {
             child: Text(
               _strings.switchAccountsLongPressHint,
               textAlign: TextAlign.center,
-              style: Theme.of(context).textTheme.bodySmall,
+              style: noteStyle,
             ),
           ),
       ],
@@ -343,9 +376,11 @@ class _SegmentTile extends ConsumerWidget {
     final Color? fill;
     switch (uiStyle) {
       case AppUiStyle.gekiga:
-        foreground = selected ? GekigaColors.onPanel : GekigaColors.panel;
-        fill = selected ? GekigaColors.panel : null;
+        // 箱は親（`GekigaJointedTileList`）が描く。選択中=白地黒字、非選択=黒地白字。
+        foreground = selected ? GekigaColors.panel : GekigaColors.onPanel;
+        fill = null;
       case AppUiStyle.glass:
+        // ナビチップと同じ: 文字色は選択で変えず、塗りだけで選択を表す。
         foreground = scheme.onSurfaceVariant;
         fill = selected ? scheme.primary.withValues(alpha: 0.45) : null;
       case AppUiStyle.block:
@@ -388,7 +423,10 @@ class _SegmentTile extends ConsumerWidget {
       style: TextStyle(color: foreground, fontSize: 12),
     );
     final content = Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 10),
+      // 劇画は、箱の太い枠が内側へ食い込む分だけ余白を広げる。
+      padding: uiStyle == AppUiStyle.gekiga
+          ? const EdgeInsets.symmetric(horizontal: 12, vertical: 14)
+          : const EdgeInsets.symmetric(horizontal: 8, vertical: 10),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [avatar, const SizedBox(height: 6), label],
@@ -402,19 +440,22 @@ class _SegmentTile extends ConsumerWidget {
 
     switch (uiStyle) {
       case AppUiStyle.glass:
+        // ナビチップと同じ、ぼかしのあるすりガラス（`chrome`）。選択中はアクセントカラーが
+        // 縁の光彩として出て、面の塗りもアクセントカラーが透ける。
         return GlassSurface(
-          borderRadius: BorderRadius.circular(12),
+          variant: GlassVariant.chrome,
+          borderRadius: BorderRadius.circular(16),
           accentColorOverride: selected ? scheme.primary : null,
-          child: Material(color: fill ?? Colors.transparent, child: tappable),
+          child: Material(
+            color: fill ?? Colors.transparent,
+            borderRadius: BorderRadius.circular(16),
+            clipBehavior: Clip.antiAlias,
+            child: tappable,
+          ),
         );
       case AppUiStyle.gekiga:
-        return DecoratedBox(
-          decoration: BoxDecoration(
-            color: fill,
-            border: Border.all(color: GekigaColors.panel, width: 2.5),
-          ),
-          child: Material(color: Colors.transparent, child: tappable),
-        );
+        // 外枠は`GekigaJointedTileList`が描くので、ここでは中身（タップ領域）だけ。
+        return Material(color: Colors.transparent, child: tappable);
       case AppUiStyle.block:
         return blockMaterialBox(
           context,

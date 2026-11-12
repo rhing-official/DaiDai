@@ -1080,6 +1080,8 @@ class Strings {
     required this.callConnectionUnstableEllipsis,
     required this.callConnectionUnstable,
     required this.callFullMessageTemplate,
+    required this.callDeclineButton,
+    required this.callAnswerButton,
     required this.groupCallParticipantCountTemplate,
     required this.groupCallWaitingForOthers,
     required this.callReturnChip,
@@ -2544,6 +2546,10 @@ class Strings {
   final String callConnectionUnstableEllipsis;
   final String callConnectionUnstable;
   final String Function(int max) callFullMessageTemplate;
+
+  /// 通話の着信バナーの「拒否」「応答（広場は参加）」ボタンの説明（2026-11-12）。
+  final String callDeclineButton;
+  final String callAnswerButton;
   final String Function(int count) groupCallParticipantCountTemplate;
   final String groupCallWaitingForOthers;
   final String callReturnChip;
@@ -2736,7 +2742,7 @@ class Strings {
     settingsRoomListSwipeTitle: '寄合一覧の横スワイプ',
     settingsRoomListSwipeNote:
         'スマホの縦表示で「アイコン＋寄合一覧」の寄合一覧を横にスワイプした時の動きです。この端末だけに保存します。',
-    settingsRoomListSwipeOpenTitle: 'メッセージ画面を開く',
+    settingsRoomListSwipeOpenTitle: 'メッセージ画面を開く β',
     settingsRoomListSwipeOpenDescription:
         '左へスワイプすると、選択中の寄合のメッセージ画面を開きます。先に右へスワイプすると、隣のタブへ切り替わります。',
     settingsRoomListSwipeTabTitle: 'メニューのタブを切り替える',
@@ -3760,6 +3766,8 @@ class Strings {
     callConnectionUnstableEllipsis: '接続が不安定です…',
     callConnectionUnstable: '接続が不安定です',
     callFullMessageTemplate: (max) => 'この通話は満員です（上限$max人）',
+    callDeclineButton: '拒否',
+    callAnswerButton: '応答',
     groupCallParticipantCountTemplate: (count) => '参加者$count人',
     groupCallWaitingForOthers: '他の参加者を待っています…',
     callReturnChip: '通話中 - タップして戻る',
@@ -3957,7 +3965,7 @@ class Strings {
     settingsRoomListSwipeTitle: 'Swiping the room list',
     settingsRoomListSwipeNote:
         'What happens when you swipe sideways on the room list of "Icons + room list" on a phone held upright. Saved on this device only.',
-    settingsRoomListSwipeOpenTitle: 'Open the messages',
+    settingsRoomListSwipeOpenTitle: 'Open the messages β',
     settingsRoomListSwipeOpenDescription:
         'Swipe left to open the messages of the selected room. Swipe right first to move to the neighbouring tab.',
     settingsRoomListSwipeTabTitle: 'Switch the menu tab',
@@ -5102,6 +5110,8 @@ class Strings {
     callConnectionUnstableEllipsis: 'Connection is unstable…',
     callConnectionUnstable: 'Connection is unstable',
     callFullMessageTemplate: (max) => 'This call is full (limit: $max)',
+    callDeclineButton: 'Decline',
+    callAnswerButton: 'Answer',
     groupCallParticipantCountTemplate: (count) =>
         '$count participant${count == 1 ? '' : 's'}',
     groupCallWaitingForOthers: 'Waiting for others to join…',

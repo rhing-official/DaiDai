@@ -2,7 +2,7 @@ import 'dart:io' show Platform;
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
-import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:flutter/foundation.dart' show debugPrint, kDebugMode, kIsWeb;
 
 import '../models/fcm_token_entry.dart';
 
@@ -51,10 +51,30 @@ class FirebaseMessagingPushNotificationRepository
       .collection('private')
       .doc('fcm');
 
-  Future<void> _addToken(String userId, FcmTokenEntry entry) =>
-      _tokenDoc(userId).set({
-        'tokens': FieldValue.arrayUnion([entry.toJson()]),
-      }, SetOptions(merge: true));
+  /// ルールの上限（`private/fcm`のtokensは10件まで）。
+  static const _maxTokens = 10;
+
+  /// トークンを登録する。すでにあれば何もしない。上限に達していたら、古い（先頭の）
+  /// ものから外して入れる（2026-11-12）。以前は`arrayUnion`で足すだけだったため、
+  /// 端末の入れ替え・再インストール・トークン更新で溜まった古いトークンが10件に達すると、
+  /// 以降の登録がルールで拒否され（permission-denied）、その端末に通知が一切届かなく
+  /// なっていた。
+  Future<void> _addToken(String userId, FcmTokenEntry entry) {
+    final doc = _tokenDoc(userId);
+    return _firestore.runTransaction((transaction) async {
+      final snap = await transaction.get(doc);
+      final current = <Map<String, dynamic>>[
+        for (final e in (snap.data()?['tokens'] as List?) ?? const [])
+          if (e is Map) Map<String, dynamic>.from(e),
+      ];
+      if (current.any((e) => e['token'] == entry.token)) return;
+      current.add(entry.toJson());
+      final kept = current.length > _maxTokens
+          ? current.sublist(current.length - _maxTokens)
+          : current;
+      transaction.set(doc, {'tokens': kept});
+    });
+  }
 
   static bool get _supportedPlatform => kIsWeb || Platform.isAndroid;
   static String get _platformName => kIsWeb ? 'web' : 'android';
@@ -63,21 +83,48 @@ class FirebaseMessagingPushNotificationRepository
   Future<bool> requestPermissionAndRegister(String userId) async {
     if (!_supportedPlatform) return false;
 
-    final settings = await _messaging.requestPermission();
-    if (settings.authorizationStatus != AuthorizationStatus.authorized) {
-      return false;
+    // 診断ログ（debugのみ、2026-11-12。通知が届かない原因の切り分け用）。
+    void diag(String message) {
+      if (kDebugMode) debugPrint('[DIAG-PUSH] $message');
     }
 
-    final token = await _messaging.getToken(
-      vapidKey: kIsWeb ? _webPushVapidKey : null,
-    );
-    if (token == null) return false;
+    try {
+      final settings = await _messaging.requestPermission();
+      diag('permission=${settings.authorizationStatus}');
+      if (settings.authorizationStatus != AuthorizationStatus.authorized) {
+        return false;
+      }
 
-    await _addToken(
-      userId,
-      FcmTokenEntry(token: token, platform: _platformName),
-    );
-    return true;
+      final token = await _messaging.getToken(
+        vapidKey: kIsWeb ? _webPushVapidKey : null,
+      );
+      diag(
+        'token=${token == null ? 'null' : '${token.substring(0, 12)}…(${token.length})'}',
+      );
+      if (token == null) return false;
+
+      await _addToken(
+        userId,
+        FcmTokenEntry(token: token, platform: _platformName),
+      );
+      diag('token saved platform=$_platformName');
+      return true;
+    } catch (e) {
+      diag('register failed: $e');
+      // 失敗の切り分け: 本人の`private/fcm`を読んで、件数と項目名だけ出す（トークンは出さない）。
+      try {
+        final snap = await _tokenDoc(userId).get();
+        final data = snap.data();
+        final tokens = data?['tokens'];
+        diag(
+          'fcm doc exists=${snap.exists} keys=${data?.keys.toList()} '
+          'tokens=${tokens is List ? tokens.length : tokens.runtimeType}',
+        );
+      } catch (readError) {
+        diag('fcm doc read failed: $readError');
+      }
+      rethrow;
+    }
   }
 
   @override

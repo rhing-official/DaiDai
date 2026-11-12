@@ -4,7 +4,7 @@ import 'dart:typed_data';
 
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
-import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:flutter/foundation.dart' show debugPrint, kDebugMode, kIsWeb;
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
@@ -12,7 +12,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'firebase_options.dart';
 import 'models/message_time_format.dart';
 import 'models/sound_preset.dart';
-import 'router/app_router.dart' show globalRouter;
+import 'router/app_router.dart' show globalBackStack, globalRouter;
 import 'utils/message_time.dart';
 
 /// プッシュ通知（FCM）のAndroid側ローカル表示・バックグラウンドハンドラを
@@ -77,10 +77,16 @@ Future<void> initializeLocalNotifications() async {
   }
   await _localNotifications.initialize(
     settings: const InitializationSettings(
-      android: AndroidInitializationSettings('@mipmap/ic_launcher'),
+      android: // 通知の小アイコンは白いシルエット（`drawable-*/ic_notification.png`、単色版の絵から作成、
+          // 2026-11-12）。アダプティブアイコンの`@mipmap/ic_launcher`は小アイコンに使えない。
+          AndroidInitializationSettings('ic_notification'),
     ),
-    onDidReceiveNotificationResponse: (response) =>
-        navigateFromNotificationPayload(response.payload),
+    onDidReceiveNotificationResponse: (response) {
+      if (kDebugMode) {
+        debugPrint('[DIAG-TAP] response payload=${response.payload}');
+      }
+      navigateFromNotificationPayload(response.payload);
+    },
   );
 }
 
@@ -91,6 +97,12 @@ Future<void> initializeLocalNotifications() async {
 Future<String?> consumeLaunchNotificationPayload() async {
   if (kIsWeb || _localNotificationsUnavailable) return null;
   final details = await _localNotifications.getNotificationAppLaunchDetails();
+  if (kDebugMode) {
+    debugPrint(
+      '[DIAG-TAP] launchDetails didLaunch=${details?.didNotificationLaunchApp} '
+      'payload=${details?.notificationResponse?.payload}',
+    );
+  }
   if (details?.didNotificationLaunchApp != true) return null;
   return details?.notificationResponse?.payload;
 }
@@ -100,6 +112,11 @@ Future<String?> consumeLaunchNotificationPayload() async {
 /// `roomId`のJSON）を`app_router.dart`の`/chat/dm/:dmId`・
 /// `/chat/group/:groupId`（[NotificationChatOpener]参照）へのURLに変換する。
 void navigateFromNotificationPayload(String? payload) {
+  if (kDebugMode) {
+    debugPrint(
+      '[DIAG-TAP] navigate payload=$payload router=${globalRouter != null}',
+    );
+  }
   if (payload == null) return;
   try {
     final data = jsonDecode(payload) as Map<String, dynamic>;
@@ -110,6 +127,8 @@ void navigateFromNotificationPayload(String? payload) {
     final path = isDm
         ? '/chat/dm/$conversationId'
         : '/chat/group/$conversationId';
+    // 遷移が「戻る操作」として横取りされ中止されないようにする。
+    globalBackStack?.bypassGuardsBriefly();
     globalRouter?.go(
       roomId != null && roomId.isNotEmpty ? '$path?roomId=$roomId' : path,
     );
@@ -124,6 +143,19 @@ void navigateFromNotificationPayload(String? payload) {
 /// （[firebaseMessagingBackgroundHandler]）どちらからも呼ぶ共通処理。
 Future<void> showRemoteMessageNotification(RemoteMessage message) async {
   if (kIsWeb) return;
+  // 通話の着信・取消しは、ネイティブ側（`CallNotificationReceiver`、CallStyleの着信通知）が
+  // 扱う（2026-11-12）。ここで通常の通知を重ねて出さない。
+  if (isCallPushMessage(message.data)) return;
+  try {
+    await _showRemoteMessageNotification(message);
+    if (kDebugMode) debugPrint('[DIAG-PUSH] notification shown');
+  } catch (e, st) {
+    if (kDebugMode) debugPrint('[DIAG-PUSH] show failed: $e\n$st');
+    rethrow;
+  }
+}
+
+Future<void> _showRemoteMessageNotification(RemoteMessage message) async {
   final data = message.data;
   final title = data['title'] as String? ?? '';
   final rawBody = data['body'] as String? ?? '';
@@ -232,5 +264,15 @@ Future<Uint8List?> _downloadBytes(String? url) async {
 @pragma('vm:entry-point')
 Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
   await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
+  if (kDebugMode) debugPrint('[DIAG-PUSH] background message received');
   await showRemoteMessageNotification(message);
+}
+
+/// 通話の着信・取消しのプッシュか（2026-11-12）。Android側の`CallNotificationReceiver`が
+/// 着信通知（CallStyle）として表示・取消しするため、Dart側では通常の通知にしない。
+bool isCallPushMessage(Map<String, dynamic> data) {
+  final type = data['type'];
+  return type == 'incoming_call' ||
+      type == 'incoming_group_call' ||
+      type == 'call_cancel';
 }

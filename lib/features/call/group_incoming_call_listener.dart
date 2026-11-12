@@ -7,6 +7,7 @@ import 'package:pointer_interceptor/pointer_interceptor.dart';
 import '../../models/app_user.dart';
 import '../../models/group_call.dart';
 import '../../models/sound_preset.dart';
+import '../../providers/call_answer_providers.dart';
 import '../../providers/group_call_providers.dart';
 import '../../providers/repository_providers.dart';
 import '../../providers/ringtone_sound_provider.dart';
@@ -80,6 +81,26 @@ class _GroupIncomingCallListenerState
 
   @override
   Widget build(BuildContext context) {
+    // 着信通知の「参加」で開かれた時は、その広場の通話へ自動で参加する（2026-11-12）。
+    // 通話の一覧が読み込まれていなければ、届いた時に参加する。
+    void joinPendingAnswer(List<GroupCall> calls) {
+      final pending = ref.read(pendingCallAnswerProvider);
+      if (pending == null || !pending.isGroup) return;
+      final match = calls.where((c) => c.groupCallId == pending.callId);
+      if (match.isEmpty) return;
+      ref.read(pendingCallAnswerProvider.notifier).clear();
+      _joinCall(match.first);
+    }
+
+    ref.listen(pendingCallAnswerProvider, (previous, next) {
+      if (next == null || !next.isGroup) return;
+      final calls = ref
+          .read(activeGroupCallsForUserProvider(widget.currentUser.userId))
+          .asData
+          ?.value;
+      if (calls != null) joinPendingAnswer(calls);
+    });
+
     ref.listen(activeGroupCallsForUserProvider(widget.currentUser.userId), (
       previous,
       next,
@@ -90,6 +111,7 @@ class _GroupIncomingCallListenerState
       final data = next.asData;
       if (data == null) return;
       final calls = data.value;
+      joinPendingAnswer(calls);
       final currentIds = calls.map((c) => c.groupCallId).toSet();
 
       // 初回スナップショットは、既に進行中だった通話を「新規開始」と
@@ -347,8 +369,8 @@ class _GroupCallBanner extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     return CallBannerCard(
       isVideo: isVideo,
-      onTap: onTap,
-      onClose: onDismiss,
+      onAccept: onTap,
+      onDecline: onDismiss,
       avatarBuilder: (foreground) => FocalCircleAvatar(
         url: iconUrl,
         focal: iconFocal,

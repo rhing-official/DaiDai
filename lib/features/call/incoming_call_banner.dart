@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:pointer_interceptor/pointer_interceptor.dart';
 
+import '../../providers/call_answer_providers.dart';
 import '../../router/app_router.dart';
 import '../../utils/platform_info.dart';
 import '../../widgets/nav_chip.dart';
@@ -24,6 +25,7 @@ class IncomingCallBannerOverlay extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final session = ref.watch(activeCallSessionProvider);
+    final pending = ref.watch(pendingCallAnswerProvider);
     if (session is! OneToOneCallSession) {
       return const SizedBox.shrink();
     }
@@ -36,6 +38,40 @@ class IncomingCallBannerOverlay extends ConsumerWidget {
             controller.state == CallConnectionState.connecting;
         if (!ringing) return const SizedBox.shrink();
 
+        void accept() {
+          controller.accept();
+          if (isMobileCallPlatform) {
+            HapticFeedback.vibrate();
+            ref
+                .read(goRouterProvider)
+                .push(
+                  '/call',
+                  extra: CallArgs(
+                    call: session.call,
+                    isCaller: false,
+                    currentUserId: session.currentUserId,
+                  ),
+                );
+          } else {
+            ref.read(callOverlayOpenProvider.notifier).open();
+          }
+        }
+
+        // 着信通知の「応答」で開かれた時は、この通話に自動で応答する（2026-11-12）。
+        if (pending != null &&
+            !pending.isGroup &&
+            pending.callId == session.call.callId &&
+            !controller.accepting) {
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (ref.read(pendingCallAnswerProvider)?.callId !=
+                session.call.callId) {
+              return;
+            }
+            ref.read(pendingCallAnswerProvider.notifier).clear();
+            accept();
+          });
+        }
+
         final isComputer = classifyDevice(context) == DeviceClass.computer;
         final top = MediaQuery.paddingOf(context).top + 8;
         return Positioned(
@@ -47,24 +83,7 @@ class IncomingCallBannerOverlay extends ConsumerWidget {
             child: _IncomingCallBanner(
               session: session,
               onDecline: controller.decline,
-              onAccept: () {
-                controller.accept();
-                if (isMobileCallPlatform) {
-                  HapticFeedback.vibrate();
-                  ref
-                      .read(goRouterProvider)
-                      .push(
-                        '/call',
-                        extra: CallArgs(
-                          call: session.call,
-                          isCaller: false,
-                          currentUserId: session.currentUserId,
-                        ),
-                      );
-                } else {
-                  ref.read(callOverlayOpenProvider.notifier).open();
-                }
-              },
+              onAccept: accept,
               accepting: controller.accepting,
             ),
           ),
@@ -97,8 +116,8 @@ class _IncomingCallBanner extends ConsumerWidget {
     final otherSeed = call.otherRhingSeed(me);
     return CallBannerCard(
       isVideo: call.isVideo,
-      onTap: accepting ? null : onAccept,
-      onClose: onDecline,
+      onAccept: accepting ? null : onAccept,
+      onDecline: onDecline,
       avatarBuilder: (_) => CallParticipantAvatar(
         userId: otherId,
         rhingSeed: otherSeed,

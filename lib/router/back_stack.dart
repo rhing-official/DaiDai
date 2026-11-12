@@ -191,6 +191,10 @@ class BackStackController extends ChangeNotifier {
   /// 閉じるものが無ければ`false`（通常どおりトークンを消す）。同じ戻る操作の
   /// 間（[_backBatchWindow]内）の2回目以降は、何もせず中止（`true`）する。
   bool interceptTokenExit() {
+    if (_bypassGuards) {
+      _log('back: bypassed (programmatic navigation)');
+      return false;
+    }
     if (_backBatchTimer != null) {
       _log('back: coalesced (token exit in the same batch)');
       return true;
@@ -201,6 +205,22 @@ class BackStackController extends ChangeNotifier {
     }
     return handled;
   }
+
+  bool _bypassGuards = false;
+  Timer? _bypassTimer;
+
+  /// これからの短い間（[_bypassWindow]）、画面の遷移を「戻る操作」として横取りしない
+  /// （2026-11-12）。通知のタップなど、プログラムから`go()`で別の画面へ移る時に使う。
+  /// 横取りされると、`/_b/*`トークンの消失（[interceptTokenExit]）や`/chat/*`の
+  /// 終了（[closeTopLayer]）が、選択中の会話の履歴などを1つ戻す処理として扱われ、
+  /// 遷移そのものが中止されていた（通知をタップしても語らい一覧の先頭が出るだけ）。
+  void bypassGuardsBriefly() {
+    _bypassGuards = true;
+    _bypassTimer?.cancel();
+    _bypassTimer = Timer(_bypassWindow, () => _bypassGuards = false);
+  }
+
+  static const _bypassWindow = Duration(milliseconds: 1500);
 
   /// 同じ戻る操作とみなす、トークンの消失の間隔。
   static const _backBatchWindow = Duration(milliseconds: 150);
@@ -236,6 +256,7 @@ class BackStackController extends ChangeNotifier {
   /// 触らない（フルスクリーンのチャットを表示中に背後の一覧の選択だけが戻って
   /// しまうのを避ける）。閉じたらtrue＝ルートの遷移（一覧へ戻る）を中止する。
   bool closeTopLayer() {
+    if (_bypassGuards) return false;
     // 全画面のメッセージ画面を、層を閉じずに意図して抜ける時の1回だけ素通しする
     // （[allowNextChatExit]、2026-11-06）。
     if (_allowChatExit) {
@@ -448,6 +469,21 @@ class BackStackObserver extends NavigatorObserver {
     if (key != null) controller.removeDialog(key);
   }
 
+  /// ダイアログ・ビューア等を開く時に、入力欄のフォーカスを外す（Android・iOSのみ、
+  /// 2026-11-12）。外さないと、前の画面のフォーカス範囲が入力欄を覚えたままになり、
+  /// ルートを閉じるたびに入力欄へフォーカスが戻ってソフトキーボードが開いてしまう
+  /// （画像の拡大表示・ノートのマークダウン表示を閉じる度に起きていた）。Web・
+  /// デスクトップは物理キーボードで、閉じた後に入力欄へ戻る方が自然なので触らない。
+  /// 開いたルート側の入力欄の`autofocus`は、ルートの構築後に取るので影響しない。
+  void _releaseFocusOnMobile() {
+    if (kIsWeb) return;
+    if (defaultTargetPlatform != TargetPlatform.android &&
+        defaultTargetPlatform != TargetPlatform.iOS) {
+      return;
+    }
+    FocusManager.instance.primaryFocus?.unfocus();
+  }
+
   @override
   void didPush(Route<dynamic> route, Route<dynamic>? previousRoute) {
     // ダイアログ・ポップアップに加え、命令的に積まれた全画面ルート（画像・動画
@@ -468,6 +504,7 @@ class BackStackObserver extends NavigatorObserver {
     if (backIdOf(route) == null &&
         imperative &&
         (route is PopupRoute || route is PageRoute)) {
+      _releaseFocusOnMobile();
       _dialogKeys[route] = controller.addDialog(() {
         if (!route.isActive) return;
         final navigator = route.navigator;

@@ -4361,6 +4361,12 @@ export const onGroupCallCreated = onDocumentCreated(
           roomId: "",
           isMention: "false",
           sentAt: String(sentAtMs),
+          // Androidは着信通知（CallStyle、応答・拒否ボタン付き）として表示する（2026-11-12）。
+          type: "incoming_group_call",
+          callId: event.params.groupCallId,
+          groupId,
+          callerName: identity.name,
+          isVideo: call.isVideo === true ? "true" : "false",
         },
         android: { priority: "high" },
       });
@@ -4384,6 +4390,100 @@ export const onGroupCallCreated = onDocumentCreated(
         },
       });
     }
+  },
+);
+
+/** 通話の着信通知を、鳴っている端末から消す（2026-11-12）。通話が終わった・応答された・
+ * 拒否された時に、Androidの着信通知（CallStyle）を取り消す。 */
+async function sendCallCancel(userIds: string[], callId: string): Promise<void> {
+  const androidTokens: string[] = [];
+  for (const userId of userIds) {
+    const userDoc = await db.doc(`users/${userId}`).get();
+    const tokens = await loadFcmTokens(userId, userDoc.data()?.fcmTokens);
+    for (const entry of tokens) {
+      if (entry.platform === "android") androidTokens.push(entry.token);
+    }
+  }
+  if (androidTokens.length === 0) return;
+  await getMessaging().sendEachForMulticast({
+    tokens: androidTokens,
+    data: { type: "call_cancel", callId },
+    android: { priority: "high" },
+  });
+}
+
+/**
+ * 一対の通話の着信を、アプリを閉じている相手にも知らせる（2026-11-12）。Androidは着信通知
+ * （CallStyle、右が緑の応答・左が赤の拒否）、アプリを開いている間はアプリ内のバナーが知らせる。
+ * ブロック中の相手・ミュート中の一対には送らない。iOS・Webは対象外。
+ */
+export const onCallCreated = onDocumentCreated(
+  { document: "calls/{callId}", region: "asia-northeast1" },
+  async (event) => {
+    const call = event.data?.data();
+    if (!call || call.status !== "ringing") return;
+    const callerId = call.callerId as string | undefined;
+    const calleeId = call.calleeId as string | undefined;
+    const dmId = call.dmId as string | undefined;
+    if (!callerId || !calleeId || !dmId) return;
+    if (await isBlockedBy(calleeId, callerId)) return;
+    if (await isConversationMuted(calleeId, dmId, "")) return;
+
+    const [callerDoc, calleeDoc] = await Promise.all([
+      db.doc(`users/${callerId}`).get(),
+      db.doc(`users/${calleeId}`).get(),
+    ]);
+    const identity = callerDoc.exists
+      ? resolveSenderIdentity(callerDoc.data()!, dmId)
+      : { name: "", iconUrl: null };
+    const tokens = await loadFcmTokens(calleeId, calleeDoc.data()?.fcmTokens);
+    const androidTokens = tokens
+      .filter((entry) => entry.platform === "android")
+      .map((entry) => entry.token);
+    if (androidTokens.length === 0) return;
+    await getMessaging().sendEachForMulticast({
+      tokens: androidTokens,
+      data: {
+        type: "incoming_call",
+        callId: event.params.callId,
+        dmId,
+        callerName: identity.name,
+        iconUrl: identity.iconUrl ?? "",
+        isVideo: call.isVideo === true ? "true" : "false",
+        sentAt: String(Date.now()),
+      },
+      android: { priority: "high", ttl: 60 * 1000 },
+    });
+  },
+);
+
+/** 一対の通話が呼び出し中でなくなったら（応答・拒否・終了・不在）、着信通知を消す。 */
+export const onCallRingEnded = onDocumentUpdated(
+  { document: "calls/{callId}", region: "asia-northeast1" },
+  async (event) => {
+    const before = event.data?.before.data();
+    const after = event.data?.after.data();
+    if (!before || !after) return;
+    if (before.status !== "ringing" || after.status === "ringing") return;
+    const calleeId = after.calleeId as string | undefined;
+    if (!calleeId) return;
+    await sendCallCancel([calleeId], event.params.callId);
+  },
+);
+
+/** 広場の通話が終わったら、まだ鳴っている着信通知を消す。 */
+export const onGroupCallRingEnded = onDocumentUpdated(
+  { document: "groupCalls/{groupCallId}", region: "asia-northeast1" },
+  async (event) => {
+    const before = event.data?.before.data();
+    const after = event.data?.after.data();
+    if (!before || !after) return;
+    if (before.status !== "active" || after.status === "active") return;
+    const initiatorId = after.initiatorId as string | undefined;
+    const memberIds = Array.isArray(after.memberIds)
+      ? (after.memberIds as string[]).filter((id) => id !== initiatorId)
+      : [];
+    await sendCallCancel(memberIds, event.params.groupCallId);
   },
 );
 

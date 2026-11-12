@@ -241,7 +241,25 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
   ItemPickTarget? _pickTarget;
   int? _pickedIndex;
 
+  String? _diagSlideReason;
+
+  /// 診断ログ（debugのみ、2026-11-12。押したまま滑らせて選ぶが効かない原因の切り分け用）。
+  /// 状態が変わった時だけ出す。
+  void _diagSlide(String reason) {
+    if (!kDebugMode || _diagSlideReason == reason) return;
+    _diagSlideReason = reason;
+    debugPrint('[DIAG-SLIDE] $reason');
+  }
+
   void _onStripPointerDown(Offset position, bool vertical) {
+    _diagSlideReason = null;
+    if (kDebugMode) {
+      debugPrint(
+        '[DIAG-SLIDE] down pos=$position overlay='
+        '${ref.read(backStackControllerProvider).hasOpenOverlay} '
+        'enabled=${ref.read(slidePickEnabledProvider)} vertical=$vertical',
+      );
+    }
     if (ref.read(backStackControllerProvider).hasOpenOverlay) return;
     _stripTouch = true;
     // 指が項目へ滑っていくとチップのタップが成立しなくなる為、押した時点で選ぶ。
@@ -265,6 +283,10 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
     final enabled = ref.read(slidePickEnabledProvider);
     final target = (inStrip || !enabled) ? null : bridge.targetAt(position);
     final index = target?.indexAt(position);
+    _diagSlide(
+      'move inStrip=$inStrip enabled=$enabled target=${target != null} '
+      'index=$index',
+    );
     if (target == null || index == null) {
       _clearPick();
       return;

@@ -67,7 +67,7 @@ void main() {
     expect(stopped, 1);
   });
 
-  testWidgets('タップで参加処理が呼ばれ、×でも閉じて着信音停止の通知が飛ぶ', (tester) async {
+  testWidgets('本体のタップでは何もせず、緑のボタンで参加・赤のボタンで閉じて着信音停止の通知が飛ぶ', (tester) async {
     final container = await _pump(tester);
     var joined = 0;
     var stopped = 0;
@@ -78,9 +78,12 @@ void main() {
     await tester.pump();
 
     await tester.tap(find.text('広場A'));
+    expect(joined, 0);
+
+    await tester.tap(find.byTooltip('応答'));
     expect(joined, 1);
 
-    await tester.tap(find.byIcon(Icons.close));
+    await tester.tap(find.byTooltip('拒否'));
     await tester.pump();
     expect(container.read(groupCallBannersProvider), isEmpty);
     expect(stopped, 1);

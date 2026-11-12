@@ -78,5 +78,9 @@ dependencies {
 }
 
 dependencies {
+    // 着信通知の「拒否」で、アプリを開かずに通話ドキュメントを更新するため（2026-11-12、
+    // `CallActionReceiver`）。バージョンはFlutterFireプラグイン（firebase_core）と揃える。
+    implementation(platform("com.google.firebase:firebase-bom:34.18.0"))
+    implementation("com.google.firebase:firebase-firestore")
     coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.1.4")
 }

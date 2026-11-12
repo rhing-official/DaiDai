@@ -26,6 +26,53 @@ class MainActivity : FlutterFragmentActivity() {
     private val pipChannelName = "jp.rhing.daidai/pip"
     private var pipChannel: MethodChannel? = null
     private var callActive = false
+    private val callActionChannelName = "jp.rhing.daidai/call_action"
+    private var callActionChannel: MethodChannel? = null
+
+    /** 着信通知の「応答」で開かれた時の、Dart側がまだ受け取っていない操作。 */
+    private var pendingCallAction: Map<String, String?>? = null
+
+    override fun onCreate(savedInstanceState: android.os.Bundle?) {
+        super.onCreate(savedInstanceState)
+        handleCallIntent(intent, deliver = false)
+    }
+
+    override fun onNewIntent(intent: android.content.Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        handleCallIntent(intent, deliver = true)
+    }
+
+    /**
+     * 着信通知から開かれた時の処理（2026-11-12）。ロック画面の上に表示し、「応答」なら通知を
+     * 消してDart側へ渡す。全画面（ロック画面の着信）で開かれた場合は、アプリ内のバナーで
+     * 応答・拒否してもらうため、表示だけする。
+     */
+    private fun handleCallIntent(intent: android.content.Intent?, deliver: Boolean) {
+        if (intent == null) return
+        val ring = intent.getBooleanExtra(CallNotifications.EXTRA_RING, false)
+        val action = intent.getStringExtra(CallNotifications.EXTRA_ACTION)
+        if (!ring && action == null) return
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O_MR1) {
+            setShowWhenLocked(true)
+            setTurnScreenOn(true)
+        }
+        if (action != CallNotifications.ACTION_ANSWER) return
+        val callId = intent.getStringExtra(CallNotifications.EXTRA_CALL_ID) ?: return
+        CallNotifications.cancel(this, callId)
+        val map = mapOf(
+            "kind" to intent.getStringExtra(CallNotifications.EXTRA_KIND),
+            "callId" to callId,
+            "groupId" to intent.getStringExtra(CallNotifications.EXTRA_GROUP_ID),
+        )
+        // 同じIntentで再作成されても二重に処理しない。
+        intent.removeExtra(CallNotifications.EXTRA_ACTION)
+        if (deliver && callActionChannel != null) {
+            callActionChannel?.invokeMethod("answer", map)
+        } else {
+            pendingCallAction = map
+        }
+    }
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
@@ -37,6 +84,15 @@ class MainActivity : FlutterFragmentActivity() {
                 callActive = call.argument<Boolean>("active") ?: false
                 updatePipParams()
                 result.success(null)
+            } else {
+                result.notImplemented()
+            }
+        }
+        callActionChannel = MethodChannel(flutterEngine.dartExecutor.binaryMessenger, callActionChannelName)
+        callActionChannel?.setMethodCallHandler { call, result ->
+            if (call.method == "takePendingAction") {
+                result.success(pendingCallAction)
+                pendingCallAction = null
             } else {
                 result.notImplemented()
             }

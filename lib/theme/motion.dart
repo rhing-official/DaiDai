@@ -72,12 +72,12 @@ Widget buildSlideInFromRightTransition(
     child: child,
     builder: (context, child) => buildTransitionBlur(
       1 - curved.value,
-      // 吸い込みの液状化（種類に関わらず常に挟み、`enabled`だけで切り替える）。
-      LiquifyEffect(
-        progress: 1 - curved.value,
-        enabled: style == SlideTransitionStyle.suck,
-        child: child!,
-      ),
+      // 吸い込みの液状化（種類に関わらず常に挟む）。ページ遷移では、シェーダーを使わない
+      // （`enabled: false`、2026-11-12）。`AnimatedSampler`は描画の層を途中で切り替える作りで、
+      // 通知から開いた時のように、重い画面の構築と遷移が重なると、終わっても古い（空の）
+      // 描画が残り、画面が見えないのにタッチだけ効く状態になった。縮み・透明度・ぼかしは
+      // そのままで、液状に歪める効果だけを止める。ダイアログの吸い込みは対象外。
+      LiquifyEffect(progress: 1 - curved.value, enabled: false, child: child!),
     ),
   );
   // 吸い込み: 右下の角から広がる／右下の角へ縮む（2026-11-04、初版）。

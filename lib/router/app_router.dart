@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart' show debugPrint, kDebugMode;
 import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -20,6 +21,7 @@ import '../models/app_user.dart';
 import '../models/call.dart';
 import '../models/direct_message.dart';
 import '../models/group.dart';
+import '../providers/chat_navigation_providers.dart';
 import '../providers/repository_providers.dart';
 import '../theme/motion.dart';
 import '../utils/platform_info.dart';
@@ -137,7 +139,13 @@ bool isFullscreenChatOpen(GoRouter router) {
 /// から画面遷移する為に使う（2026-09-02追加）。Providerは遅延初期化だが、
 /// `MaterialApp.router`が起動時に`goRouterProvider`を読むため、通知タップが
 /// 起こり得るタイミングには必ず埋まっている。
+final Map<String, AnimationStatus> _diagRouteStatus = {};
+
 GoRouter? globalRouter;
+
+/// [globalRouter]と同じく、`ref`を持たない場所（通知タップのハンドラ）から戻る履歴の
+/// 制御を触るための参照（2026-11-12）。
+BackStackController? globalBackStack;
 
 final goRouterProvider = Provider<GoRouter>((ref) {
   late final GoRouter router;
@@ -152,6 +160,17 @@ final goRouterProvider = Provider<GoRouter>((ref) {
   // `CustomTransitionPage(opaque: false, ...)`を返すことで対応する。
   // 入場アニメーションは[transition]で選べ、既定は画面右外からの
   // スライドイン（`buildSlideInFromRightTransition`）。
+  // 寄合一覧の左スワイプで開く本物のメッセージ画面は、開き切るまで透明にしておく
+  // （`chatOpenHold`）。透明の間も画面は作られ、読み込みが進む。
+  Widget _holdWhileOpening(Widget child) => ValueListenableBuilder<bool>(
+    valueListenable: chatOpenHold,
+    child: child,
+    builder: (context, hold, child) => IgnorePointer(
+      ignoring: hold,
+      child: Opacity(opacity: hold ? 0 : 1, child: child),
+    ),
+  );
+
   Page<void> opaqueFalsePage(
     GoRouterState state,
     Widget child, {
@@ -163,8 +182,22 @@ final goRouterProvider = Provider<GoRouter>((ref) {
     opaque: false,
     transitionDuration: transitionDuration,
     reverseTransitionDuration: transitionDuration,
-    transitionsBuilder: (context, animation, secondaryAnimation, child) =>
-        transition(animation, child),
+    transitionsBuilder: (context, animation, secondaryAnimation, child) {
+      // 診断ログ（debugのみ、2026-11-12。画面が見えないのにタッチが効く状態の切り分け用）。
+      // 遷移アニメーションの状態が変わった時だけ出す。
+      if (kDebugMode) {
+        final key = '${state.pageKey}';
+        final status = animation.status;
+        if (_diagRouteStatus[key] != status) {
+          _diagRouteStatus[key] = status;
+          debugPrint(
+            '[DIAG-ROUTE] ${state.matchedLocation} status=$status '
+            'value=${animation.value.toStringAsFixed(2)}',
+          );
+        }
+      }
+      return transition(animation, child);
+    },
     child: child,
   );
 
@@ -304,7 +337,7 @@ final goRouterProvider = Provider<GoRouter>((ref) {
             return slideDetailPage(
               state,
               pane,
-              transition: (animation, child) => child,
+              transition: (animation, child) => _holdWhileOpening(child),
             );
           }
           return args.enterFromRight
@@ -341,7 +374,7 @@ final goRouterProvider = Provider<GoRouter>((ref) {
             return slideDetailPage(
               state,
               pane,
-              transition: (animation, child) => child,
+              transition: (animation, child) => _holdWhileOpening(child),
             );
           }
           return args.enterFromRight
@@ -498,5 +531,6 @@ final goRouterProvider = Provider<GoRouter>((ref) {
   backStack.attach(push: (id) => router.push('/_b/$id'));
 
   globalRouter = router;
+  globalBackStack = backStack;
   return router;
 });
