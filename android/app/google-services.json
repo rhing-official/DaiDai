@@ -14,6 +14,14 @@
       },
       "oauth_client": [
         {
+          "client_id": "380243513330-36ahq17jigu98qrcf0pu38kbo7glqpuc.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "jp.rhing.daidai",
+            "certificate_hash": "659cea38da07b9df0f51a186bf2393f62000565a"
+          }
+        },
+        {
           "client_id": "380243513330-djse33vd5qct9jc5ve77qme73bn762h3.apps.googleusercontent.com",
           "client_type": 1,
           "android_info": {
