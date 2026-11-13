@@ -1,7 +1,9 @@
 import 'dart:convert';
+import 'dart:io' show Platform;
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../services/app_functions.dart';
+import '../services/google_desktop_sign_in.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:google_sign_in/google_sign_in.dart';
@@ -226,6 +228,10 @@ class FirebaseAuthRepository implements AuthRepository {
   @override
   User? get currentUser => _auth.currentUser;
 
+  /// `google_sign_in`が未対応のWindows・Linuxで、ブラウザ＋ループバックのOAuthを使うか。
+  bool get _usesDesktopGoogleSignIn =>
+      !kIsWeb && (Platform.isWindows || Platform.isLinux);
+
   @override
   Future<User> signInWithGoogle() async {
     // google_sign_inのauthenticate()はWebでは未対応（GIS SDKのボタンUI経由のみ許可）。
@@ -239,13 +245,18 @@ class FirebaseAuthRepository implements AuthRepository {
       return user;
     }
 
-    await ensureGoogleSignInInitialized();
-    final account = await _googleSignIn.authenticate();
-    final googleAuth = account.authentication;
+    // Windows・Linuxは`google_sign_in`が未対応（`UnimplementedError`）のため、ブラウザと
+    // ループバックで受け取るOAuthを使う（2026-11-13）。
+    final String? idToken;
+    if (_usesDesktopGoogleSignIn) {
+      idToken = await GoogleDesktopSignIn().signInIdToken();
+    } else {
+      await ensureGoogleSignInInitialized();
+      final account = await _googleSignIn.authenticate();
+      idToken = account.authentication.idToken;
+    }
 
-    final credential = GoogleAuthProvider.credential(
-      idToken: googleAuth.idToken,
-    );
+    final credential = GoogleAuthProvider.credential(idToken: idToken);
 
     final userCredential = await _auth.signInWithCredential(credential);
     final user = userCredential.user;
@@ -345,12 +356,15 @@ class FirebaseAuthRepository implements AuthRepository {
       return;
     }
 
-    await ensureGoogleSignInInitialized();
-    final account = await _googleSignIn.authenticate();
-    final googleAuth = account.authentication;
-    final credential = GoogleAuthProvider.credential(
-      idToken: googleAuth.idToken,
-    );
+    final String? idToken;
+    if (_usesDesktopGoogleSignIn) {
+      idToken = await GoogleDesktopSignIn().signInIdToken();
+    } else {
+      await ensureGoogleSignInInitialized();
+      final account = await _googleSignIn.authenticate();
+      idToken = account.authentication.idToken;
+    }
+    final credential = GoogleAuthProvider.credential(idToken: idToken);
     await user.reauthenticateWithCredential(credential);
   }
 
