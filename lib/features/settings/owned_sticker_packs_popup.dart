@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../../l10n/strings.dart';
 import '../../models/app_ui_style.dart';
@@ -8,6 +9,7 @@ import '../../providers/app_ui_style_provider.dart';
 import '../../providers/repository_providers.dart';
 import '../../theme/popup_surface_colors.dart';
 import '../../utils/auto_dismiss_banner.dart';
+import '../../utils/yokocho.dart';
 import '../../widgets/glass/glass_dialog.dart';
 import '../../widgets/dialog_keyboard_shortcuts.dart';
 import '../../widgets/app_dialog.dart';
@@ -51,6 +53,21 @@ class OwnedStickerPacksPopup extends ConsumerWidget {
           ),
         ),
         const Divider(height: 1),
+        if (yokochoLinksAllowed())
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+            child: Align(
+              alignment: Alignment.centerLeft,
+              child: TextButton.icon(
+                icon: const Icon(Icons.storefront_outlined),
+                label: Text(strings.yokochoLinkButton),
+                onPressed: () => launchUrl(
+                  yokochoUri(),
+                  mode: LaunchMode.externalApplication,
+                ),
+              ),
+            ),
+          ),
         Flexible(
           child: StreamBuilder<List<StickerPack>>(
             stream: ref

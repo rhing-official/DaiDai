@@ -73,6 +73,7 @@ import 'attachment_popup_button.dart';
 import 'pending_attachment_tray.dart';
 import 'button_anchored_menu.dart';
 import '../../utils/attachment_upload.dart';
+import '../../utils/yokocho.dart';
 import '../../utils/multi_attachment_layout.dart';
 import '../../utils/auto_dismiss_banner.dart';
 import '../../utils/drag_menu_geometry.dart';
@@ -7171,6 +7172,13 @@ class _MessageRow extends ConsumerWidget {
       return;
     }
 
+    // ストア版（App Store・Google Play）は外部購入への誘導にストアのプログラム
+    // 登録・IAP併設が要るため、横丁へは飛ばず案内だけ出す（2026-11-13）。
+    if (!yokochoLinksAllowed()) {
+      showAutoDismissBanner(context, message: strings.stickerNotOwnedMessage);
+      return;
+    }
+
     // Apple/Googleからのアクセスのみ手数料上乗せ価格を表示する想定
     // （実際の値付け・表示ロジックはdaidai横丁のストアページ側＝この
     // リポジトリ外で実装、technical spec参照）。既存の動画再生対応判定
@@ -7182,9 +7190,7 @@ class _MessageRow extends ConsumerWidget {
         : Platform.isAndroid
         ? 'android'
         : 'other';
-    final storeUri = Uri.parse(
-      'https://rhing.jp/daidai-yokocho/$packId?platform=$platform',
-    );
+    final storeUri = yokochoUri(packId: packId, platform: platform);
     await launchUrl(storeUri, mode: LaunchMode.externalApplication);
   }
 

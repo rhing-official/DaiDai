@@ -246,20 +246,21 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
   /// 診断ログ（debugのみ、2026-11-12。押したまま滑らせて選ぶが効かない原因の切り分け用）。
   /// 状態が変わった時だけ出す。
   void _diagSlide(String reason) {
-    if (!kDebugMode || _diagSlideReason == reason) return;
+    if (_diagSlideReason == reason) return;
     _diagSlideReason = reason;
-    debugPrint('[DIAG-SLIDE] $reason');
+    // ignore: avoid_print
+    print('[DIAG-SLIDE] $reason');
   }
 
   void _onStripPointerDown(Offset position, bool vertical) {
     _diagSlideReason = null;
-    if (kDebugMode) {
-      debugPrint(
-        '[DIAG-SLIDE] down pos=$position overlay='
-        '${ref.read(backStackControllerProvider).hasOpenOverlay} '
-        'enabled=${ref.read(slidePickEnabledProvider)} vertical=$vertical',
-      );
-    }
+    // ignore: avoid_print
+    print(
+      '[DIAG-SLIDE] down pos=$position overlay='
+      '${ref.read(backStackControllerProvider).hasOpenOverlay} '
+      'enabled=${ref.read(slidePickEnabledProvider)} vertical=$vertical '
+      'bridgeTargets=${ref.read(itemPickBridgeProvider).debugTargetCount}',
+    );
     if (ref.read(backStackControllerProvider).hasOpenOverlay) return;
     _stripTouch = true;
     // 指が項目へ滑っていくとチップのタップが成立しなくなる為、押した時点で選ぶ。

@@ -457,6 +457,8 @@ class Strings {
     required this.settingsManageOwnedStickers,
     required this.ownedStickersScreenTitle,
     required this.uninstallStickerButton,
+    required this.yokochoLinkButton,
+    required this.stickerNotOwnedMessage,
     required this.uninstallStickerConfirmTitle,
     required this.uninstallStickerConfirmMessage,
     required this.uninstallStickerConfirmButton,
@@ -1673,6 +1675,12 @@ class Strings {
   final String settingsManageOwnedStickers;
   final String ownedStickersScreenTitle;
   final String uninstallStickerButton;
+
+  /// 所持ぺったんの管理ポップアップから、daidai横丁（Webストア）を開くボタン。
+  final String yokochoLinkButton;
+
+  /// 未所持のぺったんをタップした時の案内（横丁へのリンクを出さないストア版）。
+  final String stickerNotOwnedMessage;
   final String uninstallStickerConfirmTitle;
   final String uninstallStickerConfirmMessage;
   final String uninstallStickerConfirmButton;
@@ -3099,6 +3107,8 @@ class Strings {
     settingsManageOwnedStickers: '所持しているぺったんを管理',
     ownedStickersScreenTitle: '所持しているぺったん',
     uninstallStickerButton: 'アンインストール',
+    yokochoLinkButton: 'daidai横丁でぺったんを探す',
+    stickerNotOwnedMessage: 'このぺったんは所持していません',
     uninstallStickerConfirmTitle: 'アンインストールしますか？',
     uninstallStickerConfirmMessage: 'アンインストールすると、このぺったんは送信できなくなります。',
     uninstallStickerConfirmButton: 'アンインストールする',
@@ -4375,6 +4385,8 @@ class Strings {
     settingsManageOwnedStickers: 'Manage owned stickers',
     ownedStickersScreenTitle: 'Owned stickers',
     uninstallStickerButton: 'Uninstall',
+    yokochoLinkButton: 'Find stickers at daidai Yokocho',
+    stickerNotOwnedMessage: "You don't own this sticker.",
     uninstallStickerConfirmTitle: 'Uninstall this pack?',
     uninstallStickerConfirmMessage:
         "You won't be able to send these stickers after uninstalling.",

@@ -96,6 +96,9 @@ abstract class ItemPickTarget {
 class ItemPickBridge {
   final List<ItemPickTarget> _targets = [];
 
+  /// 診断用（2026-11-12、滑らせて選ぶが効かない原因の切り分け）。
+  int get debugTargetCount => _targets.length;
+
   void register(ItemPickTarget target) => _targets.add(target);
   void unregister(ItemPickTarget target) => _targets.remove(target);
 

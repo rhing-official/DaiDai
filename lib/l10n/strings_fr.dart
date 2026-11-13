@@ -547,6 +547,8 @@ final Strings _stringsFr = Strings._(
   settingsManageOwnedStickers: 'Gérer les stickers possédés',
   ownedStickersScreenTitle: 'Stickers possédés',
   uninstallStickerButton: 'Désinstaller',
+  yokochoLinkButton: 'Trouver des stickers sur daidai Yokocho',
+  stickerNotOwnedMessage: "Vous ne possédez pas ce sticker.",
   uninstallStickerConfirmTitle: 'Désinstaller ce pack ?',
   uninstallStickerConfirmMessage:
       'Vous ne pourrez plus envoyer ces stickers après la désinstallation.',

@@ -118,6 +118,7 @@ dev_dependencies:
   flutter_lints: ^6.0.0
   flutter_launcher_icons: ^0.14.4
   flutter_native_splash: ^2.4.8
+  msix: ^3.18.0
 
 # アプリアイコン生成設定（flutter_launcher_icons）。
 # 2026-11-12に素材を確定して各プラットフォームへ組み込み済み（橙に桜柄の封筒が紐で
@@ -306,3 +307,17 @@ flutter:
   #
   # For details regarding fonts from package dependencies,
   # see https://flutter.dev/to/font-from-package
+
+# Microsoft Store用のMSIXパッケージの設定（2026-11-13）。パートナーセンターの
+# 「製品ID」の値。Store提出用は`dart run msix:create --store`で作る（署名はMicrosoftが行う）。
+msix_config:
+  display_name: DaiDai-message
+  publisher_display_name: Rhing
+  identity_name: Rhing.DaiDai-message
+  publisher: CN=05798F0E-41EC-4FF9-BBAB-61384063660A
+  msix_version: 1.0.0.0
+  logo_path: web/icons/Icon-512.png
+  capabilities: internetClient, microphone, webcam
+  languages: ja-jp, en-us, fr-fr
+  architecture: x64
+  store: true
