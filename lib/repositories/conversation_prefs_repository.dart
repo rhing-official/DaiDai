@@ -30,6 +30,19 @@ abstract class ConversationPrefsRepository {
     String? roomId,
   });
 
+  /// この寄合を「いま開いている」ことを記録する（2026-11-13）。サーバーはこの寄合の
+  /// メッセージ通知を送らない。約30秒ごとに更新し、[clearViewing]で消す。
+  Future<void> setViewing({
+    required String userId,
+    required String conversationId,
+    required String roomId,
+  });
+
+  Future<void> clearViewing({
+    required String userId,
+    required String conversationId,
+  });
+
   /// 広場の寄合毎の通知オフを設定する（`Room.customSettingsEnabled`が
   /// trueの間のみ有効、2026-07-29追加）。
   Future<void> setRoomNotificationsMuted({
@@ -135,6 +148,28 @@ class FirestoreConversationPrefsRepository
       // set()はドット区切りキーをネストとして解釈しない為、
       // `setRoomNotificationsMuted`と同じネストMapリテラルで書く。
       if (roomId != null) 'unreadByRoom': {roomId: 0},
+    }, SetOptions(merge: true));
+  }
+
+  @override
+  Future<void> setViewing({
+    required String userId,
+    required String conversationId,
+    required String roomId,
+  }) async {
+    await _prefsOf(userId).doc(conversationId).set({
+      'viewing': {'roomId': roomId, 'at': FieldValue.serverTimestamp()},
+    }, SetOptions(merge: true));
+  }
+
+  @override
+  Future<void> clearViewing({
+    required String userId,
+    required String conversationId,
+  }) async {
+    // ドキュメントが無い時に`update`は失敗するため、`set`＋`merge`で消す。
+    await _prefsOf(userId).doc(conversationId).set({
+      'viewing': FieldValue.delete(),
     }, SetOptions(merge: true));
   }
 

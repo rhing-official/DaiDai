@@ -51,6 +51,13 @@ class _IncomingCallListenerState extends ConsumerState<IncomingCallListener> {
             .catchError((_) {});
         return;
       }
+      // 別の会話で通話中なら、その通話を切らずに着信は受けない（発信側は呼び出しの
+      // タイムアウトで不在着信になる）。同じ相手の古い通話は終了して受ける（2026-11-13）。
+      if (!ref
+          .read(activeCallSessionProvider.notifier)
+          .canAcceptIncomingOneToOne(call)) {
+        return;
+      }
       // フルスクリーンを経由せず直接セッションを開始する（PC・Web・アプリ共通）。
       // 応答・拒否は`IncomingCallBannerOverlay`のバナーだけで行う（2026-11-03、
       // アプリも統一）。startOneToOne自体が同じ通話への重複アタッチを防ぐ

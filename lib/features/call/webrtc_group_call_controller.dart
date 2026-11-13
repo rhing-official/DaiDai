@@ -795,13 +795,18 @@ class WebrtcGroupCallController extends ChangeNotifier {
 
   Future<void> leave() async {
     if (_state == GroupCallConnectionState.ended) return;
-    await _repository.leaveGroupCall(
-      groupCallId: groupCallId,
-      userId: currentUser.userId,
-      sessionId: _sessionId,
-    );
+    // 1対1の`hangUp`と同じく、先に自分の画面を閉じる。Firestoreの退出処理
+    // （直列に3〜4往復、回線が悪いと長い）を待たせない（2026-11-13）。
+    final id = groupCallId;
+    final userId = currentUser.userId;
+    final sessionId = _sessionId;
     _state = GroupCallConnectionState.ended;
     notifyListeners();
+    await _repository.leaveGroupCall(
+      groupCallId: id,
+      userId: userId,
+      sessionId: sessionId,
+    );
   }
 
   void toggleMute() {

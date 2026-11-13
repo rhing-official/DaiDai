@@ -102,5 +102,22 @@ extension SoundCategoryPresets on SoundCategory {
 String androidNotificationChannelIdFor(String presetId) =>
     'daidai_messages_$presetId';
 
-/// カスタムアップロード通知音源用の固定チャンネルID。
+/// カスタムアップロード通知音源用のチャンネルIDの接頭辞。旧版は固定ID
+/// （`daidai_messages_custom`）だった。
 const androidCustomNotificationChannelId = 'daidai_messages_custom';
+
+/// カスタム音源のURL毎のチャンネルID（2026-11-13変更）。チャンネルの音は作成後に変えられず、
+/// 同じIDの削除→再作成はAndroidが以前の設定（古い音・標準音）を復元することがあるため、
+/// 音源が変わる（URLが変わる）たびに別のIDにする。
+String androidCustomNotificationChannelIdFor(String url) =>
+    '${androidCustomNotificationChannelId}_${customSoundKey(url)}';
+
+/// URLから作る短い固定キー（FNV-1a、実行のたびに変わる`hashCode`は使わない）。
+String customSoundKey(String url) {
+  var hash = 0x811c9dc5;
+  for (final unit in url.codeUnits) {
+    hash ^= unit;
+    hash = (hash * 0x01000193) & 0xffffffff;
+  }
+  return hash.toRadixString(16).padLeft(8, '0');
+}

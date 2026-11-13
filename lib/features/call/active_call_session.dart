@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -165,6 +167,10 @@ class ActiveCallSessionNotifier extends Notifier<ActiveCallSession?> {
     if (current is OneToOneCallSession && current.call.callId == call.callId) {
       return current;
     }
+    // 別の通話が残っている時は、上書きして古いコントローラー（接続・購読）を漏らさず、
+    // 先に終了させる。固まって`active`のまま残った通話の上に、同じ相手の新しい通話が
+    // 来た時に二重通話になる不具合の対策（2026-11-13）。
+    _endStaleSession(current);
     final controller = WebrtcCallController(
       call: call,
       isCaller: isCaller,
@@ -208,6 +214,7 @@ class ActiveCallSessionNotifier extends Notifier<ActiveCallSession?> {
     if (current is GroupCallSession && current.groupCallId == groupCallId) {
       return current;
     }
+    _endStaleSession(current);
     final controller = WebrtcGroupCallController(
       groupCallId: groupCallId,
       currentUser: currentUser,
@@ -225,6 +232,26 @@ class ActiveCallSessionNotifier extends Notifier<ActiveCallSession?> {
     controller.initialize();
     state = session;
     return session;
+  }
+
+  /// 新しい通話を始める前に、残っている別の通話を終了させる。終了は`ended`化を検知した
+  /// [_onControllerChanged]が破棄まで行う（呼び出し側は待たない）。
+  void _endStaleSession(ActiveCallSession? current) {
+    if (current == null || current.hasEnded) return;
+    unawaited(current.endCall());
+    if (state == current) state = null;
+  }
+
+  /// 着信を受けてよいか。今の通話が無い、または同じ会話（相手）の古い通話なら受ける。
+  /// 別の会話で通話中なら受けない（通話中の通話を切らない）。
+  bool canAcceptIncomingOneToOne(Call call) {
+    final current = state;
+    if (current == null || current.hasEnded) return true;
+    if (current is OneToOneCallSession) {
+      return current.call.callId == call.callId ||
+          current.call.dmId == call.dmId;
+    }
+    return false;
   }
 
   void _onControllerChanged(ActiveCallSession session) {

@@ -13,6 +13,12 @@
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
     <!-- 通話の着信通知（CallStyle）を、ロック画面で全画面表示するため（2026-11-12）。 -->
     <uses-permission android:name="android.permission.USE_FULL_SCREEN_INTENT"/>
+    <!-- 通話中、アプリを離れても・画面を消してもマイク・カメラ・通信を止められないようにする
+         前面サービス用（2026-11-13、CallForegroundService）。 -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE"/>
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MICROPHONE"/>
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_CAMERA"/>
+    <uses-permission android:name="android.permission.WAKE_LOCK"/>
     <!-- パスコードロック機能の生体認証（Android BiometricPrompt）用（2026-09-11追加）。 -->
     <uses-permission android:name="android.permission.USE_BIOMETRIC"/>
     <!-- スクリーンショットを写真ライブラリへ保存する`gal`パッケージ用
@@ -81,6 +87,10 @@
                 android:name="android.support.FILE_PROVIDER_PATHS"
                 android:resource="@xml/file_paths" />
         </provider>
+        <service
+            android:name=".CallForegroundService"
+            android:exported="false"
+            android:foregroundServiceType="microphone|camera"/>
     </application>
     <!-- Required to query activities that can process text, see:
          https://developer.android.com/training/package-visibility and

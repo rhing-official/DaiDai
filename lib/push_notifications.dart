@@ -14,6 +14,8 @@ import 'models/message_time_format.dart';
 import 'models/sound_preset.dart';
 import 'router/app_router.dart' show globalBackStack, globalRouter;
 import 'utils/message_time.dart';
+import 'utils/android_notification_sound_sync.dart'
+    show customNotificationSoundFile;
 
 /// プッシュ通知（FCM）のAndroid側ローカル表示・バックグラウンドハンドラを
 /// まとめたトップレベルの仕組み（2026-08-31追加）。今回の実装範囲は
@@ -229,13 +231,17 @@ Future<AndroidNotificationChannel> _resolveAndroidChannel() async {
   final standard =
       _notificationChannels[SoundCategory.notification.defaultPreset.id]!;
   final prefs = await SharedPreferences.getInstance();
+  // 背景のisolateは古い設定を持ち続けることがあるため、読む前に取り直す（2026-11-13）。
+  await prefs.reload();
   final selected = prefs.getString('notificationSound');
   if (selected == null) return standard;
   if (selected.startsWith('http')) {
     final readyUrl = prefs.getString('notificationSoundCustomChannelReadyUrl');
-    if (readyUrl == selected) {
+    // 音ファイルが消えている時は、音なしのチャンネルを自動作成させず標準プリセットで鳴らす。
+    if (readyUrl == selected &&
+        await (await customNotificationSoundFile(selected)).exists()) {
       return AndroidNotificationChannel(
-        androidCustomNotificationChannelId,
+        androidCustomNotificationChannelIdFor(selected),
         'メッセージ（カスタム音）',
         description: '新着メッセージの通知（アップロードした音源）',
         importance: Importance.high,

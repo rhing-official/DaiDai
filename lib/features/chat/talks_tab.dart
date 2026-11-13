@@ -1,3 +1,4 @@
+import '../call/pinned_call_overlay.dart';
 import '../../utils/avatar_backdrop.dart';
 import '../../utils/contact_alias.dart';
 import '../../providers/contact_alias_providers.dart';
@@ -5661,6 +5662,13 @@ class _DmDetailWithRoomsState extends ConsumerState<_DmDetailWithRooms> {
   // 通話セッションを直接開始するだけにする（2026-08-19変更）。以後は
   // `CallOverlay`が今の画面の上に通話画面を重ねて表示する（2026-10-23）。
   Future<void> _startCall(DirectMessage dm, {bool isVideo = false}) async {
+    // 通話中の再発信で二重通話にならないよう、進行中の通話があればその画面を開き直す
+    // （2026-11-13）。
+    final ongoing = ref.read(activeCallSessionProvider);
+    if (ongoing != null && !ongoing.hasEnded) {
+      reopenActiveCall(ref.read, ongoing);
+      return;
+    }
     final callRepository = ref.read(callRepositoryProvider);
     final currentUser = widget.currentUser;
     final other = AppUser(

@@ -177,10 +177,17 @@ class _CallScreenState extends ConsumerState<CallScreen> {
     // 下スワイプでのドックは、映像がある通話が実際に繋がってから、かつ
     // モバイルでのみ有効にする（音声のみはミニ化しても得るものが無いため
     // 無効、PCはこの全画面ビュー自体を使わないため無効、ユーザー確認済み）。
-    final dockEnabled =
+    // 発信中（呼び出し中）は、映像・音声を問わずミニ表示にできる（2026-11-13追加、
+    // 呼び出しを続けたまま他の画面を見たい）。戻る操作もミニ表示になる。
+    final dialing =
         isMobileCallPlatform &&
-        anyVideo &&
-        _controller.state == CallConnectionState.active;
+        widget.isCaller &&
+        _controller.state == CallConnectionState.connecting;
+    final dockEnabled =
+        dialing ||
+        (isMobileCallPlatform &&
+            anyVideo &&
+            _controller.state == CallConnectionState.active);
 
     // 表示領域（映像 or その代役のプレースホルダー）は常に固定のグレー、
     // それ以外（Scaffold自体の背景）は常にテーマの背景色（2026-08-30更新、
@@ -222,7 +229,12 @@ class _CallScreenState extends ConsumerState<CallScreen> {
     return PopScope(
       canPop: _intentionalPop,
       onPopInvokedWithResult: (didPop, _) {
-        if (!didPop && !_intentionalPop) _controller.hangUp();
+        if (didPop || _intentionalPop) return;
+        if (dialing) {
+          _dockCall();
+        } else {
+          _controller.hangUp();
+        }
       },
       child: body,
     );

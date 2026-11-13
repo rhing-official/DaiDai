@@ -2,6 +2,7 @@ import 'package:collection/collection.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_riverpod/misc.dart' show ProviderListenable;
 import 'package:flutter_webrtc/flutter_webrtc.dart';
 import 'package:pointer_interceptor/pointer_interceptor.dart';
 
@@ -439,49 +440,57 @@ class _PinnedCallBubble extends ConsumerWidget {
     );
   }
 
-  void _reopen(BuildContext context, WidgetRef ref) {
-    if (isMobileCallPlatform) {
-      // ドック中なら全画面へ戻す（同じセッションへ再アタッチする経路は
-      // 各画面のinitStateが冪等に処理する為、Argsの中身は起動時と同じ
-      // 形で渡せば良い）。
-      ref.read(activeCallSessionProvider.notifier).setMinimized(false);
-      final router = ref.read(goRouterProvider);
-      switch (session) {
-        case OneToOneCallSession(
-          :final call,
-          :final isCaller,
-          :final currentUserId,
-        ):
-          router.push(
-            '/call',
-            extra: CallArgs(
-              call: call,
-              isCaller: isCaller,
-              currentUserId: currentUserId,
-            ),
-          );
-        case GroupCallSession(
-          :final controller,
-          :final groupCallId,
-          :final groupId,
-        ):
-          router.push(
-            '/group-call',
-            extra: GroupCallArgs(
-              groupCallId: groupCallId,
-              groupId: groupId,
-              currentUser: controller.currentUser,
-              isVideo: controller.isVideo,
-            ),
-          );
-      }
-      return;
-    }
+  void _reopen(BuildContext context, WidgetRef ref) =>
+      reopenActiveCall(ref.read, session);
+}
 
-    // PC・Webでは画面を移動せず、今の画面の上に通話画面を重ねて開く
-    // （2026-10-23、以前は語らいタブへ移動して通話中の寄合を開いていた）。
-    ref.read(callOverlayOpenProvider.notifier).open();
+/// 進行中の通話の画面を開き直す（ミニ表示のタップ、通話中の再発信の代わり）。
+/// モバイルは全画面へ戻し、PC・Webは今の画面の上に重ねる。
+void reopenActiveCall(
+  T Function<T>(ProviderListenable<T> provider) read,
+  ActiveCallSession session,
+) {
+  if (isMobileCallPlatform) {
+    // ドック中なら全画面へ戻す（同じセッションへ再アタッチする経路は
+    // 各画面のinitStateが冪等に処理する為、Argsの中身は起動時と同じ
+    // 形で渡せば良い）。
+    read(activeCallSessionProvider.notifier).setMinimized(false);
+    final router = read(goRouterProvider);
+    switch (session) {
+      case OneToOneCallSession(
+        :final call,
+        :final isCaller,
+        :final currentUserId,
+      ):
+        router.push(
+          '/call',
+          extra: CallArgs(
+            call: call,
+            isCaller: isCaller,
+            currentUserId: currentUserId,
+          ),
+        );
+      case GroupCallSession(
+        :final controller,
+        :final groupCallId,
+        :final groupId,
+      ):
+        router.push(
+          '/group-call',
+          extra: GroupCallArgs(
+            groupCallId: groupCallId,
+            groupId: groupId,
+            currentUser: controller.currentUser,
+            isVideo: controller.isVideo,
+          ),
+        );
+    }
+    return;
   }
+
+  // PC・Webでは画面を移動せず、今の画面の上に通話画面を重ねて開く
+  // （2026-10-23、以前は語らいタブへ移動して通話中の寄合を開いていた）。
+  read(callOverlayOpenProvider.notifier).open();
 }
 
 class _MiniIconButton extends StatelessWidget {

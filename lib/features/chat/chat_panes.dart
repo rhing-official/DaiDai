@@ -2,6 +2,7 @@ import '../../theme/block/block_theme.dart';
 import '../../widgets/kiwami_only_dialog.dart';
 import '../../providers/kiwami_providers.dart';
 import '../guide/tutorial/tutorial_target.dart';
+import 'room_viewing_presence.dart';
 import '../../l10n/tutorial_content.dart';
 import 'dart:async';
 
@@ -671,7 +672,7 @@ class _DmChatPaneState extends ConsumerState<DmChatPane> {
             onCreateRoom: (name) =>
                 dmRepository.createRoom(dmId: dm.dmId, name: name),
           );
-    final chatScreen = ChatScreen(
+    final chatScreenCore = ChatScreen(
       key: ValueKey('dm-${dm.dmId}-$roomId'),
       title: roomName,
       currentUserId: currentUser.userId,
@@ -1002,6 +1003,13 @@ class _DmChatPaneState extends ConsumerState<DmChatPane> {
           const AudioPlaybackBanner(),
         ],
       ),
+    );
+    // 開いている間は「いま見ている」ことを記録し、通知を止める（2026-11-13）。
+    final chatScreen = RoomViewingPresence(
+      userId: currentUser.userId,
+      conversationId: dm.dmId,
+      roomId: roomId,
+      child: chatScreenCore,
     );
     if (roomTabBarWidget == null) return chatScreen;
     // `RoomTabBar`を`ChatScreen`のScaffold.appBarの一部として組み込んでいた
@@ -2733,7 +2741,7 @@ class _GroupChatPaneState extends ConsumerState<GroupChatPane> {
         .watch(activeGroupCallProvider(group.groupId))
         .value;
     final sortedMemberIds = ([...group.memberIds]..sort()).join(',');
-    final chatScreen = ChatScreen(
+    final chatScreenCore = ChatScreen(
       key: ValueKey('group-${group.groupId}-$roomId'),
       title: roomName,
       currentUserId: currentUser.userId,
@@ -3040,6 +3048,13 @@ class _GroupChatPaneState extends ConsumerState<GroupChatPane> {
         ),
       ],
       onSenderTap: (userId) => _openProfileCard(context, userId),
+    );
+    // 開いている間は「いま見ている」ことを記録し、通知を止める（2026-11-13）。
+    final chatScreen = RoomViewingPresence(
+      userId: currentUser.userId,
+      conversationId: group.groupId,
+      roomId: roomId,
+      child: chatScreenCore,
     );
     if (roomTabBarWidget == null) return chatScreen;
     // DM側の`_buildChatScreen`と同じ構成（`ChatScreen.roomTabBar`param

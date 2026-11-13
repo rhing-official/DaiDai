@@ -3,6 +3,7 @@ import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../features/call/pinned_call_overlay.dart';
 import '../features/admin/admin_gate.dart';
 import '../features/not_found/not_found_screen.dart';
 import '../features/app_gate.dart';
@@ -233,6 +234,13 @@ final goRouterProvider = Provider<GoRouter>((ref) {
     DirectMessage dm, {
     bool isVideo = false,
   }) async {
+    // 通話中の再発信で二重通話にならないよう、進行中の通話があればその画面を開き直す
+    // （2026-11-13）。
+    final ongoing = ref.read(activeCallSessionProvider);
+    if (ongoing != null && !ongoing.hasEnded) {
+      reopenActiveCall(ref.read, ongoing);
+      return;
+    }
     final callRepository = ref.read(callRepositoryProvider);
     final other = AppUser(
       userId: dm.otherUserId(currentUser.userId),

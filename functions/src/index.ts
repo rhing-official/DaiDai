@@ -3326,6 +3326,25 @@ async function isConversationMuted(
   return data.notificationsMuted === true;
 }
 
+/** 受信者がいま、この寄合のメッセージ画面を開いている（アプリが前面）か（2026-11-13）。
+ * クライアントが`conversationPrefs`の`viewing`（`roomId`・`at`）を約30秒ごとに更新し、
+ * 閉じる・離れる時に消す。クラッシュ等で消えなくても、更新が90秒止まれば開いていない扱い。 */
+const VIEWING_FRESH_MS = 90_000;
+async function isViewingRoom(
+  recipientId: string,
+  conversationId: string,
+  roomId: string,
+): Promise<boolean> {
+  const prefsDoc = await db
+    .doc(`users/${recipientId}/conversationPrefs/${conversationId}`)
+    .get();
+  const viewing = prefsDoc.data()?.viewing;
+  if (!viewing || viewing.roomId !== roomId) return false;
+  const at =
+    typeof viewing.at?.toMillis === "function" ? viewing.at.toMillis() : 0;
+  return Date.now() - at < VIEWING_FRESH_MS;
+}
+
 /** [recipientId]が[senderId]を一対でブロックしているか（2026-10-11）。 */
 async function isBlockedBy(
   recipientId: string,
@@ -3488,6 +3507,10 @@ async function sendMessageNotification(params: {
       !isMention &&
       (await isConversationMuted(recipientId, conversationId, roomId))
     ) {
+      continue;
+    }
+    // その寄合を開いている人には通知しない（メンションは除く、2026-11-13）。
+    if (!isMention && (await isViewingRoom(recipientId, conversationId, roomId))) {
       continue;
     }
     const recipientDoc = await db.doc(`users/${recipientId}`).get();

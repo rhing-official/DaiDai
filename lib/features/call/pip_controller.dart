@@ -41,6 +41,28 @@ class PipHost extends ConsumerStatefulWidget {
 }
 
 class _PipHostState extends ConsumerState<PipHost> {
+  ActiveCallSession? _watchedSession;
+  bool _keepScreenOn = false;
+
+  /// 映像通話の間だけ、OSの自動消灯を止める（2026-11-13）。消灯すると映像が固まり、
+  /// 音声の送受信も止まるため。音声通話は前面サービスで続けるので消灯してよい。
+  void _syncKeepScreenOn() {
+    final session = _watchedSession;
+    final keep =
+        session != null &&
+        (session.isVideoLocallyOn || session.hasAnyRemoteVideoOn);
+    if (keep == _keepScreenOn) return;
+    _keepScreenOn = keep;
+    _invoke('setKeepScreenOn', {'keep': keep});
+  }
+
+  void _watchSession(ActiveCallSession? session) {
+    _watchedSession?.controllerListenable.removeListener(_syncKeepScreenOn);
+    _watchedSession = session;
+    session?.controllerListenable.addListener(_syncKeepScreenOn);
+    _syncKeepScreenOn();
+  }
+
   @override
   void initState() {
     super.initState();
@@ -54,13 +76,21 @@ class _PipHostState extends ConsumerState<PipHost> {
 
   @override
   void dispose() {
-    if (_pipSupported) _pipChannel.setMethodCallHandler(null);
+    if (_pipSupported) {
+      _watchedSession?.controllerListenable.removeListener(_syncKeepScreenOn);
+      _watchedSession = null;
+      if (_keepScreenOn) _invoke('setKeepScreenOn', {'keep': false});
+      _pipChannel.setMethodCallHandler(null);
+    }
     super.dispose();
   }
 
-  Future<void> _setCallActive(bool active) async {
+  Future<void> _setCallActive(bool active) =>
+      _invoke('setCallActive', {'active': active});
+
+  Future<void> _invoke(String method, Map<String, Object?> args) async {
     try {
-      await _pipChannel.invokeMethod<void>('setCallActive', {'active': active});
+      await _pipChannel.invokeMethod<void>(method, args);
     } on PlatformException {
       // PiP非対応の端末等。通話自体には影響しないため無視する。
     } on MissingPluginException {
@@ -76,6 +106,7 @@ class _PipHostState extends ConsumerState<PipHost> {
       final wasActive = previous != null;
       final isActive = next != null;
       if (wasActive != isActive) _setCallActive(isActive);
+      if (!identical(previous, next)) _watchSession(next);
       if (!isActive) ref.read(pipActiveProvider.notifier).set(false);
     });
 

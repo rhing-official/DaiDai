@@ -83,6 +83,18 @@ class MainActivity : FlutterFragmentActivity() {
             if (call.method == "setCallActive") {
                 callActive = call.argument<Boolean>("active") ?: false
                 updatePipParams()
+                // 通話中は前面サービスで、アプリを離れても画面が消えてもOSに止められないようにする。
+                if (callActive) CallForegroundService.start(applicationContext)
+                else CallForegroundService.stop(applicationContext)
+                result.success(null)
+            } else if (call.method == "setKeepScreenOn") {
+                // 映像通話中に、OSの自動消灯で通話が止まらないようにする。
+                val keep = call.argument<Boolean>("keep") ?: false
+                if (keep) {
+                    window.addFlags(android.view.WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+                } else {
+                    window.clearFlags(android.view.WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+                }
                 result.success(null)
             } else {
                 result.notImplemented()
