@@ -29,7 +29,7 @@ Future<NavChipLayout> loadInitialNavChipLayout() async {
         : (prefs.containsKey(_alignmentKey)
               ? alignment
               : NavChipAlignment.start),
-    accountChipEnabled: prefs.getBool(_accountChipKey) ?? true,
+    accountChipEnabled: prefs.getBool(_accountChipKey) ?? false,
     order: normalizeNavChipOrder(prefs.getStringList(_orderKey)),
   );
 }

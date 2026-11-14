@@ -3,19 +3,19 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 const _verticalPrefsKey = 'categoryListVertical';
 
-/// スマホ（縦表示）の項目一覧の縦の位置（2026-11-07）。上（標準）か、下（メニューチップの
-/// すぐ上）。全てのUIスタイルで効く。端末毎に保存する。
+/// スマホ（縦表示）の項目一覧の縦の位置（2026-11-07）。上か、下（メニューチップの
+/// すぐ上、標準。2026-11-15に上から変更）。全てのUIスタイルで効く。端末毎に保存する。
 /// （劇画UIだけにあった左右の揃えは同日廃止。）
 enum CategoryListVertical {
   top,
   bottom;
 
   static CategoryListVertical fromName(String? name) =>
-      name == 'bottom' ? CategoryListVertical.bottom : CategoryListVertical.top;
+      name == 'top' ? CategoryListVertical.top : CategoryListVertical.bottom;
 }
 
 final initialCategoryListVerticalProvider = Provider<CategoryListVertical>(
-  (ref) => CategoryListVertical.top,
+  (ref) => CategoryListVertical.bottom,
 );
 
 Future<CategoryListVertical> loadInitialCategoryListVertical() async {

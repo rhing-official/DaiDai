@@ -53,7 +53,8 @@ class NavChipLayout {
   const NavChipLayout({
     this.alignment = NavChipAlignment.end,
     this.wideAlignment = NavChipAlignment.start,
-    this.accountChipEnabled = true,
+    // 標準では「アカウント」チップを作らない（2026-11-15、以前はオン）。保存のある端末は変わらない。
+    this.accountChipEnabled = false,
     this.order = const [
       HomeTabId.talk,
       HomeTabId.profile,

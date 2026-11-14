@@ -6,9 +6,9 @@ import '../models/room_list_swipe_action.dart';
 const _prefsKey = 'roomListSwipeAction';
 
 /// 端末に保存されている初期値。`main()`で起動前に読み込んで渡す（未指定のテストでは
-/// 既定の[RoomListSwipeAction.openRoom]）。
+/// 標準の[RoomListSwipeAction.switchTab]）。
 final initialRoomListSwipeActionProvider = Provider<RoomListSwipeAction>(
-  (ref) => RoomListSwipeAction.openRoom,
+  (ref) => RoomListSwipeAction.switchTab,
 );
 
 Future<RoomListSwipeAction> loadInitialRoomListSwipeAction() async {

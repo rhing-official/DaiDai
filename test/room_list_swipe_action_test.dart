@@ -7,11 +7,15 @@ import 'package:shared_preferences/shared_preferences.dart';
 void main() {
   setUp(() => SharedPreferences.setMockInitialValues({}));
 
-  test('保存値が無い・不明な時は、これまでの「メッセージ画面を開く」', () async {
-    expect(RoomListSwipeAction.fromName(null), RoomListSwipeAction.openRoom);
-    expect(RoomListSwipeAction.fromName('zzz'), RoomListSwipeAction.openRoom);
+  test('保存値が無い・不明な時は、標準の「メニューのタブを切り替える」（2026-11-15）', () async {
+    expect(RoomListSwipeAction.fromName(null), RoomListSwipeAction.switchTab);
+    expect(RoomListSwipeAction.fromName('zzz'), RoomListSwipeAction.switchTab);
     expect(
       await loadInitialRoomListSwipeAction(),
+      RoomListSwipeAction.switchTab,
+    );
+    expect(
+      RoomListSwipeAction.fromName('openRoom'),
       RoomListSwipeAction.openRoom,
     );
   });
@@ -21,18 +25,18 @@ void main() {
     addTearDown(container.dispose);
     expect(
       container.read(roomListSwipeActionProvider),
-      RoomListSwipeAction.openRoom,
+      RoomListSwipeAction.switchTab,
     );
     await container
         .read(roomListSwipeActionProvider.notifier)
-        .setAction(RoomListSwipeAction.switchTab);
+        .setAction(RoomListSwipeAction.openRoom);
     expect(
       container.read(roomListSwipeActionProvider),
-      RoomListSwipeAction.switchTab,
+      RoomListSwipeAction.openRoom,
     );
     expect(
       await loadInitialRoomListSwipeAction(),
-      RoomListSwipeAction.switchTab,
+      RoomListSwipeAction.openRoom,
     );
   });
 }
