@@ -1,7 +1,9 @@
 import 'package:flutter/widgets.dart';
 
-/// 和合で作成出来るプロフィールカードの上限数。
+/// 和合で作成出来るプロフィールカードの上限数（無料）。極みは[kKiwamiMaxProfileCards]
+/// （2026-11-14）。住人ごとの上限は`AppUser.maxProfileCards`。
 const kMaxProfileCards = 3;
+const kKiwamiMaxProfileCards = 10;
 
 /// プロフィールカード名の文字数上限。
 const kMaxWorkshopCardNameLength = 20;

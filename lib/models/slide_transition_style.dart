@@ -30,7 +30,7 @@ enum SlideTransitionStyle {
   static SlideTransitionStyle fromName(String? name) {
     return SlideTransitionStyle.values.firstWhere(
       (style) => style.name == name,
-      orElse: () => SlideTransitionStyle.slideBlur,
+      orElse: () => SlideTransitionStyle.pop,
     );
   }
 }

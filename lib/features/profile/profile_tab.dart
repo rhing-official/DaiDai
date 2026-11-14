@@ -11,6 +11,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart';
 
 import '../../providers/kiwami_providers.dart';
+import '../../utils/kiwami.dart';
 import '../../widgets/kiwami_only_dialog.dart';
 import '../../router/back_stack.dart';
 import '../../l10n/strings.dart';
@@ -70,6 +71,8 @@ import '../../widgets/app_dialog.dart';
 import '../../widgets/toggles/app_switch.dart';
 import '../../widgets/toggles/app_checkbox.dart';
 import '../../widgets/toggles/app_radio.dart';
+import '../../widgets/honeycomb_color_picker.dart';
+import '../../widgets/copy_link_row.dart';
 
 enum _ProfileSection { kura, koubou, enmusubi }
 
@@ -509,7 +512,7 @@ class _ProfileTabState extends ConsumerState<ProfileTab> {
   }
 
   Future<void> _addSnsLink() async {
-    if (_user.snsLinks.length >= kMaxSnsLinks) return;
+    if (_user.snsLinks.length >= _user.maxSnsLinks) return;
     final result = await showAppDialog<_EditResult>(
       context: context,
       builder: (context) => const _SnsLinkDialog(),
@@ -712,7 +715,7 @@ class _ProfileTabState extends ConsumerState<ProfileTab> {
         pageBuilder: (routeContext, animation, secondaryAnimation) =>
             _SwipeDownToDismiss(
               // 位置調整中は画像のドラッグ操作と区別出来ないため効かせない。
-              enabled: () => editorKey.currentState?.canSwipeDismiss ?? false,
+              enabled: () => true,
               onDismiss: () {
                 editorKey.currentState?.confirmNameBeforeClose();
                 Navigator.of(routeContext).maybePop();
@@ -1284,6 +1287,7 @@ class _KuraView extends StatelessWidget {
         _SnsLinkSection(
           strings: strings,
           links: user.snsLinks,
+          maxLinks: user.maxSnsLinks,
           onAdd: onAddSnsLink,
           onEdit: onEditSnsLink,
         ),
@@ -1373,7 +1377,10 @@ class _WorkshopView extends StatelessWidget {
             // 自体は実際のカード数に合わせて広げ、全てのカードを必ず
             // 表示・削除出来るようにする（新規作成用の白紙枠は
             // [kMaxProfileCards]までしか出さない）。
-            final slotCount = max(kMaxProfileCards, user.profileCards.length);
+            final slotCount = max(
+              user.maxProfileCards,
+              user.profileCards.length,
+            );
             final rawWidth =
                 (constraints.maxWidth - gap * (slotCount - 1)) / slotCount;
             final isVertical = rawWidth < minCardWidth;
@@ -1389,7 +1396,10 @@ class _WorkshopView extends StatelessWidget {
 
             Widget slotAt(int i) {
               if (i < cards.length) {
-                return _WorkshopCardSlot(
+                // 極みが切れて無料の上限を超えたカードは、保存したまま使えない
+                // （極みに戻れば復活する、2026-11-14）。
+                final locked = i >= user.maxProfileCards;
+                final slot = _WorkshopCardSlot(
                   index: i,
                   card: cards[i],
                   user: user,
@@ -1398,11 +1408,18 @@ class _WorkshopView extends StatelessWidget {
                   width: cardWidth,
                   height: cardHeight,
                   isActive: user.activeProfileCardId == cards[i].id,
-                  onTap: (origin) => onTapSlot(i, cards[i], origin),
+                  onTap: (origin) => locked
+                      ? showKiwamiOnlyDialog(
+                          context,
+                          strings,
+                          body: strings.kiwamiOnlyProfileLimitBody,
+                        )
+                      : onTapSlot(i, cards[i], origin),
                   openingIndex: openingIndex,
                   onSetActive: () => onSetActive(cards[i].id),
                   reorderIndex: canReorder ? i : null,
                 );
+                return locked ? Opacity(opacity: 0.45, child: slot) : slot;
               }
               return _WorkshopBlankSlot(
                 index: i,
@@ -1454,6 +1471,20 @@ class _WorkshopView extends StatelessWidget {
             return SizedBox(height: cardHeight + 6 + 34, child: list);
           },
         ),
+        if (!isKiwami(user)) ...[
+          const SizedBox(height: 12),
+          Align(
+            alignment: Alignment.centerLeft,
+            child: TextButton(
+              onPressed: () => showKiwamiOnlyDialog(
+                context,
+                strings,
+                body: strings.kiwamiOnlyProfileLimitBody,
+              ),
+              child: Text(strings.workshopMoreWithKiwami),
+            ),
+          ),
+        ],
         const Divider(height: 32),
         _WorkshopConversationCardSection(user: user, strings: strings),
       ],
@@ -1547,7 +1578,7 @@ class _WorkshopConversationCardSection extends ConsumerWidget {
         final title = Text(strings.conversationProfileCardMenuLabel);
         final content = ProfileCardPicker(
           strings: strings,
-          cards: user.profileCards,
+          cards: user.usableProfileCards,
           selectedCardId: null,
           activeCard: user.activeProfileCard,
           onSelected: (id) => Navigator.of(context).pop(id),
@@ -1614,7 +1645,7 @@ class _WorkshopConversationCardSection extends ConsumerWidget {
             _ProfileCardAssignmentRow(
               strings: strings,
               title: '@${dm.otherRhingSeed(user.userId)}',
-              cards: user.profileCards,
+              cards: user.usableProfileCards,
               selectedCardId: user.conversationProfileCardId[dm.dmId],
               activeCard: user.activeProfileCard,
               onSelected: (id) => _select(ref, dm.dmId, id),
@@ -1623,7 +1654,7 @@ class _WorkshopConversationCardSection extends ConsumerWidget {
             _ProfileCardAssignmentRow(
               strings: strings,
               title: group.name,
-              cards: user.profileCards,
+              cards: user.usableProfileCards,
               selectedCardId: user.conversationProfileCardId[group.groupId],
               activeCard: user.activeProfileCard,
               onSelected: (id) => _select(ref, group.groupId, id),
@@ -2834,12 +2865,16 @@ class _SnsLinkSection extends ConsumerWidget {
   const _SnsLinkSection({
     required this.strings,
     required this.links,
+    required this.maxLinks,
     required this.onAdd,
     required this.onEdit,
   });
 
   final Strings strings;
   final List<SnsLink> links;
+
+  /// 登録できる上限（極みは多い、2026-11-14）。
+  final int maxLinks;
   final VoidCallback onAdd;
   final ValueChanged<SnsLink> onEdit;
 
@@ -2849,7 +2884,7 @@ class _SnsLinkSection extends ConsumerWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         GekigaSectionHeader(
-          '${strings.profileSnsLinkSectionTitle}（${links.length}/$kMaxSnsLinks）',
+          '${strings.profileSnsLinkSectionTitle}（${links.length}/$maxLinks）',
         ),
         const SizedBox(height: 4),
         _registeredItemsSection(
@@ -2858,7 +2893,7 @@ class _SnsLinkSection extends ConsumerWidget {
           idOf: (l) => l.id,
           textOf: (l) => l.url,
           onEdit: onEdit,
-          canAdd: links.length < kMaxSnsLinks,
+          canAdd: links.length < maxLinks,
           onAdd: onAdd,
           addLabel: strings.profileAddSnsLink,
         ),
@@ -3765,51 +3800,32 @@ class _CardZoomEditorState extends State<_CardZoomEditor> {
   late final bool _isNewCard;
   Offset? _lastTapPosition;
 
-  /// 画像の位置を編集中の対象（'background' / 'icon'）。nullなら通常表示
-  /// （2026-10-11追加。長押しで入り、画面遷移はせずカード上のオーバーレイで編集）。
-  String? _focalEditing;
-  ImageFocal _focalDraft = ImageFocal.center;
-
-  /// 位置調整中だけ、戻る操作を「位置調整をやめてカード編集へ戻る」に割り当てる
-  /// （編集画面ごと閉じない。2026-10-14）。
-  int? _focalBackKey;
-  BackStackController? _backController;
-
-  void _releaseFocalBack() {
-    final key = _focalBackKey;
-    _focalBackKey = null;
-    if (key != null) _backController?.releaseDialog(key);
-  }
-
-  void _startFocalEdit(String field) {
-    _releaseFocalBack();
-    final controller = ProviderScope.containerOf(
-      context,
-      listen: false,
-    ).read(backStackControllerProvider);
-    _backController = controller;
-    _focalBackKey = controller.addDialog(() {
-      // 戻る要求でコントローラからは既に外されている。
-      _focalBackKey = null;
-      if (mounted && _focalEditing != null) {
-        _finishFocalEdit(apply: false);
-      }
-    });
-    setState(() {
-      _focalEditing = field;
-      _focalDraft =
-          (field == 'background' ? _card.backgroundFocal : _card.iconFocal) ??
-          ImageFocal.center;
-    });
-  }
-
-  void _finishFocalEdit({required bool apply}) {
-    _releaseFocalBack();
-    final field = _focalEditing;
-    setState(() => _focalEditing = null);
-    if (!apply || field == null) return;
+  /// 画像の位置の調整（長押しで開く）。カードとは別のポップアップ（[showAppDialog]、画面遷移の
+  /// 設定に従って開閉）で行う。「完了」で確定し、外側のタップ・戻る操作は変更を捨てて
+  /// ポップアップだけを閉じる（編集画面は閉じない、2026-11-14）。
+  Future<void> _startFocalEdit(String field, String imageUrl) async {
+    final box = _cardKey.currentContext?.findRenderObject();
+    final size = box is RenderBox && box.hasSize
+        ? box.size
+        : const Size(kProfileCardDesignWidth, kProfileCardDesignHeight);
+    final initial =
+        (field == 'background' ? _card.backgroundFocal : _card.iconFocal) ??
+        ImageFocal.center;
+    final strings = widget.strings;
+    final result = await showAppDialog<ImageFocal>(
+      context: context,
+      barrierColor: Colors.black87,
+      builder: (_) => _FocalEditDialog(
+        imageUrl: imageUrl,
+        circle: field == 'icon',
+        initial: initial,
+        size: size,
+        strings: strings,
+      ),
+    );
+    if (result == null || !mounted) return;
     widget.onFocalConfirmed();
-    final focal = _focalDraft.isDefault ? null : _focalDraft;
+    final focal = result.isDefault ? null : result;
     setState(() {
       _card = field == 'background'
           ? _card.copyWith(
@@ -3874,7 +3890,6 @@ class _CardZoomEditorState extends State<_CardZoomEditor> {
 
   @override
   void dispose() {
-    _releaseFocalBack();
     _nameController.dispose();
     super.dispose();
   }
@@ -3895,9 +3910,6 @@ class _CardZoomEditorState extends State<_CardZoomEditor> {
     _pendingPersist = next;
     return next;
   }
-
-  /// 下スワイプで閉じてよいか（位置調整中は画像のドラッグと区別出来ないため不可）。
-  bool get canSwipeDismiss => _focalEditing == null;
 
   /// 閉じる直前に、入力途中のカード名を確定する（外側タップで閉じる時の
   /// `onTapOutside`と同じ扱い）。
@@ -3997,6 +4009,7 @@ class _CardZoomEditorState extends State<_CardZoomEditor> {
           widget.user.icons,
           card.iconId,
           strings,
+          adjustLabel: strings.workshopFocalIconAdjust,
         );
       case 'background':
         result = await _showImageMaterialMenu(
@@ -4006,6 +4019,7 @@ class _CardZoomEditorState extends State<_CardZoomEditor> {
           card.backgroundImageId,
           strings,
           roundedSquareThumbnail: true,
+          adjustLabel: strings.workshopFocalBackgroundAdjust,
         );
       case 'nickname':
         result = await _showTextMaterialMenu(
@@ -4047,6 +4061,16 @@ class _CardZoomEditorState extends State<_CardZoomEditor> {
         );
     }
     if (result == null || !mounted) return;
+    if (result == _kAdjustFocalChoice) {
+      final url = field == 'icon'
+          ? _findById(widget.user.icons, card.iconId)?.url
+          : _findById(
+              widget.user.backgroundImages,
+              card.backgroundImageId,
+            )?.url;
+      if (url != null) await _startFocalEdit(field, url);
+      return;
+    }
 
     final id = result.isEmpty ? null : result;
     final updated = switch (field) {
@@ -4111,7 +4135,8 @@ class _CardZoomEditorState extends State<_CardZoomEditor> {
                 onChanged: (checked) {
                   setMenuState(() {
                     if (checked ?? false) {
-                      if (selected.length < kMaxProfileCardSnsLinks) {
+                      if (selected.length <
+                          widget.user.maxProfileCardSnsLinks) {
                         selected.add(link.id);
                       }
                     } else {
@@ -4309,7 +4334,10 @@ class _CardZoomEditorState extends State<_CardZoomEditor> {
                                     // 長押しで画像の位置調整（短いタップは素材の変更）。
                                     onLongPress: background == null
                                         ? null
-                                        : () => _startFocalEdit('background'),
+                                        : () => _startFocalEdit(
+                                            'background',
+                                            background.url,
+                                          ),
                                     child: background != null
                                         ? FocalImage(
                                             url: background.url,
@@ -4345,7 +4373,10 @@ class _CardZoomEditorState extends State<_CardZoomEditor> {
                                         onTap: () => _pickMaterial('icon'),
                                         onLongPress: icon == null
                                             ? null
-                                            : () => _startFocalEdit('icon'),
+                                            : () => _startFocalEdit(
+                                                'icon',
+                                                icon.url,
+                                              ),
                                         child: ProfileCardAvatar(
                                           icon: icon,
                                           radius: kProfileCardAvatarRadius,
@@ -4458,21 +4489,6 @@ class _CardZoomEditorState extends State<_CardZoomEditor> {
                                       ],
                                     ],
                                   ),
-                                  if (_focalEditing != null)
-                                    Positioned.fill(
-                                      child: FocalEditOverlay(
-                                        key: ValueKey(_focalEditing),
-                                        imageUrl:
-                                            (_focalEditing == 'background'
-                                                ? background?.url
-                                                : icon?.url) ??
-                                            '',
-                                        circle: _focalEditing == 'icon',
-                                        focal: _focalDraft,
-                                        onChanged: (f) =>
-                                            setState(() => _focalDraft = f),
-                                      ),
-                                    ),
                                 ],
                               ),
                             ),
@@ -4487,7 +4503,7 @@ class _CardZoomEditorState extends State<_CardZoomEditor> {
                     child: Column(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        if (_focalEditing == null) ...[
+                        ...[
                           const SizedBox(height: 8),
                           _CardLayoutPicker(
                             width: width,
@@ -4537,6 +4553,23 @@ class _CardZoomEditorState extends State<_CardZoomEditor> {
                             color: card.fontColor ?? Colors.white,
                             onTap: _pickFontColor,
                           ),
+                          // 背景・アイコンの位置の調整（領域編集）を開く行。画像が設定済みの
+                          // 時だけ出す（2026-11-14）。
+                          if (background != null)
+                            _CardFocalRow(
+                              width: width,
+                              icon: Icons.open_with,
+                              label: strings.workshopFocalBackgroundAdjust,
+                              onTap: () =>
+                                  _startFocalEdit('background', background.url),
+                            ),
+                          if (icon != null)
+                            _CardFocalRow(
+                              width: width,
+                              icon: Icons.open_with,
+                              label: strings.workshopFocalIconAdjust,
+                              onTap: () => _startFocalEdit('icon', icon.url),
+                            ),
                         ],
                         const SizedBox(height: 12),
                         // カード名はカードの直下、半透明の暗転バリアの上に表示する。
@@ -4548,124 +4581,64 @@ class _CardZoomEditorState extends State<_CardZoomEditor> {
                         // 背景の明るさをモードに依存させず安定させ、白系の文字色に
                         // 統一した。編集ボタンは置かず、最初から常にTextFieldを表示する
                         // （新規カードは自動でフォーカスする）。
-                        if (_focalEditing != null)
-                          // 位置調整中は、カード名の欄の代わりに操作ボタンをカードの
-                          // 下に独立して並べる（カード上のバッジと重ならないように）。
-                          SizedBox(
-                            width: width,
-                            child: Row(
-                              children: [
-                                Expanded(
-                                  child: OutlinedButton(
-                                    style: OutlinedButton.styleFrom(
-                                      foregroundColor: Colors.white,
-                                      padding: const EdgeInsets.symmetric(
-                                        horizontal: 4,
-                                      ),
-                                      side: const BorderSide(
-                                        color: Colors.white70,
-                                      ),
-                                    ),
-                                    onPressed: () =>
-                                        _finishFocalEdit(apply: false),
-                                    child: _oneLine(
-                                      strings.workshopFocalCancel,
-                                    ),
-                                  ),
-                                ),
-                                const SizedBox(width: 8),
-                                Expanded(
-                                  child: OutlinedButton(
-                                    style: OutlinedButton.styleFrom(
-                                      foregroundColor: Colors.white,
-                                      padding: const EdgeInsets.symmetric(
-                                        horizontal: 4,
-                                      ),
-                                      side: const BorderSide(
-                                        color: Colors.white70,
-                                      ),
-                                    ),
-                                    onPressed: () => setState(
-                                      () => _focalDraft = ImageFocal.center,
-                                    ),
-                                    child: _oneLine(strings.workshopFocalReset),
-                                  ),
-                                ),
-                                const SizedBox(width: 8),
-                                Expanded(
-                                  child: FilledButton(
-                                    style: FilledButton.styleFrom(
-                                      padding: const EdgeInsets.symmetric(
-                                        horizontal: 4,
-                                      ),
-                                    ),
-                                    onPressed: () =>
-                                        _finishFocalEdit(apply: true),
-                                    child: _oneLine(strings.workshopFocalDone),
-                                  ),
-                                ),
-                              ],
+                        SizedBox(
+                          width: width,
+                          child: TextField(
+                            controller: _nameController,
+                            autofocus: _isNewCard,
+                            maxLength: kMaxWorkshopCardNameLength,
+                            textAlign: TextAlign.center,
+                            // 指定しないとWeb版でブラウザが「名前欄」と誤認識し、
+                            // 独自のオートフィル黄色ハイライトを重ねてくることが
+                            // あった為、明示的に空にしてブラウザ側の自動補完
+                            // 候補付けそのものを無効化する。
+                            autofillHints: const [],
+                            style: TextStyle(
+                              color: nameFieldFg,
+                              fontWeight: FontWeight.bold,
+                              fontSize: nameFontSize,
                             ),
-                          )
-                        else
-                          SizedBox(
-                            width: width,
-                            child: TextField(
-                              controller: _nameController,
-                              autofocus: _isNewCard,
-                              maxLength: kMaxWorkshopCardNameLength,
-                              textAlign: TextAlign.center,
-                              // 指定しないとWeb版でブラウザが「名前欄」と誤認識し、
-                              // 独自のオートフィル黄色ハイライトを重ねてくることが
-                              // あった為、明示的に空にしてブラウザ側の自動補完
-                              // 候補付けそのものを無効化する。
-                              autofillHints: const [],
-                              style: TextStyle(
-                                color: nameFieldFg,
-                                fontWeight: FontWeight.bold,
+                            decoration: InputDecoration(
+                              // 劇画は黒のボックスだと視認性が悪い為、ダークモードと
+                              // 同じ灰色に統一する（2026-10-11）。
+                              filled: nameFieldGekiga ? true : null,
+                              fillColor: nameFieldGekiga
+                                  ? AppTheme.darkSurface
+                                  : null,
+                              counterText: '',
+                              contentPadding: const EdgeInsets.symmetric(
+                                vertical: 12,
+                              ),
+                              hintText: strings.workshopCardNameLabel,
+                              hintStyle: TextStyle(
+                                color: nameFieldLight
+                                    ? Colors.black54
+                                    : Colors.white70,
                                 fontSize: nameFontSize,
                               ),
-                              decoration: InputDecoration(
-                                // 劇画は黒のボックスだと視認性が悪い為、ダークモードと
-                                // 同じ灰色に統一する（2026-10-11）。
-                                filled: nameFieldGekiga ? true : null,
-                                fillColor: nameFieldGekiga
-                                    ? AppTheme.darkSurface
-                                    : null,
-                                counterText: '',
-                                contentPadding: const EdgeInsets.symmetric(
-                                  vertical: 12,
-                                ),
-                                hintText: strings.workshopCardNameLabel,
-                                hintStyle: TextStyle(
+                              enabledBorder: UnderlineInputBorder(
+                                borderSide: BorderSide(
                                   color: nameFieldLight
-                                      ? Colors.black54
-                                      : Colors.white70,
-                                  fontSize: nameFontSize,
-                                ),
-                                enabledBorder: UnderlineInputBorder(
-                                  borderSide: BorderSide(
-                                    color: nameFieldLight
-                                        ? Colors.black45
-                                        : Colors.white54,
-                                    width: 1.5,
-                                  ),
-                                ),
-                                focusedBorder: UnderlineInputBorder(
-                                  borderSide: BorderSide(
-                                    color: nameFieldLight
-                                        ? Colors.black87
-                                        : Colors.white,
-                                    width: 2,
-                                  ),
+                                      ? Colors.black45
+                                      : Colors.white54,
+                                  width: 1.5,
                                 ),
                               ),
-                              onSubmitted: (_) => _confirmName(),
-                              onTapOutside: (_) => _confirmName(),
+                              focusedBorder: UnderlineInputBorder(
+                                borderSide: BorderSide(
+                                  color: nameFieldLight
+                                      ? Colors.black87
+                                      : Colors.white,
+                                  width: 2,
+                                ),
+                              ),
                             ),
+                            onSubmitted: (_) => _confirmName(),
+                            onTapOutside: (_) => _confirmName(),
                           ),
+                        ),
                         // 削除はカード名の下に独立した行として置く（位置調整中は出さない）。
-                        if (_persisted && _focalEditing == null) ...[
+                        if (_persisted) ...[
                           const SizedBox(height: 8),
                           SizedBox(
                             width: width,
@@ -4697,8 +4670,108 @@ class _CardZoomEditorState extends State<_CardZoomEditor> {
   }
 }
 
+/// 画像の位置の調整ポップアップ（2026-11-14）。カードと同じ比率・角丸の枠の中で、ドラッグで
+/// 位置、ピンチ（PCはホイール）で拡大率を変える。「完了」で調整後の[ImageFocal]を返し、
+/// 外側のタップ・戻る操作は何も返さず（変更なし）閉じる。
+class _FocalEditDialog extends StatefulWidget {
+  const _FocalEditDialog({
+    required this.imageUrl,
+    required this.circle,
+    required this.initial,
+    required this.size,
+    required this.strings,
+  });
+
+  final String imageUrl;
+  final bool circle;
+  final ImageFocal initial;
+  final Size size;
+  final Strings strings;
+
+  @override
+  State<_FocalEditDialog> createState() => _FocalEditDialogState();
+}
+
+class _FocalEditDialogState extends State<_FocalEditDialog> {
+  late ImageFocal _draft = widget.initial;
+
+  @override
+  Widget build(BuildContext context) {
+    final strings = widget.strings;
+    final media = MediaQuery.sizeOf(context);
+    // カードと同じ比率のまま、画面に収まる大きさにする（ボタン行の分を引く）。
+    final scale = min(
+      1.0,
+      min(
+        (media.width - 32) / widget.size.width,
+        (media.height - 120) / widget.size.height,
+      ),
+    );
+    final width = widget.size.width * scale;
+    final height = widget.size.height * scale;
+    return Center(
+      child: SingleChildScrollView(
+        child: Material(
+          type: MaterialType.transparency,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              SizedBox(
+                width: width,
+                height: height,
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(24),
+                  child: FocalEditOverlay(
+                    imageUrl: widget.imageUrl,
+                    circle: widget.circle,
+                    focal: _draft,
+                    onChanged: (f) => setState(() => _draft = f),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 12),
+              SizedBox(
+                width: width,
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: OutlinedButton(
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: Colors.white,
+                          padding: const EdgeInsets.symmetric(horizontal: 4),
+                          side: const BorderSide(color: Colors.white70),
+                        ),
+                        onPressed: () =>
+                            setState(() => _draft = ImageFocal.center),
+                        child: _oneLine(strings.workshopFocalReset),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: FilledButton(
+                        style: FilledButton.styleFrom(
+                          padding: const EdgeInsets.symmetric(horizontal: 4),
+                        ),
+                        onPressed: () => Navigator.of(context).pop(_draft),
+                        child: _oneLine(strings.workshopFocalDone),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 /// アイコン・背景画像用のポップアップ（同じ種類の素材だけを一覧表示する）。
 /// 戻り値は素材id、空文字列は「なし」の選択、nullはポップを閉じただけ（変更なし）。
+/// 素材メニューの「位置を調整」を選んだ時の戻り値（素材idとは衝突しない）。
+const _kAdjustFocalChoice = '__adjust_focal__';
+
 Future<String?> _showImageMaterialMenu(
   BuildContext context,
   RelativeRect position,
@@ -4707,6 +4780,9 @@ Future<String?> _showImageMaterialMenu(
   Strings strings, {
   // 背景はアイコン（円）と見分けがつくよう、角丸の正方形で見せる（2026-10-31）。
   bool roundedSquareThumbnail = false,
+  // 画像が設定済みの時だけ、末尾に「位置を調整」の項目を出す（値は[_kAdjustFocalChoice]、
+  // 2026-11-14）。
+  String? adjustLabel,
 }) {
   return showMenu<String>(
     context: context,
@@ -4734,6 +4810,19 @@ Future<String?> _showImageMaterialMenu(
             roundedSquareThumbnail: roundedSquareThumbnail,
           ),
         ),
+      if (adjustLabel != null && selectedId != null) ...[
+        const PopupMenuDivider(),
+        PopupMenuItem<String>(
+          value: _kAdjustFocalChoice,
+          child: Row(
+            children: [
+              const Icon(Icons.open_with, size: 18),
+              const SizedBox(width: 8),
+              Flexible(child: Text(adjustLabel)),
+            ],
+          ),
+        ),
+      ],
     ],
   );
 }
@@ -5094,6 +5183,58 @@ double _cardEditRowWidth(double cardWidth) =>
 String _cardEditLabel(double cardWidth, String full, String short) =>
     cardWidth >= 320 ? full : short;
 
+/// カード編集で、背景・アイコンの位置の調整（領域編集のポップアップ）を開く行
+/// （2026-11-14）。他の行と同じ幅・枠の流儀で、カードの外に置く。
+class _CardFocalRow extends StatelessWidget {
+  const _CardFocalRow({
+    required this.width,
+    required this.icon,
+    required this.label,
+    required this.onTap,
+  });
+
+  final double width;
+  final IconData icon;
+  final String label;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(top: 6),
+      child: SizedBox(
+        width: _cardEditRowWidth(width),
+        child: GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          onTap: onTap,
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+            decoration: BoxDecoration(
+              border: Border.all(color: Colors.white54),
+              borderRadius: BorderRadius.circular(16),
+            ),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(icon, size: 14, color: Colors.white),
+                const SizedBox(width: 6),
+                Flexible(
+                  child: Text(
+                    label,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(color: Colors.white, fontSize: 12),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 /// カード編集で、文字色の行（色の見本＋カラーコード、タップで[_FontColorDialog]）。
 class _CardFontColorRow extends StatelessWidget {
   const _CardFontColorRow({
@@ -5279,10 +5420,25 @@ class _FontColorDialogState extends ConsumerState<_FontColorDialog> {
               hintText: 'FFFFFF',
               errorText: _errorText,
               counterText: '',
-              suffixIcon: IconButton(
-                icon: const Icon(Icons.add),
-                tooltip: '',
-                onPressed: _register,
+              suffixIcon: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  HoneycombColorButton(
+                    current: _current,
+                    onPicked: (picked) => _selectPreset(
+                      picked,
+                      picked.toHexString().replaceFirst('#', ''),
+                    ),
+                  ),
+                  CopyIconButton(
+                    textBuilder: () => hexCopyText(_controller.text),
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.add),
+                    tooltip: '',
+                    onPressed: _register,
+                  ),
+                ],
               ),
             ),
             onChanged: _onChanged,

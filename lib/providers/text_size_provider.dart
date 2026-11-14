@@ -17,7 +17,7 @@ enum AppTextSize {
 
   static AppTextSize fromName(String? name) => AppTextSize.values.firstWhere(
     (s) => s.name == name,
-    orElse: () => AppTextSize.small,
+    orElse: () => AppTextSize.medium,
   );
 }
 

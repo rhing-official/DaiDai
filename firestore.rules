@@ -87,7 +87,8 @@ service cloud.firestore {
       // 無関係な更新まで巻き込んでpermission-deniedにならないようにする。
       // 上限値はlib/models/profile_material.dart・profile_card.dartの
       // kMaxIcons(5)/kMaxBackgroundImages(3)/kMaxStatusMessages(10)/
-      // kMaxNicknames(10)/kMaxSnsLinks(5)/kMaxFontDesigns(5)/kMaxProfileCards(3)、
+      // kMaxNicknames(10)/kMaxSnsLinks(5、極みはkKiwamiMaxSnsLinks=10)/kMaxFontDesigns(5)/kMaxProfileCards(3、極みは10)、
+      // ルールの上限は極みの最大値（無料の上限はクライアントで制限、2026-11-14）。
       // fcm_token_entry.dartのkMaxFcmTokens(10)と一致させること。
       // 契約状態（subscriptionPlan、極み）は、クライアントから書き換えられない
       // （付与・解除はCloud Functions `setKiwamiPlan`＝Admin SDKだけ、2026-10-17）。
@@ -107,9 +108,9 @@ service cloud.firestore {
         && (!('backgroundImages' in request.resource.data) || request.resource.data.backgroundImages.size() <= 3)
         && (!('statusMessages' in request.resource.data) || request.resource.data.statusMessages.size() <= 10)
         && (!('nicknames' in request.resource.data) || request.resource.data.nicknames.size() <= 10)
-        && (!('snsLinks' in request.resource.data) || request.resource.data.snsLinks.size() <= 5)
+        && (!('snsLinks' in request.resource.data) || request.resource.data.snsLinks.size() <= 10)
         && (!('fontDesignMaterials' in request.resource.data) || request.resource.data.fontDesignMaterials.size() <= 5)
-        && (!('profileCards' in request.resource.data) || request.resource.data.profileCards.size() <= 3)
+        && (!('profileCards' in request.resource.data) || request.resource.data.profileCards.size() <= 10)
         && (!('fcmTokens' in request.resource.data) || request.resource.data.fcmTokens.size() <= 10);
       allow delete: if false;
 
@@ -1032,7 +1033,7 @@ service cloud.firestore {
           || (
             (request.auth.uid == resource.data.ownerId
               || 'manageReadReceipts' in resource.data.memberPermissions[request.auth.uid])
-            && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['readReceiptsEnabled'])
+            && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['readReceiptsEnabled', 'readReceiptsCountOnly'])
           )
           // カスタムロールの付与・優先順位の変更（長、またはmanageRoles権限を
           // 持つロールの付与者のみ、2026-07-28更新）。
@@ -1235,7 +1236,7 @@ service cloud.firestore {
             request.resource.data.diff(resource.data).affectedKeys().hasOnly(['memberIds'])
             || hasGroupPermission(groupId, 'manageRooms')
             || (
-              request.resource.data.diff(resource.data).affectedKeys().hasOnly(['readReceiptsEnabledOverride'])
+              request.resource.data.diff(resource.data).affectedKeys().hasOnly(['readReceiptsEnabledOverride', 'readReceiptsCountOnlyOverride'])
               && hasGroupPermission(groupId, 'manageReadReceipts')
             )
             || request.resource.data.diff(resource.data).affectedKeys().hasOnly(['pinnedMessageIds'])

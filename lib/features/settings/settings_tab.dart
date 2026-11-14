@@ -97,6 +97,7 @@ import '../../models/residence.dart';
 import '../guide/guide_pages.dart';
 import '../../widgets/media_preview_frame.dart';
 import '../../widgets/copy_link_row.dart';
+import '../../widgets/honeycomb_color_picker.dart';
 import '../../widgets/gekiga/gekiga_panel_box.dart';
 import '../../widgets/gekiga/gekiga_section_header.dart';
 import '../../widgets/gekiga/settings_tile.dart';
@@ -322,8 +323,50 @@ class _SettingsTabState extends ConsumerState<SettingsTab> {
     );
   }
 
+  /// 居住地の変更をポップアップで開く（狭い画面用、保存できたら閉じる）。
+  Future<void> _openResidenceDialog(Strings strings) {
+    final isGlass = ref.read(appUiStyleProvider) == AppUiStyle.glass;
+    return showAppDialog<void>(
+      context: context,
+      builder: (dialogContext) {
+        final title = Text(strings.residenceSurveyAppBarTitle);
+        final content = SizedBox(
+          width: 400,
+          height: 520,
+          child: _ResidenceEditor(
+            userId: widget.currentUser.userId,
+            onCompleted: () => Navigator.of(dialogContext).pop(),
+          ),
+        );
+        return isGlass
+            ? GlassAlertDialog(
+                title: title,
+                content: content,
+                actions: [
+                  TextButton(
+                    onPressed: () => Navigator.of(dialogContext).pop(),
+                    child: Text(strings.kiwamiOnlyClose),
+                  ),
+                ],
+              )
+            : AlertDialog(
+                title: title,
+                content: content,
+                actions: [
+                  TextButton(
+                    onPressed: () => Navigator.of(dialogContext).pop(),
+                    child: Text(strings.kiwamiOnlyClose),
+                  ),
+                ],
+              );
+      },
+    );
+  }
+
   Widget _buildContent(BuildContext context) {
     final strings = ref.watch(appStringsProvider);
+    final isWide =
+        MediaQuery.sizeOf(context).width >= _kSettingsSplitBreakpoint;
     final categories = _categories(
       strings,
       ref,
@@ -331,10 +374,11 @@ class _SettingsTabState extends ConsumerState<SettingsTab> {
       () => setState(() => _showAbout = true),
       () => setState(() => _showAnnouncements = true),
       () => setState(() => _showGuide = true),
-      () => setState(() => _showResidence = true),
+      // 狭い画面（縦）では、居住地を階層ではなくポップアップで開く（2026-11-14）。
+      isWide
+          ? () => setState(() => _showResidence = true)
+          : () => _openResidenceDialog(strings),
     );
-    final isWide =
-        MediaQuery.sizeOf(context).width >= _kSettingsSplitBreakpoint;
     _firstCategoryId = categories.first.id;
 
     if (isWide) {
@@ -2926,6 +2970,21 @@ class _AccentColorFolderState extends ConsumerState<AccentColorFolder> {
     }
   }
 
+  /// ハニカムの色選びで選んだ色を反映する。透明度は今の値を保つ（不透明のみのスタイルは不透明）。
+  void _applyHoneycombPick(Color picked) {
+    final opaqueOnly = _opaqueOnly;
+    final alpha = opaqueOnly
+        ? 0xFF
+        : (tryParseHexColor(_hexController.text)?.toARGB32() ?? 0xFFFFFFFF) >>
+              24;
+    final color = picked.withAlpha(alpha);
+    setState(() {
+      _errorText = null;
+      _hexController.text = _fieldText(color.toHexString(), opaqueOnly);
+    });
+    _applyHexInput();
+  }
+
   void _applyPreset(String hex) {
     final color = tryParseHexColor(hex);
     if (color == null) return;
@@ -3082,6 +3141,17 @@ class _AccentColorFolderState extends ConsumerState<AccentColorFolder> {
                         onSubmitted: (_) => _applyHexInput(),
                       ),
                     ),
+                    GekigaIconButton(
+                      icon: Icons.hexagon_outlined,
+                      onPressed: () async {
+                        final picked = await showHoneycombColorDialog(
+                          context,
+                          current: tryParseHexColor(_hexController.text),
+                          doneLabel: widget.strings.workshopFocalDone,
+                        );
+                        if (picked != null) _applyHoneycombPick(picked);
+                      },
+                    ),
                     CopyIconButton(
                       gekiga: true,
                       textBuilder: () => _hexText(_hexController.text),
@@ -3132,6 +3202,10 @@ class _AccentColorFolderState extends ConsumerState<AccentColorFolder> {
                 suffixIcon: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
+                    HoneycombColorButton(
+                      current: tryParseHexColor(_hexController.text),
+                      onPicked: _applyHoneycombPick,
+                    ),
                     CopyIconButton(
                       textBuilder: () => _hexText(_hexController.text),
                     ),
@@ -3196,7 +3270,7 @@ class _AccentColorFolderState extends ConsumerState<AccentColorFolder> {
                   ],
                   // 8桁のカラーコードと「＋」が収まる幅に絞る（2026-11-01、以前は行いっぱいに
                   // 広がっていた）。
-                  SizedBox(width: 248, child: accentColorField),
+                  SizedBox(width: 296, child: accentColorField),
                 ],
               ),
             ),
@@ -3417,6 +3491,16 @@ class _TextColorFolderState extends ConsumerState<_TextColorFolder> {
                     suffixIcon: Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
+                        HoneycombColorButton(
+                          current: tryParseHexColor(controller.text),
+                          onPicked: (picked) {
+                            controller.text = picked.toHexString().replaceFirst(
+                              '#',
+                              '',
+                            );
+                            onApply();
+                          },
+                        ),
                         CopyIconButton(
                           textBuilder: () => _hexText(controller.text),
                         ),
@@ -3518,8 +3602,8 @@ double _colorFieldWidth(BuildContext context, String text, String label) {
 
   final digits = text.replaceFirst('#', '').length;
   final body = measure('D' * (digits < 6 ? 6 : digits));
-  // 先頭の「#」+ 右端のボタン2つ（各48）+ 左右の内側余白（各16）+ 余裕。
-  return body + measure('#') + 96 + 32 + 8;
+  // 先頭の「#」+ 右端のボタン3つ（ハニカム・コピー・リセット、各48）+ 左右の内側余白（各16）+ 余裕。
+  return body + measure('#') + 144 + 32 + 8;
 }
 
 /// カラーコード欄の内容を、コピーする文字（`#RRGGBB`形式、空欄なら空文字）にする。
@@ -5828,6 +5912,8 @@ class _AdjustWidthButton extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     void startAdjusting() {
       ref.read(iconSplitAdjustingProvider.notifier).set(true);
+      // 語らいへは横スライドではなく、設定の「画面遷移」の現れ方で移る（2026-11-14）。
+      ref.read(homeTabAppearRequestProvider.notifier).request();
       ref.read(homeSelectedTabProvider.notifier).set(kTalksTabIndex);
     }
 
@@ -6186,6 +6272,13 @@ class _OnAccentColorFieldState extends ConsumerState<_OnAccentColorField> {
                   suffixIcon: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
+                      HoneycombColorButton(
+                        current: tryParseHexColor(controller.text),
+                        onPicked: (picked) {
+                          controller.text = _hexOf(picked);
+                          _apply(isDark, controller.text);
+                        },
+                      ),
                       CopyIconButton(
                         textBuilder: () => _hexText(controller.text),
                       ),

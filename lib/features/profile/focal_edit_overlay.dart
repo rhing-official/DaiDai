@@ -10,6 +10,8 @@ import '../../widgets/app_dialog.dart';
 
 import '../../models/profile_card.dart';
 import '../../widgets/focal_image.dart';
+import '../../widgets/honeycomb_color_picker.dart';
+import '../../widgets/copy_link_row.dart';
 
 /// カード上で画像の「どこを中心に見せるか」を編集するオーバーレイ
 /// （2026-10-11追加）。工房のカード拡大画面（`_CardZoomEditor`）のカードの上に
@@ -41,6 +43,10 @@ class FocalEditOverlay extends ConsumerStatefulWidget {
 
 class _FocalEditOverlayState extends ConsumerState<FocalEditOverlay> {
   Size? _imageSize;
+
+  /// 画像に透けている部分があるか（判定が済むまではfalse）。背景色の選択欄は、透過画像の
+  /// 時だけ出す（2026-11-14）。
+  bool _hasAlpha = false;
   double _lastScale = 1;
   Offset _lastFocalPoint = Offset.zero;
 
@@ -49,6 +55,9 @@ class _FocalEditOverlayState extends ConsumerState<FocalEditOverlay> {
     super.initState();
     resolveImageSize(NetworkImage(widget.imageUrl)).then((size) {
       if (mounted && size != null) setState(() => _imageSize = size);
+    });
+    resolveImageHasAlpha(NetworkImage(widget.imageUrl)).then((hasAlpha) {
+      if (mounted && hasAlpha) setState(() => _hasAlpha = true);
     });
   }
 
@@ -151,7 +160,7 @@ class _FocalEditOverlayState extends ConsumerState<FocalEditOverlay> {
                 ),
               ),
             ),
-            if (widget.circle)
+            if (widget.circle && _hasAlpha)
               Positioned(
                 left: 0,
                 right: 0,
@@ -171,7 +180,7 @@ class _FocalEditOverlayState extends ConsumerState<FocalEditOverlay> {
 }
 
 /// アイコンの背景色の選択（2026-11-12）。透過PNGの透過部分に敷く色を、持ち主が選ぶ。
-/// 左の2つは、選んだ背景でライト・ダークの面に載せた時の見え方（色が被って
+/// 左は、選んだ背景で今の外観（ライト／ダーク）の面に載せた時の見え方（色が被って
 /// 見えなくなっていないかの確認用）。右は色の選択肢（透明・白・黒・灰・任意）。
 class _BackgroundPicker extends StatelessWidget {
   const _BackgroundPicker({
@@ -204,7 +213,23 @@ class _BackgroundPicker extends StatelessWidget {
             content: TextField(
               controller: controller,
               autofocus: true,
-              decoration: const InputDecoration(hintText: '#RRGGBB'),
+              decoration: InputDecoration(
+                hintText: '#RRGGBB',
+                suffixIcon: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    HoneycombColorButton(
+                      current: parsed,
+                      onPicked: (picked) => setState(
+                        () => controller.text = picked.toHexString(),
+                      ),
+                    ),
+                    CopyIconButton(
+                      textBuilder: () => hexCopyText(controller.text),
+                    ),
+                  ],
+                ),
+              ),
               onChanged: (_) => setState(() {}),
             ),
             actions: [
@@ -282,8 +307,12 @@ class _BackgroundPicker extends StatelessWidget {
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            preview(Colors.white),
-            preview(const Color(0xFF1E1E1E)),
+            // 今の外観（ライト／ダーク）の面に載せた時の見え方だけを出す（2026-11-14）。
+            preview(
+              Theme.of(context).brightness == Brightness.dark
+                  ? const Color(0xFF1E1E1E)
+                  : Colors.white,
+            ),
             const SizedBox(width: 8),
             swatch(
               color: null,

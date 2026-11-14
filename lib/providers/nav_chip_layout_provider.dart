@@ -22,8 +22,13 @@ Future<NavChipLayout> loadInitialNavChipLayout() async {
     alignment: alignment,
     // 横表示の揃えを別に保存する前の端末は、これまでの揃え（共通だった値）を引き継ぐ。
     wideAlignment: prefs.containsKey(_wideAlignmentKey)
-        ? NavChipAlignment.fromName(prefs.getString(_wideAlignmentKey))
-        : alignment,
+        ? NavChipAlignment.fromName(
+            prefs.getString(_wideAlignmentKey),
+            fallback: NavChipAlignment.start,
+          )
+        : (prefs.containsKey(_alignmentKey)
+              ? alignment
+              : NavChipAlignment.start),
     accountChipEnabled: prefs.getBool(_accountChipKey) ?? true,
     order: normalizeNavChipOrder(prefs.getStringList(_orderKey)),
   );

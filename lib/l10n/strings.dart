@@ -162,6 +162,8 @@ class Strings {
     required this.kiwamiOnlyFontBody,
     required this.kiwamiOnlyReadReceiptsBody,
     required this.kiwamiOnlyClose,
+    required this.kiwamiOnlyProfileLimitBody,
+    required this.workshopMoreWithKiwami,
     required this.kiwamiPurchase,
     required this.kiwamiSectionTitle,
     required this.kiwamiManage,
@@ -421,6 +423,8 @@ class Strings {
     required this.workshopReorderTooltip,
     required this.workshopFocalDone,
     required this.workshopFocalReset,
+    required this.workshopFocalBackgroundAdjust,
+    required this.workshopFocalIconAdjust,
     required this.workshopFocalCancel,
     required this.workshopIconBackground,
     required this.workshopIconBackgroundTransparent,
@@ -608,6 +612,10 @@ class Strings {
     required this.groupSettingsDefaultMuteHint,
     required this.groupSettingsDefaultReadReceiptsLabel,
     required this.groupSettingsDefaultReadReceiptsHint,
+    required this.readReceiptsCountOnlyLabel,
+    required this.readReceiptsCountOnlyHint,
+    required this.groupRoomReadReceiptsCountOnly,
+    required this.groupRoomReadReceiptsShowNames,
     required this.groupSettingsHistoryVisibleLabel,
     required this.groupSettingsHistoryVisibleHint,
     required this.groupRoomHistoryVisibleShow,
@@ -960,6 +968,7 @@ class Strings {
     required this.scheduledFailedInvalid,
     required this.scheduledLimitReached,
     required this.scheduledTimeTooSoon,
+    required this.deadlineInPastError,
     required this.scheduledAdded,
     required this.scheduledAttachmentKind,
     required this.scheduledEditAction,
@@ -1320,6 +1329,8 @@ class Strings {
   final String kiwamiOnlyFontBody;
   final String kiwamiOnlyReadReceiptsBody;
   final String kiwamiOnlyClose;
+  final String kiwamiOnlyProfileLimitBody;
+  final String workshopMoreWithKiwami;
   final String kiwamiPurchase;
   final String kiwamiSectionTitle;
   final String kiwamiManage;
@@ -1631,6 +1642,10 @@ class Strings {
 
   final String workshopFocalDone;
   final String workshopFocalReset;
+
+  /// カード編集の「位置を調整」（背景・アイコンの領域編集を開く行・メニュー項目、2026-11-14）。
+  final String workshopFocalBackgroundAdjust;
+  final String workshopFocalIconAdjust;
   final String workshopFocalCancel;
 
   /// アイコンの背景色（透過PNGの透過部分に敷く色、2026-11-12）。
@@ -1898,6 +1913,12 @@ class Strings {
   /// 広場全体設定ポップアップの、既読機能オン/オフのデフォルト値トグル。
   final String groupSettingsDefaultReadReceiptsLabel;
   final String groupSettingsDefaultReadReceiptsHint;
+
+  /// 既読を人数のみ表示にする設定（広場全体の既定・寄合のメニュー、2026-11-14）。
+  final String readReceiptsCountOnlyLabel;
+  final String readReceiptsCountOnlyHint;
+  final String groupRoomReadReceiptsCountOnly;
+  final String groupRoomReadReceiptsShowNames;
 
   /// 新しく加入した人に、加入前のメッセージを見せるかの設定（2026-10-08追加）。
   final String groupSettingsHistoryVisibleLabel;
@@ -2429,6 +2450,7 @@ class Strings {
   final String scheduledFailedInvalid;
   final String Function(int max) scheduledLimitReached;
   final String scheduledTimeTooSoon;
+  final String deadlineInPastError;
   final String scheduledAdded;
   final String scheduledAttachmentKind;
   final String scheduledEditAction;
@@ -2792,6 +2814,9 @@ class Strings {
     kiwamiOnlyFontBody: 'このフォントは、有料プラン「極み」で使えます。購入の方法は準備中です。',
     kiwamiOnlyReadReceiptsBody: '既読を隠す機能は、有料プラン「極み」で使えます。購入の方法は準備中です。',
     kiwamiOnlyClose: '閉じる',
+    kiwamiOnlyProfileLimitBody:
+        '極みでは、プロフィールカードを10枚まで作れ、蔵のSNSのURLは7件まで、カード1枚に載せるURLは5件まで使えます。',
+    workshopMoreWithKiwami: '極みでカードをもっと作る（最大10枚）',
     kiwamiPurchase: '極みを購入する',
     kiwamiSectionTitle: '極み',
     kiwamiManage: '契約の管理（解約・カードの変更）',
@@ -3043,7 +3068,7 @@ class Strings {
     chatSelectAction: 'メッセージを削除',
     chatPinAction: 'ピン留め',
     chatUnpinAction: 'ピン留め解除',
-    chatPinnedMessagesTooltip: 'ピン留めされたメッセージ',
+    chatPinnedMessagesTooltip: 'ピン留め',
     chatPinnedMessagesEmpty: 'ピン留めされたメッセージは有りません',
     chatScreenshotAction: 'スクリーンショット',
     chatScreenshotSelectionModeTitle: (count) => '$count件を撮影',
@@ -3070,6 +3095,8 @@ class Strings {
     workshopReorderTooltip: 'ドラッグして並べ替え',
     workshopFocalDone: '完了',
     workshopFocalReset: 'リセット',
+    workshopFocalBackgroundAdjust: '背景の位置を調整',
+    workshopFocalIconAdjust: 'アイコンの位置を調整',
     workshopFocalCancel: 'キャンセル',
     workshopIconBackground: 'アイコンの背景色',
     workshopIconBackgroundTransparent: '透明',
@@ -3272,6 +3299,10 @@ class Strings {
     groupSettingsDefaultMuteHint: '寄合毎に「この寄合独自の設定」をオンにすると個別に上書き出来ます',
     groupSettingsDefaultReadReceiptsLabel: '既読機能',
     groupSettingsDefaultReadReceiptsHint: '寄合毎に「この寄合独自の設定」をオンにすると個別に上書き出来ます',
+    readReceiptsCountOnlyLabel: '既読は人数だけ表示',
+    readReceiptsCountOnlyHint: '誰が読んだかは表示せず、読んだ人数だけを出します',
+    groupRoomReadReceiptsCountOnly: '既読を人数だけにする',
+    groupRoomReadReceiptsShowNames: '既読者を表示する',
     groupSettingsHistoryVisibleLabel: '加入前のメッセージを新規メンバーに見せる',
     groupSettingsHistoryVisibleHint:
         'オフの間、新しく加入した人は加入後のメッセージだけが見えます（添付ファイルを含む。アルバム・ノート・カレンダー・投票は対象外）。寄合毎に「この寄合独自の設定」をオンにすると個別に上書き出来ます',
@@ -3297,7 +3328,7 @@ class Strings {
     webhookLastUsed: (when) => '最終使用: $when',
     webhookNeverUsed: '未使用',
     webhookCreateFailed: 'BOTを作成出来ませんでした',
-    botCreate: 'BOTを作成',
+    botCreate: '連携を作成',
     botNameLabel: 'BOTの名前（表示名）',
     botCreatedTitle: 'トークン',
     botTokenOnceWarning: 'このトークンは1度しか表示されません。今のうちにコピーして保管してください。',
@@ -3644,6 +3675,7 @@ class Strings {
     scheduledFailedInvalid: '送れませんでした',
     scheduledLimitReached: (max) => '送信予約は1つの寄合につき$max件までです',
     scheduledTimeTooSoon: '1分以上先の日時を選んでください',
+    deadlineInPastError: '期限は今より後の日時を選んでください',
     scheduledAdded: '送信予約に追加しました',
     scheduledAttachmentKind: '添付',
     scheduledEditAction: '内容を編集',
@@ -4021,6 +4053,9 @@ class Strings {
     kiwamiOnlyReadReceiptsBody:
         'Hiding read receipts is available with the paid Premium plan. How to subscribe is coming soon.',
     kiwamiOnlyClose: 'Close',
+    kiwamiOnlyProfileLimitBody:
+        'With Premium you can make up to 10 profile cards, save up to 7 social links, and show up to 5 links on each card.',
+    workshopMoreWithKiwami: 'Make more cards with Premium (up to 10)',
     kiwamiPurchase: 'Get Premium',
     kiwamiSectionTitle: 'Premium',
     kiwamiManage: 'Manage subscription (cancel, change card)',
@@ -4318,7 +4353,7 @@ class Strings {
     chatSelectAction: 'Delete messages',
     chatPinAction: 'Pin',
     chatUnpinAction: 'Unpin',
-    chatPinnedMessagesTooltip: 'Pinned messages',
+    chatPinnedMessagesTooltip: 'Pins',
     chatPinnedMessagesEmpty: 'No pinned messages',
     chatScreenshotAction: 'Screenshot',
     chatScreenshotSelectionModeTitle: (count) => '$count to capture',
@@ -4346,6 +4381,8 @@ class Strings {
     workshopReorderTooltip: 'Drag to reorder',
     workshopFocalDone: 'Done',
     workshopFocalReset: 'Reset',
+    workshopFocalBackgroundAdjust: 'Adjust background position',
+    workshopFocalIconAdjust: 'Adjust icon position',
     workshopFocalCancel: 'Cancel',
     workshopIconBackground: 'Icon background colour',
     workshopIconBackgroundTransparent: 'Transparent',
@@ -4566,6 +4603,11 @@ class Strings {
     groupSettingsDefaultMuteLabel: 'Mute',
     groupSettingsDefaultMuteHint:
         'Rooms can override this individually with "This room\'s own settings"',
+    readReceiptsCountOnlyLabel: 'Show only the number of readers',
+    readReceiptsCountOnlyHint:
+        'Hides who has read a message and shows only how many people have',
+    groupRoomReadReceiptsCountOnly: 'Show only the number of readers',
+    groupRoomReadReceiptsShowNames: 'Show who has read',
     groupSettingsDefaultReadReceiptsLabel: 'Read receipts',
     groupSettingsDefaultReadReceiptsHint:
         'Rooms can override this individually with "This room\'s own settings"',
@@ -4595,7 +4637,7 @@ class Strings {
     webhookLastUsed: (when) => 'Last used: $when',
     webhookNeverUsed: 'Never used',
     webhookCreateFailed: 'Could not create the bot',
-    botCreate: 'Create a bot',
+    botCreate: 'Create connection',
     botNameLabel: 'Bot name (display name)',
     botCreatedTitle: 'Token',
     botTokenOnceWarning:
@@ -4978,6 +5020,7 @@ class Strings {
     scheduledLimitReached: (max) =>
         'You can schedule up to $max messages per room',
     scheduledTimeTooSoon: 'Choose a time at least one minute from now',
+    deadlineInPastError: 'Choose a deadline in the future',
     scheduledAdded: 'Added to scheduled messages',
     scheduledAttachmentKind: 'Attachment',
     scheduledEditAction: 'Edit message',

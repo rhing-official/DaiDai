@@ -52,7 +52,7 @@ class ConversationProfileCardDialog extends ConsumerWidget {
         ? const SizedBox(height: 48)
         : ProfileCardPicker(
             strings: strings,
-            cards: liveUser.profileCards,
+            cards: liveUser.usableProfileCards,
             selectedCardId: liveUser.conversationProfileCardId[conversationId],
             activeCard: liveUser.activeProfileCard,
             onSelected: (id) => ref

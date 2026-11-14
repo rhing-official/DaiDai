@@ -1,3 +1,4 @@
+import '../utils/kiwami.dart';
 import 'subscription_plan.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 
@@ -210,7 +211,36 @@ class AppUser {
   FontDesignMaterial? get activeFontDesignMaterial =>
       _findFontDesignMaterial(fontDesignMaterials, activeFontDesignMaterialId);
   ProfileCard? get activeProfileCard =>
-      _findProfileCard(profileCards, activeProfileCardId);
+      _findProfileCard(usableProfileCards, activeProfileCardId);
+
+  /// 極みの人は多く作れる（2026-11-14）。極みが切れても超えた分は消さず保存し、
+  /// 表示・選択できるのは無料の上限まで（極みに戻れば復活する）。
+  int get maxProfileCards =>
+      isKiwami(this) ? kKiwamiMaxProfileCards : kMaxProfileCards;
+  int get maxSnsLinks => isKiwami(this) ? kKiwamiMaxSnsLinks : kMaxSnsLinks;
+  int get maxProfileCardSnsLinks =>
+      isKiwami(this) ? kKiwamiMaxProfileCardSnsLinks : kMaxProfileCardSnsLinks;
+
+  /// 今使えるプロフィールカード（先頭から[maxProfileCards]枚）。
+  List<ProfileCard> get usableProfileCards =>
+      profileCards.length <= maxProfileCards
+      ? profileCards
+      : profileCards.sublist(0, maxProfileCards);
+
+  /// 今使えるSNSのURL（先頭から[maxSnsLinks]件）。
+  List<SnsLink> get usableSnsLinks => snsLinks.length <= maxSnsLinks
+      ? snsLinks
+      : snsLinks.sublist(0, maxSnsLinks);
+
+  List<SnsLink> _snsLinksOf(ProfileCard card) {
+    final linked = [
+      for (final link in usableSnsLinks)
+        if (card.snsLinkIds.contains(link.id)) link,
+    ];
+    return linked.length <= maxProfileCardSnsLinks
+        ? linked
+        : linked.sublist(0, maxProfileCardSnsLinks);
+  }
 
   /// 表示に使うべきアイコン。適用中のプロフィールカード（[activeProfileCard]）
   /// があればそのカードが指すアイコンを優先し、未適用なら個別の蔵アイテムの
@@ -262,10 +292,7 @@ class AppUser {
   List<SnsLink> get effectiveSnsLinks {
     final card = activeProfileCard;
     if (card == null) return const [];
-    return [
-      for (final link in snsLinks)
-        if (card.snsLinkIds.contains(link.id)) link,
-    ];
+    return _snsLinksOf(card);
   }
 
   /// [conversationId]（一対のdmId・広場のgroupId）に指定された会話専用の
@@ -275,7 +302,7 @@ class AppUser {
   ProfileCard? profileCardFor(String? conversationId) {
     if (conversationId != null) {
       final overrideId = conversationProfileCardId[conversationId];
-      final card = _findProfileCard(profileCards, overrideId);
+      final card = _findProfileCard(usableProfileCards, overrideId);
       if (card != null) return card;
     }
     return activeProfileCard;
@@ -345,10 +372,7 @@ class AppUser {
   List<SnsLink> effectiveSnsLinksFor(String? conversationId) {
     final card = profileCardFor(conversationId);
     if (card == null) return const [];
-    return [
-      for (final link in snsLinks)
-        if (card.snsLinkIds.contains(link.id)) link,
-    ];
+    return _snsLinksOf(card);
   }
 
   static ProfileMaterial? _findMaterial(

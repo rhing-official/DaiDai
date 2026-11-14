@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
 
@@ -67,6 +68,55 @@ ImageFocal focalAfterGesture({
     dx: extraW > 0.5 ? next.dx - 2 * delta.dx / extraW : next.dx,
     dy: extraH > 0.5 ? next.dy - 2 * delta.dy / extraH : next.dy,
   );
+}
+
+final _alphaCache = <String, Future<bool>>{};
+
+/// 画像に透けている画素（アルファが255未満）が1つでもあるか（2026-11-14）。アイコンの
+/// 背景色の選択欄を、透過画像の時だけ出す為の判定。形式（PNG・WebP・GIF）に依らず、
+/// デコード後の画素で見る。大きい画像は長辺256px程度に縮めて調べる。取得・デコードに
+/// 失敗したらfalse。[ImageProvider]が[NetworkImage]なら、URL単位で結果を覚える。
+Future<bool> resolveImageHasAlpha(ImageProvider provider) {
+  if (provider is NetworkImage) {
+    return _alphaCache.putIfAbsent(
+      provider.url,
+      () => _computeImageHasAlpha(provider),
+    );
+  }
+  return _computeImageHasAlpha(provider);
+}
+
+Future<bool> _computeImageHasAlpha(ImageProvider provider) async {
+  final completer = Completer<ui.Image?>();
+  final stream = ResizeImage(
+    provider,
+    width: 256,
+    allowUpscaling: false,
+  ).resolve(ImageConfiguration.empty);
+  late final ImageStreamListener listener;
+  listener = ImageStreamListener(
+    (info, _) {
+      if (!completer.isCompleted) completer.complete(info.image);
+      stream.removeListener(listener);
+    },
+    onError: (_, _) {
+      if (!completer.isCompleted) completer.complete(null);
+      stream.removeListener(listener);
+    },
+  );
+  stream.addListener(listener);
+  try {
+    final image = await completer.future;
+    if (image == null) return false;
+    final data = await image.toByteData(format: ui.ImageByteFormat.rawRgba);
+    if (data == null) return false;
+    for (var i = 3; i < data.lengthInBytes; i += 4) {
+      if (data.getUint8(i) < 255) return true;
+    }
+    return false;
+  } catch (_) {
+    return false;
+  }
 }
 
 /// 画像のピクセルサイズを取得する（フォーカル計算用）。取得に失敗したらnull。

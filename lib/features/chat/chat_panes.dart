@@ -84,6 +84,7 @@ enum _GroupMenuAction {
   deleteRoom,
   toggleMute,
   toggleReadReceipts,
+  toggleReadReceiptsCountOnly,
   toggleHistoryVisible,
   leave,
 }
@@ -2881,6 +2882,10 @@ class _GroupChatPaneState extends ConsumerState<GroupChatPane> {
               ([...group.memberIds]..sort()).join(','),
             ),
           ),
+      readReceiptsCountOnly: effectiveReadReceiptsCountOnly(
+        group: group,
+        room: currentRoom,
+      ),
       onViewed: () => ref
           .read(conversationPrefsRepositoryProvider)
           .setLastRead(
@@ -3207,6 +3212,9 @@ class _GroupMenuButtonState extends ConsumerState<_GroupMenuButton> {
         false;
     final roomReadReceiptsEnabled =
         widget.currentRoom?.readReceiptsEnabledOverride ?? readReceiptsEnabled;
+    final roomReadReceiptsCountOnly =
+        widget.currentRoom?.readReceiptsCountOnlyOverride ??
+        widget.group.readReceiptsCountOnly;
     // 「加入前のメッセージを新規メンバーに見せる」の現在の有効値（この寄合独自の
     // 設定がオンならその上書き、なければ広場全体の値、2026-10-08追加）。
     final roomHistoryVisible =
@@ -3373,6 +3381,15 @@ class _GroupMenuButtonState extends ConsumerState<_GroupMenuButton> {
                 roomId: widget.roomId,
                 enabled: !roomReadReceiptsEnabled,
               );
+        case _GroupMenuAction.toggleReadReceiptsCountOnly:
+          if (!canManageReadReceipts) return;
+          ref
+              .read(groupRepositoryProvider)
+              .setRoomReadReceiptsCountOnlyOverride(
+                groupId: widget.group.groupId,
+                roomId: widget.roomId,
+                countOnly: !roomReadReceiptsCountOnly,
+              );
         case _GroupMenuAction.toggleHistoryVisible:
           // manageRooms権限を持つメンバーのみ（firestore.rulesで強制、メニュー
           // 項目自体もそれ以外はenabled: false、2026-10-08追加）。
@@ -3490,6 +3507,15 @@ class _GroupMenuButtonState extends ConsumerState<_GroupMenuButton> {
                       enabled: canManageReadReceipts,
                       value: _GroupMenuAction.toggleReadReceipts,
                     ),
+                    if (roomReadReceiptsEnabled)
+                      _MenuTile(
+                        label: roomReadReceiptsCountOnly
+                            ? strings.groupRoomReadReceiptsShowNames
+                            : strings.groupRoomReadReceiptsCountOnly,
+                        foreground: foreground,
+                        enabled: canManageReadReceipts,
+                        value: _GroupMenuAction.toggleReadReceiptsCountOnly,
+                      ),
                     _MenuTile(
                       label: roomHistoryVisible
                           ? strings.groupRoomHistoryVisibleHide

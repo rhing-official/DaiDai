@@ -10,9 +10,9 @@ void main() {
     expect(AppTextSize.large.scale, 1.5);
   });
 
-  test('保存値が不明・未保存なら小になる', () {
-    expect(AppTextSize.fromName(null), AppTextSize.small);
-    expect(AppTextSize.fromName('huge'), AppTextSize.small);
+  test('保存値が不明・未保存なら中になる', () {
+    expect(AppTextSize.fromName(null), AppTextSize.medium);
+    expect(AppTextSize.fromName('huge'), AppTextSize.medium);
     expect(AppTextSize.fromName('large'), AppTextSize.large);
   });
 

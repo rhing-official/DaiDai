@@ -388,7 +388,7 @@ class _JoinGroupViewState extends ConsumerState<_JoinGroupView> {
             const SizedBox(height: 8),
             ProfileCardPicker(
               strings: strings,
-              cards: _liveUser.profileCards,
+              cards: _liveUser.usableProfileCards,
               selectedCardId: _selectedProfileCardId,
               activeCard: _liveUser.activeProfileCard,
               onSelected: (id) => setState(() => _selectedProfileCardId = id),

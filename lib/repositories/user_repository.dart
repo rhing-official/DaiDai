@@ -191,6 +191,15 @@ abstract class UserRepository {
   /// `setKiwamiPlan`経由、2026-10-17追加）。購入の導線が出来るまでの手動の付与用。
   Future<void> setKiwamiPlan(String userId, bool kiwami);
 
+  /// 指定ユーザーのアカウントを管理者として削除する（Cloud Functions
+  /// `deleteUserAccountByAdmin`経由、2026-11-14）。[immediate]ならすぐ完全削除、
+  /// そうでなければ30日の猶予に入る。長を務める広場はサーバーが自動で譲る。
+  Future<void> deleteAccountAsAdmin(
+    String userId, {
+    required bool immediate,
+    String? note,
+  });
+
   /// 極みの契約管理（解約・カード変更）用のStripeカスタマーポータルのURLを返す
   /// （Cloud Functions `createKiwamiPortalSession`経由、2026-10-18追加）。購入による
   /// 契約が無い住人（手動付与など）は`not-found`で失敗する。
@@ -733,6 +742,19 @@ class FirestoreUserRepository implements UserRepository {
     await _functions.httpsCallable('setKiwamiPlan').call({
       'targetUserId': userId,
       'kiwami': kiwami,
+    });
+  }
+
+  @override
+  Future<void> deleteAccountAsAdmin(
+    String userId, {
+    required bool immediate,
+    String? note,
+  }) async {
+    await _functions.httpsCallable('deleteUserAccountByAdmin').call({
+      'targetUserId': userId,
+      'immediate': immediate,
+      if (note != null && note.trim().isNotEmpty) 'note': note.trim(),
     });
   }
 

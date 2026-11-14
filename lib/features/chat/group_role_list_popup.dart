@@ -18,6 +18,8 @@ import 'group_role_priority_dialog.dart';
 import '../../widgets/dialog_keyboard_shortcuts.dart';
 import '../../widgets/app_dialog.dart';
 import '../../widgets/toggles/app_checkbox.dart';
+import '../../widgets/honeycomb_color_picker.dart';
+import '../../widgets/copy_link_row.dart';
 
 /// 広場のカスタムロール一覧（ポップアップの中身）。`manageRoles`権限を持つ
 /// メンバーのみが開ける（`_GroupMenuButton`側でメニュー項目自体を無効化する）。
@@ -159,6 +161,28 @@ class GroupRoleListPopup extends ConsumerWidget {
                           hintText: 'EE7800',
                           errorText: errorText,
                           counterText: '',
+                          suffixIcon: hasColor
+                              ? Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    HoneycombColorButton(
+                                      current: tryParseHexColor(
+                                        hexController.text,
+                                      ),
+                                      onPicked: (picked) => setState(() {
+                                        errorText = null;
+                                        hexController.text = picked
+                                            .toHexString()
+                                            .replaceFirst('#', '');
+                                      }),
+                                    ),
+                                    CopyIconButton(
+                                      textBuilder: () =>
+                                          hexCopyText(hexController.text),
+                                    ),
+                                  ],
+                                )
+                              : null,
                         ),
                         onChanged: (_) => setState(() {}),
                         onSubmitted: (_) => confirm(),

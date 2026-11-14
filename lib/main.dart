@@ -22,6 +22,7 @@ import 'features/call/pinned_call_overlay.dart';
 import 'features/call/group_incoming_call_listener.dart';
 import 'features/call/pip_controller.dart';
 import 'firebase_options.dart';
+import 'utils/perf_probe.dart';
 import 'push_notifications.dart';
 import 'l10n/app_locale.dart';
 import 'models/app_ui_style.dart';
@@ -186,6 +187,7 @@ Future<void> _launchApp({required bool firstLaunch}) async {
       initialNotificationSound.startsWith('http')) {
     unawaited(ensureCustomNotificationChannelReady(initialNotificationSound));
   }
+  startPerfProbe();
   runApp(
     ProviderScope(
       key: UniqueKey(),
@@ -425,6 +427,7 @@ class DaiDaiApp extends ConsumerWidget {
                 // 前面に出る。
                 const TutorialOverlay(),
                 const BackDebugOverlay(),
+                const PerfProbeOverlay(),
               ],
             ),
           ),

@@ -159,6 +159,7 @@ class ChatScreen extends ConsumerStatefulWidget {
     this.extraActions,
     this.menuAnchorKey,
     this.readReceiptsEnabled = true,
+    this.readReceiptsCountOnly = false,
     this.onMarkRead,
     this.onViewed,
     this.banner,
@@ -285,6 +286,10 @@ class ChatScreen extends ConsumerStatefulWidget {
   /// この会話で既読機能を使うかどうか（ハンバーガーメニューの設定を反映）。
   /// falseの場合、自分の既読は記録されず、チェックマークも表示しない。
   final bool readReceiptsEnabled;
+
+  /// 既読を「人数のみ」表示にする（誰が読んだかの一覧は出さない、広場の設定、
+  /// 2026-11-14）。
+  final bool readReceiptsCountOnly;
 
   /// 表示中の未読メッセージ（自分が送信者ではないもの）を既読にする処理。
   /// [readReceiptsEnabled]がtrueの時のみ呼ばれる。
@@ -1843,13 +1848,21 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
               child: Text(strings.chatScreenshotConfirmButton),
             ),
           ];
+          // コンピューターで、チェックボックスの文言が狭い幅で折り返して縦長になるため、
+          // 横幅を確保する（2026-11-14）。
+          const dialogConstraints = BoxConstraints(
+            minWidth: 360,
+            maxWidth: 420,
+          );
           final dialog = isGlass
               ? GlassAlertDialog(
+                  constraints: dialogConstraints,
                   title: title,
                   content: content,
                   actions: actions,
                 )
               : KeyboardAlertDialog(
+                  constraints: dialogConstraints,
                   title: title,
                   content: content,
                   actions: actions,
@@ -1980,6 +1993,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
           floatingShadow: floatingShadow,
           uiStyle: uiStyle,
           readReceiptsEnabled: widget.readReceiptsEnabled,
+          readReceiptsCountOnly: widget.readReceiptsCountOnly,
           layoutStyle: layoutStyle,
           isDm: widget.isDm,
           forceShowSenderInfo: widget.forceShowSenderInfo,
@@ -2784,6 +2798,12 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
       return KeyEventResult.handled;
     }
 
+    // Alt+Enter: 日時を選んで送信予約（送信ボタンの長押しメニューと同じ、2026-11-14）。
+    if (HardwareKeyboard.instance.isAltPressed) {
+      if (widget.scheduledSendEnabled) _scheduleSendByKeyboard();
+      return KeyEventResult.handled;
+    }
+
     final mode = ref.read(sendKeyModeProvider);
     final shiftPressed = HardwareKeyboard.instance.isShiftPressed;
     final ctrlPressed =
@@ -2808,6 +2828,20 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
       }
     }
     return KeyEventResult.handled;
+  }
+
+  /// キーボード（Alt+Enter）での送信予約。送信予定の日時が未設定なら選び、決まったら送る。
+  Future<void> _scheduleSendByKeyboard() async {
+    if (_textController.text.trim().isEmpty &&
+        _pendingAttachments.isEmpty &&
+        _scheduledAt == null) {
+      return;
+    }
+    if (_scheduledAt == null) {
+      await _chooseScheduledTime();
+      if (_scheduledAt == null || !mounted) return;
+    }
+    await _send();
   }
 
   void _insertNewline() {
@@ -3491,6 +3525,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                             floatingShadow: floatingShadow,
                             uiStyle: uiStyle,
                             readReceiptsEnabled: widget.readReceiptsEnabled,
+                            readReceiptsCountOnly: widget.readReceiptsCountOnly,
                             layoutStyle: layoutStyle,
                             isDm: widget.isDm,
                             forceShowSenderInfo: widget.forceShowSenderInfo,
@@ -4833,6 +4868,7 @@ class _MessageRow extends ConsumerWidget {
     required this.floatingShadow,
     this.uiStyle = AppUiStyle.flat,
     required this.readReceiptsEnabled,
+    this.readReceiptsCountOnly = false,
     required this.layoutStyle,
     required this.isDm,
     this.forceShowSenderInfo = false,
@@ -4892,6 +4928,7 @@ class _MessageRow extends ConsumerWidget {
   /// 間、吹き出し・アイコンを手描き風のギザギザ表示に切り替える。
   final AppUiStyle uiStyle;
   final bool readReceiptsEnabled;
+  final bool readReceiptsCountOnly;
   final ChatLayoutStyle layoutStyle;
   final bool isDm;
   final bool forceShowSenderInfo;
@@ -5298,6 +5335,8 @@ class _MessageRow extends ConsumerWidget {
     // 有無だけ分かれば十分で、人数や「誰が読んだか」の一覧は意味を持たない
     // ため、✓のみを表示しタップしても何も起きないようにする。
     final isSimpleDmReadMark = isDm && isMe;
+    // 広場の「人数のみ」表示は、✓と人数は出すが既読者の一覧は開かない（2026-11-14）。
+    final isCountOnlyMark = readReceiptsCountOnly && !isDm;
     // sideBySideで自分のメッセージの時だけ右寄せ。それ以外
     // （sideBySideで相手、又はallLeftで自分・相手いずれも）は左寄せ。
     final alignRight = layoutStyle == ChatLayoutStyle.sideBySide && isMe;
@@ -5682,6 +5721,7 @@ class _MessageRow extends ConsumerWidget {
                     message.contentType == 'video' ||
                     isMultiMediaOnly ||
                     isMultiSplit ||
+                    isMarkdownPreview ||
                     isPdfPreview ||
                     isAudioWithCaption;
                 return mediaOnly ? wrapInBubble(text) : text;
@@ -5971,7 +6011,7 @@ class _MessageRow extends ConsumerWidget {
     );
 
     final readBadge = showReadMark
-        ? (isSimpleDmReadMark
+        ? (isSimpleDmReadMark || isCountOnlyMark
               ? badge
               : Builder(
                   builder: (badgeContext) => GestureDetector(
@@ -7912,22 +7952,25 @@ Future<String?> _pickReactionEmoji(
     position: _menuPosition(context, globalPosition),
     items: [
       PopupMenuItem<String>(
-        // 長押し位置が画面端に近いと、メニューに残る横幅より絵文字6個分の
-        // Rowの必要幅が大きくなり、RenderFlexのオーバーフローが発生して
-        // いた（2026-08-04発覚・修正）。Wrapにすることで、幅が足りない
-        // 位置に開いても画面外へ溢れず折り返すだけになる。
-        child: Wrap(
-          spacing: 4,
-          children: [
-            for (final emoji in kReactionEmojis)
-              InkWell(
-                onTap: () => Navigator.of(context).pop(emoji),
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 4),
-                  child: Text(emoji, style: const TextStyle(fontSize: 22)),
+        // 絵文字は改行させず1行に並べる（2026-11-14、以前はWrapで、メニューの最大幅に
+        // 収まらず最後の1つが2行目に落ちていた）。左右の余白を詰め、それでも幅が足りない
+        // 位置（画面端など）では、はみ出さず縮小して1行に収める。
+        padding: const EdgeInsets.symmetric(horizontal: 8),
+        child: FittedBox(
+          fit: BoxFit.scaleDown,
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              for (final emoji in kReactionEmojis)
+                InkWell(
+                  onTap: () => Navigator.of(context).pop(emoji),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 6),
+                    child: Text(emoji, style: const TextStyle(fontSize: 22)),
+                  ),
                 ),
-              ),
-          ],
+            ],
+          ),
         ),
       ),
     ],
@@ -8187,7 +8230,12 @@ class _MessageBubbleTapAreaState extends State<_MessageBubbleTapArea> {
       case _MessageMenuAction.unsend:
         widget.onUnsend?.call();
       case _MessageMenuAction.react:
-        final emoji = await _pickReactionEmoji(context, globalPosition);
+        // 長押しメニューは吹き出しの上に出るため、離した位置（メニュー項目の上）を基準にすると
+        // 吹き出しから離れすぎる。吹き出しのすぐ下に出す（2026-11-14）。
+        final emoji = await _pickReactionEmoji(
+          context,
+          _reactionAnchorBelowBubble(context) ?? globalPosition,
+        );
         if (emoji != null) widget.onReact?.call(emoji);
       case _MessageMenuAction.pin:
         widget.onTogglePin?.call();
@@ -8208,6 +8256,14 @@ class _MessageBubbleTapAreaState extends State<_MessageBubbleTapArea> {
       case null:
         break;
     }
+  }
+
+  /// この吹き出しの左下（すぐ下）の位置。取れなければnull。
+  Offset? _reactionAnchorBelowBubble(BuildContext context) {
+    final box = context.findRenderObject();
+    if (box is! RenderBox || !box.attached) return null;
+    final rect = box.localToGlobal(Offset.zero) & box.size;
+    return Offset(rect.left, rect.bottom + 4);
   }
 
   /// 右クリック用、従来通りのクリック選択メニュー（変更なし）。
@@ -8236,7 +8292,16 @@ class _MessageBubbleTapAreaState extends State<_MessageBubbleTapArea> {
 
   void _onLongPressStart(BuildContext context, LongPressStartDetails details) {
     final items = _buildMenuItems();
-    final colorScheme = Theme.of(context).colorScheme;
+    final brightness = Theme.of(context).brightness;
+    // 他のポップアップ（アルバム・＋ボタン・語らいの長押しメニュー）と同じ、UIスタイルに
+    // 沿った見た目にする（2026-11-14）。
+    final uiStyle = ProviderScope.containerOf(context).read(appUiStyleProvider);
+    final foreground = popupCardForeground(brightness, uiStyle);
+    final accent = Theme.of(context).colorScheme.primary;
+    final border = uiStyle == AppUiStyle.block ? BlockTheme.borderWidth : 1.0;
+    const hPad = 8.0;
+    const vPad = 4.0;
+    final inset = border + hPad;
     final overlayBox =
         Overlay.of(context).context.findRenderObject()! as RenderBox;
     final screenSize = overlayBox.size;
@@ -8244,7 +8309,6 @@ class _MessageBubbleTapAreaState extends State<_MessageBubbleTapArea> {
     final textScaler = MediaQuery.textScalerOf(context);
     final direction = Directionality.of(context);
 
-    const hPad = 16.0;
     var maxLabelWidth = 0.0;
     for (final item in items) {
       final painter = TextPainter(
@@ -8254,9 +8318,12 @@ class _MessageBubbleTapAreaState extends State<_MessageBubbleTapArea> {
       )..layout();
       if (painter.width > maxLabelWidth) maxLabelWidth = painter.width;
     }
-    // アイコン（20）と間隔（12）の分を足す。
-    final menuWidth = (maxLabelWidth + hPad * 2 + 32).clamp(140.0, 280.0);
-    final menuHeight = kDragMenuItemHeight * items.length;
+    // アイコン（24）・間隔（12）・項目の左右の余白（4×2）・カードの内側の余白の分を足す。
+    final menuWidth = (maxLabelWidth + 24 + 12 + 8 + inset * 2 + 8).clamp(
+      160.0,
+      300.0,
+    );
+    final menuHeight = kDragMenuItemHeight * items.length + (border + vPad) * 2;
 
     // 長押し座標そのものにメニューの左上を合わせると指がメニューに重なって
     // 選びにくい為、＋ボタンの添付ポップアップ（AttachmentPopupButton.
@@ -8272,10 +8339,11 @@ class _MessageBubbleTapAreaState extends State<_MessageBubbleTapArea> {
       screenSize.height - menuHeight - screenPad,
     );
 
+    // 当たり判定は、項目が並ぶ内側の領域だけで取る。
     final geometry = DragMenuGeometry(
-      left: left,
-      top: top,
-      width: menuWidth,
+      left: left + inset,
+      top: top + border + vPad,
+      width: menuWidth - inset * 2,
       itemCount: items.length,
     );
     _dragMenuItems = items;
@@ -8289,56 +8357,49 @@ class _MessageBubbleTapAreaState extends State<_MessageBubbleTapArea> {
           // バリア（showMenuのルートが持つ効果に近づける）。
           const Positioned.fill(child: ColoredBox(color: Colors.transparent)),
           Positioned(
-            left: geometry.left,
-            top: geometry.top,
-            width: geometry.width,
-            height: geometry.height,
-            child: Material(
-              color: colorScheme.surfaceContainer,
-              elevation: 3,
-              shadowColor: colorScheme.shadow,
-              shape: const RoundedRectangleBorder(
-                borderRadius: BorderRadius.all(Radius.circular(4)),
+            left: left,
+            top: top,
+            width: menuWidth,
+            child: Container(
+              decoration: popupCardDecoration(context, brightness, uiStyle),
+              padding: const EdgeInsets.symmetric(
+                horizontal: hPad,
+                vertical: vPad,
               ),
-              child: ValueListenableBuilder<int>(
-                valueListenable: _highlightIndex,
-                builder: (_, highlighted, _) => Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    for (var i = 0; i < items.length; i++)
-                      Container(
-                        height: kDragMenuItemHeight,
-                        alignment: AlignmentDirectional.centerStart,
-                        padding: const EdgeInsets.symmetric(horizontal: hPad),
-                        color: i == highlighted
-                            ? colorScheme.primary.withValues(alpha: 0.12)
-                            : Colors.transparent,
-                        child: Row(
-                          children: [
-                            Icon(
-                              items[i].icon,
-                              size: 20,
-                              color: i == highlighted
-                                  ? colorScheme.primary
-                                  : colorScheme.onSurface,
-                            ),
-                            const SizedBox(width: 12),
-                            Expanded(
-                              child: Text(
-                                items[i].label,
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: textStyle.copyWith(
-                                  color: i == highlighted
-                                      ? colorScheme.primary
-                                      : null,
+              child: Material(
+                color: Colors.transparent,
+                child: ValueListenableBuilder<int>(
+                  valueListenable: _highlightIndex,
+                  builder: (_, highlighted, _) => Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      for (var i = 0; i < items.length; i++)
+                        Container(
+                          height: kDragMenuItemHeight,
+                          padding: const EdgeInsets.symmetric(horizontal: 4),
+                          decoration: BoxDecoration(
+                            borderRadius: BorderRadius.circular(8),
+                            color: i == highlighted
+                                ? accent.withValues(alpha: 0.18)
+                                : Colors.transparent,
+                          ),
+                          child: Row(
+                            children: [
+                              Icon(items[i].icon, color: foreground),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: Text(
+                                  items[i].label,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: textStyle.copyWith(color: foreground),
                                 ),
                               ),
-                            ),
-                          ],
+                            ],
+                          ),
                         ),
-                      ),
-                  ],
+                    ],
+                  ),
                 ),
               ),
             ),

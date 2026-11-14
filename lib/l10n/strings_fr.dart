@@ -181,6 +181,9 @@ final Strings _stringsFr = Strings._(
   kiwamiOnlyReadReceiptsBody:
       'Masquer les accusés de lecture est disponible avec le forfait payant Premium. La façon de s’abonner arrive bientôt.',
   kiwamiOnlyClose: 'Fermer',
+  kiwamiOnlyProfileLimitBody:
+      'Avec Premium, vous pouvez créer jusqu’à 10 cartes de profil, enregistrer 7 liens de réseaux sociaux et en afficher 5 par carte.',
+  workshopMoreWithKiwami: 'Créer plus de cartes avec Premium (jusqu’à 10)',
   kiwamiPurchase: 'Obtenir Premium',
   kiwamiSectionTitle: 'Premium',
   kiwamiManage: "Gérer l'abonnement (résilier, changer de carte)",
@@ -479,7 +482,7 @@ final Strings _stringsFr = Strings._(
   chatSelectAction: 'Supprimer des messages',
   chatPinAction: 'Épingler',
   chatUnpinAction: 'Désépingler',
-  chatPinnedMessagesTooltip: 'Messages épinglés',
+  chatPinnedMessagesTooltip: 'Épinglés',
   chatPinnedMessagesEmpty: 'Aucun message épinglé',
   chatScreenshotAction: 'Capture d’écran',
   chatScreenshotSelectionModeTitle: (count) => '$count à capturer',
@@ -508,6 +511,8 @@ final Strings _stringsFr = Strings._(
   workshopReorderTooltip: 'Faire glisser pour réorganiser',
   workshopFocalDone: 'Terminé',
   workshopFocalReset: 'Réinitialiser',
+  workshopFocalBackgroundAdjust: "Ajuster la position de l'arrière-plan",
+  workshopFocalIconAdjust: "Ajuster la position de l'icône",
   workshopFocalCancel: 'Annuler',
   workshopIconBackground: "Couleur d'arrière-plan de l'icône",
   workshopIconBackgroundTransparent: 'Transparent',
@@ -737,6 +742,11 @@ final Strings _stringsFr = Strings._(
   groupSettingsDefaultReadReceiptsLabel: 'Accusés de lecture',
   groupSettingsDefaultReadReceiptsHint:
       'Les salons peuvent les remplacer individuellement avec « Réglages propres à ce salon »',
+  readReceiptsCountOnlyLabel: 'Afficher seulement le nombre de lecteurs',
+  readReceiptsCountOnlyHint:
+      'Masque qui a lu un message et affiche seulement combien de personnes l’ont lu',
+  groupRoomReadReceiptsCountOnly: 'Afficher seulement le nombre de lecteurs',
+  groupRoomReadReceiptsShowNames: 'Afficher qui a lu',
   groupSettingsHistoryVisibleLabel:
       'Montrer les anciens messages aux nouveaux membres',
   groupSettingsHistoryVisibleHint:
@@ -767,7 +777,7 @@ final Strings _stringsFr = Strings._(
   webhookLastUsed: (when) => 'Dernière utilisation : $when',
   webhookNeverUsed: 'Jamais utilisé',
   webhookCreateFailed: 'Impossible de créer le bot',
-  botCreate: 'Créer un bot',
+  botCreate: 'Créer une connexion',
   botNameLabel: 'Nom du bot (nom affiché)',
   botCreatedTitle: 'Jeton',
   botTokenOnceWarning:
@@ -1147,6 +1157,7 @@ final Strings _stringsFr = Strings._(
   scheduledLimitReached: (max) =>
       'Vous pouvez programmer jusqu\'à $max messages par salon',
   scheduledTimeTooSoon: 'Choisissez une heure au moins une minute plus tard',
+  deadlineInPastError: 'Choisissez une échéance dans le futur',
   scheduledAdded: 'Ajouté aux messages programmés',
   scheduledAttachmentKind: 'Pièce jointe',
   scheduledEditAction: 'Modifier le message',

@@ -2759,6 +2759,122 @@ export const suspendUserAccount = onCall(
 );
 
 /**
+ * [userId]が長を務める広場を、削除の前に片付ける（管理者による削除用、2026-11-14）。
+ * 他のメンバーがいれば、加入が最も早いメンバーへ長を譲る（長の権限は`ownerId`だけで
+ * 決まる）。他にメンバーがいない広場は、残っても誰も使えないため広場ごと削除する。
+ * 本人の削除（クライアントが先に譲渡を求める）と違い、管理者の削除では本人が操作
+ * できないため、サーバーが自動で行う。 */
+async function handOverOrCloseOwnedGroups(userId: string): Promise<void> {
+  const owned = await db
+    .collection("groups")
+    .where("ownerId", "==", userId)
+    .get();
+  for (const group of owned.docs) {
+    const data = group.data();
+    const others: string[] = (data.memberIds ?? []).filter(
+      (id: string) => id !== userId,
+    );
+    if (others.length === 0) {
+      await db.recursiveDelete(group.ref);
+      await db.doc(`groupInvites/${group.id}`).delete().catch(() => {});
+      logger.info(`長のみの広場を削除: ${group.id}`);
+      continue;
+    }
+    const joinedAt: Record<string, FirebaseFirestore.Timestamp | undefined> =
+      data.memberJoinedAt ?? {};
+    // 加入時刻が記録されていないメンバー（古い広場）は、一覧の並びの先頭を優先する。
+    const ranked = [...others].sort((a, b) => {
+      const ta = joinedAt[a]?.toMillis?.() ?? 0;
+      const tb = joinedAt[b]?.toMillis?.() ?? 0;
+      return ta - tb;
+    });
+    await group.ref.update({ ownerId: ranked[0] });
+    logger.info(`長を自動で譲渡: ${group.id} → ${ranked[0]}`);
+  }
+}
+
+/**
+ * 管理者が、指定した住人のアカウントを削除する（2026-11-14）。違反への対応は「停止」
+ * （`suspendUserAccount`）で行い、削除はデータを消すための操作（本人がログインできず
+ * 不要になったアカウント等）として使う。削除しても、同じGoogleアカウントでの再登録は
+ * 制限しない。
+ *
+ * - `immediate`がtrueなら、すぐ完全に削除する（復元不可）。falseなら本人の通常削除と
+ *   同じ30日の猶予（その間にログインすれば復元できる）に入る。
+ * - 長を務める広場は、自動で他のメンバーへ譲る（[handOverOrCloseOwnedGroups]）。
+ * - 自分自身・他の管理者・便りは対象外。操作は監査ログに残す。
+ */
+export const deleteUserAccountByAdmin = onCall(
+  { region: "asia-northeast1" },
+  async (request) => {
+    if (request.auth?.token.admin !== true) {
+      throw new HttpsError("permission-denied", "管理者のみ実行できます");
+    }
+    const targetUserId = request.data?.targetUserId;
+    if (typeof targetUserId !== "string" || !targetUserId) {
+      throw new HttpsError("invalid-argument", "targetUserIdが必要です");
+    }
+    const immediate = request.data?.immediate;
+    if (typeof immediate !== "boolean") {
+      throw new HttpsError("invalid-argument", "immediateが必要です");
+    }
+    const note =
+      typeof request.data?.note === "string"
+        ? request.data.note.slice(0, 200)
+        : undefined;
+    if (targetUserId === request.auth.uid) {
+      throw new HttpsError("failed-precondition", "自分自身は削除できません");
+    }
+    const userRef = db.collection("users").doc(targetUserId);
+    const userDoc = await userRef.get();
+    if (!userDoc.exists) {
+      throw new HttpsError("not-found", "ユーザーが見つかりません");
+    }
+    const targetAuth = await getAuth()
+      .getUser(targetUserId)
+      .catch(() => null);
+    if (targetAuth?.customClaims?.admin === true) {
+      throw new HttpsError(
+        "failed-precondition",
+        "管理者のアカウントは削除できません",
+      );
+    }
+    const status = userDoc.data()!.accountStatus;
+    if (!immediate && status === "pendingDeletion") {
+      throw new HttpsError(
+        "failed-precondition",
+        "すでに削除申請中です（すぐ削除するなら「すぐに完全削除」を選んでください）",
+      );
+    }
+
+    await handOverOrCloseOwnedGroups(targetUserId);
+
+    if (immediate) {
+      await deleteAccount(targetUserId, userDoc.data()!);
+    } else {
+      await userRef.update({
+        accountStatus: "pendingDeletion",
+        deletionRequestedAt: FieldValue.serverTimestamp(),
+      });
+      await getAuth()
+        .revokeRefreshTokens(targetUserId)
+        .catch((error) => {
+          logger.warn(`revokeRefreshTokensに失敗: ${targetUserId}`, error);
+        });
+    }
+    await writeAdminAuditLog({
+      adminUid: request.auth.uid,
+      action: immediate ? "deleteAccount" : "scheduleDeleteAccount",
+      targetUserIds: [targetUserId],
+      ...(note ? { note } : {}),
+    });
+    logger.info(
+      `管理者によるアカウント削除（${immediate ? "即時" : "30日の猶予"}）: ${targetUserId}`,
+    );
+  },
+);
+
+/**
  * 住人に極み（有料プラン）を付与/解除する（管理者のみ、2026-10-17追加）。
  * 購入の導線（Stripe Checkout・Webhook）ができるまでの手動の付与用。契約状態
  * `subscriptionPlan`はクライアントから書けず（firestore.rules）、ここ（Admin SDK）
@@ -2910,7 +3026,9 @@ async function writeAdminAuditLog(entry: {
     | "unsuspend"
     | "viewProfile"
     | "grantKiwami"
-    | "revokeKiwami";
+    | "revokeKiwami"
+    | "deleteAccount"
+    | "scheduleDeleteAccount";
   targetUserIds: string[];
   reason?: string;
   note?: string;
@@ -3509,8 +3627,9 @@ async function sendMessageNotification(params: {
     ) {
       continue;
     }
-    // その寄合を開いている人には通知しない（メンションは除く、2026-11-13）。
-    if (!isMention && (await isViewingRoom(recipientId, conversationId, roomId))) {
+    // その寄合を開いている人には通知しない（メンションも含む、2026-11-14に、
+    // 以前のメンション除外をやめた）。
+    if (await isViewingRoom(recipientId, conversationId, roomId)) {
       continue;
     }
     const recipientDoc = await db.doc(`users/${recipientId}`).get();

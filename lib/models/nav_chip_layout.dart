@@ -1,13 +1,16 @@
-/// 縦表示（狭い画面）の下部メニューチップの揃え（2026-11-01）。標準は中央。
+/// 縦表示（狭い画面）の下部メニューチップの揃え（2026-11-01）。標準は右揃え（2026-11-14変更。広い画面の標準は上揃え）。
 enum NavChipAlignment {
   start,
   center,
   end;
 
-  static NavChipAlignment fromName(String? name) {
+  static NavChipAlignment fromName(
+    String? name, {
+    NavChipAlignment fallback = NavChipAlignment.end,
+  }) {
     return NavChipAlignment.values.firstWhere(
       (alignment) => alignment.name == name,
-      orElse: () => NavChipAlignment.center,
+      orElse: () => fallback,
     );
   }
 }
@@ -48,8 +51,8 @@ List<HomeTabId> normalizeNavChipOrder(Iterable<String>? names) {
 /// 下部メニューチップの揃えと並び。
 class NavChipLayout {
   const NavChipLayout({
-    this.alignment = NavChipAlignment.center,
-    this.wideAlignment = NavChipAlignment.center,
+    this.alignment = NavChipAlignment.end,
+    this.wideAlignment = NavChipAlignment.start,
     this.accountChipEnabled = true,
     this.order = const [
       HomeTabId.talk,

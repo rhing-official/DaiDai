@@ -31,6 +31,15 @@ bool effectiveReadReceiptsEnabled({required Group group, Room? room}) {
   return group.readReceiptsEnabled;
 }
 
+/// この寄合で既読を「人数のみ」表示にするかを解決する（2026-11-14）。解決の規則は
+/// [effectiveReadReceiptsEnabled]と同じ。
+bool effectiveReadReceiptsCountOnly({required Group group, Room? room}) {
+  if (room?.customSettingsEnabled ?? false) {
+    return room?.readReceiptsCountOnlyOverride ?? group.readReceiptsCountOnly;
+  }
+  return group.readReceiptsCountOnly;
+}
+
 /// この寄合で「加入前のメッセージを新規メンバーに見せる」かを解決する
 /// （2026-10-08追加）。[room]の`customSettingsEnabled`がtrueかつ
 /// `historyVisibleOverride`が設定されていればそちらを、それ以外は[group]全体の

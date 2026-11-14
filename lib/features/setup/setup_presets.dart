@@ -35,9 +35,9 @@ class SetupPreset {
 /// 標準・くっきり・遊び心の順。標準は、保存値が無い時の既定値と同じ。
 const kSetupPresets = <SetupPreset>[
   SetupPreset(
-    uiStyle: AppUiStyle.glass,
+    uiStyle: AppUiStyle.block,
     themeMode: ThemeMode.system,
-    accent: Color(0xCCA997C6),
+    accent: Color(0xCCF08567),
     fontDesign: FontDesign.zenMaruGothic,
     chatLayout: ChatLayoutStyle.allLeft,
     talksListLayout: TalksListLayoutStyle.iconSplit,

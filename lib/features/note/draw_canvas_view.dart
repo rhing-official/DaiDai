@@ -14,6 +14,8 @@ import '../../utils/color_hex.dart';
 import '../../utils/note_export.dart';
 import '../../widgets/dialog_keyboard_shortcuts.dart';
 import '../../widgets/app_dialog.dart';
+import '../../widgets/honeycomb_color_picker.dart';
+import '../../widgets/copy_link_row.dart';
 
 enum _DrawTool { pen, eraser, pan }
 
@@ -534,6 +536,19 @@ class _DrawCanvasViewState extends ConsumerState<DrawCanvasView> {
                 controller: controller,
                 decoration: InputDecoration(
                   hintText: strings.noteDrawColorHint,
+                  suffixIcon: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      HoneycombColorButton(
+                        current: tryParseHexColor(controller.text),
+                        onPicked: (picked) =>
+                            Navigator.of(context).pop(picked.toARGB32()),
+                      ),
+                      CopyIconButton(
+                        textBuilder: () => hexCopyText(controller.text),
+                      ),
+                    ],
+                  ),
                 ),
                 onSubmitted: (value) {
                   final parsed = tryParseHexColor(value);

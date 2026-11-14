@@ -10,7 +10,7 @@ const _prefsKey = 'accentColorArgb32';
 
 /// ユーザーが未設定の場合に使う既定のアクセントカラー。
 // 2026-10-31: #A997C6（アルファCC）。8桁hex表記ではA997C6CC。
-const kDefaultAccentColor = Color(0xCCA997C6);
+const kDefaultAccentColor = Color(0xCCF08567);
 
 /// 端末に保存されている、UIスタイル別にする前の（共通の）アクセントカラー。
 /// main()で起動前に読み込み、ProviderScopeのoverrideとして渡す。スタイル別の値が

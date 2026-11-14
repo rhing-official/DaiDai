@@ -1164,8 +1164,13 @@ class _NotePaneViewState extends ConsumerState<NotePaneView>
     final size = await showAppDialog<(int, int)>(
       context: context,
       builder: (dialogContext) {
+        // ブロックの色は、アプリのアクセントカラー（2026-11-14）。アクセントを使わない劇画は
+        // 従来のノートの色のまま。
+        final isGekiga = ref.read(appUiStyleProvider) == AppUiStyle.gekiga;
         final content = _TableSizePicker(
-          accentColor: noteColors.accent,
+          accentColor: isGekiga
+              ? noteColors.accent
+              : Theme.of(dialogContext).colorScheme.primary,
           neutralColor: noteColors.divider,
         );
         return isGlass
@@ -2162,11 +2167,62 @@ class _TableSizePicker extends StatefulWidget {
 class _TableSizePickerState extends State<_TableSizePicker> {
   int _hoverRow = 0;
   int _hoverColumn = 0;
+  final _controller = TextEditingController();
+  bool _invalid = false;
+
+  /// 入力で作れる大きさの上限（列×行）。マス目より大きい表も、入力なら作れる。
+  static const _maxTypedColumns = 10;
+  static const _maxTypedRows = 50;
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  /// 「3x4」「3×4」「3,4」「3 4」のような入力を、(列, 行)として読む。読めなければnull。
+  (int, int)? _parse(String text) {
+    final m = RegExp(r'^\s*(\d+)\s*[xX×*,，\s]\s*(\d+)\s*$').firstMatch(text);
+    if (m == null) return null;
+    final columns = int.parse(m.group(1)!);
+    final rows = int.parse(m.group(2)!);
+    if (columns < 1 ||
+        rows < 1 ||
+        columns > _maxTypedColumns ||
+        rows > _maxTypedRows) {
+      return null;
+    }
+    return (columns, rows);
+  }
+
+  void _onChanged(String text) {
+    final parsed = _parse(text);
+    setState(() {
+      _invalid = text.trim().isNotEmpty && parsed == null;
+      // マス目の範囲内なら、その大きさまで塗って見せる。
+      if (parsed != null &&
+          parsed.$1 <= _TableSizePicker.maxColumns &&
+          parsed.$2 <= _TableSizePicker.maxRows) {
+        _hoverColumn = parsed.$1 - 1;
+        _hoverRow = parsed.$2 - 1;
+      }
+    });
+  }
+
+  void _submit() {
+    final parsed = _parse(_controller.text);
+    if (parsed == null) {
+      setState(() => _invalid = true);
+      return;
+    }
+    Navigator.of(context).pop((parsed.$2, parsed.$1));
+  }
 
   @override
   Widget build(BuildContext context) {
     const cellSize = 22.0;
     const cellGap = 3.0;
+    final onSurface = Theme.of(context).colorScheme.onSurface;
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
@@ -2204,7 +2260,28 @@ class _TableSizePickerState extends State<_TableSizePicker> {
           ),
         Text(
           '${_hoverColumn + 1} × ${_hoverRow + 1}',
-          style: TextStyle(color: Theme.of(context).colorScheme.onSurface),
+          style: TextStyle(color: onSurface),
+        ),
+        const SizedBox(height: 8),
+        // タイピングでも作れる。「列×行」（例: 3x4）を入れてEnter。
+        SizedBox(
+          width: 160,
+          child: TextField(
+            controller: _controller,
+            textAlign: TextAlign.center,
+            keyboardType: TextInputType.text,
+            inputFormatters: [
+              FilteringTextInputFormatter.allow(RegExp(r'[0-9xX×*,，\s]')),
+              LengthLimitingTextInputFormatter(10),
+            ],
+            decoration: InputDecoration(
+              isDense: true,
+              hintText: '3 × 4',
+              errorText: _invalid ? '$_maxTypedColumns × $_maxTypedRows' : null,
+            ),
+            onChanged: _onChanged,
+            onSubmitted: (_) => _submit(),
+          ),
         ),
       ],
     );

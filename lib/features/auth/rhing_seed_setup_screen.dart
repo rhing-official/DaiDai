@@ -57,6 +57,9 @@ class _RhingSeedSetupScreenState extends ConsumerState<RhingSeedSetupScreen> {
         rhingSeed: rhingSeed.toLowerCase(),
         // 新規登録者には初回の使い方ガイドを出す（2026-10-17追加）。既存住人は
         // この値がnullのため出ない。
+        // 新規登録の人だけ、Rhing Seedでの友達追加に表示しない状態から始める
+        // （2026-11-14。既存の未設定の人は表示のまま）。
+        seedSearchable: false,
         preferences: const AppUserPreferences(
           guideSeen: false,
           communityPromptSeen: false,

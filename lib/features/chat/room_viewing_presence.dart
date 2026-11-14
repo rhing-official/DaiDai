@@ -4,6 +4,19 @@ import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../providers/repository_providers.dart';
+import '../../push_notifications.dart' show dismissRoomNotificationsLocal;
+import '../../utils/room_notification_dismiss/room_notification_dismiss.dart';
+
+/// いま前面で開いている寄合（2026-11-14）。通知を出さないための、端末側の判定に使う。
+({String conversationId, String roomId})? _currentViewingRoom;
+
+/// [conversationId]・[roomId]が、いま前面で開いている寄合か。
+bool isViewingRoomNow(String? conversationId, String? roomId) {
+  final current = _currentViewingRoom;
+  return current != null &&
+      current.conversationId == conversationId &&
+      current.roomId == roomId;
+}
 
 /// この寄合のメッセージ画面を開いている間（アプリが前面）だけ、「いま見ている」ことを
 /// `conversationPrefs`の`viewing`へ書く（2026-11-13）。サーバー（Cloud Functions）は、
@@ -71,6 +84,15 @@ class _RoomViewingPresenceState extends ConsumerState<RoomViewingPresence>
   void _start() {
     _timer?.cancel();
     _active = true;
+    _currentViewingRoom = (
+      conversationId: widget.conversationId,
+      roomId: widget.roomId,
+    );
+    // 自分で開いたら、その寄合の通知は消す（タップしなくてよい）。
+    unawaited(
+      dismissRoomNotificationsLocal(widget.conversationId, widget.roomId),
+    );
+    dismissWebRoomNotifications(widget.conversationId, widget.roomId);
     _write();
     _timer = Timer.periodic(_heartbeat, (_) => _write());
   }
@@ -80,7 +102,15 @@ class _RoomViewingPresenceState extends ConsumerState<RoomViewingPresence>
     _timer = null;
     if (!_active) return;
     _active = false;
+    _releaseCurrent();
     _clear(widget.userId, widget.conversationId);
+  }
+
+  /// 自分が登録した寄合のときだけ解除する（寄合の切り替えで、新しい側の登録を消さない）。
+  void _releaseCurrent() {
+    if (isViewingRoomNow(widget.conversationId, widget.roomId)) {
+      _currentViewingRoom = null;
+    }
   }
 
   void _write() {
@@ -111,6 +141,7 @@ class _RoomViewingPresenceState extends ConsumerState<RoomViewingPresence>
     // dispose中は`ref`を使えないことがあるため、先に保持しておく。
     _timer?.cancel();
     if (_active) {
+      _releaseCurrent();
       try {
         _clear(widget.userId, widget.conversationId);
       } catch (_) {

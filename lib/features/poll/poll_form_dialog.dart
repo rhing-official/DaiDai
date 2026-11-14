@@ -110,13 +110,21 @@ class _PollFormDialogState extends ConsumerState<_PollFormDialog> {
   }
 
   Future<void> _pickDeadline() async {
+    final now = DateTime.now();
     final initial = _deadline ?? DateTime.now();
     final picked = await pickDateAndTime(
       context,
       conversationId: widget.conversationId,
       initial: initial,
-      firstDate: DateTime(initial.year - 5),
-      lastDate: DateTime(initial.year + 5),
+      // 過去の日時は期限にできない（2026-11-14）。今日より前の日は選べず、今日の過去の時刻は
+      // 案内を出して時刻ピッカーを開いたままにする。
+      firstDate: DateTime(now.year, now.month, now.day),
+      lastDate: DateTime(now.year + 5),
+      isValid: (picked) => picked.isAfter(DateTime.now()),
+      onInvalid: () => showAutoDismissBanner(
+        context,
+        message: ref.read(appStringsProvider).deadlineInPastError,
+      ),
     );
     if (picked == null || !mounted) return;
     setState(() => _deadline = picked);

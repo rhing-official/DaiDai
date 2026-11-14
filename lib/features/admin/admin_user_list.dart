@@ -737,6 +737,41 @@ class _UserDetailDialogState extends ConsumerState<_UserDetailDialog> {
     }
   }
 
+  /// アカウントを削除する（2026-11-14）。違反への対応は「停止」で行い、削除は、本人が
+  /// ログインできないが不要になったアカウント等のデータを消すための操作。削除しても、
+  /// 同じGoogleアカウントでの再登録は制限しない。
+  Future<void> _deleteAccount(AppUser user) async {
+    final result = await showAppDialog<({bool immediate, String note})>(
+      context: context,
+      builder: (context) => _DeleteAccountDialog(seed: user.rhingSeed),
+    );
+    if (result == null) return;
+    setState(() {
+      _busy = true;
+      _error = null;
+    });
+    try {
+      await ref
+          .read(userRepositoryProvider)
+          .deleteAccountAsAdmin(
+            user.userId,
+            immediate: result.immediate,
+            note: result.note,
+          );
+      if (mounted) {
+        if (result.immediate) {
+          Navigator.of(context).pop();
+        } else {
+          showAutoDismissBanner(context, message: '削除を申請しました（30日後に完全削除）');
+        }
+      }
+    } catch (e) {
+      if (mounted) setState(() => _error = '削除に失敗しました: $e');
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
   Future<void> _toggleKiwami(AppUser user) async {
     final grant = user.subscriptionPlan != SubscriptionPlan.kiwami;
     final confirmed = await showAppDialog<bool>(
@@ -912,6 +947,10 @@ class _UserDetailDialogState extends ConsumerState<_UserDetailDialog> {
           onPressed: _busy ? null : () => _toggleSuspend(user),
           child: Text(isSuspended ? '停止を解除' : '停止'),
         ),
+      OutlinedButton(
+        onPressed: _busy ? null : () => _deleteAccount(user),
+        child: const Text('アカウントを削除'),
+      ),
       FilledButton(
         onPressed: () => Navigator.of(context).pop(),
         child: const Text('閉じる'),
@@ -994,6 +1033,90 @@ class _ReasonDialogState extends ConsumerState<_ReasonDialog> {
                   context,
                 ).pop((reason: _reason!, note: _noteController.text.trim())),
           child: const Text('記録して表示'),
+        ),
+      ],
+    );
+  }
+}
+
+/// アカウント削除の確認（管理者、2026-11-14）。通常は30日の猶予、チェックでその場で
+/// 完全削除。理由・メモは任意で、監査ログに残る。
+class _DeleteAccountDialog extends ConsumerStatefulWidget {
+  const _DeleteAccountDialog({required this.seed});
+
+  final String seed;
+
+  @override
+  ConsumerState<_DeleteAccountDialog> createState() =>
+      _DeleteAccountDialogState();
+}
+
+class _DeleteAccountDialogState extends ConsumerState<_DeleteAccountDialog> {
+  bool _immediate = false;
+  final _noteController = TextEditingController();
+
+  @override
+  void dispose() {
+    _noteController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return _adminDialog(
+      ref,
+      title: Text('@${widget.seed}を削除しますか？'),
+      content: SizedBox(
+        width: 360,
+        child: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                '削除は、本人がログインできず、アカウントがもう不要な時などにデータを消す操作です。'
+                '違反への対応は「停止」を使ってください。'
+                '削除しても、同じGoogleアカウントでの再登録はできます。',
+              ),
+              const SizedBox(height: 8),
+              const Text(
+                '長を務める広場は、加入が最も早いメンバーへ自動で譲ります（他にメンバーがいない広場は削除します）。'
+                '一対の相手には、削除の通知が届きます。この操作は記録されます。',
+              ),
+              const SizedBox(height: 8),
+              AppCheckboxListTile(
+                dense: true,
+                contentPadding: EdgeInsets.zero,
+                controlAffinity: ListTileControlAffinity.leading,
+                value: _immediate,
+                title: const Text('すぐに完全削除する（復元できません）'),
+                subtitle: const Text('チェックなしは、30日の猶予後に削除（その間にログインすると復元できます）'),
+                onChanged: (v) => setState(() => _immediate = v ?? false),
+              ),
+              const SizedBox(height: 8),
+              TextField(
+                controller: _noteController,
+                maxLength: 200,
+                decoration: const InputDecoration(
+                  labelText: 'メモ（任意、監査ログに残ります）',
+                  border: OutlineInputBorder(),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(),
+          child: const Text('やめる'),
+        ),
+        FilledButton(
+          style: _destructiveStyle,
+          onPressed: () => Navigator.of(
+            context,
+          ).pop((immediate: _immediate, note: _noteController.text.trim())),
+          child: Text(_immediate ? '完全に削除する' : '削除を申請する'),
         ),
       ],
     );

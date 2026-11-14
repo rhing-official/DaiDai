@@ -171,6 +171,10 @@ bool iconRailExtendsToBottom(
 /// 畳んだ時に実際に隠す幅の両方で使う。
 const kIconSplitCollapseWidth = 112.0 + 1.0 + 220.0;
 
+/// 区切り線のドラッグ中、チャット側・アイコン列の中身を元の幅で固定するか
+/// （[_FrozenWidthPane]）。falseなら中身が指に追従して並び直す。
+const kFreezePaneWidthWhileDragging = false;
+
 /// 区切り線のつかみ代を含めた幅（見える線は中央の1px。2026-11-05）。
 const kIconSplitHandleWidth = 14.0;
 
@@ -347,7 +351,11 @@ class _FrozenWidthPaneState extends ConsumerState<_FrozenWidthPane> {
 
   @override
   Widget build(BuildContext context) {
-    final dragging = ref.watch(iconSplitDragProvider) != null;
+    // 2026-11-14: ドラッグ中も中身が幅に追従して折り返すよう、固定を既定で無効にした
+    // （固定すると、中身が動かず境目で切り取られるだけで追従して見えないため）。
+    final dragging =
+        kFreezePaneWidthWhileDragging &&
+        ref.watch(iconSplitDragProvider) != null;
     return ClipRect(
       child: LayoutBuilder(
         builder: (context, constraints) {

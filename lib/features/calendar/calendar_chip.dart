@@ -26,10 +26,42 @@ Widget calendarChoiceChip(
   required bool selected,
   required ValueChanged<bool>? onSelected,
 }) {
+  final isBlock =
+      ProviderScope.containerOf(context).read(appUiStyleProvider) ==
+      AppUiStyle.block;
   final colorScheme = Theme.of(context).colorScheme;
   final foreground = selected
       ? colorScheme.onPrimary
       : colorScheme.onSurfaceVariant;
+  if (isBlock) {
+    // 版画は標準の`Chip`だと文字が枠に重なる（幅・高さの不足）ため、他の版画の部品と
+    // 同じ「枠付きの面」で作る（2026-11-14）。影が右・下へはみ出す分の余白を足す。
+    return Padding(
+      padding: const EdgeInsets.only(right: 3, bottom: 3),
+      child: blockMaterialBox(
+        context,
+        radius: 18,
+        shadowOffset: const Offset(2, 2),
+        color: selected ? colorScheme.primary : null,
+        child: InkWell(
+          onTap: onSelected == null ? null : () => onSelected(!selected),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                if (icon != null) ...[
+                  Icon(icon, size: 16, color: foreground),
+                  const SizedBox(width: 6),
+                ],
+                Text(label, style: TextStyle(color: foreground)),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
   return ChoiceChip(
     avatar: icon != null ? Icon(icon, size: 16, color: foreground) : null,
     label: Text(label, style: TextStyle(color: foreground)),

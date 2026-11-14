@@ -17,6 +17,7 @@ class Group {
     this.lastMessageContentType,
     this.lastMessagePreview,
     this.readReceiptsEnabled = true,
+    this.readReceiptsCountOnly = false,
     this.roleAssignments = const {},
     this.rolePriority = const [],
     this.memberPermissions = const {},
@@ -62,6 +63,12 @@ class Group {
   /// 全メッセージ・全メンバー分の既読履歴をサーバーから削除する
   /// （`GroupRepository.setReadReceiptsEnabled`参照）。
   final bool readReceiptsEnabled;
+
+  /// 既読を「人数のみ」表示にするか（2026-11-14）。trueの間、メッセージの✓の横に
+  /// 読んだ人数だけを出し、タップしても既読者の一覧は出さない。既読の記録
+  /// （`Message.readBy`）自体は変えず、画面に出さないだけ。[readReceiptsEnabled]が
+  /// falseの間は意味を持たない。
+  final bool readReceiptsCountOnly;
 
   /// 広場を代表するプロフィールカード（最大1枚）。未作成ならnull。
   /// メンバー全員が編集出来る（`_ProfileTabState`の個人カードとは異なり
@@ -148,6 +155,7 @@ class Group {
       lastMessageContentType: json['lastMessageContentType'] as String?,
       lastMessagePreview: json['lastMessagePreview'] as String?,
       readReceiptsEnabled: json['readReceiptsEnabled'] as bool? ?? true,
+      readReceiptsCountOnly: json['readReceiptsCountOnly'] as bool? ?? false,
       roleAssignments: _decodeRoleAssignments(json['roleAssignments']),
       rolePriority: List<String>.from(
         json['rolePriority'] as List? ?? const [],
@@ -183,6 +191,7 @@ class Group {
       'lastMessageContentType': lastMessageContentType,
       'lastMessagePreview': lastMessagePreview,
       'readReceiptsEnabled': readReceiptsEnabled,
+      'readReceiptsCountOnly': readReceiptsCountOnly,
       'roleAssignments': roleAssignments,
       'rolePriority': rolePriority,
       'memberPermissions': memberPermissions,
@@ -224,6 +233,7 @@ class Room {
     this.rolePriorityOverride,
     this.customSettingsEnabled = false,
     this.readReceiptsEnabledOverride,
+    this.readReceiptsCountOnlyOverride,
     this.historyVisibleOverride,
     this.pinnedMessageIds = const [],
   });
@@ -255,6 +265,11 @@ class Room {
   /// trueの間のみ有効（nullなら広場全体の`Group.readReceiptsEnabled`を使う、
   /// 2026-07-29追加）。
   final bool? readReceiptsEnabledOverride;
+
+  /// この寄合限定での「既読は人数のみ表示」の上書き（2026-11-14）。
+  /// [customSettingsEnabled]がtrueの間のみ有効（nullなら広場全体の
+  /// [Group.readReceiptsCountOnly]を使う）。
+  final bool? readReceiptsCountOnlyOverride;
 
   /// この寄合限定での「加入前のメッセージを新規メンバーに見せるか」の上書き。
   /// [customSettingsEnabled]がtrueの間のみ有効（nullなら広場全体の
@@ -294,6 +309,8 @@ class Room {
           json['customSettingsEnabled'] as bool? ??
           (priorityOverrideJson is List),
       readReceiptsEnabledOverride: json['readReceiptsEnabledOverride'] as bool?,
+      readReceiptsCountOnlyOverride:
+          json['readReceiptsCountOnlyOverride'] as bool?,
       historyVisibleOverride: json['historyVisibleOverride'] as bool?,
       pinnedMessageIds: pinnedJson is List
           ? List<String>.from(pinnedJson)
@@ -312,6 +329,7 @@ class Room {
       'rolePriorityOverride': rolePriorityOverride,
       'customSettingsEnabled': customSettingsEnabled,
       'readReceiptsEnabledOverride': readReceiptsEnabledOverride,
+      'readReceiptsCountOnlyOverride': readReceiptsCountOnlyOverride,
       'historyVisibleOverride': historyVisibleOverride,
       'pinnedMessageIds': pinnedMessageIds,
     };

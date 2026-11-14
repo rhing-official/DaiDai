@@ -204,6 +204,14 @@ abstract class GroupRepository {
     required bool? enabled,
   });
 
+  /// 特定の寄合限定での「既読は人数のみ表示」の上書きを設定する（[countOnly]が
+  /// nullなら解除、`manageReadReceipts`権限、2026-11-14）。既読履歴は消さない。
+  Future<void> setRoomReadReceiptsCountOnlyOverride({
+    required String groupId,
+    required String roomId,
+    required bool? countOnly,
+  });
+
   /// 長（オーナー）を別のメンバーに譲渡する（長のみ実行可、firestore.rulesで
   /// 強制）。譲渡後、旧オーナーは通常のメンバーになる。
   Future<void> transferOwnership({
@@ -447,6 +455,13 @@ abstract class GroupRepository {
     required String groupId,
     required bool enabled,
     required String userId,
+  });
+
+  /// 既読を「人数のみ」表示にするかの広場全体の既定値を変更する（`manageReadReceipts`
+  /// 権限、2026-11-14）。既読履歴は消さない（表示だけを切り替える）。
+  Future<void> setReadReceiptsCountOnly({
+    required String groupId,
+    required bool countOnly,
   });
 
   /// 新しく加入した人に、加入前のメッセージを見せるかの広場全体の既定値を変更する
@@ -1599,6 +1614,14 @@ class FirestoreGroupRepository implements GroupRepository {
     }
   }
 
+  @override
+  Future<void> setReadReceiptsCountOnly({
+    required String groupId,
+    required bool countOnly,
+  }) async {
+    await _groups.doc(groupId).update({'readReceiptsCountOnly': countOnly});
+  }
+
   /// [messagesRef]配下の全メッセージの既読履歴（readBy）を空にする。
   /// 更新後もドキュメントは残り続ける為、`acceptSeverance`の
   /// （削除により毎回別集合が返ってくる）`.limit(400)`繰り返し取得とは
@@ -2158,6 +2181,18 @@ class FirestoreGroupRepository implements GroupRepository {
       final messagesRef = _roomRef(groupId, roomId).collection('messages');
       await _clearAllReadReceipts(messagesRef);
     }
+  }
+
+  @override
+  Future<void> setRoomReadReceiptsCountOnlyOverride({
+    required String groupId,
+    required String roomId,
+    required bool? countOnly,
+  }) async {
+    await _roomRef(
+      groupId,
+      roomId,
+    ).update({'readReceiptsCountOnlyOverride': countOnly});
   }
 
   @override

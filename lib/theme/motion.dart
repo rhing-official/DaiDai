@@ -14,8 +14,7 @@ import '../widgets/liquify_effect.dart';
 /// 今の画面遷移の種類（2026-11-04）。遷移の組み立て関数は`ref`/`context`を持たない為、
 /// `slideTransitionStyleProvider`が設定の変更・同期・起動時の読み込みのたびに更新する。
 /// 遷移の組み立ては毎フレーム呼ばれるので、その時点の値が使われる。
-SlideTransitionStyle activeSlideTransitionStyle =
-    SlideTransitionStyle.slideBlur;
+SlideTransitionStyle activeSlideTransitionStyle = SlideTransitionStyle.pop;
 
 const popSlideDuration = Duration(milliseconds: 220);
 const popSlideCurve = Curves.easeOutCubic;
@@ -40,6 +39,11 @@ Widget buildPopSlideTransition(Animation<double> animation, Widget child) {
     ),
   );
 }
+
+/// 通知タップから開く遷移の間だけtrue（2026-11-14）。ページ遷移の液状化を切る
+/// （[buildSlideInFromRightTransition]）。`navigateFromNotificationPayload`が立て、
+/// 遷移が終わる頃に戻す。
+bool suppressPageLiquify = false;
 
 /// 画面右外から`Offset.zero`へ平行移動する入場演出（拡大は付けない、2026-09-11追加。
 /// 2026-11-02にスライドと同時のフェード（薄い→濃い）を追加）。`InteractiveSwipeBackTransition`が右スワイプで
@@ -72,12 +76,16 @@ Widget buildSlideInFromRightTransition(
     child: child,
     builder: (context, child) => buildTransitionBlur(
       1 - curved.value,
-      // 吸い込みの液状化（種類に関わらず常に挟む）。ページ遷移では、シェーダーを使わない
-      // （`enabled: false`、2026-11-12）。`AnimatedSampler`は描画の層を途中で切り替える作りで、
-      // 通知から開いた時のように、重い画面の構築と遷移が重なると、終わっても古い（空の）
-      // 描画が残り、画面が見えないのにタッチだけ効く状態になった。縮み・透明度・ぼかしは
-      // そのままで、液状に歪める効果だけを止める。ダイアログの吸い込みは対象外。
-      LiquifyEffect(progress: 1 - curved.value, enabled: false, child: child!),
+      // 吸い込みの液状化（種類に関わらず常に挟む）。2026-11-12に、通知から開いた時、
+      // `AnimatedSampler`（描画の層を途中で切り替える作り）が重い画面の構築と遷移の重なりで
+      // 古い（空の）描画を残し、画面が見えないのにタッチだけ効く状態になったため、
+      // いったん切った。2026-11-14に戻した（ユーザー指示）。不具合のあった通知から開く時
+      // だけ、[suppressPageLiquify]で切る。
+      LiquifyEffect(
+        progress: 1 - curved.value,
+        enabled: style == SlideTransitionStyle.suck && !suppressPageLiquify,
+        child: child!,
+      ),
     ),
   );
   // 吸い込み: 右下の角から広がる／右下の角へ縮む（2026-11-04、初版）。

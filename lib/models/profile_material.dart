@@ -6,10 +6,15 @@ const kMaxBackgroundImages = 3;
 const kMaxStatusMessages = 10;
 const kMaxNicknames = 10;
 const kMaxSnsLinks = 5;
+
+/// 極みの上限（2026-11-14）。住人ごとの上限は`AppUser.maxSnsLinks`・
+/// `AppUser.maxProfileCardSnsLinks`。
+const kKiwamiMaxSnsLinks = 10;
 const kMaxFontDesigns = 5;
 
 /// 工房のプロフィールカード1枚に掲載出来るSNSのURLの上限数。
 const kMaxProfileCardSnsLinks = 2;
+const kKiwamiMaxProfileCardSnsLinks = 5;
 
 /// 蔵の素材の文字数上限。
 const kMaxNicknameLength = 20;

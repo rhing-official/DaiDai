@@ -192,7 +192,7 @@ class DmSettingsPopup extends ConsumerWidget {
           child: ListView(
             shrinkWrap: true,
             children: [
-              if (currentUser.profileCards.length > 1)
+              if (currentUser.usableProfileCards.length > 1)
                 ListTile(
                   leading: const Icon(Icons.person_outline),
                   title: Text(strings.conversationProfileCardMenuLabel),

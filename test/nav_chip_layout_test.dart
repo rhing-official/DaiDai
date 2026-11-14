@@ -30,10 +30,16 @@ void main() {
     expect(HomeTabId.account.index, 3);
   });
 
-  test('揃えの標準は中央、不明な値も中央', () {
-    expect(NavChipAlignment.fromName(null), NavChipAlignment.center);
-    expect(NavChipAlignment.fromName('zzz'), NavChipAlignment.center);
-    expect(NavChipAlignment.fromName('end'), NavChipAlignment.end);
+  test('揃えの標準は狭い画面=右、広い画面=上。不明な値も標準', () {
+    expect(NavChipAlignment.fromName(null), NavChipAlignment.end);
+    expect(NavChipAlignment.fromName('zzz'), NavChipAlignment.end);
+    expect(
+      NavChipAlignment.fromName(null, fallback: NavChipAlignment.start),
+      NavChipAlignment.start,
+    );
+    expect(NavChipAlignment.fromName('center'), NavChipAlignment.center);
+    expect(NavChipLayout.standard.alignment, NavChipAlignment.end);
+    expect(NavChipLayout.standard.wideAlignment, NavChipAlignment.start);
   });
 
   test('保存して読み直すと同じ揃え・並びになる', () async {

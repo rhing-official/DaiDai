@@ -256,7 +256,7 @@ class _CreateGroupDialogContentState
       const SizedBox(height: 8),
       ProfileCardPicker(
         strings: strings,
-        cards: liveUser.profileCards,
+        cards: liveUser.usableProfileCards,
         selectedCardId: _selectedProfileCardId,
         activeCard: liveUser.activeProfileCard,
         onSelected: (id) => setState(() => _selectedProfileCardId = id),

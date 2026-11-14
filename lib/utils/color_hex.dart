@@ -25,3 +25,9 @@ Color? tryParseHexColor(String input) {
   final alpha = value & 0xFF;
   return Color((alpha << 24) | rgb);
 }
+
+/// カラーコード欄の内容を、コピーする文字（`#RRGGBB`形式、空欄なら空文字）にする。
+String hexCopyText(String text) {
+  final hex = text.trim().replaceFirst('#', '');
+  return hex.isEmpty ? '' : '#${hex.toUpperCase()}';
+}

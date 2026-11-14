@@ -35,6 +35,17 @@ import 'webrtc_call_controller.dart';
 /// だったが）ビデオ通話と同様に表示する（2026-08-19変更）。映像が無い間は
 /// 通話画面の音声通話時と同じ、呼び名の頭文字を乗せた丸いアバターを中央に
 /// 表示する（[_PinnedCallBubble]参照）。
+/// モバイルのミニ表示で映像を描くか（2026-11-14）。Androidで、ミニ表示にした後に他の画面の
+/// タップが効かない・ホーム下のタブが開けない不具合が出ており、映像の描画（常時更新される
+/// テクスチャ）が原因かを切り分けるため、いったん描かない（アバターを出す）。通話の音声は
+/// 映像の描画に依らず鳴る（ネイティブ）。直ったら原因は映像の描画。
+const kPinnedCallShowsVideoOnMobile = bool.fromEnvironment('PINNED_VIDEO');
+
+/// 【一時的な診断・原因が分かったら削除する】ミニ表示の映像まわりを、ビルド時に切り替える
+/// （`--dart-define=PINNED_NOCLIP=true`など、2026-11-14）。計測の比較用。
+const kPinnedNoClip = bool.fromEnvironment('PINNED_NOCLIP');
+const kPinnedNoSinks = bool.fromEnvironment('PINNED_NOSINKS');
+
 class PinnedCallOverlay extends ConsumerWidget {
   const PinnedCallOverlay({super.key});
 
@@ -222,7 +233,8 @@ class _PinnedCallBubble extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final renderer = pickCallRenderer(session);
+    final skipVideo = isMobileCallPlatform && !kPinnedCallShowsVideoOnMobile;
+    final renderer = skipVideo ? null : pickCallRenderer(session);
     final placeholder = callPlaceholderInfo(session);
     final muted = switch (session) {
       OneToOneCallSession(:final controller) => controller.muted,
@@ -259,15 +271,19 @@ class _PinnedCallBubble extends ConsumerWidget {
 
     // 広場通話は、映像を出している1人以外の参加者の音声も鳴らす（2026-10-21、
     // ミニ表示中は1人分の映像しか載らず、他の参加者の音声が聞こえなかった）。
-    final audioOnly = switch (session) {
-      GroupCallSession(:final controller) => [
-        for (final r in controller.remoteRenderers.values)
-          if (r != renderer) r,
-      ],
-      OneToOneCallSession(:final controller) => [
-        if (renderer != controller.remoteRenderer) controller.remoteRenderer,
-      ],
-    };
+    // 映像を描かないモバイルでは、音声用の見えない動画要素も出さない（Webの都合のもの）。
+    final audioOnly = (skipVideo || kPinnedNoSinks)
+        ? const <RTCVideoRenderer>[]
+        : switch (session) {
+            GroupCallSession(:final controller) => [
+              for (final r in controller.remoteRenderers.values)
+                if (r != renderer) r,
+            ],
+            OneToOneCallSession(:final controller) => [
+              if (renderer != controller.remoteRenderer)
+                controller.remoteRenderer,
+            ],
+          };
 
     final content = Stack(
       fit: StackFit.expand,
@@ -432,9 +448,9 @@ class _PinnedCallBubble extends ConsumerWidget {
     }
 
     return Material(
-      elevation: 8,
+      elevation: kPinnedNoClip ? 0 : 8,
       borderRadius: BorderRadius.circular(12),
-      clipBehavior: Clip.antiAlias,
+      clipBehavior: kPinnedNoClip ? Clip.none : Clip.antiAlias,
       color: Colors.grey.shade900,
       child: InkWell(onTap: () => _reopen(context, ref), child: bubbleSize),
     );

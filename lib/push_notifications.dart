@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io' show Platform;
 import 'dart:typed_data';
@@ -13,6 +14,8 @@ import 'firebase_options.dart';
 import 'models/message_time_format.dart';
 import 'models/sound_preset.dart';
 import 'router/app_router.dart' show globalBackStack, globalRouter;
+import 'features/chat/room_viewing_presence.dart' show isViewingRoomNow;
+import 'theme/motion.dart' show suppressPageLiquify;
 import 'utils/message_time.dart';
 import 'utils/android_notification_sound_sync.dart'
     show customNotificationSoundFile;
@@ -129,6 +132,13 @@ void navigateFromNotificationPayload(String? payload) {
     final path = isDm
         ? '/chat/dm/$conversationId'
         : '/chat/group/$conversationId';
+    // 通知から開く時は、遷移の液状化を切る（重い画面の構築と重なると、画面が見えなく
+    // なる不具合があった、2026-11-12。2026-11-14に、通常の遷移では戻した）。
+    suppressPageLiquify = true;
+    Timer(
+      const Duration(milliseconds: 1500),
+      () => suppressPageLiquify = false,
+    );
     // 遷移が「戻る操作」として横取りされ中止されないようにする。
     globalBackStack?.bypassGuardsBriefly();
     globalRouter?.go(
@@ -148,6 +158,15 @@ Future<void> showRemoteMessageNotification(RemoteMessage message) async {
   // 通話の着信・取消しは、ネイティブ側（`CallNotificationReceiver`、CallStyleの着信通知）が
   // 扱う（2026-11-12）。ここで通常の通知を重ねて出さない。
   if (isCallPushMessage(message.data)) return;
+  // いま開いている寄合のメッセージは、メンションも含めて通知しない（2026-11-14）。
+  // サーバー側の抑制（`conversationPrefs.viewing`）は更新の間隔・反映待ちの分だけ
+  // 遅れるため、前面の端末でも確実に止める。
+  if (isViewingRoomNow(
+    message.data['conversationId'] as String?,
+    message.data['roomId'] as String?,
+  )) {
+    return;
+  }
   try {
     await _showRemoteMessageNotification(message);
     if (kDebugMode) debugPrint('[DIAG-PUSH] notification shown');
@@ -194,6 +213,8 @@ Future<void> _showRemoteMessageNotification(RemoteMessage message) async {
       : null;
 
   final channel = await _resolveAndroidChannel();
+  final conversationId = data['conversationId'] as String?;
+  final roomId = data['roomId'] as String?;
   await _localNotifications.show(
     id: message.hashCode,
     title: title,
@@ -205,6 +226,8 @@ Future<void> _showRemoteMessageNotification(RemoteMessage message) async {
         channelDescription: channel.description,
         importance: Importance.high,
         priority: Priority.high,
+        // 寄合を開いた時にまとめて消せるよう、寄合ごとのタグを付ける。
+        tag: roomNotificationTag(conversationId, roomId),
         largeIcon: largeIcon,
         styleInformation: styleInformation,
         showWhen: false,
@@ -218,6 +241,39 @@ Future<void> _showRemoteMessageNotification(RemoteMessage message) async {
       'roomId': data['roomId'] as String?,
     }),
   );
+}
+
+/// 寄合の通知のタグ（寄合を開いた時に消すための目印、2026-11-14）。
+String? roomNotificationTag(String? conversationId, String? roomId) {
+  if (conversationId == null ||
+      conversationId.isEmpty ||
+      roomId == null ||
+      roomId.isEmpty) {
+    return null;
+  }
+  return 'room:$conversationId:$roomId';
+}
+
+/// その寄合の、いま出ている通知（Android）を消す（2026-11-14）。通知をタップせずに、
+/// 自分でその寄合を開いた時に呼ぶ。
+Future<void> dismissRoomNotificationsLocal(
+  String conversationId,
+  String roomId,
+) async {
+  if (kIsWeb || _localNotificationsUnavailable) return;
+  final tag = roomNotificationTag(conversationId, roomId);
+  if (tag == null) return;
+  try {
+    final active = await _localNotifications.getActiveNotifications();
+    for (final n in active) {
+      final id = n.id;
+      if (id != null && n.tag == tag) {
+        await _localNotifications.cancel(id: id, tag: tag);
+      }
+    }
+  } catch (_) {
+    // 通知を消せなくても、動作には影響しない。
+  }
 }
 
 /// 現在選択されている通知音（`SharedPreferences`の`notificationSound`

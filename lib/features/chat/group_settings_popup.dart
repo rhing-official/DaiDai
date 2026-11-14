@@ -255,7 +255,7 @@ class GroupSettingsPopup extends ConsumerWidget {
                 bare: true,
               ),
       ),
-      if (currentUser.profileCards.length > 1)
+      if (currentUser.usableProfileCards.length > 1)
         ListTile(
           leading: const Icon(Icons.person_outline),
           title: Text(strings.conversationProfileCardMenuLabel),
@@ -430,6 +430,21 @@ class GroupSettingsPopup extends ConsumerWidget {
                     );
               },
       ),
+      if (readReceiptsEnabled)
+        AppSwitchListTile(
+          value: liveGroup.readReceiptsCountOnly,
+          title: Text(strings.readReceiptsCountOnlyLabel),
+          subtitle: Text(strings.readReceiptsCountOnlyHint),
+          // 極みの確認は不要（既読を隠すわけではない、2026-11-14）。
+          onChanged: !canManageReadReceipts
+              ? null
+              : (value) => ref
+                    .read(groupRepositoryProvider)
+                    .setReadReceiptsCountOnly(
+                      groupId: liveGroup.groupId,
+                      countOnly: value,
+                    ),
+        ),
       AppSwitchListTile(
         value: liveGroup.historyVisibleToNewMembers,
         title: Text(strings.groupSettingsHistoryVisibleLabel),

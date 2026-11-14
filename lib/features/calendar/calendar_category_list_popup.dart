@@ -17,6 +17,8 @@ import '../../utils/color_hex.dart';
 import '../../widgets/glass/glass_dialog.dart';
 import '../../widgets/dialog_keyboard_shortcuts.dart';
 import '../../widgets/app_dialog.dart';
+import '../../widgets/honeycomb_color_picker.dart';
+import '../../widgets/copy_link_row.dart';
 
 /// 予定・日程調整の種類（カテゴリ）の管理ポップアップ（2026-09-11追加、
 /// 同日改修: 独立した中央寄せDialogから、設定の歯車ボタン直下に浮かべる
@@ -121,6 +123,24 @@ class CalendarCategoryListPopup extends ConsumerWidget {
                           hintText: 'EE7800',
                           errorText: errorText,
                           counterText: '',
+                          suffixIcon: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              HoneycombColorButton(
+                                current: tryParseHexColor(hexController.text),
+                                onPicked: (picked) => setState(() {
+                                  errorText = null;
+                                  hexController.text = picked
+                                      .toHexString()
+                                      .replaceFirst('#', '');
+                                }),
+                              ),
+                              CopyIconButton(
+                                textBuilder: () =>
+                                    hexCopyText(hexController.text),
+                              ),
+                            ],
+                          ),
                         ),
                         onChanged: (_) => setState(() {}),
                         onSubmitted: (_) => confirm(),

@@ -62,3 +62,20 @@ self.addEventListener("notificationclick", (event) => {
     }),
   );
 });
+
+// 寄合を開いた時に、その寄合の通知を閉じる（2026-11-14）。ページから
+// `dismiss-room-notifications`を受け取り、`data`が一致する表示中の通知を閉じる。
+self.addEventListener("message", (event) => {
+  const msg = event.data || {};
+  if (msg.type !== "dismiss-room-notifications") return;
+  event.waitUntil(
+    self.registration.getNotifications().then((notifications) => {
+      for (const n of notifications) {
+        const d = n.data || {};
+        if (d.conversationId === msg.conversationId && d.roomId === msg.roomId) {
+          n.close();
+        }
+      }
+    }),
+  );
+});
