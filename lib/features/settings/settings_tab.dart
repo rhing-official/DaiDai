@@ -6203,9 +6203,7 @@ class _OnAccentColorFieldState extends ConsumerState<_OnAccentColorField> {
     final defaultColor = isDark
         ? kDefaultOnAccentColorDark
         : kDefaultOnAccentColorLight;
-    final label =
-        '${widget.strings.settingsOnAccentColorLabel} · '
-        '${isDark ? widget.strings.settingsTextColorDarkLabel : widget.strings.settingsTextColorLightLabel}';
+    final label = widget.strings.settingsOnAccentColorLabel;
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [

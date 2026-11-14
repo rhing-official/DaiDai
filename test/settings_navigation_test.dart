@@ -509,19 +509,17 @@ void main() {
     }
   });
 
-  testWidgets('モバイルでは設定の「居住地」を重ねて開き、右スワイプでアカウントへ戻る', (tester) async {
+  testWidgets('モバイルでは設定の「居住地」をポップアップで開き、閉じるでアカウントへ戻る', (tester) async {
     await _pumpSettingsTabNarrow(tester);
     await tester.tap(find.text('アカウント'));
     await tester.pumpAndSettle();
     await tester.tap(find.text('居住地'));
     await tester.pumpAndSettle();
+    // 階層を重ねず、ポップアップ（ダイアログ）として開く（2026-11-14）。
+    expect(find.byType(AlertDialog), findsOneWidget);
     expect(find.byKey(const ValueKey('residence-language')), findsOneWidget);
 
-    await tester.fling(
-      find.byType(InteractiveSwipeBackTransition).last,
-      const Offset(300, 0),
-      1000,
-    );
+    await tester.tap(find.text('閉じる'));
     await tester.pumpAndSettle();
     expect(find.byKey(const ValueKey('residence-language')), findsNothing);
     expect(find.text('居住地'), findsOneWidget);

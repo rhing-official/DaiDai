@@ -2,17 +2,16 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-import '../theme/text_prominence_colors.dart';
 import 'repository_providers.dart';
 
 const _lightPrefsKey = 'textColorLightArgb32';
 const _darkPrefsKey = 'textColorDarkArgb32';
 
 /// ユーザーが未設定の場合に使う既定の文字色（`accentColorProvider`と同じ
-/// パターン、2026-09-14追加）。`TextProminence`の既存の固定値と同じにして
-/// ある為、未設定の間は見た目が変わらない。
-const kDefaultTextColorLight = TextProminence.lightPrimary;
-const kDefaultTextColorDark = TextProminence.darkPrimary;
+/// パターン、2026-09-14追加）。2026-11-15に、ライトは黒（#000000）・ダークは白
+/// （#FFFFFF）へ変更（ユーザー指示）。保存値のある人は変わらない。
+const kDefaultTextColorLight = Color(0xFF000000);
+const kDefaultTextColorDark = Color(0xFFFFFFFF);
 
 final initialTextColorLightProvider = Provider<Color>((ref) {
   throw UnimplementedError('main()でoverrideすること');
