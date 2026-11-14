@@ -96,6 +96,7 @@ class _AccountToggleState extends ConsumerState<AccountToggle> {
     if (ok != true) return;
     try {
       await switcher.startAdd(user);
+      ref.read(addStartedThisSessionProvider.notifier).mark();
       ref.invalidate(hasPendingAccountAddProvider);
     } on SwitchAccountException catch (error) {
       _banner(

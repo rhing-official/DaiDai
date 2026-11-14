@@ -127,7 +127,10 @@ void main() {
       sessions: sessions,
       store: store,
       auth: _FakeAuth(log),
-      resetLocalState: () async => log.add('reset'),
+      resetLocalState: (_) async {
+        log.add('reset');
+        return true;
+      },
       reloadPage: () => log.add('reload'),
       nowMs: () => nowMs,
     );
@@ -255,6 +258,65 @@ void main() {
     expect(store.accounts, isEmpty);
   });
 
+  group('追加をやめた時の復元', () {
+    PendingAccountAdd pending({int expiresAtMs = 99999}) =>
+        PendingAccountAdd(ticket: 'T', expiresAtMs: expiresAtMs, fromUid: 'A');
+
+    test('保留と保存があれば、保留を消して元のアカウントへ切り替える', () async {
+      store.accounts.add(_saved('A'));
+      store.pending = pending();
+      expect(await switcher.restoreOriginal(), isTrue);
+      expect(log, ['redeem:A', 'signIn:token-A', 'reset', 'reload']);
+      expect(store.pending, isNull);
+    });
+
+    test('チケットが期限切れでも復元する', () async {
+      store.accounts.add(_saved('A'));
+      store.pending = pending(expiresAtMs: 1);
+      nowMs = 100000;
+      expect(await switcher.restoreOriginal(), isTrue);
+      expect(log, contains('signIn:token-A'));
+    });
+
+    test('保留が無ければ何もしない', () async {
+      store.accounts.add(_saved('A'));
+      expect(await switcher.restoreOriginal(), isFalse);
+      expect(log, isEmpty);
+    });
+
+    test('保存が無ければ、保留を消して何もしない', () async {
+      store.pending = pending();
+      expect(await switcher.restoreOriginal(), isFalse);
+      expect(store.pending, isNull);
+      expect(log, isEmpty);
+    });
+
+    test('サーバーが拒否したらサインインせず、保留は消えたまま', () async {
+      store.accounts.add(_saved('A'));
+      store.pending = pending();
+      final failing = AccountSwitcher(
+        sessions: _RejectingSessions(),
+        store: store,
+        auth: _FakeAuth(log),
+        resetLocalState: (_) async => true,
+        reloadPage: () => log.add('reload'),
+      );
+      await expectLater(
+        failing.restoreOriginal(),
+        throwsA(isA<SwitchAccountException>()),
+      );
+      expect(log, isEmpty);
+      expect(store.pending, isNull);
+    });
+
+    test('復元の後に追加元で完了を呼んでも、何も起きない', () async {
+      store.accounts.add(_saved('A'));
+      store.pending = pending();
+      await switcher.restoreOriginal();
+      expect(await switcher.completePendingAdd(_user('A')), isFalse);
+    });
+  });
+
   test('切り替え: 検証→サインイン→端末内の状態を消す→再読み込みの順', () async {
     await switcher.switchTo(_saved('B'));
     expect(log, ['redeem:B', 'signIn:token-B', 'reset', 'reload']);
@@ -265,7 +327,10 @@ void main() {
       sessions: _RejectingSessions(),
       store: store,
       auth: _FakeAuth(log),
-      resetLocalState: () async => log.add('reset'),
+      resetLocalState: (_) async {
+        log.add('reset');
+        return true;
+      },
       reloadPage: () => log.add('reload'),
     );
     await expectLater(
@@ -288,7 +353,10 @@ void main() {
       sessions: _RejectingSessions(),
       store: store,
       auth: _FakeAuth(log),
-      resetLocalState: () async => log.add('reset'),
+      resetLocalState: (_) async {
+        log.add('reset');
+        return true;
+      },
       reloadPage: () => log.add('reload'),
     );
     await expectLater(

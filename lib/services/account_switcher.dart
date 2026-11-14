@@ -1,3 +1,5 @@
+import 'package:collection/collection.dart';
+
 import '../models/app_user.dart';
 import '../models/profile_card.dart';
 import '../models/saved_account.dart';
@@ -22,8 +24,9 @@ class AccountSwitcher {
   final SavedAccountsStore store;
   final AuthRepository auth;
 
-  /// 前のアカウントの端末内の状態を消す（`clearAccountBoundLocalState`）。
-  final Future<void> Function() resetLocalState;
+  /// 端末内の設定を切り替え先のアカウントのものへ入れ替える（`swapLocalStateTo`）。
+  /// 前のアカウントの設定は退避され、消えない。
+  final Future<bool> Function(String uid) resetLocalState;
 
   /// アプリ全体の状態を作り直す再読み込み（Webのみ）。
   final void Function() reloadPage;
@@ -113,13 +116,33 @@ class AccountSwitcher {
   /// 追加を途中でやめた時のために、保留の追加を捨てる。
   Future<void> cancelPendingAdd() => store.clearPending();
 
+  /// 保留中の追加（期限切れも含める）。元のアカウントへ戻す判断に使う。
+  Future<PendingAccountAdd?> loadPendingAdd() => store.loadPending();
+
+  /// 追加を終えずにやめた時（×・再起動・期限切れ）に、追加を始めた元のアカウントへ戻す
+  /// （2026-11-14）。保留があり、追加元の保存済みアカウントがあれば、保留を消してから
+  /// [switchTo]（サインイン→端末の設定の入れ替え→再読み込み）する。戻した（再読み込みを
+  /// 始めた）なら`true`、保留が無い・保存が無いなら`false`。チケットの期限は関係しない
+  /// （元のアカウントの保存セッションは別の期限）。[switchTo]が失敗した時は例外を返す
+  /// （保留は消えたまま、同じ失敗を繰り返さない）。
+  Future<bool> restoreOriginal() async {
+    final pending = await store.loadPending();
+    if (pending == null) return false;
+    await store.clearPending();
+    final saved = await store.load();
+    final original = saved.firstWhereOrNull((a) => a.uid == pending.fromUid);
+    if (original == null) return false;
+    await switchTo(original);
+    return true;
+  }
+
   Future<bool> hasPendingAdd() async {
     final pending = await store.loadPending();
     return pending != null && pending.expiresAtMs >= _nowMs();
   }
 
   /// [account]へ切り替える。サーバーで検証し、カスタムトークンでサインインし、
-  /// 前のアカウントの端末内の状態を消して、ページを再読み込みする。
+  /// 端末内の設定を切り替え先のものへ入れ替えて（前の設定は退避）、ページを再読み込みする。
   ///
   /// [forgetUid]を渡すと、切り替え先の検証が通った後に、そのアカウント（今使っているもの）の
   /// 保存を消す（管理>×のログアウト、2026-11-11）。検証に失敗した時は何も消さない。
@@ -127,7 +150,7 @@ class AccountSwitcher {
     final token = await sessions.redeem(account);
     if (forgetUid != null) await forget(forgetUid);
     await auth.signInWithCustomToken(token);
-    await resetLocalState();
+    await resetLocalState(account.uid);
     // サインイン状態の保存が終わる前に再読み込みしないよう、少し待つ。
     await Future<void>.delayed(const Duration(milliseconds: 300));
     reloadPage();

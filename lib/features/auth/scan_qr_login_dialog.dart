@@ -19,12 +19,21 @@ const kQrIssuePrefix = 'daidai:qrissue:';
 
 /// 読み取り開始の説明 → カメラ → [ScanQrLoginDialog]の一連の流れ。ログイン画面の
 /// 「QRコードを読み取ってログイン」ボタンから呼ぶ。
-Future<void> startScanQrLogin(BuildContext context, Strings strings) async {
-  final go = await showAppDialog<bool>(
-    context: context,
-    builder: (context) => _InstructionDialog(strings: strings),
-  );
-  if (go != true || !context.mounted) return;
+///
+/// [skipInstruction]がtrueなら説明を省いてすぐカメラへ進む（ログイン画面のQRポップアップの
+/// 「QRコードを読み取る」から来た時、2026-11-14）。
+Future<void> startScanQrLogin(
+  BuildContext context,
+  Strings strings, {
+  bool skipInstruction = false,
+}) async {
+  if (!skipInstruction) {
+    final go = await showAppDialog<bool>(
+      context: context,
+      builder: (context) => _InstructionDialog(strings: strings),
+    );
+    if (go != true || !context.mounted) return;
+  }
   final scanned = await Navigator.of(context).push<String>(
     MaterialPageRoute(
       builder: (_) => QrScanScreen(title: strings.qrScanLoginButton),

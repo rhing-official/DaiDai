@@ -1297,7 +1297,7 @@ class _TwoFactorRowState extends ConsumerState<_TwoFactorRow> {
 }
 
 /// QRコードによるログイン（ログイン済み端末側、2026-08-09追加）。タップすると
-/// `QrScanScreen`でQRコードを読み取り、`daidai:qrlogin:`で始まる文字列であれば
+/// `QrScanScreen`でQRコードを読み取り（設定のQRポップアップ`IssueQrLoginDialog`の「QRコードを読み取る」から）、`daidai:qrlogin:`で始まる文字列であれば
 /// 確認ダイアログを経てそのセッションを承認する（未ログイン端末側は
 /// `lib/features/auth/qr_login_dialog.dart`のQrLoginDialog）。
 class _QrLoginRow extends ConsumerWidget {
@@ -3848,7 +3848,10 @@ class _FontDesignFolderState extends ConsumerState<FontDesignFolder> {
                 style: TextStyle(fontFamily: value.fontFamily),
               ),
               subtitle: value.isKiwamiExclusive
-                  ? Text(strings.fontDesignKiwamiExclusiveNotice)
+                  ? Text(
+                      strings.fontDesignKiwamiExclusiveNotice,
+                      style: TextStyle(fontFamily: value.fontFamily),
+                    )
                   : null,
               onTap: () => select(value),
             ),
@@ -3881,7 +3884,10 @@ class _FontDesignFolderState extends ConsumerState<FontDesignFolder> {
                 style: TextStyle(fontFamily: value.fontFamily),
               ),
               subtitle: value.isKiwamiExclusive
-                  ? Text(strings.fontDesignKiwamiExclusiveNotice)
+                  ? Text(
+                      strings.fontDesignKiwamiExclusiveNotice,
+                      style: TextStyle(fontFamily: value.fontFamily),
+                    )
                   : null,
             ),
           if (hasMore)
@@ -6041,54 +6047,79 @@ class _OnAccentColorField extends ConsumerStatefulWidget {
       _OnAccentColorFieldState();
 }
 
+/// アクセント上の文字色。文字色（ライト用・ダーク用）と同じく、今の外観の欄だけを出し、
+/// もう一方の値は保持する（2026-11-14に2色へ分けた）。
 class _OnAccentColorFieldState extends ConsumerState<_OnAccentColorField> {
-  late final TextEditingController _controller;
+  late final TextEditingController _lightController;
+  late final TextEditingController _darkController;
 
-  String _hexOf(Color? color) => color == null
-      ? ''
-      : color.toHexString().replaceFirst('#', '').substring(0, 6);
+  String _hexOf(Color color) =>
+      color.toHexString().replaceFirst('#', '').substring(0, 6);
 
   @override
   void initState() {
     super.initState();
-    _controller = TextEditingController(
-      text: _hexOf(ref.read(onAccentColorProvider)),
+    _lightController = TextEditingController(
+      text: _hexOf(ref.read(onAccentColorLightProvider)),
+    );
+    _darkController = TextEditingController(
+      text: _hexOf(ref.read(onAccentColorDarkProvider)),
     );
   }
 
   @override
   void dispose() {
-    _controller.dispose();
+    _lightController.dispose();
+    _darkController.dispose();
     super.dispose();
   }
 
-  void _apply(String text) {
-    final hex = text.replaceFirst('#', '');
-    if (hex.isEmpty) {
-      ref.read(onAccentColorProvider.notifier).setColor(null);
-      return;
+  void _setColor(bool dark, Color color) {
+    if (dark) {
+      ref.read(onAccentColorDarkProvider.notifier).setColor(color);
+    } else {
+      ref.read(onAccentColorLightProvider.notifier).setColor(color);
     }
+  }
+
+  /// 6桁そろった時だけ反映する（途中の入力では何もしない）。
+  void _apply(bool dark, String text) {
+    final hex = text.replaceFirst('#', '');
     if (hex.length != 6) return;
     final color = tryParseHexColor(hex);
-    if (color != null) {
-      ref.read(onAccentColorProvider.notifier).setColor(color);
+    if (color != null) _setColor(dark, color);
+  }
+
+  void _syncController(TextEditingController controller, Color next) {
+    final text = _hexOf(next);
+    if (controller.text != text && tryParseHexColor(controller.text) != next) {
+      controller.text = text;
     }
   }
 
   @override
   Widget build(BuildContext context) {
     // 端末間の同期などで値が変わったら、入力欄にも反映する。
-    ref.listen<Color?>(onAccentColorProvider, (previous, next) {
-      final text = _hexOf(next);
-      if (_controller.text != text &&
-          tryParseHexColor(_controller.text) != next) {
-        _controller.text = text;
-      }
-    });
+    ref.listen<Color>(
+      onAccentColorLightProvider,
+      (_, next) => _syncController(_lightController, next),
+    );
+    ref.listen<Color>(
+      onAccentColorDarkProvider,
+      (_, next) => _syncController(_darkController, next),
+    );
     final accent = Theme.of(context).colorScheme.primary;
-    final current = ref.watch(onAccentColorProvider);
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final effective = current ?? (isDark ? Colors.white : Colors.black);
+    final effective = ref.watch(
+      isDark ? onAccentColorDarkProvider : onAccentColorLightProvider,
+    );
+    final controller = isDark ? _darkController : _lightController;
+    final defaultColor = isDark
+        ? kDefaultOnAccentColorDark
+        : kDefaultOnAccentColorLight;
+    final label =
+        '${widget.strings.settingsOnAccentColorLabel} · '
+        '${isDark ? widget.strings.settingsTextColorDarkLabel : widget.strings.settingsTextColorLightLabel}';
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -6116,33 +6147,27 @@ class _OnAccentColorFieldState extends ConsumerState<_OnAccentColorField> {
         Flexible(
           // ライト用・ダーク用の欄と同じく、文字の長さに合わせて横幅を変える。
           child: ListenableBuilder(
-            listenable: _controller,
+            listenable: controller,
             builder: (context, child) => Align(
               alignment: Alignment.centerLeft,
               child: SizedBox(
-                width: _colorFieldWidth(
-                  context,
-                  _controller.text,
-                  widget.strings.settingsOnAccentColorLabel,
-                ),
+                width: _colorFieldWidth(context, controller.text, label),
                 child: child,
               ),
             ),
             child: BlockFieldFrame(
-              label: widget.strings.settingsOnAccentColorLabel,
+              label: label,
               child: TextField(
-                controller: _controller,
+                controller: controller,
                 textCapitalization: TextCapitalization.characters,
                 inputFormatters: [
                   FilteringTextInputFormatter.allow(RegExp('[0-9a-fA-F]')),
                   LengthLimitingTextInputFormatter(6),
                 ],
                 decoration: InputDecoration(
-                  labelText: isBlockTheme(context)
-                      ? null
-                      : widget.strings.settingsOnAccentColorLabel,
+                  labelText: isBlockTheme(context) ? null : label,
                   prefixText: '#',
-                  hintText: widget.strings.settingsOnAccentColorAuto,
+                  hintText: _hexOf(defaultColor),
                   counterText: '',
                   filled: !isBlockTheme(context),
                   fillColor:
@@ -6162,22 +6187,20 @@ class _OnAccentColorFieldState extends ConsumerState<_OnAccentColorField> {
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       CopyIconButton(
-                        textBuilder: () => _hexText(_controller.text),
+                        textBuilder: () => _hexText(controller.text),
                       ),
                       IconButton(
                         icon: const Icon(Icons.refresh),
                         tooltip: '',
                         onPressed: () {
-                          _controller.clear();
-                          ref
-                              .read(onAccentColorProvider.notifier)
-                              .setColor(null);
+                          controller.text = _hexOf(defaultColor);
+                          _setColor(isDark, defaultColor);
                         },
                       ),
                     ],
                   ),
                 ),
-                onChanged: _apply,
+                onChanged: (text) => _apply(isDark, text),
               ),
             ),
           ),

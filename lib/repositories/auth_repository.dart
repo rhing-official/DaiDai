@@ -100,7 +100,7 @@ abstract class AuthRepository {
   /// DaiDaiアプリ内スキャナーが判定出来ればよいだけの文字列）。
   Future<String> createQrLoginSession();
 
-  /// [sessionId]のステータス（'pending'/'approved'/'claimed'）を監視する。
+  /// [sessionId]のステータス（'pending'/'approved'/'claimed'、期限切れは'expired'）を監視する。
   Stream<String> watchQrLoginSessionStatus(String sessionId);
 
   /// ログイン済み端末側が呼ぶ。セッションを承認し、未ログイン端末が

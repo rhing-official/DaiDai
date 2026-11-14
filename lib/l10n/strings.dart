@@ -2850,7 +2850,7 @@ class Strings {
     twoFactorChallengeConfirmButton: '確認',
     qrLoginDialogTitle: 'QRコードでログイン',
     qrLoginDialogDescription:
-        'ログイン済みの端末でDaiDaiを開き、設定＞アカウント＞セキュリティ＞QRコードによるログインからこのQRコードを読み取って下さい。',
+        'ログイン済みの端末でDaiDaiを開き、設定＞アカウント＞QRコードでログイン＞「QRコードを読み取る」から、このQRコードを読み取って下さい。ログイン済みの端末のQRコードを、下のボタンから読み取ることもできます。',
     qrLoginExpiredMessage: 'QRコードの有効期限が切れました',
     qrLoginRefreshButton: '更新する',
     qrLoginSignInError: 'ログインに失敗しました',
@@ -4085,7 +4085,8 @@ class Strings {
     qrLoginDialogTitle: 'Sign in with a QR code',
     qrLoginDialogDescription:
         "Open DaiDai on a device where you're already signed in, then go to "
-        'Settings > Account > Security > Sign in with a QR code and scan this.',
+        'Settings > Account > Sign in with a QR code > Scan a QR code, and scan this. '
+        'You can also scan the QR code shown on a signed-in device with the button below.',
     qrLoginExpiredMessage: 'This QR code has expired',
     qrLoginRefreshButton: 'Refresh',
     qrLoginSignInError: 'Sign-in failed',

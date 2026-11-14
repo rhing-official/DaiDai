@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -7,7 +9,10 @@ import '../../models/residence.dart';
 import '../../providers/account_switcher_providers.dart';
 import '../../providers/repository_providers.dart';
 import '../../providers/user_preferences_sync.dart';
+import '../../utils/account_local_state.dart';
+import '../../utils/page_reload/page_reload.dart';
 import 'account_restore_screen.dart';
+import 'restore_original_account.dart';
 import '../guide/first_run_tutorial_screen.dart';
 import '../setup/initial_setup_screen.dart';
 import 'account_suspended_screen.dart';
@@ -90,6 +95,13 @@ class _AuthenticatedUserGateState
   // [AccountRestoreScreen.onRestored]からも呼び直す。
   Future<({AppUser? user, Residence? residence, bool isAdmin})>
   _fetchUser() async {
+    // 端末の設定は、ログインしたアカウントのものへ入れ替える（前のアカウントの設定は退避、
+    // 2026-11-14）。入れ替わった時は、設定を読み直すためアプリを作り直す。
+    if (await swapLocalStateTo(widget.userId)) {
+      reloadPage();
+      // 作り直されるまで待つ（この画面は破棄される）。
+      await Completer<void>().future;
+    }
     final user = await ref.read(userRepositoryProvider).getUser(widget.userId);
     if (user == null) return (user: null, residence: null, isAdmin: false);
     applyRemoteUserPreferences(ref, user.preferences);
@@ -237,11 +249,37 @@ class _AuthLoadErrorScreen extends ConsumerWidget {
 
 /// 未ログイン時のログイン画面。アカウントの追加の途中（[hasPendingAccountAddProvider]）なら、
 /// 全画面ではなくポップアップで出す（2026-11-11）。
-class _SignInGate extends ConsumerWidget {
+///
+/// 保存された追加の保留があるのに、このセッションで追加を始めていない（＝追加の途中でアプリが
+/// 終わった・リロードした、または期限切れ）時は、元のアカウントへ戻す（2026-11-14）。
+class _SignInGate extends ConsumerStatefulWidget {
   const _SignInGate();
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<_SignInGate> createState() => _SignInGateState();
+}
+
+class _SignInGateState extends ConsumerState<_SignInGate> {
+  bool _restoring = false;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) => _restoreIfLeftOver());
+  }
+
+  Future<void> _restoreIfLeftOver() async {
+    if (!mounted || ref.read(addStartedThisSessionProvider)) return;
+    final switcher = ref.read(accountSwitcherProvider);
+    if (await switcher.loadPendingAdd() == null || !mounted) return;
+    setState(() => _restoring = true);
+    await restoreOriginalAccount(context, ref);
+    if (mounted) setState(() => _restoring = false);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (_restoring) return const Scaffold(body: DelayedSpinner());
     final adding = ref.watch(hasPendingAccountAddProvider).value ?? false;
     return SignInScreen(popup: adding);
   }

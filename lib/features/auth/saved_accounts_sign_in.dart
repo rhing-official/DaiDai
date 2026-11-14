@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../providers/account_switcher_providers.dart';
 import '../../l10n/strings.dart';
+import 'restore_original_account.dart';
 import '../../repositories/switch_session_repository.dart';
 import '../../widgets/account_avatar.dart';
 import '../settings/account_switcher_section.dart';
@@ -27,10 +28,7 @@ class SavedAccountsSignIn extends ConsumerWidget {
         if (pending) ...[
           Text(strings.switchAccountsAddingBanner, textAlign: TextAlign.center),
           TextButton(
-            onPressed: () async {
-              await ref.read(accountSwitcherProvider).cancelPendingAdd();
-              ref.invalidate(hasPendingAccountAddProvider);
-            },
+            onPressed: () => restoreOriginalAccount(context, ref),
             child: Text(strings.switchAccountsCancelAdd),
           ),
         ],

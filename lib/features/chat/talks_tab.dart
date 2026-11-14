@@ -2346,7 +2346,12 @@ class _TalksTabState extends ConsumerState<TalksTab>
             ),
         ]);
       }
-      return ListView(padding: EdgeInsets.zero, children: tiles);
+      // 一対・広場を切り替えても、それぞれのスクロール位置を覚える（2026-11-14）。
+      return ListView(
+        key: PageStorageKey<String>('talksIconRailList-${category.name}'),
+        padding: EdgeInsets.zero,
+        children: tiles,
+      );
     }
 
     // 縦に並ぶ検索・＋のボタン。劇画UIでは並べ替えボタンと同じモノクロの箱のバッジ
@@ -2582,6 +2587,7 @@ class _TalksTabState extends ConsumerState<TalksTab>
           ),
       ];
       return SingleChildScrollView(
+        key: const PageStorageKey<String>('talksDmListGekiga'),
         // ヘッダー（一対/広場切り替えタブの行）と同じ左右の余白
         // （`EdgeInsets.fromLTRB(16, 12, 16, 0)`）に揃える（2026-08-04
         // 修正。以前は左右の余白が無く、一覧の箱がサイドバーの左端に
@@ -2597,6 +2603,7 @@ class _TalksTabState extends ConsumerState<TalksTab>
     }
 
     return ListView(
+      key: const PageStorageKey<String>('talksDmList'),
       // 選択中タイルの塗り潰し（selectedTileColor）がカラム間の
       // VerticalDividerに接して重なって見えないよう左右に余白を持たせる
       // （2026-08-12追加、settings_tab.dart/profile_tab.dartの一覧と
@@ -2691,6 +2698,7 @@ class _TalksTabState extends ConsumerState<TalksTab>
           ),
       ];
       return SingleChildScrollView(
+        key: const PageStorageKey<String>('talksGroupListGekiga'),
         // ヘッダー（一対/広場切り替えタブの行）と同じ左右の余白
         // （`EdgeInsets.fromLTRB(16, 12, 16, 0)`）に揃える（2026-08-04
         // 修正。以前は左右の余白が無く、一覧の箱がサイドバーの左端に
@@ -2706,6 +2714,7 @@ class _TalksTabState extends ConsumerState<TalksTab>
     }
 
     return ListView(
+      key: const PageStorageKey<String>('talksGroupList'),
       // 選択中タイルの塗り潰し（selectedTileColor）がカラム間の
       // VerticalDividerに接して重なって見えないよう左右に余白を持たせる
       // （2026-08-12追加、settings_tab.dart/profile_tab.dartの一覧と

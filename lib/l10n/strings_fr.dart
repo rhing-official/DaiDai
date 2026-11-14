@@ -247,7 +247,7 @@ final Strings _stringsFr = Strings._(
   twoFactorChallengeConfirmButton: 'Confirmer',
   qrLoginDialogTitle: 'Se connecter avec un code QR',
   qrLoginDialogDescription:
-      'Ouvrez DaiDai sur un appareil où vous êtes déjà connecté, puis allez dans Réglages > Compte > Sécurité > Se connecter avec un code QR et scannez celui-ci.',
+      'Ouvrez DaiDai sur un appareil où vous êtes déjà connecté, puis allez dans Réglages > Compte > Se connecter avec un code QR > Scanner un code QR, et scannez celui-ci. Vous pouvez aussi scanner le code QR affiché sur un appareil connecté avec le bouton ci-dessous.',
   qrLoginExpiredMessage: 'Ce code QR a expiré',
   qrLoginRefreshButton: 'Actualiser',
   qrLoginSignInError: 'Échec de la connexion',

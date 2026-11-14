@@ -91,10 +91,19 @@ void applyRemoteUserPreferences(WidgetRef ref, AppUserPreferences preferences) {
         .read(textColorDarkProvider.notifier)
         .syncFromRemote(Color(preferences.textColorDarkArgb!));
   }
-  if (preferences.onAccentColorArgb != null) {
-    ref
-        .read(onAccentColorProvider.notifier)
-        .syncFromRemote(preferences.onAccentColorArgb!);
+  // 旧版の1色（0は自動）は、新しい2色が無い時だけ、両方へ引き継ぐ。
+  final legacyOnAccent = preferences.onAccentColorArgb;
+  final onAccentLight =
+      preferences.onAccentColorLightArgb ??
+      (legacyOnAccent != null && legacyOnAccent != 0 ? legacyOnAccent : null);
+  final onAccentDark =
+      preferences.onAccentColorDarkArgb ??
+      (legacyOnAccent != null && legacyOnAccent != 0 ? legacyOnAccent : null);
+  if (onAccentLight != null) {
+    ref.read(onAccentColorLightProvider.notifier).syncFromRemote(onAccentLight);
+  }
+  if (onAccentDark != null) {
+    ref.read(onAccentColorDarkProvider.notifier).syncFromRemote(onAccentDark);
   }
   if (preferences.themeMode != null) {
     final mode = ThemeMode.values.firstWhereOrNull(

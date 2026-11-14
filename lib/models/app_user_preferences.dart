@@ -34,6 +34,8 @@ class AppUserPreferences {
     this.textColorLightArgb,
     this.textColorDarkArgb,
     this.onAccentColorArgb,
+    this.onAccentColorLightArgb,
+    this.onAccentColorDarkArgb,
     this.calendarWeekStart,
     this.calendarSystem,
     this.holidayRegions,
@@ -110,8 +112,11 @@ class AppUserPreferences {
   final int? textColorLightArgb;
   final int? textColorDarkArgb;
 
-  /// アクセント上の文字色（0は自動）。
+  /// アクセント上の文字色。旧版は1色（0は自動）で、2026-11-14にライト用・ダーク用の2色に
+  /// 分けた。旧フィールドは読み出しの移行にだけ使い、書き込まない。
   final int? onAccentColorArgb;
+  final int? onAccentColorLightArgb;
+  final int? onAccentColorDarkArgb;
 
   /// カレンダーの週の始まり（`CalendarWeekStart`のname、2026-10-04追加）。
   final String? calendarWeekStart;
@@ -173,6 +178,8 @@ class AppUserPreferences {
       textColorLightArgb: json['textColorLightArgb'] as int?,
       textColorDarkArgb: json['textColorDarkArgb'] as int?,
       onAccentColorArgb: json['onAccentColorArgb'] as int?,
+      onAccentColorLightArgb: json['onAccentColorLightArgb'] as int?,
+      onAccentColorDarkArgb: json['onAccentColorDarkArgb'] as int?,
       calendarWeekStart: json['calendarWeekStart'] as String?,
       calendarSystem: json['calendarSystem'] as String?,
       holidayRegions: (json['holidayRegions'] as List?)?.cast<String>(),
@@ -217,6 +224,10 @@ class AppUserPreferences {
       if (textColorLightArgb != null) 'textColorLightArgb': textColorLightArgb,
       if (textColorDarkArgb != null) 'textColorDarkArgb': textColorDarkArgb,
       if (onAccentColorArgb != null) 'onAccentColorArgb': onAccentColorArgb,
+      if (onAccentColorLightArgb != null)
+        'onAccentColorLightArgb': onAccentColorLightArgb,
+      if (onAccentColorDarkArgb != null)
+        'onAccentColorDarkArgb': onAccentColorDarkArgb,
       if (calendarWeekStart != null) 'calendarWeekStart': calendarWeekStart,
       if (calendarSystem != null) 'calendarSystem': calendarSystem,
       if (holidayRegions != null) 'holidayRegions': holidayRegions,

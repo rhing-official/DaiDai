@@ -1,4 +1,3 @@
-import '../../providers/account_switcher_providers.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -19,6 +18,7 @@ import 'passkey_sign_in_dialog.dart';
 import 'qr_login_dialog.dart';
 import 'qr_login_panel.dart';
 import 'saved_accounts_sign_in.dart';
+import 'restore_original_account.dart';
 import 'scan_qr_login_dialog.dart';
 
 class SignInScreen extends ConsumerStatefulWidget {
@@ -35,6 +35,9 @@ class SignInScreen extends ConsumerStatefulWidget {
 class _SignInScreenState extends ConsumerState<SignInScreen>
     with TotpClipboardAutofill<SignInScreen> {
   bool _isSigningIn = false;
+
+  /// 追加をやめて元のアカウントへ戻している間（操作を止める）。
+  bool _restoring = false;
   String? _errorMessage;
 
   /// Google/Appleでのサインインが2段階認証を要求してきた場合にセットされる
@@ -173,26 +176,32 @@ class _SignInScreenState extends ConsumerState<SignInScreen>
                 clipBehavior: Clip.antiAlias,
                 child: Stack(
                   children: [
-                    SingleChildScrollView(
-                      padding: const EdgeInsets.fromLTRB(24, 32, 24, 24),
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        crossAxisAlignment: CrossAxisAlignment.stretch,
-                        children: [
-                          Text(
-                            strings.switchAccountsAddingBanner,
-                            textAlign: TextAlign.center,
-                            style: Theme.of(context).textTheme.titleMedium,
+                    AbsorbPointer(
+                      absorbing: _restoring,
+                      child: Opacity(
+                        opacity: _restoring ? 0.4 : 1,
+                        child: SingleChildScrollView(
+                          padding: const EdgeInsets.fromLTRB(24, 32, 24, 24),
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: [
+                              Text(
+                                strings.switchAccountsAddingBanner,
+                                textAlign: TextAlign.center,
+                                style: Theme.of(context).textTheme.titleMedium,
+                              ),
+                              const SizedBox(height: 24),
+                              ..._resolver != null
+                                  ? _buildTwoFactorChallenge(strings)
+                                  : _buildSignInButtons(
+                                      context,
+                                      colorScheme,
+                                      compact: true,
+                                    ),
+                            ],
                           ),
-                          const SizedBox(height: 24),
-                          ..._resolver != null
-                              ? _buildTwoFactorChallenge(strings)
-                              : _buildSignInButtons(
-                                  context,
-                                  colorScheme,
-                                  compact: true,
-                                ),
-                        ],
+                        ),
                       ),
                     ),
                     Positioned(
@@ -201,12 +210,14 @@ class _SignInScreenState extends ConsumerState<SignInScreen>
                       child: IconButton(
                         tooltip: strings.switchAccountsCancelAdd,
                         icon: const Icon(Icons.close),
-                        onPressed: () async {
-                          await ref
-                              .read(accountSwitcherProvider)
-                              .cancelPendingAdd();
-                          ref.invalidate(hasPendingAccountAddProvider);
-                        },
+                        // 追加をやめて、元のアカウントへ戻す（2026-11-14）。
+                        onPressed: _restoring
+                            ? null
+                            : () async {
+                                setState(() => _restoring = true);
+                                await restoreOriginalAccount(context, ref);
+                                if (mounted) setState(() => _restoring = false);
+                              },
                       ),
                     ),
                   ],
@@ -376,19 +387,14 @@ class _SignInScreenState extends ConsumerState<SignInScreen>
       if (showQrButton) ...[
         const SizedBox(height: 12),
         BrandedBlockButton(
-          onPressed: () => QrLoginDialog.show(context),
+          onPressed: () async {
+            final scan = await QrLoginDialog.show(context);
+            if (scan && context.mounted) {
+              await startScanQrLogin(context, strings, skipInstruction: true);
+            }
+          },
           icon: const Icon(Icons.qr_code_scanner),
           label: strings.qrLoginDialogTitle,
-        ),
-      ],
-      // ログイン済み端末が表示したQRを、この端末で読み取ってログインする経路
-      // （2026-10-15追加）。カメラが使えないプラットフォームでは出さない。
-      if (isQrScanCapablePlatform) ...[
-        const SizedBox(height: 12),
-        BrandedBlockButton(
-          onPressed: () => startScanQrLogin(context, strings),
-          icon: const Icon(Icons.qr_code_2),
-          label: strings.qrScanLoginButton,
         ),
       ],
       if (isPasskeyCapablePlatform) ...[

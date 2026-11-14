@@ -30,7 +30,7 @@ AccountSwitcher _switcher(_Store store) => AccountSwitcher(
   sessions: _Sessions(),
   store: store,
   auth: _Auth(),
-  resetLocalState: () async {},
+  resetLocalState: (_) async => true,
   reloadPage: () {},
 );
 

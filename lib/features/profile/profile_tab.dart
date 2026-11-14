@@ -3465,7 +3465,10 @@ class _FontDesignMaterialDialogState
                 style: TextStyle(fontFamily: value.fontFamily),
               ),
               subtitle: value.isKiwamiExclusive
-                  ? Text(strings.fontDesignKiwamiExclusiveNotice)
+                  ? Text(
+                      strings.fontDesignKiwamiExclusiveNotice,
+                      style: TextStyle(fontFamily: value.fontFamily),
+                    )
                   : null,
               onTap: () => _choose(value),
             ),
@@ -3492,7 +3495,10 @@ class _FontDesignMaterialDialogState
                   style: TextStyle(fontFamily: value.fontFamily),
                 ),
                 subtitle: value.isKiwamiExclusive
-                    ? Text(strings.fontDesignKiwamiExclusiveNotice)
+                    ? Text(
+                        strings.fontDesignKiwamiExclusiveNotice,
+                        style: TextStyle(fontFamily: value.fontFamily),
+                      )
                     : null,
               ),
           ],

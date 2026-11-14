@@ -23,7 +23,7 @@ final accountSwitcherProvider = Provider<AccountSwitcher>(
     sessions: ref.watch(switchSessionRepositoryProvider),
     store: ref.watch(savedAccountsStoreProvider),
     auth: ref.watch(authRepositoryProvider),
-    resetLocalState: clearAccountBoundLocalState,
+    resetLocalState: swapLocalStateTo,
     reloadPage: reloadPage,
   ),
 );
@@ -32,6 +32,21 @@ final accountSwitcherProvider = Provider<AccountSwitcher>(
 final savedAccountsProvider = FutureProvider.autoDispose<List<SavedAccount>>(
   (ref) => ref.watch(accountSwitcherProvider).accounts(),
 );
+
+/// このセッション（起動してから）でアカウントの追加を始めたか（2026-11-14）。再起動・
+/// リロードで消える。保留（保存済み）があるのにこれが立っていなければ、追加の途中で
+/// アプリが終わったので、元のアカウントへ戻す。
+class AddStartedThisSessionNotifier extends Notifier<bool> {
+  @override
+  bool build() => false;
+
+  void mark() => state = true;
+}
+
+final addStartedThisSessionProvider =
+    NotifierProvider<AddStartedThisSessionNotifier, bool>(
+      AddStartedThisSessionNotifier.new,
+    );
 
 /// アカウントを追加している途中か（ログイン画面に案内を出す）。
 final hasPendingAccountAddProvider = FutureProvider.autoDispose<bool>(

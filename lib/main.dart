@@ -303,7 +303,8 @@ class DaiDaiApp extends ConsumerWidget {
     final accentColor = ref.watch(accentColorProvider);
     final textColorLight = ref.watch(textColorLightProvider);
     final textColorDark = ref.watch(textColorDarkProvider);
-    final onAccentColor = ref.watch(onAccentColorProvider);
+    final onAccentColorLight = ref.watch(onAccentColorLightProvider);
+    final onAccentColorDark = ref.watch(onAccentColorDarkProvider);
     final gekigaBackgroundColor = ref.watch(gekigaBackgroundColorProvider);
     final appLocale = ref.watch(appLocaleProvider);
     final themeMode = ref.watch(appThemeModeProvider);
@@ -328,7 +329,7 @@ class DaiDaiApp extends ConsumerWidget {
       AppUiStyle.flat => AppTheme.light(
         accentColor,
         textColor: textColorLight,
-        onAccentColor: onAccentColor,
+        onAccentColor: onAccentColorLight,
         fontFamily: fontFamily,
       ),
       AppUiStyle.gekiga => GekigaTheme.build(
@@ -338,13 +339,13 @@ class DaiDaiApp extends ConsumerWidget {
       AppUiStyle.glass => GlassTheme.light(
         accentColor,
         textColor: textColorLight,
-        onAccentColor: onAccentColor,
+        onAccentColor: onAccentColorLight,
         fontFamily: fontFamily,
       ),
       AppUiStyle.block => BlockTheme.light(
         accentColor,
         textColor: textColorLight,
-        onAccentColor: onAccentColor,
+        onAccentColor: onAccentColorLight,
         fontFamily: fontFamily,
       ),
     };
@@ -352,7 +353,7 @@ class DaiDaiApp extends ConsumerWidget {
       AppUiStyle.flat => AppTheme.dark(
         accentColor,
         textColor: textColorDark,
-        onAccentColor: onAccentColor,
+        onAccentColor: onAccentColorDark,
         fontFamily: fontFamily,
       ),
       AppUiStyle.gekiga => GekigaTheme.build(
@@ -362,13 +363,13 @@ class DaiDaiApp extends ConsumerWidget {
       AppUiStyle.glass => GlassTheme.dark(
         accentColor,
         textColor: textColorDark,
-        onAccentColor: onAccentColor,
+        onAccentColor: onAccentColorDark,
         fontFamily: fontFamily,
       ),
       AppUiStyle.block => BlockTheme.dark(
         accentColor,
         textColor: textColorDark,
-        onAccentColor: onAccentColor,
+        onAccentColor: onAccentColorDark,
         fontFamily: fontFamily,
       ),
     };
