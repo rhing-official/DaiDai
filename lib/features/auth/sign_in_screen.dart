@@ -8,6 +8,7 @@ import '../../repositories/auth_repository.dart';
 import '../../utils/apple_sign_in.dart';
 import '../../utils/fullwidth_digits_formatter.dart';
 import '../../utils/totp_clipboard_autofill.dart';
+import '../../utils/web_redirect_sign_in.dart';
 import '../../utils/platform_info.dart';
 import '../../widgets/branded_block_button.dart';
 import '../../widgets/fixed_font_theme.dart';
@@ -45,6 +46,29 @@ class _SignInScreenState extends ConsumerState<SignInScreen>
   /// コード入力画面を表示する。
   MultiFactorResolver? _resolver;
   final _codeController = TextEditingController();
+
+  @override
+  void initState() {
+    super.initState();
+    if (useWebRedirectSignIn) _receiveRedirectResult();
+  }
+
+  /// Googleのリダイレクトから戻ってきた時の、2段階認証の要求・失敗を受け取る
+  /// （成功は認証状態に反映済みで、この画面は閉じられる、2026-11-14）。
+  Future<void> _receiveRedirectResult() async {
+    try {
+      await awaitWebRedirectResult();
+    } on FirebaseAuthMultiFactorException catch (e) {
+      if (!mounted) return;
+      setState(() => _resolver = e.resolver);
+      checkTotpClipboard();
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _errorMessage = ref.read(appStringsProvider).signInFailedTemplate(e);
+      });
+    }
+  }
 
   @override
   TextEditingController get totpCodeController => _codeController;

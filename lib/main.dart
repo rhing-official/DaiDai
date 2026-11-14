@@ -71,6 +71,7 @@ import 'theme/app_theme.dart';
 import 'theme/block/block_theme.dart';
 import 'theme/gekiga/gekiga_theme.dart';
 import 'theme/glass/glass_theme.dart';
+import 'utils/web_redirect_sign_in.dart';
 
 Future<void> main() async {
   AlwaysAnimateBinding.ensureInitialized();
@@ -110,7 +111,17 @@ Future<void> main() async {
   // タブ）へフォールバックしてしまっていた（招待リンクを踏んでも語らいが
   // 開くだけで何も起きない不具合の原因）。パスベースのURL戦略に切り替える。
   usePathUrlStrategy();
-  await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
+  // 本番ドメインのWebは、Googleログインを同じタブのリダイレクトで行う為、Firebaseの認証画面を
+  // 自分のドメイン経由にする（[useWebRedirectSignIn]、中継は`cloudflare/worker.js`）。
+  final firebaseOptions = useWebRedirectSignIn
+      ? DefaultFirebaseOptions.currentPlatform.copyWith(
+          authDomain: kWebAuthProxyHost,
+        )
+      : DefaultFirebaseOptions.currentPlatform;
+  await Firebase.initializeApp(options: firebaseOptions);
+  // リダイレクトで戻ってきた時のログインを、起動直後に完了させる（失敗・2段階認証の要求は
+  // ログイン画面が同じFutureから受け取る）。
+  unawaited(awaitWebRedirectResult().catchError((_) {}));
   // Firestoreのオフライン永続化キャッシュを有効化する（2026-09-10追加）。
   // 未指定だとWeb版は特にメモリキャッシュのみとなり、画面を離れて購読が
   // 切れるたびに毎回サーバーへ再取得しに行くことになる。webPersistentTabManagerに

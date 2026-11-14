@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io' show Platform;
 
@@ -13,6 +14,7 @@ import 'package:passkeys/types.dart';
 import 'package:passkeys_platform_interface/passkeys_platform_interface.dart';
 
 import '../utils/google_sign_in_bootstrap.dart';
+import '../utils/web_redirect_sign_in.dart';
 
 /// 秘密の質問1組（設定時の入力用、2026-09-16追加）。
 class SecretQuestionInput {
@@ -237,6 +239,13 @@ class FirebaseAuthRepository implements AuthRepository {
     // google_sign_inのauthenticate()はWebでは未対応（GIS SDKのボタンUI経由のみ許可）。
     // WebはFirebase Auth JS SDK側のポップアップフローに任せる。
     if (kIsWeb) {
+      // 本番ドメインは、同じタブでGoogleの画面へ移り、ログイン後に戻る（2026-11-14）。
+      // 戻った後の結果は[awaitWebRedirectResult]が受け取る。この呼び出しは画面が
+      // 離れるまで完了しない（ログイン画面は待ち表示のまま）。
+      if (useWebRedirectSignIn) {
+        await _auth.signInWithRedirect(GoogleAuthProvider());
+        return Completer<User>().future;
+      }
       final userCredential = await _auth.signInWithPopup(GoogleAuthProvider());
       final user = userCredential.user;
       if (user == null) {

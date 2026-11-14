@@ -8,6 +8,8 @@
 //   /api/url-preview?url=...                         → 外部URLのリンクプレビュー
 //   /api/url-preview-image?u=...                     → pixivの画像（Referer必須）の中継
 //   /api/og-image?type=&id=                          → OG画像（`OG_IMAGE_ORIGIN`のバックエンドへ中継）
+//   /__/auth/*, /__/firebase/*                       → Firebase Authの認証画面を、自ドメイン経由にする中継
+//                                                      （Googleログインを同じタブのリダイレクトで行う為、2026-11-14）
 // それ以外は静的アセット（Pagesが未知のパスにindex.htmlを返すSPAフォールバック込み）。
 
 const FIRESTORE_PROJECT_ID = 'daidai-rhing';
@@ -23,12 +25,29 @@ export default {
     if (path === '/api/url-preview') return urlPreview(url, env);
     if (path === '/api/url-preview-image') return previewImage(url);
     if (path === '/api/og-image') return ogImage(url, env);
+    if (path.startsWith('/__/auth/') || path.startsWith('/__/firebase/')) {
+      return proxyFirebaseAuth(request, url);
+    }
     if (/^\/invite\/[^/]+(?:\/[^/]+)?\/?$/.test(path) || /^\/join\/[^/]+(?:\/[^/]+)?\/?$/.test(path)) {
       return linkPreview(request, url, env);
     }
     return env.ASSETS.fetch(request);
   },
 };
+
+// Firebase Authの認証画面（`/__/auth/handler`など）と設定（`/__/firebase/init.json`）を、
+// Firebaseのホスティングへそのまま中継する。アプリの`authDomain`を自ドメインにして
+// リダイレクトでログインする為（ブラウザのストレージ分離で、別ドメインの認証画面から戻ると
+// ログイン状態を取れなくなるのを避ける）。GET/POSTのみ。
+const FIREBASE_AUTH_ORIGIN = 'https://daidai-rhing.firebaseapp.com';
+
+async function proxyFirebaseAuth(request, url) {
+  if (request.method !== 'GET' && request.method !== 'POST') {
+    return new Response('Method Not Allowed', { status: 405 });
+  }
+  const target = new URL(url.pathname + url.search, FIREBASE_AUTH_ORIGIN);
+  return fetch(new Request(target.toString(), request));
+}
 
 // OG画像の生成（satori/resvg/sharp）はWorkersでは動かせないため、Node.jsで動く
 // バックエンド（Cloud Functions）に中継する。`OG_IMAGE_ORIGIN`（Pagesの環境変数）が
