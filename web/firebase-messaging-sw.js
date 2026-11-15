@@ -28,6 +28,14 @@ const messaging = firebase.messaging();
 // 呼ばない。二重表示を避けるため）。
 messaging.onBackgroundMessage((payload) => {
   console.log("[firebase-messaging-sw.js] background message", payload);
+  // 送信取消の合図（functions/src/index.tsのonDm/GroupMessageDeleted、2026-11-15）。
+  // 出ている通知は`tag`にメッセージidを付けてあるので、それを閉じる。
+  const data = payload.data || {};
+  if (data.type === "message_recalled" && data.messageId) {
+    return self.registration
+      .getNotifications({ tag: data.messageId })
+      .then((list) => list.forEach((n) => n.close()));
+  }
 });
 
 // 通知タップ時、該当の語らいへのディープリンクURLを組み立てて、

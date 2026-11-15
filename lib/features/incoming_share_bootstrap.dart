@@ -56,37 +56,74 @@ class _IncomingShareBootstrapState
     super.dispose();
   }
 
-  Future<void> _handle(IncomingShare share) async {
-    if (_busy || !mounted) return;
-    _busy = true;
-    final strings = ref.read(appStringsProvider);
+  /// バナーを出す。画面（Overlay）が既に無い・失敗した時も、送信そのものは止めない。
+  void _banner(OverlayState? overlay, String message) {
+    if (overlay == null || !overlay.mounted) return;
     try {
-      final target = await showForwardTargetDialog(
+      showAutoDismissBannerIn(overlay, message: message);
+    } catch (e) {
+      debugPrint('[incomingShare] banner failed: $e');
+    }
+  }
+
+  Future<void> _handle(IncomingShare share) async {
+    if (_busy || !mounted) {
+      debugPrint('[incomingShare] skipped busy=$_busy mounted=$mounted');
+      return;
+    }
+    _busy = true;
+    // ポップアップを閉じたあとに、この画面が作り直されて破棄されても送れるよう、使う物を
+    // 先に取っておく（破棄後の`ref.read`・`context`は例外になり、黙って送られなくなる）。
+    final container = ProviderScope.containerOf(context);
+    final overlay = Overlay.maybeOf(context);
+    final strings = ref.read(appStringsProvider);
+    debugPrint(
+      '[incomingShare] received text=${share.text != null} '
+      'files=${share.files.length}',
+    );
+    try {
+      ForwardTarget? picked;
+      final result = await showForwardTargetDialog(
         context,
+        onPicked: (t) => picked = t,
         currentUserId: widget.currentUserId,
         preview: ForwardPreview(
           text: share.text,
           files: [for (final f in share.files) f.name],
         ),
       );
-      if (target == null || !mounted) return;
-      showAutoDismissBanner(context, message: strings.forwardSending);
-      await _send(share, target);
-      if (mounted) {
-        showAutoDismissBanner(context, message: strings.forwardDone);
+      // ポップアップの戻り値が届かなくても、確定時に受け取った転送先で送る。
+      final target = result ?? picked;
+      if (target == null) {
+        debugPrint('[incomingShare] cancelled (no target)');
+        return;
       }
+      if (result == null) {
+        debugPrint('[incomingShare] dialog result was null; using picked');
+      }
+      debugPrint(
+        '[incomingShare] target kind=${target.kind} '
+        'conversation=${target.conversationId} room=${target.roomId} '
+        'mounted=$mounted',
+      );
+      _banner(overlay, strings.forwardSending);
+      await _send(container, share, target);
+      debugPrint('[incomingShare] sent');
+      _banner(overlay, strings.forwardDone);
     } catch (e, st) {
       debugPrint('[incomingShare] send failed: $e\n$st');
-      if (mounted) {
-        showAutoDismissBanner(context, message: strings.forwardFailed);
-      }
+      _banner(overlay, strings.forwardFailed);
     } finally {
       _busy = false;
     }
   }
 
-  Future<void> _send(IncomingShare share, ForwardTarget target) async {
-    final me = await ref
+  Future<void> _send(
+    ProviderContainer container,
+    IncomingShare share,
+    ForwardTarget target,
+  ) async {
+    final me = await container
         .read(userRepositoryProvider)
         .getUser(widget.currentUserId);
     final seed = me?.rhingSeed ?? '';
@@ -96,7 +133,7 @@ class _IncomingShareBootstrapState
     final captionOnSingle = share.files.length == 1 && text.isNotEmpty;
     if (text.isNotEmpty && !captionOnSingle) {
       if (isDm) {
-        await ref
+        await container
             .read(directMessageRepositoryProvider)
             .sendTextMessage(
               dmId: target.conversationId,
@@ -106,7 +143,7 @@ class _IncomingShareBootstrapState
               content: text,
             );
       } else {
-        await ref
+        await container
             .read(groupRepositoryProvider)
             .sendRoomMessage(
               groupId: target.conversationId,
@@ -119,8 +156,8 @@ class _IncomingShareBootstrapState
     }
     for (final file in share.files) {
       final bytes = await File(file.path).readAsBytes();
-      await forwardBytes(
-        ref: ref,
+      await forwardBytesVia(
+        container: container,
         bytes: bytes,
         fileName: file.name,
         contentType: file.contentType,

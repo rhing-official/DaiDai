@@ -53,7 +53,10 @@ Map<String, dynamic> buildVideoConstraints({
   ),
   frontCamera: frontCamera,
   fourThree: kIsWeb,
-  deviceId: deviceId,
+  // `deviceId`は`{ideal: ...}`のマップで渡すが、Android（flutter_webrtc）はこれを文字列として
+  // 読もうとして`ClassCastException`でアプリが落ちる（映像をオフ→オンした時、2026-11-15に
+  // ログで確認）。ネイティブは`facingMode`だけでカメラを選ぶ（向きは切替で追跡している）。
+  deviceId: kIsWeb ? deviceId : null,
 );
 
 /// 縦長の映像を要求するか。端末の向きがあるスマホ・タブレット（モバイルOS）のブラウザ
@@ -144,6 +147,20 @@ bool? trackIsFrontFacing(MediaStreamTrack track) {
     if (facing == 'environment') return false;
   } catch (_) {}
   return null;
+}
+
+/// カメラを切り替えた後に、自分のプレビューが前面（インカメラ）かどうか（2026-11-15）。
+/// Webは切替でトラックが作り直され設定（`facingMode`）が新しいので、それを使う（取れなければ
+/// 前回の反対）。ネイティブは同じトラックのままカメラだけが切り替わり、`getSettings()`は
+/// 作成時の値のままで古いので使わず、切替に成功したら前回の反対、失敗なら前回のまま。
+bool nextIsFrontFacing({
+  required bool isWeb,
+  required bool? settingsFront,
+  required bool previousFront,
+  required bool switchSucceeded,
+}) {
+  if (isWeb) return settingsFront ?? !previousFront;
+  return switchSucceeded ? !previousFront : previousFront;
 }
 
 /// 映像トラックを出しているカメラの`deviceId`。取れなければnull。

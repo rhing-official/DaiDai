@@ -1,4 +1,5 @@
 import '../../providers/contact_alias_providers.dart';
+import 'package:flutter/foundation.dart' show debugPrint;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -6,6 +7,7 @@ import '../../l10n/strings.dart';
 import '../../l10n/vocabulary.dart';
 import '../../models/app_ui_style.dart';
 import '../../models/direct_message.dart';
+import '../../models/dm_room.dart';
 import '../../models/group.dart';
 import '../../models/profile_card.dart' show ImageFocal;
 import '../../providers/app_ui_style_provider.dart';
@@ -39,16 +41,27 @@ Future<ForwardTarget?> showForwardTargetDialog(
   BuildContext context, {
   required String currentUserId,
   ForwardPreview? preview,
+  void Function(ForwardTarget target)? onPicked,
 }) {
   return showAppDialog<ForwardTarget>(
     context: context,
-    builder: (_) =>
-        _ForwardTargetDialog(currentUserId: currentUserId, preview: preview),
+    builder: (_) => _ForwardTargetDialog(
+      currentUserId: currentUserId,
+      preview: preview,
+      onPicked: onPicked,
+    ),
   );
 }
 
 class _ForwardTargetDialog extends ConsumerStatefulWidget {
-  const _ForwardTargetDialog({required this.currentUserId, this.preview});
+  const _ForwardTargetDialog({
+    required this.currentUserId,
+    this.preview,
+    this.onPicked,
+  });
+
+  /// 転送先が確定した時に、ポップアップの戻り値とは別に呼ぶ（戻り値が届かない場面の保険）。
+  final void Function(ForwardTarget target)? onPicked;
 
   final String currentUserId;
   final ForwardPreview? preview;
@@ -78,6 +91,9 @@ class _ForwardTargetDialogState extends ConsumerState<_ForwardTargetDialog> {
 
   /// 広場ごとの寄合（先に読み込んでおき、行の下に並べる・検索に使う）。
   final Map<String, List<Room>> _roomsByGroup = {};
+
+  /// 一対ごとの寄合（広場と同じく、行の下に並べて選べる）。
+  final Map<String, List<DmRoom>> _roomsByDm = {};
   final Set<String> _expanded = {};
 
   /// 2ペインの時に選んだ転送先と、その表示名。
@@ -102,6 +118,7 @@ class _ForwardTargetDialogState extends ConsumerState<_ForwardTargetDialog> {
         .watchGroups(widget.currentUserId)
         .first;
     _loadRooms();
+    _loadDmRooms();
   }
 
   Future<void> _loadRooms() async {
@@ -118,28 +135,59 @@ class _ForwardTargetDialogState extends ConsumerState<_ForwardTargetDialog> {
     if (mounted) setState(() {});
   }
 
+  Future<void> _loadDmRooms() async {
+    final dms = await _dms;
+    final repo = ref.read(directMessageRepositoryProvider);
+    await Future.wait([
+      for (final dm in dms)
+        if (dm.roomsEnabled)
+          repo
+              .watchRooms(dmId: dm.dmId, userId: widget.currentUserId)
+              .first
+              .then((rooms) => _roomsByDm[dm.dmId] = rooms)
+              .catchError((Object _) => _roomsByDm[dm.dmId] = <DmRoom>[]),
+    ]);
+    if (mounted) setState(() {});
+  }
+
   bool _isWide(BuildContext context) =>
       widget.preview != null &&
       MediaQuery.sizeOf(context).width >= _kForwardWideBreakpoint;
 
   /// 転送先を決める。2ペインなら選択だけ（「転送」で確定）、そうでなければ閉じて返す。
   void _commit(ForwardTarget target, String label) {
+    debugPrint(
+      '[forwardDialog] commit ${target.kind} ${target.conversationId} '
+      '${target.roomId} wide=${_isWide(context)}',
+    );
     if (_isWide(context)) {
       setState(() {
         _selected = target;
         _selectedLabel = label;
       });
     } else {
+      widget.onPicked?.call(target);
       Navigator.of(context).pop(target);
     }
   }
 
   Future<void> _pickDm(DirectMessage dm, String label) async {
-    final rooms = await ref
-        .read(directMessageRepositoryProvider)
-        .watchRooms(dmId: dm.dmId, userId: widget.currentUserId)
-        .first;
+    debugPrint('[forwardDialog] tap dm ${dm.dmId}');
+    final rooms =
+        _roomsByDm[dm.dmId] ??
+        await ref
+            .read(directMessageRepositoryProvider)
+            .watchRooms(dmId: dm.dmId, userId: widget.currentUserId)
+            .first;
     if (!mounted || rooms.isEmpty) return;
+    // 寄合機能がオンで寄合が複数なら、広場と同じく行を展開して寄合を選ばせる。
+    if (dm.roomsEnabled && rooms.length > 1) {
+      setState(() {
+        if (!_expanded.remove(dm.dmId)) _expanded.add(dm.dmId);
+      });
+      return;
+    }
+    // それ以外（寄合が1つ・機能オフ）は最も古い寄合に送る（通話履歴の送信と同じ扱い）。
     final oldest = [...rooms]
       ..sort(
         (a, b) => (a.createdAt?.millisecondsSinceEpoch ?? 0).compareTo(
@@ -156,7 +204,17 @@ class _ForwardTargetDialogState extends ConsumerState<_ForwardTargetDialog> {
     );
   }
 
+  void _pickDmRoom(DirectMessage dm, String label, DmRoom room) => _commit(
+    ForwardTarget(
+      kind: ForwardTargetKind.dm,
+      conversationId: dm.dmId,
+      roomId: room.roomId,
+    ),
+    '$label / ${room.name}',
+  );
+
   void _pickGroup(Group group) {
+    debugPrint('[forwardDialog] tap group ${group.groupId}');
     final rooms = _roomsByGroup[group.groupId] ?? const <Room>[];
     if (rooms.isEmpty) return;
     if (rooms.length == 1) {
@@ -286,9 +344,20 @@ class _ForwardTargetDialogState extends ConsumerState<_ForwardTargetDialog> {
             widget.currentUserId,
             aliases: ref.watch(myContactAliasesProvider).value,
           );
-          if (query.isNotEmpty && !label.toLowerCase().contains(query)) {
+          final dmRooms = _roomsByDm[dm.dmId] ?? const <DmRoom>[];
+          final dmRoomMatches = [
+            for (final r in dm.roomsEnabled ? dmRooms : const <DmRoom>[])
+              if (query.isNotEmpty && r.name.toLowerCase().contains(query)) r,
+          ];
+          if (query.isNotEmpty &&
+              !label.toLowerCase().contains(query) &&
+              dmRoomMatches.isEmpty) {
             continue;
           }
+          final dmMulti = dm.roomsEnabled && dmRooms.length > 1;
+          final dmSearchingRooms = query.isNotEmpty && dmRoomMatches.isNotEmpty;
+          final dmOpen =
+              dmMulti && (_expanded.contains(dm.dmId) || dmSearchingRooms);
           tiles.add(
             tile(
               leading: _avatar(
@@ -301,10 +370,26 @@ class _ForwardTargetDialogState extends ConsumerState<_ForwardTargetDialog> {
               ),
               title: label,
               subtitle: vocab.dm,
-              selected: _isSelected(dm.dmId),
+              trailing: dmMulti
+                  ? Icon(dmOpen ? Icons.expand_less : Icons.expand_more)
+                  : null,
+              selected: !dmMulti && _isSelected(dm.dmId),
               onTap: () => _pickDm(dm, label),
             ),
           );
+          if (dmOpen) {
+            for (final r in dmSearchingRooms ? dmRoomMatches : dmRooms) {
+              tiles.add(
+                tile(
+                  leading: const Icon(Icons.tag),
+                  title: r.name,
+                  indent: true,
+                  selected: _isSelected(dm.dmId, r.roomId),
+                  onTap: () => _pickDmRoom(dm, label, r),
+                ),
+              );
+            }
+          }
         }
         for (final g in _showGroups ? groups : const <Group>[]) {
           final rooms = _roomsByGroup[g.groupId] ?? const <Room>[];
@@ -356,6 +441,35 @@ class _ForwardTargetDialogState extends ConsumerState<_ForwardTargetDialog> {
           }
         }
         if (_pickRooms) {
+          for (final dm in dms) {
+            if (!dm.roomsEnabled) continue;
+            final otherId = dm.otherUserId(widget.currentUserId);
+            if (blocked.contains(otherId)) continue;
+            final other = ref.watch(watchedUserProvider(otherId)).value;
+            final label = dmSearchLabel(
+              other,
+              dm,
+              widget.currentUserId,
+              aliases: ref.watch(myContactAliasesProvider).value,
+            );
+            final dmMatches = label.toLowerCase().contains(query);
+            for (final r in _roomsByDm[dm.dmId] ?? const <DmRoom>[]) {
+              if (query.isNotEmpty &&
+                  !dmMatches &&
+                  !r.name.toLowerCase().contains(query)) {
+                continue;
+              }
+              tiles.add(
+                tile(
+                  leading: const Icon(Icons.tag),
+                  title: r.name,
+                  subtitle: label,
+                  selected: _isSelected(dm.dmId, r.roomId),
+                  onTap: () => _pickDmRoom(dm, label, r),
+                ),
+              );
+            }
+          }
           for (final g in groups) {
             // 寄合機能をオフにした広場は、寄合として並べない（広場の行から選ぶ）。
             if (!g.roomsEnabled) continue;
@@ -389,7 +503,6 @@ class _ForwardTargetDialogState extends ConsumerState<_ForwardTargetDialog> {
         if (isGekiga)
           GekigaTextField(
             controller: _searchController,
-            autofocus: true,
             hintText: strings.forwardSearchHint,
             prefixIcon: const Icon(Icons.search, color: GekigaColors.onPanel),
             onChanged: (value) => setState(() => _query = value),
@@ -397,7 +510,6 @@ class _ForwardTargetDialogState extends ConsumerState<_ForwardTargetDialog> {
         else
           TextField(
             controller: _searchController,
-            autofocus: true,
             decoration: InputDecoration(
               hintText: strings.forwardSearchHint,
               prefixIcon: const Icon(Icons.search),
@@ -484,7 +596,10 @@ class _ForwardTargetDialogState extends ConsumerState<_ForwardTargetDialog> {
                       selectedLabel: _selected == null ? null : _selectedLabel,
                       onConfirm: _selected == null
                           ? null
-                          : () => Navigator.of(context).pop(_selected),
+                          : () {
+                              widget.onPicked?.call(_selected!);
+                              Navigator.of(context).pop(_selected);
+                            },
                     ),
                   ),
                 ],

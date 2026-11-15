@@ -94,4 +94,27 @@ void main() {
       );
     });
   });
+
+  test('通話画面の小窓（90×130）も、同じ補正で領域内に収まる', () {
+    const bubble = Size(90, 130);
+    const area = Size(400, 600);
+    expect(
+      clampPinnedCallOffset(
+        offset: const Offset(999, 999),
+        screen: area,
+        topInset: 0,
+        bubble: bubble,
+      ),
+      const Offset(310, 470),
+    );
+    expect(
+      clampPinnedCallOffset(
+        offset: const Offset(-50, -50),
+        screen: area,
+        topInset: 0,
+        bubble: bubble,
+      ),
+      Offset.zero,
+    );
+  });
 }

@@ -1,4 +1,5 @@
 import 'package:collection/collection.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -35,11 +36,15 @@ import 'webrtc_call_controller.dart';
 /// だったが）ビデオ通話と同様に表示する（2026-08-19変更）。映像が無い間は
 /// 通話画面の音声通話時と同じ、呼び名の頭文字を乗せた丸いアバターを中央に
 /// 表示する（[_PinnedCallBubble]参照）。
-/// モバイルのミニ表示で映像を描くか（2026-11-14）。Androidで、ミニ表示にした後に他の画面の
-/// タップが効かない・ホーム下のタブが開けない不具合が出ており、映像の描画（常時更新される
-/// テクスチャ）が原因かを切り分けるため、いったん描かない（アバターを出す）。通話の音声は
-/// 映像の描画に依らず鳴る（ネイティブ）。直ったら原因は映像の描画。
-const kPinnedCallShowsVideoOnMobile = bool.fromEnvironment('PINNED_VIDEO');
+/// モバイルのミニ表示で映像を描くか。2026-11-14に、Androidで「ミニ表示にした後、他の画面の
+/// タップが効かない・ホーム下のタブが開けない」不具合が出て、映像の描画が原因と分かったため、
+/// いったん描かない（アバターを出す）ようにした。2026-11-15に、ユーザーの希望で既定を映像ありに戻し、
+/// 負荷を下げる対策（アンチエイリアスのクリップ・影・音声用の動画要素をやめる、映像を独立した
+/// 描画層にする）を同時に入れた。再発したら`--dart-define=PINNED_VIDEO=false`のビルドで退避できる。
+const kPinnedCallShowsVideoOnMobile = bool.fromEnvironment(
+  'PINNED_VIDEO',
+  defaultValue: true,
+);
 
 /// 【一時的な診断・原因が分かったら削除する】ミニ表示の映像まわりを、ビルド時に切り替える
 /// （`--dart-define=PINNED_NOCLIP=true`など、2026-11-14）。計測の比較用。
@@ -226,6 +231,10 @@ RTCVideoRenderer? pickCallRenderer(ActiveCallSession session) {
   }
 }
 
+/// ネイティブのモバイルで映像を出す時の軽量化を行うか（音声用の動画要素はWebの都合のもの）。
+bool get _lightMobileVideo =>
+    !kIsWeb && isMobileCallPlatform && kPinnedCallShowsVideoOnMobile;
+
 class _PinnedCallBubble extends ConsumerWidget {
   const _PinnedCallBubble({required this.session});
 
@@ -272,7 +281,7 @@ class _PinnedCallBubble extends ConsumerWidget {
     // 広場通話は、映像を出している1人以外の参加者の音声も鳴らす（2026-10-21、
     // ミニ表示中は1人分の映像しか載らず、他の参加者の音声が聞こえなかった）。
     // 映像を描かないモバイルでは、音声用の見えない動画要素も出さない（Webの都合のもの）。
-    final audioOnly = (skipVideo || kPinnedNoSinks)
+    final audioOnly = (skipVideo || kPinnedNoSinks || _lightMobileVideo)
         ? const <RTCVideoRenderer>[]
         : switch (session) {
             GroupCallSession(:final controller) => [
@@ -294,11 +303,14 @@ class _PinnedCallBubble extends ConsumerWidget {
           child: CallAudioSinks(renderers: audioOnly),
         ),
         if (renderer != null)
-          RTCVideoView(
-            key: ObjectKey(renderer),
-            renderer,
-            mirror: mirror,
-            objectFit: RTCVideoViewObjectFit.RTCVideoViewObjectFitCover,
+          // 毎フレーム更新される映像を独立した描画層にして、周囲（ボタン行など）を再描画させない。
+          RepaintBoundary(
+            child: RTCVideoView(
+              key: ObjectKey(renderer),
+              renderer,
+              mirror: mirror,
+              objectFit: RTCVideoViewObjectFit.RTCVideoViewObjectFitCover,
+            ),
           )
         else
           Center(
@@ -447,10 +459,14 @@ class _PinnedCallBubble extends ConsumerWidget {
       );
     }
 
+    // モバイルで映像を出す時は、影（elevation）とアンチエイリアス付きのクリップ（別レイヤーへ描いて
+    // 合成する）をやめ、`hardEdge`で角丸に切る（負荷を下げる、2026-11-15）。
     return Material(
-      elevation: kPinnedNoClip ? 0 : 8,
+      elevation: (kPinnedNoClip || _lightMobileVideo) ? 0 : 8,
       borderRadius: BorderRadius.circular(12),
-      clipBehavior: kPinnedNoClip ? Clip.none : Clip.antiAlias,
+      clipBehavior: kPinnedNoClip
+          ? Clip.none
+          : (_lightMobileVideo ? Clip.hardEdge : Clip.antiAlias),
       color: Colors.grey.shade900,
       child: InkWell(onTap: () => _reopen(context, ref), child: bubbleSize),
     );

@@ -53,6 +53,14 @@ void main() {
     });
   });
 
+  group('buildVideoConstraints', () {
+    test('テスト（VM＝Webではない）では、deviceIdを渡さない（Androidで落ちるため）', () {
+      final c = buildVideoConstraints(deviceId: '1');
+      expect(c.containsKey('deviceId'), isFalse);
+      expect(c['facingMode'], 'user');
+    });
+  });
+
   group('videoConstraintsFor', () {
     test('4:3は縦向き720x960・横向き960x720で、aspectRatioは要求しない', () {
       final land = videoConstraintsFor(portrait: false, fourThree: true);

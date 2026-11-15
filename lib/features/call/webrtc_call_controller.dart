@@ -1105,6 +1105,7 @@ class WebrtcCallController extends ChangeNotifier {
     notifyListeners();
     try {
       final track = videoTracks.first;
+      var switchSucceeded = true;
       if (kIsWeb) {
         final cameras = await Helper.cameras;
         if (cameras.length < 2) return;
@@ -1115,12 +1116,17 @@ class WebrtcCallController extends ChangeNotifier {
         final next = cameras[(currentIndex + 1) % cameras.length];
         await Helper.switchCamera(track, next.deviceId, _localStream);
       } else {
-        await Helper.switchCamera(track);
+        switchSucceeded = await Helper.switchCamera(track);
       }
       final switched = _localStream?.getVideoTracks().firstOrNull;
-      _isFrontCamera =
-          (switched == null ? null : trackIsFrontFacing(switched)) ??
-          !_isFrontCamera;
+      // ネイティブは同じトラックのままカメラだけが切り替わり、`getSettings()`は作成時の値の
+      // まま（外カメラでも'user'）なので、設定は使わず前回の反転で決める（2026-11-15）。
+      _isFrontCamera = nextIsFrontFacing(
+        isWeb: kIsWeb,
+        settingsFront: switched == null ? null : trackIsFrontFacing(switched),
+        previousFront: _isFrontCamera,
+        switchSucceeded: switchSucceeded,
+      );
       if (switched != null) {
         _cameraDeviceId = trackDeviceId(switched) ?? _cameraDeviceId;
       }

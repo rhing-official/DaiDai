@@ -18,6 +18,7 @@ import 'call_control_bar.dart';
 import 'call_video_viewer.dart';
 import 'call_tile_layout.dart' show callVideoFitFor;
 import 'camera_availability.dart';
+import 'pinned_call_position.dart' show clampPinnedCallOffset;
 import 'webrtc_call_controller.dart';
 import '../../l10n/strings.dart';
 
@@ -66,9 +67,6 @@ class _CallScreenState extends ConsumerState<CallScreen> {
   /// 映像のある通話だったか（一度でも映像側のレイアウトになったか）。終了の瞬間に映像が破棄されて
   /// 音声通話の画面へ切り替わるのを防ぐための印（2026-11-15）。
   bool _hadVideo = false;
-
-  /// 自分の小窓の位置（`SafeArea`内の左上基準）。nullなら右上の初期位置。ドラッグで動かせる。
-  Offset? _pipOffset;
 
   /// このウィジェット自身の意図したpop（下スワイプでのドック・通話終了後の
   /// 自動クローズ・PCでの応答後の自動クローズ）かどうか。[PopScope]は
@@ -497,76 +495,31 @@ class _CallScreenState extends ConsumerState<CallScreen> {
               ),
             ),
           ),
-        // 自分の小窓。ドラッグで動かせ、離すと左右の近い端へ寄る。タップで入れ替え。
+        // 自分の小窓。ミニ表示と同じ方式で、押した瞬間から指に追従して動く。タップで入れ替え。
         Positioned.fill(
           key: const ValueKey('pip'),
           child: SafeArea(
-            child: LayoutBuilder(
-              builder: (context, c) {
-                const w = 90.0;
-                const h = 130.0;
-                const margin = 16.0;
-                // 下のボタン列に重ならない範囲まで。
-                const bottomReserve = 120.0;
-                final maxX = c.maxWidth - w;
-                final maxY = (c.maxHeight - h - bottomReserve).clamp(
-                  0.0,
-                  double.infinity,
-                );
-                Offset clampOffset(Offset o) => Offset(
-                  o.dx.clamp(0.0, maxX < 0 ? 0.0 : maxX),
-                  o.dy.clamp(0.0, maxY),
-                );
-                final pos = clampOffset(
-                  _pipOffset ?? Offset(maxX - margin, margin),
-                );
-                return Stack(
-                  children: [
-                    Positioned(
-                      left: pos.dx,
-                      top: pos.dy,
-                      child: GestureDetector(
-                        onTap: swapViews,
-                        onPanUpdate: (d) => setState(
-                          () => _pipOffset = clampOffset(pos + d.delta),
+            child: _DraggablePip(
+              onTap: swapViews,
+              child: Container(
+                width: _DraggablePip.width,
+                height: _DraggablePip.height,
+                color: placeholderColor,
+                child: pipShowsPlaceholder
+                    ? Center(
+                        child: _placeholderAvatar(
+                          remote: !_mainViewIsRemote,
+                          radius: 28,
                         ),
-                        onPanEnd: (_) => setState(() {
-                          final cur = clampOffset(_pipOffset ?? pos);
-                          final left = cur.dx + w / 2 < c.maxWidth / 2;
-                          _pipOffset = Offset(
-                            left ? margin : maxX - margin,
-                            cur.dy,
-                          );
-                        }),
-                        child: ClipRRect(
-                          borderRadius: BorderRadius.circular(12),
-                          child: Container(
-                            width: w,
-                            height: h,
-                            color: placeholderColor,
-                            child: pipShowsPlaceholder
-                                ? Center(
-                                    child: _placeholderAvatar(
-                                      remote: !_mainViewIsRemote,
-                                      radius: 28,
-                                    ),
-                                  )
-                                : RTCVideoView(
-                                    key: ObjectKey(pipRenderer),
-                                    pipRenderer,
-                                    mirror:
-                                        _mainViewIsRemote &&
-                                        _controller.isFrontCamera,
-                                    objectFit: RTCVideoViewObjectFit
-                                        .RTCVideoViewObjectFitCover,
-                                  ),
-                          ),
-                        ),
+                      )
+                    : RTCVideoView(
+                        key: ObjectKey(pipRenderer),
+                        pipRenderer,
+                        mirror: _mainViewIsRemote && _controller.isFrontCamera,
+                        objectFit:
+                            RTCVideoViewObjectFit.RTCVideoViewObjectFitCover,
                       ),
-                    ),
-                  ],
-                );
-              },
+              ),
             ),
           ),
         ),
@@ -603,6 +556,124 @@ class _CallScreenState extends ConsumerState<CallScreen> {
       onHangUp: _controller.hangUp,
       bgmBinding: oneToOneBgmBinding(_controller),
       videoFailed: _controller.videoFailed,
+    );
+  }
+}
+
+/// ビデオ通話の自分の小窓（2026-11-15）。ミニ表示（`_PinnedCallDragSurface`）と同じ方式:
+/// 押した瞬間から追従（`DragStartBehavior.down`）し、掴んだ位置を保持して毎回ポインターの
+/// 絶対位置から位置を求める。位置は[ValueNotifier]で持ち、動かすたびに`Positioned`だけを
+/// 再配置して、中身の映像や画面全体は作り直さない。離しても端へ寄らず、その位置に残る。
+class _DraggablePip extends StatefulWidget {
+  const _DraggablePip({required this.child, required this.onTap});
+
+  static const width = 90.0;
+  static const height = 130.0;
+
+  final Widget child;
+  final VoidCallback onTap;
+
+  @override
+  State<_DraggablePip> createState() => _DraggablePipState();
+}
+
+class _DraggablePipState extends State<_DraggablePip> {
+  /// 左上の位置（領域内の座標）。nullなら右上の初期位置。
+  final ValueNotifier<Offset?> _offset = ValueNotifier(null);
+  Offset? _grab;
+  int? _pointer;
+  Offset? _downAt;
+  bool _dragging = false;
+
+  /// これを超えて動いたらドラッグ、動かずに離したらタップ。
+  static const _dragSlop = 6.0;
+
+  void _resetPointer() {
+    _pointer = null;
+    _downAt = null;
+    _grab = null;
+    _dragging = false;
+  }
+
+  /// 下のボタン列に重ならない範囲まで。
+  static const _bottomReserve = 120.0;
+  static const _margin = 16.0;
+  static const _bubble = Size(_DraggablePip.width, _DraggablePip.height);
+
+  @override
+  void dispose() {
+    _offset.dispose();
+    super.dispose();
+  }
+
+  Offset _clamp(Offset? offset, Size area) => clampPinnedCallOffset(
+    offset: offset ?? Offset(area.width - _bubble.width - _margin, _margin),
+    screen: Size(area.width, area.height - _bottomReserve),
+    topInset: 0,
+    bubble: _bubble,
+  );
+
+  @override
+  Widget build(BuildContext context) {
+    return LayoutBuilder(
+      builder: (context, c) {
+        final area = Size(c.maxWidth, c.maxHeight);
+        return ValueListenableBuilder<Offset?>(
+          valueListenable: _offset,
+          // 中身（映像）は作り直さない。
+          child: RepaintBoundary(
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(12),
+              child: widget.child,
+            ),
+          ),
+          builder: (context, offset, child) {
+            final pos = _clamp(offset, area);
+            return Stack(
+              children: [
+                Positioned(
+                  left: pos.dx,
+                  top: pos.dy,
+                  // 標準のタップ/パン判定は、パンが36px動くまで始まらず、その手前の動きが
+                  // 無反応になる為、生のポインターで自前判定する（6pxを超えたら即ドラッグ、
+                  // 動かずに離したらタップ）。
+                  child: Listener(
+                    behavior: HitTestBehavior.opaque,
+                    onPointerDown: (e) {
+                      if (_pointer != null) return;
+                      _pointer = e.pointer;
+                      _downAt = e.position;
+                      _dragging = false;
+                      _grab = e.position - _clamp(_offset.value, area);
+                    },
+                    onPointerMove: (e) {
+                      if (e.pointer != _pointer) return;
+                      if (!_dragging &&
+                          (e.position - _downAt!).distance > _dragSlop) {
+                        _dragging = true;
+                      }
+                      final grab = _grab;
+                      if (_dragging && grab != null) {
+                        _offset.value = _clamp(e.position - grab, area);
+                      }
+                    },
+                    onPointerUp: (e) {
+                      if (e.pointer != _pointer) return;
+                      final wasDrag = _dragging;
+                      _resetPointer();
+                      if (!wasDrag) widget.onTap();
+                    },
+                    onPointerCancel: (e) {
+                      if (e.pointer == _pointer) _resetPointer();
+                    },
+                    child: child,
+                  ),
+                ),
+              ],
+            );
+          },
+        );
+      },
     );
   }
 }

@@ -158,6 +158,15 @@ Future<void> showRemoteMessageNotification(RemoteMessage message) async {
   // 通話の着信・取消しは、ネイティブ側（`CallNotificationReceiver`、CallStyleの着信通知）が
   // 扱う（2026-11-12）。ここで通常の通知を重ねて出さない。
   if (isCallPushMessage(message.data)) return;
+  // 送信取消の合図。出ている通知を閉じるだけで、何も表示しない（2026-11-15）。
+  if (isMessageRecallPush(message.data)) {
+    await dismissRecalledMessageNotification(
+      conversationId: message.data['conversationId'] as String?,
+      roomId: message.data['roomId'] as String?,
+      messageId: message.data['messageId'] as String?,
+    );
+    return;
+  }
   // いま開いている寄合のメッセージは、メンションも含めて通知しない（2026-11-14）。
   // サーバー側の抑制（`conversationPrefs.viewing`）は更新の間隔・反映待ちの分だけ
   // 遅れるため、前面の端末でも確実に止める。
@@ -216,7 +225,7 @@ Future<void> _showRemoteMessageNotification(RemoteMessage message) async {
   final conversationId = data['conversationId'] as String?;
   final roomId = data['roomId'] as String?;
   await _localNotifications.show(
-    id: message.hashCode,
+    id: messageNotificationId(data['messageId'] as String?, message.hashCode),
     title: title,
     body: body,
     notificationDetails: NotificationDetails(
@@ -241,6 +250,34 @@ Future<void> _showRemoteMessageNotification(RemoteMessage message) async {
       'roomId': data['roomId'] as String?,
     }),
   );
+}
+
+/// 送信取消の合図（`message_recalled`、サーバーの`onDm/GroupMessageDeleted`）か。
+bool isMessageRecallPush(Map<String, dynamic> data) =>
+    data['type'] == 'message_recalled';
+
+/// メッセージの通知のid。送信取消で特定して閉じられるよう、メッセージidから決める。
+/// メッセージidが無い（古い）通知は[fallback]（従来の値）。
+int messageNotificationId(String? messageId, int fallback) =>
+    (messageId == null || messageId.isEmpty)
+    ? fallback
+    : messageId.hashCode & 0x7fffffff;
+
+/// 送信取消されたメッセージの、出ている通知（Android）を閉じる。
+Future<void> dismissRecalledMessageNotification({
+  required String? conversationId,
+  required String? roomId,
+  required String? messageId,
+}) async {
+  if (kIsWeb || _localNotificationsUnavailable) return;
+  if (messageId == null || messageId.isEmpty) return;
+  final tag = roomNotificationTag(conversationId, roomId);
+  final id = messageNotificationId(messageId, 0);
+  try {
+    await _localNotifications.cancel(id: id, tag: tag);
+  } catch (_) {
+    // 通知を閉じられなくても、動作には影響しない。
+  }
 }
 
 /// 寄合の通知のタグ（寄合を開いた時に消すための目印、2026-11-14）。

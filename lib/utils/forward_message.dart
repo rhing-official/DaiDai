@@ -246,9 +246,31 @@ Future<void> forwardBytes({
   required String senderId,
   required String senderRhingSeed,
   String? caption,
+}) => forwardBytesVia(
+  container: ProviderScope.containerOf(ref.context),
+  bytes: bytes,
+  fileName: fileName,
+  contentType: contentType,
+  target: target,
+  senderId: senderId,
+  senderRhingSeed: senderRhingSeed,
+  caption: caption,
+);
+
+/// [forwardBytes]の、`ProviderContainer`を直接受け取る版。共有メニューからの受け取りなど、
+/// 画面（`WidgetRef`）が送信の途中で破棄されうる場面で使う（破棄後の`ref.read`は例外になる）。
+Future<void> forwardBytesVia({
+  required ProviderContainer container,
+  required Uint8List bytes,
+  required String fileName,
+  required String contentType,
+  required ForwardTarget target,
+  required String senderId,
+  required String senderRhingSeed,
+  String? caption,
 }) async {
   if (target.kind == ForwardTargetKind.dm) {
-    await ref
+    await container
         .read(directMessageRepositoryProvider)
         .sendAttachmentMessage(
           dmId: target.conversationId,
@@ -261,7 +283,7 @@ Future<void> forwardBytes({
           caption: caption,
         );
   } else {
-    await ref
+    await container
         .read(groupRepositoryProvider)
         .sendAttachmentMessage(
           groupId: target.conversationId,

@@ -25,6 +25,7 @@ import { logger } from "firebase-functions";
 import { defineSecret, defineString } from "firebase-functions/params";
 import {
   onDocumentCreated,
+  onDocumentDeleted,
   onDocumentUpdated,
   onDocumentWritten,
 } from "firebase-functions/v2/firestore";
@@ -83,6 +84,7 @@ import {
   normalizeBulkTargets,
   parseProfileViewRequest,
 } from "./adminUsers";
+import { recallPayload, recallRecipients } from "./messageRecall";
 import { renderOgImage } from "./ogImage";
 import { checkRequest, checkRespond, ISSUED_QR_TTL_MS } from "./qrLoginIssued";
 import { parseAllowedUrl, resolveReferer, resolveUserAgent } from "./urlFetchRelay";
@@ -3476,9 +3478,10 @@ async function sendMessageNotification(params: {
   isDm: boolean;
   conversationId: string;
   roomId: string;
+  messageId: string;
   message: FirebaseFirestore.DocumentData;
 }): Promise<void> {
-  const { isDm, conversationId, roomId, message } = params;
+  const { isDm, conversationId, roomId, messageId, message } = params;
   if (message.silent === true) return;
   if (
     message.contentType === "call" ||
@@ -3660,6 +3663,8 @@ async function sendMessageNotification(params: {
         roomId,
         isMention: String(isMention),
         sentAt: String(sentAtMs),
+        // 送信取消の時に、この通知を特定して閉じるため（2026-11-15）。
+        messageId,
       },
       android: { priority: "high" },
     });
@@ -3673,6 +3678,8 @@ async function sendMessageNotification(params: {
           body: withSentTime(body, sentAtMs),
           icon: iconUrl ?? undefined,
           image: previewUrl ?? undefined,
+          // 送信取消の時に、この通知を特定して閉じるため（2026-11-15）。
+          tag: messageId,
         },
         // 通知タップで該当の語らいまで開くためのディープリンク情報
         // （2026-09-02追加、web/firebase-messaging-sw.js参照）。FCMが
@@ -3683,6 +3690,7 @@ async function sendMessageNotification(params: {
           conversationId,
           roomId,
           isMention: String(isMention),
+          messageId,
         },
         fcmOptions: { link: "/" },
       },
@@ -4073,6 +4081,7 @@ export const onDmMessageCreated = onDocumentCreated(
         isDm: true,
         conversationId: event.params.dmId,
         roomId: event.params.roomId,
+        messageId: event.params.messageId,
         message,
       }),
       incrementUnreadCounts({
@@ -4425,6 +4434,7 @@ export const onGroupMessageCreated = onDocumentCreated(
         isDm: false,
         conversationId: event.params.groupId,
         roomId: event.params.roomId,
+        messageId: event.params.messageId,
         message,
       }),
       incrementUnreadCounts({
@@ -4434,6 +4444,77 @@ export const onGroupMessageCreated = onDocumentCreated(
         message,
       }),
     ]);
+  },
+);
+
+/**
+ * メッセージが削除された（送信取消など）時に、出ている通知を閉じる合図を、送信者以外の
+ * 参加者の端末（Android・Web）へ送る（2026-11-15）。データだけのFCMで、端末側
+ * （`lib/push_notifications.dart`・`web/firebase-messaging-sw.js`）が`messageId`で通知を
+ * 特定して閉じる。ミュート・ブロックは見ない（閉じるだけの合図のため）。
+ */
+async function sendMessageRecall(params: {
+  participantIds: unknown;
+  senderId: unknown;
+  conversationId: string;
+  roomId: string;
+  messageId: string;
+}): Promise<void> {
+  const recipients = recallRecipients(params.participantIds, params.senderId);
+  if (recipients.length === 0) return;
+  const tokens: string[] = [];
+  for (const userId of recipients) {
+    const userDoc = await db.doc(`users/${userId}`).get();
+    const entries = await loadFcmTokens(userId, userDoc.data()?.fcmTokens);
+    for (const entry of entries) {
+      if (entry.platform === "android" || entry.platform === "web") {
+        tokens.push(entry.token);
+      }
+    }
+  }
+  if (tokens.length === 0) return;
+  await getMessaging().sendEachForMulticast({
+    tokens,
+    data: recallPayload(params),
+    android: { priority: "high" },
+  });
+}
+
+export const onDmMessageDeleted = onDocumentDeleted(
+  {
+    document: "directMessages/{dmId}/rooms/{roomId}/messages/{messageId}",
+    region: "asia-northeast1",
+  },
+  async (event) => {
+    const message = event.data?.data();
+    if (!message) return;
+    const dmDoc = await db.doc(`directMessages/${event.params.dmId}`).get();
+    await sendMessageRecall({
+      participantIds: dmDoc.data()?.participants,
+      senderId: message.senderId,
+      conversationId: event.params.dmId,
+      roomId: event.params.roomId,
+      messageId: event.params.messageId,
+    });
+  },
+);
+
+export const onGroupMessageDeleted = onDocumentDeleted(
+  {
+    document: "groups/{groupId}/rooms/{roomId}/messages/{messageId}",
+    region: "asia-northeast1",
+  },
+  async (event) => {
+    const message = event.data?.data();
+    if (!message) return;
+    const groupDoc = await db.doc(`groups/${event.params.groupId}`).get();
+    await sendMessageRecall({
+      participantIds: groupDoc.data()?.memberIds,
+      senderId: message.senderId,
+      conversationId: event.params.groupId,
+      roomId: event.params.roomId,
+      messageId: event.params.messageId,
+    });
   },
 );
 

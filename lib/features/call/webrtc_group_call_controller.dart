@@ -12,6 +12,7 @@ import 'call_log.dart';
 import 'ice_diagnostics.dart';
 import 'call_sound_player.dart';
 import 'acquire_with_video_fallback.dart';
+import 'peer_answer_match.dart';
 import 'peer_connect_guard.dart';
 import 'rtc_config.dart';
 import '../../utils/page_exit/page_exit.dart';
@@ -99,6 +100,9 @@ class WebrtcGroupCallController extends ChangeNotifier {
   // 自分が直前に送った値でも既に適用済みの値でも無い場合だけ相手からの
   // 新規オファー/アンサーとして扱う（1対1のWebrtcCallControllerと同じ設計）。
   final Map<String, String?> _pendingLocalOfferSdp = {};
+
+  /// 自分が最後に送ったofferのid。answerは、このidへの返事だけを適用する（`peer_answer_match.dart`）。
+  final Map<String, String?> _pendingLocalOfferId = {};
   final Map<String, String?> _pendingLocalAnswerSdp = {};
   final Map<String, String?> _lastAppliedOfferSdp = {};
   final Map<String, String?> _lastAppliedAnswerSdp = {};
@@ -673,6 +677,15 @@ class WebrtcGroupCallController extends ChangeNotifier {
               answerSdp != _pendingLocalAnswerSdp[otherUserId] &&
               answerSdp != _lastAppliedAnswerSdp[otherUserId]) {
             _lastAppliedAnswerSdp[otherUserId] = answerSdp;
+            // 前回の参加の古いanswerは、自分の最新のofferへの返事ではないので適用しない。
+            final answerFor = link.answer?['forOffer'] as String?;
+            if (!shouldApplyAnswer(
+              answerFor: answerFor,
+              pendingOfferId: _pendingLocalOfferId[otherUserId],
+            )) {
+              callLog('group: $otherUserId stale answer ignored');
+              return;
+            }
             callLog(
               'group: $otherUserId answer applying sdp=${answerSdp.length} '
               'signaling=${peerConnection.signalingState}',
@@ -715,7 +728,12 @@ class WebrtcGroupCallController extends ChangeNotifier {
     await _repository.setPeerAnswer(
       groupCallId: groupCallId,
       pairId: CallPeerLink.idFor(currentUser.userId, otherUserId),
-      answer: {'sdp': answer.sdp, 'type': answer.type},
+      answer: {
+        'sdp': answer.sdp,
+        'type': answer.type,
+        // どのofferへの返事か（相手が、自分の最新のofferへの返事だけを適用するため）。
+        if (offerMap['id'] is String) 'forOffer': offerMap['id'],
+      },
     );
   }
 
@@ -730,10 +748,12 @@ class WebrtcGroupCallController extends ChangeNotifier {
       'signaling=${peerConnection.signalingState}',
     );
     _pendingLocalOfferSdp[otherUserId] = offer.sdp;
+    final offerId = newOfferId();
+    _pendingLocalOfferId[otherUserId] = offerId;
     await _repository.setPeerOffer(
       groupCallId: groupCallId,
       pairId: CallPeerLink.idFor(currentUser.userId, otherUserId),
-      offer: {'sdp': offer.sdp, 'type': offer.type},
+      offer: {'sdp': offer.sdp, 'type': offer.type, 'id': offerId},
     );
   }
 
@@ -786,6 +806,7 @@ class WebrtcGroupCallController extends ChangeNotifier {
     _pendingRemoteCandidates.remove(otherUserId);
     _appliedCandidateKeys.remove(otherUserId);
     _pendingLocalOfferSdp.remove(otherUserId);
+    _pendingLocalOfferId.remove(otherUserId);
     _pendingLocalAnswerSdp.remove(otherUserId);
     _lastAppliedOfferSdp.remove(otherUserId);
     _lastAppliedAnswerSdp.remove(otherUserId);
@@ -990,6 +1011,7 @@ class WebrtcGroupCallController extends ChangeNotifier {
     notifyListeners();
     try {
       final track = videoTracks.first;
+      var switchSucceeded = true;
       if (kIsWeb) {
         final cameras = await Helper.cameras;
         if (cameras.length < 2) return;
@@ -1000,12 +1022,17 @@ class WebrtcGroupCallController extends ChangeNotifier {
         final next = cameras[(currentIndex + 1) % cameras.length];
         await Helper.switchCamera(track, next.deviceId, _localStream);
       } else {
-        await Helper.switchCamera(track);
+        switchSucceeded = await Helper.switchCamera(track);
       }
       final switched = _localStream?.getVideoTracks().firstOrNull;
-      _isFrontCamera =
-          (switched == null ? null : trackIsFrontFacing(switched)) ??
-          !_isFrontCamera;
+      // ネイティブは同じトラックのままカメラだけが切り替わり、`getSettings()`は作成時の値の
+      // まま（外カメラでも'user'）なので、設定は使わず前回の反転で決める（2026-11-15）。
+      _isFrontCamera = nextIsFrontFacing(
+        isWeb: kIsWeb,
+        settingsFront: switched == null ? null : trackIsFrontFacing(switched),
+        previousFront: _isFrontCamera,
+        switchSucceeded: switchSucceeded,
+      );
       if (switched != null) {
         _cameraDeviceId = trackDeviceId(switched) ?? _cameraDeviceId;
       }
