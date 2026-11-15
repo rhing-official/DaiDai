@@ -16,7 +16,7 @@ import 'call_avatar.dart';
 import 'bgm/call_bgm_bindings.dart';
 import 'call_control_bar.dart';
 import 'call_video_viewer.dart';
-import 'call_tile_layout.dart' show CallLabelSheet, callVideoFitFor;
+import 'call_tile_layout.dart' show callVideoFitFor;
 import 'camera_availability.dart';
 import 'webrtc_call_controller.dart';
 import '../../l10n/strings.dart';
@@ -63,6 +63,13 @@ class _CallScreenState extends ConsumerState<CallScreen> {
   /// 拡大表示を閉じるたびに増やし、映像の部品を作り直す（`call_overlay.dart`と同じ）。
   int _viewerGeneration = 0;
 
+  /// 映像のある通話だったか（一度でも映像側のレイアウトになったか）。終了の瞬間に映像が破棄されて
+  /// 音声通話の画面へ切り替わるのを防ぐための印（2026-11-15）。
+  bool _hadVideo = false;
+
+  /// 自分の小窓の位置（`SafeArea`内の左上基準）。nullなら右上の初期位置。ドラッグで動かせる。
+  Offset? _pipOffset;
+
   /// このウィジェット自身の意図したpop（下スワイプでのドック・通話終了後の
   /// 自動クローズ・PCでの応答後の自動クローズ）かどうか。[PopScope]は
   /// `canPop`をpop試行の直前に見る為、これらの意図したpopの前には必ず
@@ -94,8 +101,9 @@ class _CallScreenState extends ConsumerState<CallScreen> {
     if (!mounted) return;
     setState(() {});
     if (_controller.state == CallConnectionState.ended) {
-      // 相手の切断・自分の切断どちらでも、少し見せてから画面を閉じる。
-      Future.delayed(const Duration(milliseconds: 400), () {
+      // 相手の切断・自分の切断どちらでも、少し見せてから画面を閉じる。映像通話は、
+      // 音声通話の画面などが一瞬出ないよう、すぐ閉じる（2026-11-15）。
+      Future.delayed(Duration(milliseconds: _hadVideo ? 0 : 400), () {
         if (mounted) _popIntentionally();
       });
       return;
@@ -174,6 +182,8 @@ class _CallScreenState extends ConsumerState<CallScreen> {
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
     final anyVideo = _myIsVideo || _remoteIsVideo;
+    final ended = _controller.state == CallConnectionState.ended;
+    if (anyVideo && !ended) _hadVideo = true;
     // 下スワイプでのドックは、映像がある通話が実際に繋がってから、かつ
     // モバイルでのみ有効にする（音声のみはミニ化しても得るものが無いため
     // 無効、PCはこの全画面ビュー自体を使わないため無効、ユーザー確認済み）。
@@ -196,12 +206,16 @@ class _CallScreenState extends ConsumerState<CallScreen> {
     // 共通にした）。
     final displayAreaGrey = Colors.grey.shade900;
 
-    Widget body = Scaffold(
-      backgroundColor: anyVideo ? colorScheme.surface : displayAreaGrey,
-      body: anyVideo
-          ? _videoBody(colorScheme, displayAreaGrey)
-          : _audioBody(colorScheme),
-    );
+    // 映像通話が終わった瞬間は、音声通話の画面も相手のアイコンも出さず、そのまま閉じる。
+    final endedFromVideo = ended && _hadVideo;
+    Widget body = endedFromVideo
+        ? const Scaffold(backgroundColor: Colors.black)
+        : Scaffold(
+            backgroundColor: anyVideo ? colorScheme.surface : displayAreaGrey,
+            body: anyVideo
+                ? _videoBody(colorScheme, displayAreaGrey)
+                : _audioBody(colorScheme),
+          );
     if (dockEnabled) {
       // 外付けキーボードのEscでも、下スワイプと同じくドックする（2026-10-11追加）。
       body = Focus(
@@ -358,12 +372,16 @@ class _CallScreenState extends ConsumerState<CallScreen> {
             child: mainShowsPlaceholder
                 ? Container(
                     color: placeholderColor,
-                    child: Center(
-                      child: _placeholderAvatar(
-                        remote: _mainViewIsRemote,
-                        radius: 56,
-                      ),
-                    ),
+                    // 発信中・接続中は、下の「接続中」の表示がアバターを出すので、ここでは
+                    // 出さない（二重になるため、2026-11-15）。
+                    child: isConnected
+                        ? Center(
+                            child: _placeholderAvatar(
+                              remote: _mainViewIsRemote,
+                              radius: 56,
+                            ),
+                          )
+                        : null,
                   )
                 : ColoredBox(
                     color: placeholderColor,
@@ -448,89 +466,108 @@ class _CallScreenState extends ConsumerState<CallScreen> {
           key: const ValueKey('overlay-controls'),
           child: Column(
             children: [
-              Padding(
-                padding: const EdgeInsets.all(16),
-                child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Flexible(
-                      child: CallLabelSheet(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                CallParticipantNameLabel(
-                                  userId: _otherUserId,
-                                  rhingSeed: _otherRhingSeed,
-                                  conversationId: widget.call.dmId,
-                                  style: const TextStyle(
-                                    fontSize: 18,
-                                    fontWeight: FontWeight.bold,
-                                    color: Colors.white,
-                                    shadows: [Shadow(blurRadius: 6)],
-                                  ),
-                                ),
-                                // 相手のミュート表示（2026-10-31追加）。
-                                if (_controller.remoteMuted)
-                                  const Padding(
-                                    padding: EdgeInsets.only(left: 6),
-                                    child: Icon(
-                                      Icons.mic_off,
-                                      size: 16,
-                                      color: Colors.white,
-                                    ),
-                                  ),
-                              ],
-                            ),
-                            Text(
-                              _statusLabel,
-                              style: const TextStyle(
-                                color: Colors.white70,
-                                shadows: [Shadow(blurRadius: 6)],
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                    GestureDetector(
-                      onTap: swapViews,
-                      child: ClipRRect(
-                        borderRadius: BorderRadius.circular(12),
-                        child: Container(
-                          width: 90,
-                          height: 130,
-                          color: placeholderColor,
-                          child: pipShowsPlaceholder
-                              ? Center(
-                                  child: _placeholderAvatar(
-                                    remote: !_mainViewIsRemote,
-                                    radius: 28,
-                                  ),
-                                )
-                              : RTCVideoView(
-                                  key: ObjectKey(pipRenderer),
-                                  pipRenderer,
-                                  mirror:
-                                      _mainViewIsRemote &&
-                                      _controller.isFrontCamera,
-                                  objectFit: RTCVideoViewObjectFit
-                                      .RTCVideoViewObjectFitCover,
-                                ),
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
               const Spacer(),
               Padding(
                 padding: const EdgeInsets.only(bottom: 24),
                 child: _controls(colorScheme),
               ),
             ],
+          ),
+        ),
+        // 相手がミュート中だけ、左上に小さなマイクオフを出す（呼び名・状態の文字は出さない）。
+        if (_controller.remoteMuted)
+          SafeArea(
+            key: const ValueKey('remote-muted'),
+            child: Align(
+              alignment: Alignment.topLeft,
+              child: Padding(
+                padding: const EdgeInsets.all(16),
+                child: Container(
+                  padding: const EdgeInsets.all(6),
+                  decoration: const BoxDecoration(
+                    color: Colors.black54,
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(
+                    Icons.mic_off,
+                    size: 16,
+                    color: Colors.white,
+                  ),
+                ),
+              ),
+            ),
+          ),
+        // 自分の小窓。ドラッグで動かせ、離すと左右の近い端へ寄る。タップで入れ替え。
+        Positioned.fill(
+          key: const ValueKey('pip'),
+          child: SafeArea(
+            child: LayoutBuilder(
+              builder: (context, c) {
+                const w = 90.0;
+                const h = 130.0;
+                const margin = 16.0;
+                // 下のボタン列に重ならない範囲まで。
+                const bottomReserve = 120.0;
+                final maxX = c.maxWidth - w;
+                final maxY = (c.maxHeight - h - bottomReserve).clamp(
+                  0.0,
+                  double.infinity,
+                );
+                Offset clampOffset(Offset o) => Offset(
+                  o.dx.clamp(0.0, maxX < 0 ? 0.0 : maxX),
+                  o.dy.clamp(0.0, maxY),
+                );
+                final pos = clampOffset(
+                  _pipOffset ?? Offset(maxX - margin, margin),
+                );
+                return Stack(
+                  children: [
+                    Positioned(
+                      left: pos.dx,
+                      top: pos.dy,
+                      child: GestureDetector(
+                        onTap: swapViews,
+                        onPanUpdate: (d) => setState(
+                          () => _pipOffset = clampOffset(pos + d.delta),
+                        ),
+                        onPanEnd: (_) => setState(() {
+                          final cur = clampOffset(_pipOffset ?? pos);
+                          final left = cur.dx + w / 2 < c.maxWidth / 2;
+                          _pipOffset = Offset(
+                            left ? margin : maxX - margin,
+                            cur.dy,
+                          );
+                        }),
+                        child: ClipRRect(
+                          borderRadius: BorderRadius.circular(12),
+                          child: Container(
+                            width: w,
+                            height: h,
+                            color: placeholderColor,
+                            child: pipShowsPlaceholder
+                                ? Center(
+                                    child: _placeholderAvatar(
+                                      remote: !_mainViewIsRemote,
+                                      radius: 28,
+                                    ),
+                                  )
+                                : RTCVideoView(
+                                    key: ObjectKey(pipRenderer),
+                                    pipRenderer,
+                                    mirror:
+                                        _mainViewIsRemote &&
+                                        _controller.isFrontCamera,
+                                    objectFit: RTCVideoViewObjectFit
+                                        .RTCVideoViewObjectFitCover,
+                                  ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                );
+              },
+            ),
           ),
         ),
       ],
