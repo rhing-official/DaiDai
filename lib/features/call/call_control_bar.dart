@@ -4,7 +4,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../l10n/strings.dart';
 
+import 'bgm/bgm_now_playing.dart';
 import 'bgm/call_bgm.dart';
+import 'bgm/bgm_player_widgets.dart';
 import 'bgm/call_bgm_sheet.dart';
 import 'call_controls.dart';
 
@@ -33,6 +35,7 @@ class CallControlBar extends ConsumerWidget {
     required this.onSwitchCamera,
     required this.onHangUp,
     this.bgmBinding,
+    this.remoteBgm,
     this.videoFailed = false,
     super.key,
   });
@@ -73,6 +76,9 @@ class CallControlBar extends ConsumerWidget {
   /// 通話のBGM（2026-11-03、Webのみ）。nullなら、BGMを流す権限が無い（Web以外は
   /// ボタンの枠も出さない）。権限が無くても枠は残し、他のボタンの位置を動かさない。
   final CallBgmBinding? bgmBinding;
+
+  /// 相手が流している曲（細いプレーヤーで表示のみ。Web以外の端末にも出す）。
+  final BgmNowPlaying? remoteBgm;
 
   /// 映像をオンにできなかった直後（注意書きを出す、2026-11-03）。
   final bool videoFailed;
@@ -169,21 +175,38 @@ class CallControlBar extends ConsumerWidget {
         ),
       ),
     );
-    if (!videoFailed) return bar;
+    // BGMを流している間は、ボタン列の上に、曲名と操作のミニプレーヤーを出す。
+    final binding = bgmBinding;
+    final miniPlayer = CallBgm.isSupported && binding != null
+        ? BgmMiniPlayer(
+            bgm: binding.bgm,
+            strings: ref.watch(appStringsProvider),
+            onOpen: () => showCallBgmSheet(context, binding),
+          )
+        : null;
+    final ownPlaying = binding?.bgm.playing ?? false;
+    final remote = remoteBgm;
+    final remotePlayer = !ownPlaying && remote != null
+        ? BgmRemoteMiniPlayer(nowPlaying: remote)
+        : null;
+    if (!videoFailed && miniPlayer == null && remotePlayer == null) return bar;
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
-        Padding(
-          padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
-          child: Text(
-            ref.watch(appStringsProvider).callVideoFailed,
-            textAlign: TextAlign.center,
-            style: TextStyle(
-              color: Theme.of(context).colorScheme.onSurface,
-              fontSize: 12,
+        ?miniPlayer,
+        ?remotePlayer,
+        if (videoFailed)
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+            child: Text(
+              ref.watch(appStringsProvider).callVideoFailed,
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                color: Theme.of(context).colorScheme.onSurface,
+                fontSize: 12,
+              ),
             ),
           ),
-        ),
         bar,
       ],
     );

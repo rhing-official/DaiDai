@@ -13,6 +13,12 @@ class BgmMixer {
     void Function()? onEnded,
   }) async {}
   void stop() {}
+  Duration get position => Duration.zero;
+  Duration? get duration => null;
+  void seek(Duration to) {}
+  bool get paused => true;
+  void pause() {}
+  Future<void> resume() async {}
   set volume(double value) {}
   void dispose() {}
 }

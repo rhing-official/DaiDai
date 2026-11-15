@@ -87,7 +87,8 @@ RTCVideoViewObjectFit callVideoFitFor({
     ? RTCVideoViewObjectFit.RTCVideoViewObjectFitContain
     : RTCVideoViewObjectFit.RTCVideoViewObjectFitCover;
 
-/// 発声中の参加者のタイルを囲む緑の枠（2026-10-31）。タップは下のタイルへ通す。
+/// 発声中の参加者のタイルを囲む枠（2026-10-31）。色はアクセントカラー（2026-11-15、以前は緑）。
+/// タップは下のタイルへ通す。
 const kCallTileRadius = 12.0;
 
 class SpeakingFrame extends StatelessWidget {
@@ -98,7 +99,10 @@ class SpeakingFrame extends StatelessWidget {
     child: DecoratedBox(
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(kCallTileRadius),
-        border: Border.all(color: const Color(0xFF2ECC71), width: 4),
+        border: Border.all(
+          color: Theme.of(context).colorScheme.primary,
+          width: 4,
+        ),
       ),
     ),
   );

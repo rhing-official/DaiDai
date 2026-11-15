@@ -2106,7 +2106,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     // コンピューター版: OS標準のスクリーンショット保存先へ直接書き込む
     // （2026-09-15追加）。以前は全プラットフォームで`SharePlus`の共有シートに
     // 任せていたが、Linuxではファイル共有自体が未対応で常に失敗し、
-    // Windows/macOSでも一時フォルダ経由でOS標準の共有UIを開くだけで保存先が
+    // Windows/macOSでも一時ディレクトリ経由でOS標準の共有UIを開くだけで保存先が
     // ユーザーの選択次第で不定だった。
     if (isDesktopPlatform) {
       try {
@@ -2159,7 +2159,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
 
     // モバイル版: OSの写真ライブラリへ直接保存する（2026-09-15追加）。
     // Android/iOSにはアプリから任意のパスへ書き込める「スクリーンショット
-    // フォルダ」は無いため（スコープドストレージ/Photosサンドボックス）、
+    // ディレクトリ」は無いため（スコープドストレージ/Photosサンドボックス）、
     // `gal`パッケージ経由でMediaStore/PHPhotoLibraryへ追加する。iOSには
     // サードパーティアプリが書き込める「スクリーンショット」専用アルバムが
     // 存在しない（OS自身が撮った本物のスクリーンショットのみ自動分類される

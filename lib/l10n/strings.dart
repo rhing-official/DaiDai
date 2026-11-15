@@ -605,6 +605,47 @@ class Strings {
     required this.callBgmStop,
     required this.callBgmRemove,
     required this.callBgmAddFailed,
+    required this.callBgmSelectedCount,
+    required this.callBgmSelectAll,
+    required this.callBgmClearSelection,
+    required this.callBgmDeleteSelected,
+    required this.callBgmDisc,
+    required this.callBgmTabAlbums,
+    required this.callBgmTabArtists,
+    required this.callIncomingVoice,
+    required this.callIncomingVideo,
+    required this.callBgmTabFavorites,
+    required this.callBgmFavoriteAdd,
+    required this.callBgmFavoriteRemove,
+    required this.callBgmFavoritesEmpty,
+    required this.callBgmFavoriteSelected,
+    required this.callBgmUnfavoriteSelected,
+    required this.callBgmUnknownArtist,
+    required this.callBgmAddFolder,
+    required this.callBgmImporting,
+    required this.callBgmNoAudioInFolder,
+    required this.callBgmNothingPlaying,
+    required this.callBgmTotalDuration,
+    required this.callBgmPrevious,
+    required this.callBgmNext,
+    required this.callBgmPause,
+    required this.callBgmResume,
+    required this.callBgmAllTracks,
+    required this.callBgmNewAlbum,
+    required this.callBgmAlbumNameHint,
+    required this.callBgmRename,
+    required this.callBgmDeleteAlbum,
+    required this.callBgmMoveToAlbum,
+    required this.callBgmNoAlbum,
+    required this.callBgmPlayAll,
+    required this.callBgmOrderInOrder,
+    required this.callBgmOrderShuffle,
+    required this.callBgmOrderRepeatOne,
+    required this.callBgmHeadphones,
+    required this.callBgmTrackCount,
+    required this.callBgmBack,
+    required this.callBgmAlbumEmpty,
+    required this.callBgmCreate,
     required this.groupRoleDeleteConfirmTitle,
     required this.groupRoleDeleteConfirmButton,
     required this.groupRoleNoneLabel,
@@ -1902,6 +1943,47 @@ class Strings {
   final String callBgmStop;
   final String callBgmRemove;
   final String callBgmAddFailed;
+  final String Function(int count) callBgmSelectedCount;
+  final String callBgmSelectAll;
+  final String callBgmClearSelection;
+  final String callBgmDeleteSelected;
+  final String Function(int number) callBgmDisc;
+  final String callBgmTabAlbums;
+  final String callBgmTabArtists;
+  final String callIncomingVoice;
+  final String callIncomingVideo;
+  final String callBgmTabFavorites;
+  final String callBgmFavoriteAdd;
+  final String callBgmFavoriteRemove;
+  final String callBgmFavoritesEmpty;
+  final String callBgmFavoriteSelected;
+  final String callBgmUnfavoriteSelected;
+  final String callBgmUnknownArtist;
+  final String callBgmAddFolder;
+  final String Function(int done, int total) callBgmImporting;
+  final String callBgmNoAudioInFolder;
+  final String callBgmNothingPlaying;
+  final String Function(String time) callBgmTotalDuration;
+  final String callBgmPrevious;
+  final String callBgmNext;
+  final String callBgmPause;
+  final String callBgmResume;
+  final String callBgmAllTracks;
+  final String callBgmNewAlbum;
+  final String callBgmAlbumNameHint;
+  final String callBgmRename;
+  final String callBgmDeleteAlbum;
+  final String callBgmMoveToAlbum;
+  final String callBgmNoAlbum;
+  final String callBgmPlayAll;
+  final String callBgmOrderInOrder;
+  final String callBgmOrderShuffle;
+  final String callBgmOrderRepeatOne;
+  final String callBgmHeadphones;
+  final String Function(int count) callBgmTrackCount;
+  final String callBgmBack;
+  final String callBgmAlbumEmpty;
+  final String callBgmCreate;
   final String groupRoleDeleteConfirmTitle;
   final String groupRoleDeleteConfirmButton;
   final String groupRoleNoneLabel;
@@ -3125,7 +3207,7 @@ class Strings {
         '$count枚のスクリーンショットを保存しました: $path',
     chatScreenshotSavedToGalleryMessage: (count) =>
         '$count枚のスクリーンショットを写真に保存しました',
-    chatScreenshotOpenFolderAction: 'フォルダを開く',
+    chatScreenshotOpenFolderAction: 'ディレクトリを開く',
     chatScreenshotPhotoPermissionDeniedMessage:
         '写真への保存が許可されていません。OSの設定をご確認ください。',
     chatEditedLabel: '編集済み',
@@ -3327,6 +3409,47 @@ class Strings {
     callBgmStop: '止める',
     callBgmRemove: '削除',
     callBgmAddFailed: '曲を追加出来ませんでした',
+    callBgmSelectedCount: (count) => '$count件を選択中',
+    callBgmSelectAll: '全て選択',
+    callBgmClearSelection: '選択を解除',
+    callBgmDeleteSelected: '選んだ曲を削除',
+    callBgmDisc: (number) => 'Disc $number',
+    callBgmTabAlbums: 'アルバム',
+    callBgmTabArtists: 'アーティスト',
+    callIncomingVoice: '音声通話の着信',
+    callIncomingVideo: 'ビデオ通話の着信',
+    callBgmTabFavorites: 'お気に入り',
+    callBgmFavoriteAdd: 'お気に入りに入れる',
+    callBgmFavoriteRemove: 'お気に入りから外す',
+    callBgmFavoritesEmpty: 'お気に入りの曲はまだありません。曲の★を押すと、ここに並びます。',
+    callBgmFavoriteSelected: '選んだ曲をお気に入りに入れる',
+    callBgmUnfavoriteSelected: '選んだ曲をお気に入りから外す',
+    callBgmUnknownArtist: 'アーティスト不明',
+    callBgmAddFolder: 'ディレクトリを追加',
+    callBgmImporting: (done, total) => '追加中 $done / $total',
+    callBgmNoAudioInFolder: 'そのディレクトリに、音声ファイルが見つかりませんでした',
+    callBgmNothingPlaying: '曲を選ぶと、ここで再生します',
+    callBgmTotalDuration: (time) => '合計 $time',
+    callBgmPrevious: '前の曲',
+    callBgmNext: '次の曲',
+    callBgmPause: '一時停止',
+    callBgmResume: '再生',
+    callBgmAllTracks: 'すべての曲',
+    callBgmNewAlbum: 'アルバムを作成',
+    callBgmAlbumNameHint: 'アルバム名',
+    callBgmRename: '名前を変更',
+    callBgmDeleteAlbum: 'アルバムを削除（曲は残ります）',
+    callBgmMoveToAlbum: 'アルバムへ移動',
+    callBgmNoAlbum: 'アルバムなし',
+    callBgmPlayAll: '全て再生',
+    callBgmOrderInOrder: '順番に再生',
+    callBgmOrderShuffle: 'シャッフル',
+    callBgmOrderRepeatOne: '1曲をくり返す',
+    callBgmHeadphones: '相手に聞こえるBGMは、あなたにも聞こえます。スピーカーだとマイクが拾って響くので、イヤホンをおすすめします',
+    callBgmTrackCount: (count) => '$count曲',
+    callBgmBack: '戻る',
+    callBgmAlbumEmpty: '曲が有りません。「曲を追加」で、このアルバムに登録出来ます',
+    callBgmCreate: '作成',
     groupRoleDeleteConfirmTitle: 'このロールを削除しますか？',
     groupRoleDeleteConfirmButton: '削除する',
     groupRoleNoneLabel: 'ロール未設定',
@@ -4650,6 +4773,50 @@ class Strings {
     callBgmStop: 'Stop',
     callBgmRemove: 'Remove',
     callBgmAddFailed: 'Could not add the track',
+    callBgmSelectedCount: (count) => '$count selected',
+    callBgmSelectAll: 'Select all',
+    callBgmClearSelection: 'Clear selection',
+    callBgmDeleteSelected: 'Delete the selected tracks',
+    callBgmDisc: (number) => 'Disc $number',
+    callBgmTabAlbums: 'Albums',
+    callBgmTabArtists: 'Artists',
+    callIncomingVoice: 'Incoming voice call',
+    callIncomingVideo: 'Incoming video call',
+    callBgmTabFavorites: 'Favourites',
+    callBgmFavoriteAdd: 'Add to favourites',
+    callBgmFavoriteRemove: 'Remove from favourites',
+    callBgmFavoritesEmpty:
+        'No favourites yet. Tap the star on a track to add it here.',
+    callBgmFavoriteSelected: 'Add the selected tracks to favourites',
+    callBgmUnfavoriteSelected: 'Remove the selected tracks from favourites',
+    callBgmUnknownArtist: 'Unknown artist',
+    callBgmAddFolder: 'Add a directory',
+    callBgmImporting: (done, total) => 'Adding $done / $total',
+    callBgmNoAudioInFolder: 'No audio files were found in that directory',
+    callBgmNothingPlaying: 'Pick a track to play it here',
+    callBgmTotalDuration: (time) => 'Total $time',
+    callBgmPrevious: 'Previous',
+    callBgmNext: 'Next',
+    callBgmPause: 'Pause',
+    callBgmResume: 'Play',
+    callBgmAllTracks: 'All tracks',
+    callBgmNewAlbum: 'Create an album',
+    callBgmAlbumNameHint: 'Album name',
+    callBgmRename: 'Rename',
+    callBgmDeleteAlbum: 'Delete the album (tracks are kept)',
+    callBgmMoveToAlbum: 'Move to an album',
+    callBgmNoAlbum: 'No album',
+    callBgmPlayAll: 'Play all',
+    callBgmOrderInOrder: 'In order',
+    callBgmOrderShuffle: 'Shuffle',
+    callBgmOrderRepeatOne: 'Repeat one',
+    callBgmHeadphones:
+        'You hear the background music too. On speakers your microphone picks it up and it echoes, so headphones are recommended',
+    callBgmTrackCount: (count) => count == 1 ? '1 track' : '$count tracks',
+    callBgmBack: 'Back',
+    callBgmAlbumEmpty:
+        'No tracks yet. Use “Add a track” to add one to this album',
+    callBgmCreate: 'Create',
     groupRoleDeleteConfirmTitle: 'Delete this role?',
     groupRoleDeleteConfirmButton: 'Delete',
     groupRoleNoneLabel: 'No role',

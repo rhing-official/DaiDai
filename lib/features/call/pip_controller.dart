@@ -73,7 +73,7 @@ class _PipHostState extends ConsumerState<PipHost> {
         ref.read(pipActiveProvider.notifier).set(call.arguments == true);
       } else if (call.method == 'pipDismissed' && mounted) {
         // PiPの小窓を×で閉じた。通話を続けると落ちるため、終了する。
-        callLog('PiPが閉じられたため通話を終了します');
+        callLog('PiP window dismissed; ending the call');
         await ref.read(activeCallSessionProvider.notifier).endCall();
       }
     });

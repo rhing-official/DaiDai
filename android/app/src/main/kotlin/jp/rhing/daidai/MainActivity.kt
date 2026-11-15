@@ -109,6 +109,11 @@ class MainActivity : FlutterFragmentActivity() {
             if (call.method == "takePendingAction") {
                 result.success(pendingCallAction)
                 pendingCallAction = null
+            } else if (call.method == "isDeviceLocked") {
+                // 画面がロックされているか（着信を全画面で出すかの判断に使う）。
+                val keyguard = getSystemService(android.content.Context.KEYGUARD_SERVICE)
+                    as android.app.KeyguardManager
+                result.success(keyguard.isKeyguardLocked)
             } else {
                 result.notImplemented()
             }

@@ -481,7 +481,7 @@ class _GroupCallScreenState extends ConsumerState<GroupCallScreen> {
               ),
             ),
             if (_controller.speakingUserIds.contains(userId))
-              const Positioned.fill(child: SpeakingFrame()),
+              Positioned.fill(child: SpeakingFrame()),
             if (connectionIssue)
               Positioned(
                 top: 8,
@@ -534,6 +534,7 @@ class _GroupCallScreenState extends ConsumerState<GroupCallScreen> {
       onSwitchCamera: _controller.switchCamera,
       onHangUp: () => _controller.leave(),
       videoFailed: _controller.videoFailed,
+      remoteBgm: _controller.remoteBgm,
       bgmBinding: groupBgmBinding(
         _controller,
         allowed: ref.watch(

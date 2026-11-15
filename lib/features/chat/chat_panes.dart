@@ -3313,7 +3313,8 @@ class _GroupMenuButtonState extends ConsumerState<_GroupMenuButton> {
                 userId: widget.currentUser.userId,
                 conversationId: widget.group.groupId,
                 roomId: widget.roomId,
-                muted: !roomMuted,
+                // スイッチを押した時点で`roomMuted`は反転済み（二重に反転しない）。
+                muted: roomMuted,
               );
         case _GroupMenuAction.toggleReadReceipts:
           // 既読機能のオン/オフはmanageReadReceipts権限を持つメンバーのみ
@@ -3355,7 +3356,8 @@ class _GroupMenuButtonState extends ConsumerState<_GroupMenuButton> {
               .setRoomReadReceiptsCountOnlyOverride(
                 groupId: widget.group.groupId,
                 roomId: widget.roomId,
-                countOnly: !roomReadReceiptsCountOnly,
+                // スイッチを押した時点で反転済み（二重に反転しない）。
+                countOnly: roomReadReceiptsCountOnly,
               );
         case _GroupMenuAction.toggleHistoryVisible:
           // manageRooms権限を持つメンバーのみ（firestore.rulesで強制、メニュー
@@ -3366,7 +3368,8 @@ class _GroupMenuButtonState extends ConsumerState<_GroupMenuButton> {
               .setRoomHistoryVisibleOverride(
                 groupId: widget.group.groupId,
                 roomId: widget.roomId,
-                enabled: !roomHistoryVisible,
+                // スイッチを押した時点で反転済み（二重に反転しない）。
+                enabled: roomHistoryVisible,
               );
         case _GroupMenuAction.leave:
           GroupLeaveDialog.show(

@@ -147,7 +147,7 @@ const _kAboutPaneWidth = 380.0;
 const _kResidencePaneMinWidth = 420.0;
 
 /// 設定タブ。サイドバーの階層は最上位カテゴリ（アカウント／アプリケーション／
-/// 入力／通知）の1段だけに留め、それぞれの中身（旧: サブフォルダだった項目）は
+/// 入力／通知）の1段だけに留め、それぞれの中身（旧: サブディレクトリだった項目）は
 /// カテゴリ毎に1つの縦スクロールページへ、見出し付きセクションとしてまとめる
 /// （Discordのアカウント設定ページの構成を参考にした。2026-07-24変更）。
 class SettingsTab extends ConsumerStatefulWidget {
@@ -2043,7 +2043,7 @@ class _LicenseDetailView extends StatelessWidget {
 }
 
 /// アカウントカテゴリの中身。旧: Rhing Seed／プロフィール名／セキュリティ／
-/// QRコードログイン／ログアウト／アカウント削除の各サブフォルダを、
+/// QRコードログイン／ログアウト／アカウント削除の各サブディレクトリを、
 /// 見出し付きセクションとして1ページにまとめた。
 class _AccountPage extends ConsumerWidget {
   const _AccountPage({
@@ -2488,7 +2488,7 @@ class _DeleteAccountOptionCard extends StatelessWidget {
   }
 }
 
-/// アプリケーションカテゴリの中身。旧: 色／UI／文字／言語の各サブフォルダを
+/// アプリケーションカテゴリの中身。旧: 色／UI／文字／言語の各サブディレクトリを
 /// 1ページにまとめた。
 class _ApplicationPage extends ConsumerWidget {
   const _ApplicationPage({required this.strings, this.showNavChips = true});

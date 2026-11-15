@@ -28,9 +28,13 @@ class BgmMixer {
     final micStream = web.MediaStream([micJs].toJS);
     context.createMediaStreamSource(micStream).connect(destination);
     if (_audio == null) {
+      // 送信用（相手へ）に加え、自分のスピーカー（`context.destination`）にも出す。以前は送信用に
+      // だけ繋いでいた為、相手には聞こえるが自分には全く聞こえなかった（2026-11-15）。
+      // マイクの方は自分へ戻さない（自分の声が返ってくる為）。
       final bgmGain = context.createGain()
         ..gain.value = _volume
-        ..connect(destination);
+        ..connect(destination)
+        ..connect(context.destination);
       final audio = web.HTMLAudioElement();
       context.createMediaElementSource(audio).connect(bgmGain);
       _bgmGain = bgmGain;
@@ -76,6 +80,36 @@ class BgmMixer {
     final url = _objectUrl;
     if (url != null) web.URL.revokeObjectURL(url);
     _objectUrl = null;
+  }
+
+  /// 今の再生位置と、曲の長さ（読み込み前・長さ不明はnull）。
+  Duration get position {
+    final t = _audio?.currentTime ?? 0;
+    return Duration(milliseconds: ((t.isFinite ? t : 0) * 1000).round());
+  }
+
+  Duration? get duration {
+    final d = _audio?.duration;
+    if (d == null || !d.isFinite || d <= 0) return null;
+    return Duration(milliseconds: (d * 1000).round());
+  }
+
+  /// 再生位置を動かす（曲が読み込まれていない間は何もしない）。
+  void seek(Duration to) {
+    final audio = _audio;
+    if (audio == null || duration == null) return;
+    audio.currentTime = to.inMilliseconds / 1000;
+  }
+
+  bool get paused => _audio?.paused ?? true;
+
+  /// 一時停止。混合の経路・曲は残す（[resume]で続きから）。
+  void pause() => _audio?.pause();
+
+  Future<void> resume() async {
+    final audio = _audio;
+    if (audio == null) return;
+    await audio.play().toDart;
   }
 
   set volume(double value) {

@@ -672,7 +672,7 @@ class _GroupStageState extends ConsumerState<_GroupStage> {
               ),
             ),
             if (session.controller.speakingUserIds.contains(userId))
-              const Positioned.fill(child: SpeakingFrame()),
+              Positioned.fill(child: SpeakingFrame()),
           ],
         ),
       ),
@@ -712,6 +712,7 @@ class _EmbeddedControls extends ConsumerWidget {
         onSwitchCamera: controller.switchCamera,
         onHangUp: controller.hangUp,
         bgmBinding: oneToOneBgmBinding(controller),
+        remoteBgm: controller.remoteBgm,
         videoFailed: controller.videoFailed,
       ),
       GroupCallSession(:final controller, :final groupId) => CallControlBar(
@@ -733,6 +734,7 @@ class _EmbeddedControls extends ConsumerWidget {
         onSwitchCamera: controller.switchCamera,
         onHangUp: () => controller.leave(),
         videoFailed: controller.videoFailed,
+        remoteBgm: controller.remoteBgm,
         bgmBinding: groupBgmBinding(
           controller,
           allowed: ref.watch(

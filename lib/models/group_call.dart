@@ -88,6 +88,8 @@ class CallParticipant {
     this.lastSeenAt,
     this.sessionId,
     this.bgmTitle,
+    this.bgmPaused = false,
+    this.bgmCover,
   });
 
   final String userId;
@@ -97,6 +99,10 @@ class CallParticipant {
   /// この参加者が今流しているBGMの曲名（流していなければnull、2026-11-03追加）。
   /// 曲そのものは再生者の端末内にあり、音は再生者の送信音声に混ざって届く。
   final String? bgmTitle;
+
+  /// BGMを一時停止中か・縮小したジャケット画像（base64のJPEG。表示用、2026-11-15追加）。
+  final bool bgmPaused;
+  final String? bgmCover;
 
   /// この参加（端末1台ぶん）を区別するランダムな文字列（2026-10-21追加）。
   /// 参加者ドキュメントのIDはuserIdで端末の区別が無い為、同じ人が別の端末から
@@ -125,6 +131,8 @@ class CallParticipant {
       lastSeenAt: json['lastSeenAt'] as Timestamp?,
       sessionId: json['sessionId'] as String?,
       bgmTitle: json['bgmTitle'] as String?,
+      bgmPaused: json['bgmPaused'] as bool? ?? false,
+      bgmCover: json['bgmCover'] as String?,
     );
   }
 
@@ -137,6 +145,8 @@ class CallParticipant {
       'lastSeenAt': lastSeenAt ?? FieldValue.serverTimestamp(),
       if (sessionId != null) 'sessionId': sessionId,
       if (bgmTitle != null) 'bgmTitle': bgmTitle,
+      if (bgmTitle != null) 'bgmPaused': bgmPaused,
+      if (bgmCover != null) 'bgmCover': bgmCover,
     };
   }
 }

@@ -18,6 +18,7 @@ import 'rtc_config.dart';
 import '../../utils/page_exit/page_exit.dart';
 import 'audio_route.dart';
 import 'bgm/bgm_storage.dart';
+import 'bgm/bgm_now_playing.dart';
 import 'bgm/call_bgm.dart';
 import 'webrtc_media_constraints.dart';
 
@@ -200,12 +201,14 @@ class WebrtcGroupCallController extends ChangeNotifier {
     storage: createBgmStorage(),
     micTrack: () => _localStream?.getAudioTracks().firstOrNull,
     replaceOutgoingAudio: _replaceOutgoingAudio,
-    onPlayingChanged: (title) => _repository
+    onPlayingChanged: (nowPlaying) => _repository
         .updateParticipantState(
           groupCallId: groupCallId,
           userId: currentUser.userId,
-          bgmTitle: title,
-          clearBgm: title == null,
+          bgmTitle: nowPlaying?.title,
+          bgmPaused: nowPlaying?.paused,
+          bgmCover: nowPlaying?.thumbBase64,
+          clearBgm: nowPlaying == null,
         )
         .catchError((_) {}),
   )..addListener(notifyListeners);
@@ -234,6 +237,18 @@ class WebrtcGroupCallController extends ChangeNotifier {
   }
 
   /// 今BGMを流している他の参加者（いなければnull）。
+  /// 他の参加者が流している曲の表示用の情報（いなければnull）。
+  BgmNowPlaying? get remoteBgm {
+    final p = bgmPlayer;
+    final title = p?.bgmTitle;
+    if (p == null || title == null) return null;
+    return BgmNowPlaying(
+      title: title,
+      paused: p.bgmPaused,
+      thumb: BgmNowPlaying.thumbFromBase64(p.bgmCover),
+    );
+  }
+
   CallParticipant? get bgmPlayer =>
       remoteParticipants.firstWhereOrNull((p) => p.bgmTitle != null);
 

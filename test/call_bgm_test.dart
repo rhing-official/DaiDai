@@ -4,7 +4,9 @@ import 'package:daidai/features/call/bgm/call_bgm_sheet.dart';
 import 'package:daidai/l10n/app_locale.dart';
 import 'package:daidai/l10n/strings.dart';
 import 'package:daidai/models/group_call.dart';
+import 'package:daidai/models/app_ui_style.dart';
 import 'package:daidai/providers/app_locale_provider.dart';
+import 'package:daidai/providers/app_ui_style_provider.dart';
 import 'package:daidai/models/group_role.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -64,6 +66,7 @@ void main() {
       ProviderScope(
         overrides: [
           initialAppLocaleProvider.overrideWithValue(AppLocale.japanese),
+          initialAppUiStyleProvider.overrideWithValue(AppUiStyle.flat),
         ],
         child: MaterialApp(
           home: const SizedBox.shrink(),

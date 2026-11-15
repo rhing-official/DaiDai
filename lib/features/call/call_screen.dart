@@ -555,6 +555,7 @@ class _CallScreenState extends ConsumerState<CallScreen> {
       onSwitchCamera: _controller.switchCamera,
       onHangUp: _controller.hangUp,
       bgmBinding: oneToOneBgmBinding(_controller),
+      remoteBgm: _controller.remoteBgm,
       videoFailed: _controller.videoFailed,
     );
   }

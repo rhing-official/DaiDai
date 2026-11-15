@@ -90,8 +90,10 @@ abstract class GroupCallRepository {
     bool? micMuted,
     bool? isVideo,
 
-    /// 流しているBGMの曲名。[clearBgm]がtrueなら消す（流していない状態）。
+    /// 流しているBGMの曲名・一時停止か・小さなジャケット（base64）。[clearBgm]がtrueなら消す（流していない状態）。
     String? bgmTitle,
+    bool? bgmPaused,
+    String? bgmCover,
     bool clearBgm = false,
   });
 
@@ -368,13 +370,23 @@ class FirestoreGroupCallRepository implements GroupCallRepository {
     bool? micMuted,
     bool? isVideo,
     String? bgmTitle,
+    bool? bgmPaused,
+    String? bgmCover,
     bool clearBgm = false,
   }) async {
     final data = <String, dynamic>{};
     if (micMuted != null) data['micMuted'] = micMuted;
     if (isVideo != null) data['isVideo'] = isVideo;
-    if (bgmTitle != null) data['bgmTitle'] = bgmTitle;
-    if (clearBgm) data['bgmTitle'] = FieldValue.delete();
+    if (bgmTitle != null) {
+      data['bgmTitle'] = bgmTitle;
+      data['bgmPaused'] = bgmPaused ?? false;
+      data['bgmCover'] = bgmCover ?? FieldValue.delete();
+    }
+    if (clearBgm) {
+      data['bgmTitle'] = FieldValue.delete();
+      data['bgmPaused'] = FieldValue.delete();
+      data['bgmCover'] = FieldValue.delete();
+    }
     if (data.isEmpty) return;
     await _participantsOf(groupCallId).doc(userId).update(data);
   }

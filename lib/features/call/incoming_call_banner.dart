@@ -1,8 +1,12 @@
+import 'dart:io' show Platform;
+
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:pointer_interceptor/pointer_interceptor.dart';
 
+import '../../l10n/strings.dart';
 import '../../providers/call_answer_providers.dart';
 import '../../router/app_router.dart';
 import '../../utils/platform_info.dart';
@@ -19,6 +23,21 @@ import 'webrtc_call_controller.dart';
 /// `WebrtcCallController`が[kCallRingTimeout]で不在着信として終える。
 /// スマホアプリも同じバナーで着信を受け、応答すると全画面の`/call`へ進む
 /// （2026-11-03、以前は着信と同時に全画面の2択画面を開いていた）。
+const _lockChannel = MethodChannel('jp.rhing.daidai/call_action');
+
+/// 着信の時点で、端末の画面がロックされていたか（Androidのみ。通話ごとに1回だけ調べる）。
+final _lockedAtRingProvider = FutureProvider.autoDispose.family<bool, String>((
+  ref,
+  callId,
+) async {
+  if (kIsWeb || !Platform.isAndroid) return false;
+  try {
+    return await _lockChannel.invokeMethod<bool>('isDeviceLocked') ?? false;
+  } catch (_) {
+    return false;
+  }
+});
+
 class IncomingCallBannerOverlay extends ConsumerWidget {
   const IncomingCallBannerOverlay({super.key});
 
@@ -70,6 +89,27 @@ class IncomingCallBannerOverlay extends ConsumerWidget {
             ref.read(pendingCallAnswerProvider.notifier).clear();
             accept();
           });
+        }
+
+        // ロック中の着信は、バナーではなく全画面で出す（2026-11-15）。
+        final locked =
+            ref.watch(_lockedAtRingProvider(session.call.callId)).value ??
+            false;
+        if (locked) {
+          final call = session.call;
+          final me = session.currentUserId;
+          return Positioned.fill(
+            child: PointerInterceptor(
+              child: _FullScreenIncomingCall(
+                userId: call.otherUserId(me),
+                rhingSeed: call.otherRhingSeed(me),
+                conversationId: call.dmId,
+                isVideo: call.isVideo,
+                onDecline: controller.decline,
+                onAccept: controller.accepting ? null : accept,
+              ),
+            ),
+          );
         }
 
         final isComputer = classifyDevice(context) == DeviceClass.computer;
@@ -129,6 +169,107 @@ class _IncomingCallBanner extends ConsumerWidget {
         rhingSeed: otherSeed,
         conversationId: call.dmId,
         style: style,
+      ),
+    );
+  }
+}
+
+/// ロック画面で受ける着信の全画面表示（相手のアイコン・呼び名・拒否と応答の大きな丸いボタン）。
+class _FullScreenIncomingCall extends ConsumerWidget {
+  const _FullScreenIncomingCall({
+    required this.userId,
+    required this.rhingSeed,
+    required this.conversationId,
+    required this.isVideo,
+    required this.onDecline,
+    required this.onAccept,
+  });
+
+  final String userId;
+  final String rhingSeed;
+  final String conversationId;
+  final bool isVideo;
+  final VoidCallback onDecline;
+  final VoidCallback? onAccept;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final strings = ref.watch(appStringsProvider);
+    const textStyle = TextStyle(color: Colors.white);
+    Widget button(Color color, IconData icon, VoidCallback? tap) {
+      return Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Semantics(
+            button: true,
+            child: Material(
+              color: tap == null ? color.withValues(alpha: 0.5) : color,
+              shape: const CircleBorder(),
+              child: InkWell(
+                customBorder: const CircleBorder(),
+                onTap: tap,
+                child: SizedBox(
+                  width: 72,
+                  height: 72,
+                  child: Icon(icon, color: Colors.white, size: 34),
+                ),
+              ),
+            ),
+          ),
+        ],
+      );
+    }
+
+    return Material(
+      color: const Color(0xFF121212),
+      child: SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 48, horizontal: 32),
+          child: Column(
+            children: [
+              const Spacer(flex: 2),
+              CallParticipantAvatar(
+                userId: userId,
+                rhingSeed: rhingSeed,
+                conversationId: conversationId,
+                radius: 64,
+              ),
+              const SizedBox(height: 24),
+              DefaultTextStyle(
+                style: textStyle.copyWith(
+                  fontSize: 28,
+                  fontWeight: FontWeight.bold,
+                ),
+                child: CallParticipantNameLabel(
+                  userId: userId,
+                  rhingSeed: rhingSeed,
+                  conversationId: conversationId,
+                  style: textStyle.copyWith(
+                    fontSize: 28,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                isVideo ? strings.callIncomingVideo : strings.callIncomingVoice,
+                style: textStyle.copyWith(color: Colors.white70, fontSize: 16),
+              ),
+              const Spacer(flex: 3),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                children: [
+                  button(Colors.red.shade700, Icons.call_end, onDecline),
+                  button(
+                    Colors.green.shade700,
+                    isVideo ? Icons.videocam : Icons.call,
+                    onAccept,
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }

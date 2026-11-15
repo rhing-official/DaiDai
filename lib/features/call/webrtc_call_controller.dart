@@ -15,6 +15,7 @@ import 'disconnect_grace.dart';
 import 'rtc_config.dart';
 import 'audio_route.dart';
 import 'bgm/bgm_storage.dart';
+import 'bgm/bgm_now_playing.dart';
 import 'bgm/call_bgm.dart';
 import 'webrtc_media_constraints.dart';
 
@@ -131,9 +132,10 @@ class WebrtcCallController extends ChangeNotifier {
     onPlayingChanged: _sendBgmState,
   )..addListener(notifyListeners);
 
-  /// 相手がBGMを流している時の曲名（流していなければnull）。
-  String? _remoteBgmTitle;
-  String? get remoteBgmTitle => _remoteBgmTitle;
+  /// 相手がBGMを流している時の表示用の情報（流していなければnull）。
+  BgmNowPlaying? _remoteBgm;
+  BgmNowPlaying? get remoteBgm => _remoteBgm;
+  String? get remoteBgmTitle => _remoteBgm?.title;
 
   Future<void> _replaceOutgoingAudio(MediaStreamTrack track) async {
     for (final sender in await _peerConnection?.getSenders() ?? []) {
@@ -141,10 +143,10 @@ class WebrtcCallController extends ChangeNotifier {
     }
   }
 
-  static const _bgmOnPrefix = 'bgm:on:';
+  static const _bgmOnPrefix = 'bgm:state:';
   static const _bgmOffMessage = 'bgm:off';
 
-  void _sendBgmState(String? title) {
+  void _sendBgmState(BgmNowPlaying? nowPlaying) {
     final channel = _controlChannel;
     if (channel == null ||
         channel.state != RTCDataChannelState.RTCDataChannelOpen) {
@@ -153,7 +155,9 @@ class WebrtcCallController extends ChangeNotifier {
     try {
       channel.send(
         RTCDataChannelMessage(
-          title == null ? _bgmOffMessage : '$_bgmOnPrefix$title',
+          nowPlaying == null
+              ? _bgmOffMessage
+              : '$_bgmOnPrefix${nowPlaying.encode()}',
         ),
       );
     } catch (_) {
@@ -864,12 +868,14 @@ class WebrtcCallController extends ChangeNotifier {
         _remoteMuted = text == _muteOnMessage;
         notifyListeners();
       } else if (text.startsWith(_bgmOnPrefix)) {
+        final state = BgmNowPlaying.decode(text.substring(_bgmOnPrefix.length));
+        if (state == null) return;
         // 同時に流せるのは1人。後から始めた相手を優先し、自分のは止める。
-        _remoteBgmTitle = text.substring(_bgmOnPrefix.length);
-        if (bgm.playing) unawaited(bgm.stop());
+        if (_remoteBgm == null && bgm.playing) unawaited(bgm.stop());
+        _remoteBgm = state;
         notifyListeners();
       } else if (text == _bgmOffMessage) {
-        _remoteBgmTitle = null;
+        _remoteBgm = null;
         notifyListeners();
       }
     };
@@ -878,8 +884,8 @@ class WebrtcCallController extends ChangeNotifier {
     channel.onDataChannelState = (state) {
       if (state == RTCDataChannelState.RTCDataChannelOpen) {
         if (_muted) _sendMuteState();
-        final playing = bgm.current;
-        if (playing != null) _sendBgmState(playing.name);
+        final playing = bgm.nowPlaying;
+        if (playing != null) _sendBgmState(playing);
       }
     };
   }
