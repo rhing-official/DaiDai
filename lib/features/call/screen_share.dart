@@ -73,8 +73,30 @@ class ScreenShareCapture {
       'height': {'ideal': quality.height},
       'frameRate': {'ideal': quality.fps},
     },
-    'audio': shareAudio,
+    // 音声は、マイク向けの加工（エコー除去・ノイズ抑制・自動音量）を掛けずに取る。
+    'audio': shareAudio
+        ? {
+            'echoCancellation': false,
+            'noiseSuppression': false,
+            'autoGainControl': false,
+          }
+        : false,
+    // Chromeの選択画面で、システム音声の共有を出す。自分のタブは選択肢から外す（映像が自分を
+    // 映し続ける無限鏡になる為）。非対応のブラウザは、知らない項目を無視する。
+    if (shareAudio) 'systemAudio': 'include',
+    'selfBrowserSurface': 'exclude',
+    'surfaceSwitching': 'include',
   };
+
+  /// 取得した画面の種類（`browser`＝タブ、`window`、`monitor`。分からなければ`unknown`）。
+  static String surfaceOf(MediaStream stream) {
+    try {
+      final settings = stream.getVideoTracks().firstOrNull?.getSettings();
+      return '${settings?['displaySurface'] ?? 'unknown'}';
+    } catch (_) {
+      return 'unknown';
+    }
+  }
 
   /// 配信元を選ばせて取得する。選択をやめた（キャンセル）・許可されなかった時はnull。
   static Future<MediaStream?> start(

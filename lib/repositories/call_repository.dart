@@ -22,6 +22,10 @@ abstract class CallRepository {
   Future<void> setAnswer(String callId, Map<String, dynamic> answer);
   Future<void> updateStatus(String callId, CallStatus status);
 
+  /// 応答する端末を1台に決める。まだ誰も応答していなければ[sessionId]を記録してtrue、
+  /// 既に別の端末が応答していればfalseを返す（同時応答の競合を避ける）。
+  Future<bool> claimAnswer(String callId, String sessionId);
+
   /// 通話中に音声⇔ビデオを切り替えた際、種別をFirestore側にも反映する
   /// （画面を離れて戻ってきた場合等に現在の種別を復元出来るようにする為）。
   /// 切り替えるのは自分側の種別のみで、相手側には影響しない
@@ -124,6 +128,18 @@ class FirestoreCallRepository implements CallRepository {
   }) {
     final field = isCaller ? 'callerIsVideo' : 'calleeIsVideo';
     return _calls.doc(callId).update({field: isVideo});
+  }
+
+  @override
+  Future<bool> claimAnswer(String callId, String sessionId) {
+    final ref = _calls.doc(callId);
+    return _firestore.runTransaction((tx) async {
+      final snap = await tx.get(ref);
+      final current = snap.data()?['answeredBy'] as String?;
+      if (current != null && current != sessionId) return false;
+      tx.update(ref, {'answeredBy': sessionId});
+      return true;
+    });
   }
 
   @override

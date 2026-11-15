@@ -1009,6 +1009,7 @@ class WebrtcGroupCallController extends ChangeNotifier {
     _cameraStreamIds.remove(otherUserId);
     _screenVideoSenders.remove(otherUserId);
     _screenAudioSenders.remove(otherUserId);
+    _screenRendererInit.remove(otherUserId);
     final screen = screenRenderers.remove(otherUserId);
     if (screen != null) unawaited(screen.dispose());
     _connectGuard.cancel(otherUserId);
@@ -1060,15 +1061,27 @@ class WebrtcGroupCallController extends ChangeNotifier {
 
   // ---- 画面共有（配信、2026-11-15） ----
 
+  /// 相手ごとの、画面の描画の部品の用意（映像と音声のトラックが別々に届いても、1つにまとめる）。
+  final Map<String, Future<RTCVideoRenderer>> _screenRendererInit = {};
+
+  Future<RTCVideoRenderer> _createScreenRenderer(String userId) async {
+    final renderer = RTCVideoRenderer();
+    await renderer.initialize();
+    screenRenderers[userId] = renderer;
+    return renderer;
+  }
+
   Future<void> _attachRemoteScreen(String userId, MediaStream stream) async {
-    var renderer = screenRenderers[userId];
-    if (renderer == null) {
-      renderer = RTCVideoRenderer();
-      await renderer.initialize();
-      screenRenderers[userId] = renderer;
-    }
+    final renderer = await (_screenRendererInit[userId] ??=
+        _createScreenRenderer(userId));
+    // 届くたびに入れ直す（Webの描画の部品は、入れた時点のトラックを控える為、後から届いた
+    // 音声のトラックを取り込むのに必要）。
     renderer.srcObject = stream;
-    callLog('group: $userId screen stream attached');
+    renderer.muted = false;
+    callLog(
+      'group: $userId screen stream attached video='
+      '${stream.getVideoTracks().length} audio=${stream.getAudioTracks().length}',
+    );
     notifyListeners();
   }
 
@@ -1164,7 +1177,12 @@ class WebrtcGroupCallController extends ChangeNotifier {
       }
     }
     _setScreenLabelOnServer(quality.label);
-    callLog('group: screen share started ${quality.label}');
+    callLog(
+      'group: screen share started ${quality.label} '
+      'video=${display.getVideoTracks().length} '
+      'audio=${display.getAudioTracks().length} '
+      'surface=${ScreenShareCapture.surfaceOf(display)}',
+    );
     notifyListeners();
     await _renegotiateAll(changed);
     return true;
@@ -1223,6 +1241,29 @@ class WebrtcGroupCallController extends ChangeNotifier {
     }
     notifyListeners();
     await _renegotiateAll(changed);
+  }
+
+  /// 画面共有の音声を、共有中に切り替える。切る時は音のトラックを外す。入れる時は、音声を含めて
+  /// 配信元を選び直す（取得し直さないと、音声のトラックが得られない）。
+  Future<void> setScreenAudio(bool shareAudio) async {
+    _screenAudio = shareAudio;
+    final display = _screenDisplay;
+    if (display == null) return;
+    if (shareAudio) {
+      await changeScreenSource();
+      return;
+    }
+    for (final sender in _screenAudioSenders.values) {
+      try {
+        await sender.replaceTrack(null);
+      } catch (_) {}
+    }
+    for (final track in display.getAudioTracks()) {
+      try {
+        await track.stop();
+      } catch (_) {}
+    }
+    notifyListeners();
   }
 
   /// 配信の画質を変える（配信中なら、取得の制約と送信の上限にも反映する）。

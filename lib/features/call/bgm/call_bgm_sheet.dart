@@ -87,7 +87,12 @@ Future<void> showCallBgmSheet(BuildContext context, CallBgmBinding binding) {
               ),
               Align(
                 alignment: Alignment.bottomCenter,
-                child: CallPanelSurface(child: _CallBgmSheet(binding: binding)),
+                child: CallPanelSurface(
+                  child: BgmSpaceKeyToggle(
+                    bgm: binding.bgm,
+                    child: _CallBgmSheet(binding: binding),
+                  ),
+                ),
               ),
             ],
           ),
@@ -102,8 +107,12 @@ Future<void> showCallBgmSheet(BuildContext context, CallBgmBinding binding) {
     isScrollControlled: true,
     backgroundColor: Colors.transparent,
     elevation: 0,
-    builder: (context) =>
-        CallPanelSurface(child: _CallBgmSheet(binding: binding)),
+    builder: (context) => CallPanelSurface(
+      child: BgmSpaceKeyToggle(
+        bgm: binding.bgm,
+        child: _CallBgmSheet(binding: binding),
+      ),
+    ),
   );
 }
 
@@ -128,9 +137,12 @@ class CallPanelSurface extends ConsumerWidget {
     final radius = allRounded
         ? BorderRadius.circular(24)
         : const BorderRadius.vertical(top: Radius.circular(24));
+    // ガラス・劇画の面は`Material`を作らないため、`ListTile`・`Slider`等が描けるよう透明な
+    // `Material`で包む。
+    final child = Material(type: MaterialType.transparency, child: this.child);
     return switch (uiStyle) {
       AppUiStyle.gekiga => GekigaStraightMonochromeBox(
-        isMe: true,
+        isMe: false,
         child: child,
       ),
       AppUiStyle.glass => GlassSurface(

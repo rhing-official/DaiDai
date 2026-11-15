@@ -36,6 +36,7 @@ class Call {
     this.answer,
     this.createdAt,
     this.endedAt,
+    this.answeredBy,
   });
 
   final String callId;
@@ -63,6 +64,9 @@ class Call {
   final Map<String, dynamic>? answer;
   final Timestamp? createdAt;
   final Timestamp? endedAt;
+
+  /// 応答を始めた端末のセッションid（同じアカウントの別端末の着信を止めるため。未応答はnull）。
+  final String? answeredBy;
 
   String otherRhingSeed(String currentUserId) {
     return currentUserId == callerId ? calleeRhingSeed : callerRhingSeed;
@@ -94,6 +98,7 @@ class Call {
       answer: (json['answer'] as Map?)?.cast<String, dynamic>(),
       createdAt: json['createdAt'] as Timestamp?,
       endedAt: json['endedAt'] as Timestamp?,
+      answeredBy: json['answeredBy'] as String?,
     );
   }
 

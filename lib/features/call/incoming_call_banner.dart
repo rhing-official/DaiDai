@@ -54,6 +54,7 @@ class IncomingCallBannerOverlay extends ConsumerWidget {
         final controller = session.controller;
         final ringing =
             !controller.isCaller &&
+            !controller.accepting &&
             controller.state == CallConnectionState.connecting;
         if (!ringing) return const SizedBox.shrink();
 

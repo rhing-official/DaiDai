@@ -51,12 +51,18 @@ class StyleChoiceChip extends StatelessWidget {
 
     switch (uiStyle) {
       case AppUiStyle.gekiga:
-        final fill = selected ? GekigaColors.onPanel : GekigaColors.panel;
+        // 他の画面の劇画のチップ（[GekigaChoiceChipRow]）と同じ、手描き風のモノクロボックス。
         final fg = selected ? GekigaColors.panel : GekigaColors.onPanel;
-        return Material(
-          color: fill,
-          shape: const RoundedRectangleBorder(),
-          child: InkWell(onTap: onTap, child: _content(fg)),
+        return GekigaJointedTileList(
+          axis: Axis.horizontal,
+          seeds: [selected.hashCode, uiStyle.hashCode],
+          selectedFlags: [selected],
+          children: [
+            Material(
+              color: Colors.transparent,
+              child: InkWell(onTap: onTap, child: _content(fg)),
+            ),
+          ],
         );
       case AppUiStyle.glass:
         const radius = BorderRadius.all(Radius.circular(20));

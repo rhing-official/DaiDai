@@ -759,7 +759,9 @@ final Strings _stringsFr = Strings._(
   callScreenShareKiwamiOnly:
       "La haute qualité (1080p ou plus, 60 FPS) est réservée au forfait Kiwami.",
   callScreenShareNoAudio:
-      "Le son n’a pas pu être capturé : seule la vidéo est partagée.",
+      "Le son n’a pas pu être capturé. Dans le sélecteur, choisissez un onglet et cochez « Partager aussi l’audio de l’onglet » (sous Linux, seuls les onglets prennent en charge le son). Seule la vidéo est partagée.",
+  callScreenShareAudioHint:
+      "Le son se partage depuis un onglet (et depuis l’écran entier sous Windows).",
   callScreenShareHint: "À plusieurs, une qualité plus basse est plus stable.",
   callScreenShareYourScreen: "Votre écran",
   settingsMicDenoiseTitle: "Suppression du bruit en appel (avancée)",

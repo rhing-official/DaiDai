@@ -627,6 +627,7 @@ class Strings {
     required this.callScreenShareKiwami,
     required this.callScreenShareKiwamiOnly,
     required this.callScreenShareNoAudio,
+    required this.callScreenShareAudioHint,
     required this.callScreenShareHint,
     required this.callScreenShareYourScreen,
     required this.settingsMicDenoiseTitle,
@@ -1984,6 +1985,7 @@ class Strings {
   final String callScreenShareKiwami;
   final String callScreenShareKiwamiOnly;
   final String callScreenShareNoAudio;
+  final String callScreenShareAudioHint;
   final String callScreenShareHint;
   final String callScreenShareYourScreen;
   final String settingsMicDenoiseTitle;
@@ -3468,7 +3470,9 @@ class Strings {
     callScreenShareLive: 'ライブ',
     callScreenShareKiwami: '極み',
     callScreenShareKiwamiOnly: '高画質（1080p以上・60FPS）は、極みプランで使えます。',
-    callScreenShareNoAudio: '音声を取得できなかったため、映像だけを共有します。',
+    callScreenShareNoAudio:
+        '音声を取得できませんでした。共有の選択画面で「タブ」を選び、「タブの音声も共有」にチェックしてください（Linuxはタブのみ対応です）。映像だけを共有します。',
+    callScreenShareAudioHint: '音声は、タブの共有（Windowsは画面全体も）で取れます。',
     callScreenShareHint: '人数が多い時は、画質を下げると安定します。',
     callScreenShareYourScreen: 'あなたの画面',
     settingsMicDenoiseTitle: '通話のノイズ除去（高性能）',
@@ -4854,7 +4858,9 @@ class Strings {
     callScreenShareKiwamiOnly:
         'High quality (1080p or higher, 60 FPS) is available with the Kiwami plan.',
     callScreenShareNoAudio:
-        'Couldn’t capture audio, so only the video is shared.',
+        'Couldn’t capture audio. In the share picker, choose a tab and tick “Also share tab audio” (on Linux only tabs support audio). Only the video is shared.',
+    callScreenShareAudioHint:
+        'Audio can be shared from a tab (and from the entire screen on Windows).',
     callScreenShareHint: 'With many people, a lower quality is more stable.',
     callScreenShareYourScreen: 'Your screen',
     settingsMicDenoiseTitle: 'Call noise suppression (advanced)',

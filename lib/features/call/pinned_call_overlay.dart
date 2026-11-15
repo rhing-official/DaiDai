@@ -13,11 +13,11 @@ import '../../providers/camera_availability_provider.dart';
 import '../../router/app_router.dart';
 import '../../theme/block/block_theme.dart';
 import '../../theme/gekiga/gekiga_colors.dart';
-import '../../theme/gekiga/gekiga_shapes.dart';
 import '../../theme/glass/glass_colors.dart';
 import '../../utils/platform_info.dart';
 import '../../widgets/gekiga/gekiga_badge.dart';
-import '../../widgets/gekiga/monochrome_box.dart';
+import '../../widgets/media_preview_frame.dart'
+    show GekigaStraightMonochromeBox;
 import '../../widgets/glass/glass_surface.dart';
 import 'active_call_session.dart';
 import 'call_audio_sinks.dart';
@@ -387,58 +387,11 @@ class _PinnedCallBubble extends ConsumerWidget {
       // いた）。
       return GestureDetector(
         onTap: () => _reopen(context, ref),
-        child: SizedBox(
-          width: 140,
-          height: 200,
-          child: LayoutBuilder(
-            builder: (context, constraints) {
-              final width = constraints.maxWidth;
-              final height = constraints.maxHeight;
-              // マイク・カメラ・切断ボタンを矩形前提の絶対配置（Positioned）
-              // で内部に置くため、既定の非対称な斜めカット（topLeft等）は
-              // 使わず、四隅とも直角の矩形にする（2026-08-30修正、既定形状
-              // のままだとボタン行の端が斜めカット部分にかかって隠れて
-              // いた）。
-              final vertices = monochromeBoxVertices(
-                width,
-                height,
-                topLeft: false,
-                topRight: false,
-                bottomRight: false,
-                bottomLeft: false,
-              );
-              return Stack(
-                fit: StackFit.expand,
-                children: [
-                  CustomPaint(
-                    painter: MonochromeBoxPainter(
-                      vertices: vertices,
-                      thicknessBase: width < height ? width : height,
-                    ),
-                  ),
-                  Padding(
-                    padding: const EdgeInsets.all(6),
-                    child: ClipPath(
-                      clipper: MonochromeBoxClipper(
-                        vertices: monochromeBoxVertices(
-                          width - 12,
-                          height - 12,
-                          topLeft: false,
-                          topRight: false,
-                          bottomRight: false,
-                          bottomLeft: false,
-                        ),
-                      ),
-                      child: ColoredBox(
-                        color: GekigaColors.panel,
-                        child: content,
-                      ),
-                    ),
-                  ),
-                ],
-              );
-            },
-          ),
+        // 通話画面の他のパネル（BGM・画面共有のシート、`CallPanelSurface`）と同じ
+        // 直角のモノクロボックス（白枠→黒線→黒地）で縁取る。
+        child: GekigaStraightMonochromeBox(
+          isMe: false,
+          child: SizedBox(width: 134, height: 194, child: content),
         ),
       );
     }

@@ -1,12 +1,15 @@
-import 'dart:typed_data';
-
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../models/app_ui_style.dart';
+import '../../../providers/app_ui_style_provider.dart';
 import '../../../l10n/strings.dart';
 import 'bgm_now_playing.dart';
 import 'bgm_queue.dart';
 import 'bgm_track.dart';
 import 'call_bgm.dart';
+import 'call_bgm_sheet.dart' show CallPanelSurface;
 
 /// 曲のジャケット画像（無ければ音符）。シートの曲一覧・再生中の表示・ミニプレーヤーで共通。
 class BgmCoverImage extends StatelessWidget {
@@ -208,7 +211,7 @@ class BgmTransportControls extends StatelessWidget {
         if (full)
           IconButton(
             tooltip: strings.callBgmStop,
-            icon: const Icon(Icons.stop_circle_outlined),
+            icon: const Icon(Icons.stop),
             onPressed: bgm.stop,
           ),
         if (full && bgm.current != null)
@@ -242,37 +245,37 @@ class BgmMiniPlayer extends StatelessWidget {
         final scheme = Theme.of(context).colorScheme;
         return Padding(
           padding: const EdgeInsets.only(bottom: 8),
-          child: Material(
-            color: scheme.surface.withValues(alpha: 0.9),
-            borderRadius: BorderRadius.circular(16),
-            clipBehavior: Clip.antiAlias,
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(8, 4, 4, 4),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  InkWell(
-                    onTap: onOpen,
-                    borderRadius: BorderRadius.circular(8),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        BgmCoverImage(bgm: bgm, track: track, size: 36),
-                        const SizedBox(width: 8),
-                        ConstrainedBox(
-                          constraints: const BoxConstraints(maxWidth: 140),
-                          child: Text(
-                            track.name,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: TextStyle(color: scheme.onSurface),
+          child: BgmSpaceKeyToggle(
+            bgm: bgm,
+            child: _MiniPlayerSurface(
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(8, 4, 4, 4),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    InkWell(
+                      onTap: onOpen,
+                      borderRadius: BorderRadius.circular(8),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          BgmCoverImage(bgm: bgm, track: track, size: 36),
+                          const SizedBox(width: 8),
+                          ConstrainedBox(
+                            constraints: const BoxConstraints(maxWidth: 140),
+                            child: Text(
+                              track.name,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(color: scheme.onSurface),
+                            ),
                           ),
-                        ),
-                      ],
+                        ],
+                      ),
                     ),
-                  ),
-                  BgmTransportControls(bgm: bgm, strings: strings),
-                ],
+                    BgmTransportControls(bgm: bgm, strings: strings),
+                  ],
+                ),
               ),
             ),
           ),
@@ -295,10 +298,7 @@ class BgmRemoteMiniPlayer extends StatelessWidget {
     final thumb = nowPlaying.thumb;
     return Padding(
       padding: const EdgeInsets.only(bottom: 8),
-      child: Material(
-        color: scheme.surface.withValues(alpha: 0.9),
-        borderRadius: BorderRadius.circular(16),
-        clipBehavior: Clip.antiAlias,
+      child: _MiniPlayerSurface(
         child: Padding(
           padding: const EdgeInsets.fromLTRB(8, 4, 8, 4),
           child: Row(
@@ -373,4 +373,80 @@ class BgmFavoriteButton extends StatelessWidget {
       onPressed: () => bgm.toggleFavorite(track),
     );
   }
+}
+
+/// ミニプレーヤーの面。劇画・ガラス・版画は、BGMのシートと同じ`CallPanelSurface`（各スタイルの面）にし、
+/// フラットは従来の丸い半透明の面にする。
+class _MiniPlayerSurface extends ConsumerWidget {
+  const _MiniPlayerSurface({required this.child});
+
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final style = ref.watch(appUiStyleProvider);
+    if (style == AppUiStyle.gekiga ||
+        style == AppUiStyle.glass ||
+        style == AppUiStyle.block) {
+      return CallPanelSurface(allRounded: true, child: child);
+    }
+    final scheme = Theme.of(context).colorScheme;
+    return Material(
+      color: scheme.surface.withValues(alpha: 0.9),
+      borderRadius: BorderRadius.circular(16),
+      clipBehavior: Clip.antiAlias,
+      child: child,
+    );
+  }
+}
+
+/// 表示している間、スペースキーで曲の再生・一時停止を切り替える（BGMのシート・ミニプレーヤー用）。
+/// 文字入力中は何もしない。複数が同時に表示されても、1回の押下で1回だけ切り替える。
+class BgmSpaceKeyToggle extends StatefulWidget {
+  const BgmSpaceKeyToggle({required this.bgm, required this.child, super.key});
+
+  final CallBgm bgm;
+  final Widget child;
+
+  @override
+  State<BgmSpaceKeyToggle> createState() => _BgmSpaceKeyToggleState();
+}
+
+class _BgmSpaceKeyToggleState extends State<BgmSpaceKeyToggle> {
+  static final _active = <_BgmSpaceKeyToggleState>[];
+
+  @override
+  void initState() {
+    super.initState();
+    if (_active.isEmpty) HardwareKeyboard.instance.addHandler(_onKey);
+    _active.add(this);
+  }
+
+  @override
+  void dispose() {
+    _active.remove(this);
+    if (_active.isEmpty) HardwareKeyboard.instance.removeHandler(_onKey);
+    super.dispose();
+  }
+
+  static bool _onKey(KeyEvent event) {
+    if (event is! KeyDownEvent ||
+        event.logicalKey != LogicalKeyboardKey.space ||
+        _active.isEmpty) {
+      return false;
+    }
+    final focus = FocusManager.instance.primaryFocus?.context;
+    if (focus != null &&
+        (focus.widget is EditableText ||
+            focus.findAncestorWidgetOfExactType<EditableText>() != null)) {
+      return false;
+    }
+    final bgm = _active.last.widget.bgm;
+    if (bgm.current == null) return false;
+    bgm.togglePause();
+    return true;
+  }
+
+  @override
+  Widget build(BuildContext context) => widget.child;
 }

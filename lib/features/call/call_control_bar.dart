@@ -111,78 +111,78 @@ class CallControlBar extends ConsumerWidget {
           child: SizedBox(
             width: maxWidth,
             child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+              // 全ボタンを同じ幅の枠に入れ、ボタンの中心を等間隔に並べる（画面共有の「^」は枠の中に収める）。
               children: [
-                CallRoundButton(
-                  icon: muted ? Icons.mic_off : Icons.mic,
-                  color: Colors.grey[700]!,
-                  isGekiga: isGekiga,
-                  isGlass: isGlass,
-                  onPressed: enabled ? onToggleMute : null,
-                ),
-                _maybeHidden(
-                  visible: showSpeakerToggle,
-                  child: CallRoundButton(
-                    icon: speakerOn ? Icons.volume_up : Icons.phone_in_talk,
+                for (final w in <Widget>[
+                  CallRoundButton(
+                    icon: muted ? Icons.mic_off : Icons.mic,
                     color: Colors.grey[700]!,
                     isGekiga: isGekiga,
                     isGlass: isGlass,
-                    onPressed: enabled ? onToggleSpeaker : null,
+                    onPressed: enabled ? onToggleMute : null,
                   ),
-                ),
-                _maybeHidden(
-                  visible: onToggleVideoType != null,
-                  child: CallRoundButton(
-                    icon: isVideo ? Icons.videocam : Icons.videocam_off,
-                    color: Colors.grey[700]!,
-                    isGekiga: isGekiga,
-                    isGlass: isGlass,
-                    onPressed: enabled && !switchingCallType
-                        ? onToggleVideoType
-                        : null,
-                  ),
-                ),
-                _maybeHidden(
-                  visible: isVideo && hasMultipleCameras,
-                  child: CallRoundButton(
-                    icon: Icons.cameraswitch,
-                    color: Colors.grey[700]!,
-                    isGekiga: isGekiga,
-                    isGlass: isGlass,
-                    onPressed: enabled && !switchingCamera
-                        ? onSwitchCamera
-                        : null,
-                  ),
-                ),
-                if (screenShare != null)
-                  ScreenShareControl(
-                    binding: screenShare!,
-                    enabled: enabled,
-                    isGekiga: isGekiga,
-                    isGlass: isGlass,
-                  ),
-                if (CallBgm.isSupported)
-                  _maybeHidden(
-                    visible: bgmBinding != null,
-                    child: CallRoundButton(
-                      icon: bgmBinding?.bgm.playing ?? false
-                          ? Icons.music_note
-                          : Icons.music_note_outlined,
+                  if (showSpeakerToggle)
+                    CallRoundButton(
+                      icon: speakerOn ? Icons.volume_up : Icons.phone_in_talk,
                       color: Colors.grey[700]!,
                       isGekiga: isGekiga,
                       isGlass: isGlass,
-                      onPressed: enabled && bgmBinding != null
-                          ? () => showCallBgmSheet(context, bgmBinding!)
+                      onPressed: enabled ? onToggleSpeaker : null,
+                    ),
+                  if (onToggleVideoType != null)
+                    CallRoundButton(
+                      icon: isVideo ? Icons.videocam : Icons.videocam_off,
+                      color: Colors.grey[700]!,
+                      isGekiga: isGekiga,
+                      isGlass: isGlass,
+                      onPressed: enabled && !switchingCallType
+                          ? onToggleVideoType
                           : null,
                     ),
+                  if (hasMultipleCameras)
+                    _maybeHidden(
+                      visible: isVideo,
+                      child: CallRoundButton(
+                        icon: Icons.cameraswitch,
+                        color: Colors.grey[700]!,
+                        isGekiga: isGekiga,
+                        isGlass: isGlass,
+                        onPressed: enabled && !switchingCamera
+                            ? onSwitchCamera
+                            : null,
+                      ),
+                    ),
+                  if (screenShare != null)
+                    ScreenShareControl(
+                      binding: screenShare!,
+                      enabled: enabled,
+                      isGekiga: isGekiga,
+                      isGlass: isGlass,
+                    ),
+                  if (CallBgm.isSupported)
+                    _maybeHidden(
+                      visible: bgmBinding != null,
+                      child: CallRoundButton(
+                        icon: bgmBinding?.bgm.playing ?? false
+                            ? Icons.music_note
+                            : Icons.music_note_outlined,
+                        color: Colors.grey[700]!,
+                        isGekiga: isGekiga,
+                        isGlass: isGlass,
+                        onPressed: enabled && bgmBinding != null
+                            ? () => showCallBgmSheet(context, bgmBinding!)
+                            : null,
+                      ),
+                    ),
+                  CallRoundButton(
+                    icon: Icons.call_end,
+                    color: Colors.red,
+                    isGekiga: isGekiga,
+                    isGlass: isGlass,
+                    onPressed: onHangUp,
                   ),
-                CallRoundButton(
-                  icon: Icons.call_end,
-                  color: Colors.red,
-                  isGekiga: isGekiga,
-                  isGlass: isGlass,
-                  onPressed: onHangUp,
-                ),
+                ])
+                  Expanded(child: Center(child: w)),
               ],
             ),
           ),

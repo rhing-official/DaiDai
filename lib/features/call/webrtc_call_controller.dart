@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math' show Random;
 
 import 'package:collection/collection.dart';
 import 'package:flutter/foundation.dart';
@@ -799,6 +800,12 @@ class WebrtcCallController extends ChangeNotifier {
       // 書き込先ず、この端末のセッションだけ終える。
       if (updated.status == CallStatus.active && !_accepting) {
         _finish();
+        return;
+      }
+      // 別の端末が応答を始めた時点（`active`になる前）でも閉じる。
+      final answeredBy = updated.answeredBy;
+      if (answeredBy != null && answeredBy != _deviceSessionId && !_accepting) {
+        _finish();
       }
     });
   }
@@ -806,12 +813,27 @@ class WebrtcCallController extends ChangeNotifier {
   /// ユーザーが応答ボタンを押した時だけSDP応答を生成・送信する。
   /// （それまでは_startAsCallee()を呼ばないことで、着信＝自動応答という
   /// 挙動を避ける。）
+  /// この端末の、着信への応答を区別するためのid（同じアカウントの別端末と競合した時の判定用）。
+  final String _deviceSessionId =
+      '${DateTime.now().microsecondsSinceEpoch}-${Random().nextInt(1 << 32)}';
+
   Future<void> accept() async {
     if (_accepting || _state != CallConnectionState.connecting) return;
     _accepting = true;
     _cancelRingTimeout();
+    // 応答した瞬間に着信音を止める（接続が済むのを待たない）。
+    soundPlayer.stopRingtone();
     notifyListeners();
     await _callSub?.cancel();
+    // 同じアカウントの別端末と同時に応答した時は、先に記録した1台だけが通話を始める。
+    final claimed = await _callRepository
+        .claimAnswer(call.callId, _deviceSessionId)
+        .catchError((_) => true);
+    callLog('1:1 accept: claimed=$claimed');
+    if (!claimed) {
+      _finish();
+      return;
+    }
     try {
       // 応答操作（ユーザー操作）の中で自分のカメラ・マイクを取得する。カメラが
       // 使えなければ音声のみで応答する。
@@ -830,6 +852,7 @@ class WebrtcCallController extends ChangeNotifier {
       _finish();
       return;
     }
+    callLog('1:1 accept: local stream ready');
     notifyListeners();
     await _startAsCallee();
   }
@@ -844,7 +867,9 @@ class WebrtcCallController extends ChangeNotifier {
     // 以後_startPerpetualWatcher()がこの初回オファーを重複適用しないよう、
     // 適用前にキーを記録しておく。
     _lastAppliedOfferSdp = offer!['sdp'] as String;
+    callLog('1:1 accept: offer ready');
     await _applyRemoteOfferAndAnswer(offer);
+    callLog('1:1 accept: answer sent');
     _startPerpetualWatcher();
   }
 
@@ -1078,14 +1103,26 @@ class WebrtcCallController extends ChangeNotifier {
     }
   }
 
+  Future<void>? _remoteScreenInit;
+
   Future<void> _attachRemoteScreen(MediaStream stream) async {
     if (!_remoteScreenRendererInitialized) {
-      await remoteScreenRenderer.initialize();
-      _remoteScreenRendererInitialized = true;
+      // 映像と音声のトラックは別々に届く為、初期化を1回にまとめる（2回走ると描画の部品が壊れ、
+      // 音が出ないことがある）。
+      _remoteScreenInit ??= remoteScreenRenderer.initialize().then((_) {
+        _remoteScreenRendererInitialized = true;
+      });
+      await _remoteScreenInit;
     }
+    // 届くたびに入れ直す（Webの描画の部品は、入れた時点のトラックを控える為、後から届いた
+    // 音声のトラックを取り込むのに必要）。
     remoteScreenRenderer.srcObject = stream;
+    remoteScreenRenderer.muted = false;
     _remoteScreenAttached = true;
-    callLog('1:1 screen stream attached');
+    callLog(
+      '1:1 screen stream attached video=${stream.getVideoTracks().length} '
+      'audio=${stream.getAudioTracks().length}',
+    );
     notifyListeners();
   }
 
@@ -1163,6 +1200,11 @@ class WebrtcCallController extends ChangeNotifier {
     }
     localScreenRenderer.srcObject = display;
     notifyListeners();
+    callLog(
+      '1:1 screen captured video=${display.getVideoTracks().length} '
+      'audio=${display.getAudioTracks().length} '
+      'surface=${ScreenShareCapture.surfaceOf(display)}',
+    );
     try {
       final renegotiate = await _attachScreenTracks();
       _sendScreenState(quality.label);
@@ -1213,6 +1255,27 @@ class WebrtcCallController extends ChangeNotifier {
       callLog('1:1 change screen failed: $e');
     }
     for (final track in old.getTracks()) {
+      try {
+        await track.stop();
+      } catch (_) {}
+    }
+    notifyListeners();
+  }
+
+  /// 画面共有の音声を、共有中に切り替える。切る時は音のトラックを外す。入れる時は、音声を含めて
+  /// 配信元を選び直す（取得し直さないと、音声のトラックが得られない）。
+  Future<void> setScreenAudio(bool shareAudio) async {
+    _screenAudio = shareAudio;
+    final display = _screenDisplay;
+    if (display == null) return;
+    if (shareAudio) {
+      await changeScreenSource();
+      return;
+    }
+    try {
+      await _screenAudioSender?.replaceTrack(null);
+    } catch (_) {}
+    for (final track in display.getAudioTracks()) {
       try {
         await track.stop();
       } catch (_) {}

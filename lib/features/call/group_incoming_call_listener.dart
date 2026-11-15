@@ -55,6 +55,10 @@ class _GroupIncomingCallListenerState
   /// バナー毎の「応答が無ければ自動で閉じる」タイマー（[kCallRingTimeout]）。
   final Map<String, Timer> _ringTimers = {};
 
+  /// バナー毎の、通話の参加者の監視。自分のアカウントが別の端末で参加したら、この端末のバナーを閉じる。
+  final Map<String, StreamSubscription<List<CallParticipant>>>
+  _participantSubs = {};
+
   @override
   void initState() {
     super.initState();
@@ -74,6 +78,10 @@ class _GroupIncomingCallListenerState
       timer.cancel();
     }
     _ringTimers.clear();
+    for (final sub in _participantSubs.values) {
+      unawaited(sub.cancel());
+    }
+    _participantSubs.clear();
     _soundPlayer.dispose();
     _errorBannerTimer?.cancel();
     super.dispose();
@@ -167,6 +175,15 @@ class _GroupIncomingCallListenerState
       kCallRingTimeout,
       () => _expireBanner(call.groupCallId),
     );
+    _participantSubs[call.groupCallId]?.cancel();
+    _participantSubs[call.groupCallId] = ref
+        .read(groupCallRepositoryProvider)
+        .watchParticipants(call.groupCallId)
+        .listen((participants) {
+          if (participants.any((p) => p.userId == widget.currentUser.userId)) {
+            _expireBanner(call.groupCallId);
+          }
+        }, onError: (_) {});
     final ringtoneSource = SoundCategory.ringtone.resolveSource(
       ref.read(ringtoneSoundProvider),
     );
@@ -176,7 +193,8 @@ class _GroupIncomingCallListenerState
   /// 応答が無今ま[kCallRingTimeout]が経ったバナーを閉じ、他に出ているバナーが
   /// 無ければ着信音も止める。
   void _expireBanner(String groupCallId) {
-    _ringTimers.remove(groupCallId);
+    _ringTimers.remove(groupCallId)?.cancel();
+    unawaited(_participantSubs.remove(groupCallId)?.cancel());
     if (!mounted) return;
     final notifier = ref.read(groupCallBannersProvider.notifier);
     final wasShown = ref
@@ -193,6 +211,7 @@ class _GroupIncomingCallListenerState
     // 参加（応答）したら着信音を止める（2026-10-13、以前は3回鳴り終わるまで
     // 鳴り続けていた）。
     ref.read(groupCallBannersProvider.notifier).remove(call.groupCallId);
+    unawaited(_participantSubs.remove(call.groupCallId)?.cancel());
     unawaited(_soundPlayer.stopRingtone());
 
     final groupCallRepository = ref.read(groupCallRepositoryProvider);

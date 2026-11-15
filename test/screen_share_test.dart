@@ -46,7 +46,16 @@ void main() {
       final video = c['video'] as Map;
       expect((video['height'] as Map)['ideal'], 1080);
       expect((video['frameRate'] as Map)['ideal'], 60);
-      expect(c['audio'], isTrue);
+      expect((c['audio'] as Map)['echoCancellation'], isFalse);
+      expect(c['systemAudio'], 'include');
+      expect(c['selfBrowserSurface'], 'exclude');
+      expect(
+        ScreenShareCapture.constraints(
+          ScreenShareQuality.standard,
+          shareAudio: false,
+        )['audio'],
+        isFalse,
+      );
     });
 
     test('Web以外では画面共有に対応しない', () {
@@ -54,11 +63,11 @@ void main() {
     });
   });
 
-  test('設定の既定は720p・30FPS・音声オフで、保存した値を読み戻せる', () async {
+  test('設定の既定は720p・30FPS・音声ありで、保存した値を読み戻せる', () async {
     SharedPreferences.setMockInitialValues({});
     var s = await loadScreenShareSettings();
     expect(s.quality, ScreenShareQuality.standard);
-    expect(s.shareAudio, isFalse);
+    expect(s.shareAudio, isTrue);
     SharedPreferences.setMockInitialValues({
       'screenShareHeight': 1080,
       'screenShareFps': 60,

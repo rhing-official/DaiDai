@@ -3,7 +3,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:pointer_interceptor/pointer_interceptor.dart';
 
 import '../../l10n/strings.dart';
-import '../../models/app_ui_style.dart';
 import '../../providers/app_ui_style_provider.dart';
 import '../../providers/kiwami_providers.dart';
 import '../../providers/screen_share_settings_provider.dart';
@@ -29,6 +28,7 @@ class CallScreenShareBinding {
     required this.stop,
     required this.change,
     required this.setQuality,
+    required this.setAudio,
   });
 
   /// 通話コントローラー（共有の状態が変わったら描き直す）。
@@ -45,6 +45,7 @@ class CallScreenShareBinding {
   final Future<void> Function() stop;
   final Future<void> Function() change;
   final Future<void> Function(ScreenShareQuality quality) setQuality;
+  final Future<void> Function(bool shareAudio) setAudio;
 }
 
 /// 1対1の通話の画面共有（対応しない環境はnull）。
@@ -63,6 +64,7 @@ CallScreenShareBinding? oneToOneScreenShare(
     stop: controller.stopScreenShare,
     change: controller.changeScreenSource,
     setQuality: controller.setScreenQuality,
+    setAudio: controller.setScreenAudio,
   );
 }
 
@@ -79,6 +81,7 @@ CallScreenShareBinding? groupScreenShare(WebrtcGroupCallController controller) {
     stop: controller.stopScreenShare,
     change: controller.changeScreenSource,
     setQuality: controller.setScreenQuality,
+    setAudio: controller.setScreenAudio,
   );
 }
 
@@ -105,8 +108,9 @@ class ScreenShareControl extends ConsumerWidget {
         final sharing = binding.isSharing();
         final strings = ref.watch(appStringsProvider);
         return Row(
-          mainAxisSize: MainAxisSize.min,
+          mainAxisSize: MainAxisSize.max,
           children: [
+            const Expanded(child: SizedBox.shrink()),
             Semantics(
               button: true,
               label: sharing
@@ -124,13 +128,23 @@ class ScreenShareControl extends ConsumerWidget {
                     : null,
               ),
             ),
-            IconButton(
-              iconSize: 20,
-              visualDensity: VisualDensity.compact,
-              icon: const Icon(Icons.keyboard_arrow_up),
-              onPressed: enabled
-                  ? () => showScreenShareMenu(context, binding)
-                  : null,
+            // ボタンを枠の中央に保つため、左右の余白は同じ幅。「^」は右の余白に置く。
+            Expanded(
+              child: Align(
+                alignment: Alignment.centerLeft,
+                child: IconButton(
+                  iconSize: 20,
+                  padding: EdgeInsets.zero,
+                  constraints: const BoxConstraints.tightFor(
+                    width: 28,
+                    height: 40,
+                  ),
+                  icon: const Icon(Icons.keyboard_arrow_up),
+                  onPressed: enabled
+                      ? () => showScreenShareMenu(context, binding)
+                      : null,
+                ),
+              ),
             ),
           ],
         );
@@ -154,7 +168,11 @@ Future<void> _start(
       : ScreenShareQuality.standard;
   final started = await binding.start(quality, settings.shareAudio);
   if (started && overlay != null && binding.audioMissing()) {
-    showAutoDismissBannerIn(overlay, message: strings.callScreenShareNoAudio);
+    showAutoDismissBannerIn(
+      overlay,
+      message: strings.callScreenShareNoAudio,
+      duration: const Duration(seconds: 6),
+    );
   }
 }
 
@@ -233,6 +251,12 @@ class _ScreenShareMenu extends ConsumerWidget {
       if (binding.isSharing()) binding.setQuality(next);
     }
 
+    // 音声の切り替えは、共有中なら、すぐ送信にも反映する（入れる時は配信元を選び直す）。
+    void toggleAudio(bool value) {
+      notifier.setShareAudio(value);
+      if (binding.isSharing()) binding.setAudio(value);
+    }
+
     Widget chip(String label, bool selected, bool locked, VoidCallback tap) =>
         StyleChoiceChip(
           uiStyle: uiStyle,
@@ -254,107 +278,119 @@ class _ScreenShareMenu extends ConsumerWidget {
       listenable: binding.controller,
       builder: (context, _) {
         final sharing = binding.isSharing();
-        return Padding(
-          padding: const EdgeInsets.all(16),
-          child: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                if (sharing) ...[
-                  ListTile(
-                    dense: true,
-                    contentPadding: EdgeInsets.zero,
-                    leading: Icon(
-                      Icons.stop_screen_share,
-                      color: Colors.red.shade700,
-                    ),
-                    title: Text(
-                      strings.callScreenShareStop,
-                      style: TextStyle(color: Colors.red.shade700),
-                    ),
-                    onTap: () {
-                      binding.stop();
-                      onClose();
-                    },
-                  ),
-                  ListTile(
-                    dense: true,
-                    contentPadding: EdgeInsets.zero,
-                    leading: const Icon(Icons.connected_tv),
-                    title: Text(strings.callScreenShareChange),
-                    onTap: () {
-                      onClose();
-                      binding.change();
-                    },
-                  ),
-                  const Divider(height: 16),
-                ],
-                Text(
-                  strings.callScreenShareQuality,
-                  style: theme.textTheme.titleSmall,
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  strings.callScreenShareFps,
-                  style: theme.textTheme.bodySmall,
-                ),
-                const SizedBox(height: 4),
-                Wrap(
-                  spacing: 8,
-                  runSpacing: 8,
-                  children: [
-                    for (final fps in ScreenShareQuality.fpsOptions)
-                      chip(
-                        '$fps FPS',
-                        settings.quality.fps == fps,
-                        fps > 30,
-                        () => choose(settings.quality.copyWith(fps: fps)),
+        // ガラス・劇画の面は`Material`を作らない為、`ListTile`・`InkWell`が描けるよう、透明な
+        // `Material`で包む。
+        return Material(
+          type: MaterialType.transparency,
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  if (sharing) ...[
+                    ListTile(
+                      dense: true,
+                      contentPadding: EdgeInsets.zero,
+                      leading: Icon(
+                        Icons.stop_screen_share,
+                        color: Colors.red.shade700,
                       ),
-                  ],
-                ),
-                const SizedBox(height: 12),
-                Text(
-                  strings.callScreenShareResolution,
-                  style: theme.textTheme.bodySmall,
-                ),
-                const SizedBox(height: 4),
-                Wrap(
-                  spacing: 8,
-                  runSpacing: 8,
-                  children: [
-                    for (final h in ScreenShareQuality.heights)
-                      chip(
-                        '${h}p',
-                        settings.quality.height == h,
-                        h > 720,
-                        () => choose(settings.quality.copyWith(height: h)),
+                      title: Text(
+                        strings.callScreenShareStop,
+                        style: TextStyle(color: Colors.red.shade700),
                       ),
+                      onTap: () {
+                        binding.stop();
+                        onClose();
+                      },
+                    ),
+                    ListTile(
+                      dense: true,
+                      contentPadding: EdgeInsets.zero,
+                      leading: const Icon(Icons.connected_tv),
+                      title: Text(strings.callScreenShareChange),
+                      onTap: () {
+                        onClose();
+                        binding.change();
+                      },
+                    ),
+                    const Divider(height: 16),
                   ],
-                ),
-                const SizedBox(height: 8),
-                InkWell(
-                  onTap: () => notifier.setShareAudio(!settings.shareAudio),
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 8),
-                    child: Row(
-                      children: [
-                        Expanded(child: Text(strings.callScreenShareAudio)),
-                        AppCheckbox(
-                          value: settings.shareAudio,
-                          onChanged: (v) => notifier.setShareAudio(v ?? false),
+                  Text(
+                    strings.callScreenShareQuality,
+                    style: theme.textTheme.titleSmall,
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    strings.callScreenShareFps,
+                    style: theme.textTheme.bodySmall,
+                  ),
+                  const SizedBox(height: 4),
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: [
+                      for (final fps in ScreenShareQuality.fpsOptions)
+                        chip(
+                          '$fps FPS',
+                          settings.quality.fps == fps,
+                          fps > 30,
+                          () => choose(settings.quality.copyWith(fps: fps)),
                         ),
-                      ],
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  Text(
+                    strings.callScreenShareResolution,
+                    style: theme.textTheme.bodySmall,
+                  ),
+                  const SizedBox(height: 4),
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: [
+                      for (final h in ScreenShareQuality.heights)
+                        chip(
+                          '${h}p',
+                          settings.quality.height == h,
+                          h > 720,
+                          () => choose(settings.quality.copyWith(height: h)),
+                        ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  InkWell(
+                    onTap: () => toggleAudio(!settings.shareAudio),
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 8),
+                      child: Row(
+                        children: [
+                          Expanded(child: Text(strings.callScreenShareAudio)),
+                          AppCheckbox(
+                            value: settings.shareAudio,
+                            onChanged: (v) => toggleAudio(v ?? false),
+                          ),
+                        ],
+                      ),
                     ),
                   ),
-                ),
-                Text(
-                  strings.callScreenShareHint,
-                  style: theme.textTheme.bodySmall?.copyWith(
-                    color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
+                  Text(
+                    strings.callScreenShareAudioHint,
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
+                    ),
                   ),
-                ),
-              ],
+                  const SizedBox(height: 4),
+                  Text(
+                    strings.callScreenShareHint,
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
+                    ),
+                  ),
+                ],
+              ),
             ),
           ),
         );

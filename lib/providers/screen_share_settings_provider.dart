@@ -11,7 +11,7 @@ const _audioKey = 'screenShareAudio';
 class ScreenShareSettings {
   const ScreenShareSettings({
     this.quality = ScreenShareQuality.standard,
-    this.shareAudio = false,
+    this.shareAudio = true,
   });
 
   final ScreenShareQuality quality;
@@ -27,7 +27,7 @@ Future<ScreenShareSettings> loadScreenShareSettings() async {
       height: ScreenShareQuality.heights.contains(height) ? height! : 720,
       fps: ScreenShareQuality.fpsOptions.contains(fps) ? fps! : 30,
     ),
-    shareAudio: prefs.getBool(_audioKey) ?? false,
+    shareAudio: prefs.getBool(_audioKey) ?? true,
   );
 }
 
