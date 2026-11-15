@@ -1,6 +1,9 @@
 import 'package:appflowy_editor/appflowy_editor.dart';
 
+import '../features/note/blocks/audio_embed_block.dart';
+import '../features/note/blocks/code_block.dart';
 import '../features/note/blocks/table_of_contents_block.dart';
+import '../features/note/blocks/video_embed_block.dart';
 
 /// 目次ブロックを`.md`へ書き出す時、他のアプリで開いても素のコードブロック
 /// として読めるよう、言語名付きのコードフェンスに寄せる。Obsidianの
@@ -74,4 +77,51 @@ const List<NodeParser> noteMarkdownCustomParsers = [
   TableOfContentsNodeParser(),
   NoteHeadingNodeParser(),
   NoteBulletedListNodeParser(),
+  AudioEmbedNodeParser(),
+  VideoEmbedNodeParser(),
+  CodeBlockNodeParser(),
 ];
+
+/// 音声の再生ブロックは、`.md`では他のアプリでも開けるリンクにする。
+class AudioEmbedNodeParser extends NodeParser {
+  const AudioEmbedNodeParser();
+
+  @override
+  String get id => AudioEmbedBlockKeys.type;
+
+  @override
+  String transform(Node node, DocumentMarkdownEncoder? encoder) {
+    final url = node.attributes[AudioEmbedBlockKeys.url] as String? ?? '';
+    final name =
+        node.attributes[AudioEmbedBlockKeys.fileName] as String? ?? url;
+    return '[📎 $name]($url)\n';
+  }
+}
+
+class VideoEmbedNodeParser extends NodeParser {
+  const VideoEmbedNodeParser();
+
+  @override
+  String get id => VideoEmbedBlockKeys.type;
+
+  @override
+  String transform(Node node, DocumentMarkdownEncoder? encoder) {
+    final url = node.attributes[VideoEmbedBlockKeys.url] as String? ?? '';
+    final name =
+        node.attributes[VideoEmbedBlockKeys.fileName] as String? ?? url;
+    return '[🎬 $name]($url)\n';
+  }
+}
+
+class CodeBlockNodeParser extends NodeParser {
+  const CodeBlockNodeParser();
+
+  @override
+  String get id => CodeBlockKeys.type;
+
+  @override
+  String transform(Node node, DocumentMarkdownEncoder? encoder) {
+    final text = node.delta?.toPlainText() ?? '';
+    return '```\n$text\n```\n';
+  }
+}

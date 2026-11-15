@@ -2,6 +2,7 @@ import 'dart:io';
 import 'dart:math';
 
 import 'package:appflowy_editor/appflowy_editor.dart';
+import 'package:flutter/foundation.dart' show defaultTargetPlatform, TargetPlatform;
 import 'package:flutter/material.dart';
 import 'package:string_validator/string_validator.dart';
 
@@ -43,6 +44,12 @@ class _ResizableImageState extends State<ResizableImage> {
   @visibleForTesting
   bool onFocus = false;
 
+  /// タッチ端末（ホバーが無い）では、右端に常にグリップを出して、ドラッグで拡大・縮小できる
+  /// （DaiDai側の追加）。
+  bool get _isTouch =>
+      defaultTargetPlatform == TargetPlatform.android ||
+      defaultTargetPlatform == TargetPlatform.iOS;
+
   @override
   void initState() {
     super.initState();
@@ -77,13 +84,17 @@ class _ResizableImageState extends State<ResizableImage> {
       // load base64 image (url is raw base64 from web)
       _cacheImage ??= Image.memory(
         dataFromBase64String(src),
+        width: double.infinity,
+        fit: BoxFit.fitWidth,
       );
       child = _cacheImage!;
     } else if (isURL(src)) {
       // load network image
       _cacheImage ??= Image.network(
         widget.src,
-        width: widget.width,
+        // 親の幅（ドラッグで変わる）いっぱいに表示する（DaiDai側の修正）。
+        width: double.infinity,
+        fit: BoxFit.fitWidth,
         gaplessPlayback: true,
         loadingBuilder: (context, child, loadingProgress) {
           if (loadingProgress == null ||
@@ -98,31 +109,36 @@ class _ResizableImageState extends State<ResizableImage> {
       child = _cacheImage!;
     } else {
       // load local file
-      _cacheImage ??= Image.file(File(src));
+      _cacheImage ??= Image.file(
+        File(src),
+        width: double.infinity,
+        fit: BoxFit.fitWidth,
+      );
       child = _cacheImage!;
     }
     return Stack(
       children: [
         child,
         if (widget.editable) ...[
+          if (!_isTouch)
+            _buildEdgeGesture(
+              context,
+              top: 0,
+              left: 5,
+              bottom: 0,
+              width: 5,
+              onUpdate: (distance) {
+                setState(() {
+                  moveDistance = distance;
+                });
+              },
+            ),
           _buildEdgeGesture(
             context,
             top: 0,
-            left: 5,
+            right: _isTouch ? 0 : 5,
             bottom: 0,
-            width: 5,
-            onUpdate: (distance) {
-              setState(() {
-                moveDistance = distance;
-              });
-            },
-          ),
-          _buildEdgeGesture(
-            context,
-            top: 0,
-            right: 5,
-            bottom: 0,
-            width: 5,
+            width: _isTouch ? 28 : 5,
             onUpdate: (distance) {
               setState(() {
                 moveDistance = -distance;
@@ -205,10 +221,11 @@ class _ResizableImageState extends State<ResizableImage> {
         },
         child: MouseRegion(
           cursor: SystemMouseCursors.resizeLeftRight,
-          child: onFocus
+          child: (onFocus || _isTouch)
               ? Center(
                   child: Container(
                     height: 40,
+                    width: _isTouch ? 8 : null,
                     decoration: BoxDecoration(
                       color: Colors.black.withValues(alpha: 0.5),
                       borderRadius: const BorderRadius.all(

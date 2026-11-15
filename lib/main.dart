@@ -101,6 +101,22 @@ Future<void> main() async {
       previousOnError?.call(details);
     };
   }
+  // 【一時的な診断・原因が分かったら削除する】2026-11-15: リリース版のAPKでノート（マークダウン）が
+  // 灰色の画面（エラー表示）になる原因を特定するため、リリース版でも例外の内容とスタックを
+  // 「[DIAG-ERR]」で始まるログに出す（リリース版は通常、中身が隠れる）。最初の8件だけ。
+  if (!kDebugMode) {
+    var errReports = 0;
+    final prev = FlutterError.onError;
+    FlutterError.onError = (details) {
+      if (errReports < 8) {
+        errReports++;
+        debugPrint(
+          '[DIAG-ERR #$errReports] ${details.exceptionAsString()}\n${details.stack}',
+        );
+      }
+      prev?.call(details);
+    };
+  }
   // 劇画UIスタイルの見出しフォント（Anton）はGoogle CDNから実行時取得せず、
   // アプリに同梱したファイルのみを使う（プライバシーファースト方針に
   // 合わせ、外部通信を発生させない為）。

@@ -3207,23 +3207,26 @@ class _GroupMenuButtonState extends ConsumerState<_GroupMenuButton> {
     // 概念自体が無い（常に広場全体の値を直接編集する）。
     var customSettingsEnabled =
         widget.currentRoom?.customSettingsEnabled ?? false;
-    final roomMuted =
+    var roomMuted =
         prefs[widget.group.groupId]?.roomNotificationOverrides[widget.roomId] ??
         false;
-    final roomReadReceiptsEnabled =
+    var roomReadReceiptsEnabled =
         widget.currentRoom?.readReceiptsEnabledOverride ?? readReceiptsEnabled;
-    final roomReadReceiptsCountOnly =
+    var roomReadReceiptsCountOnly =
         widget.currentRoom?.readReceiptsCountOnlyOverride ??
         widget.group.readReceiptsCountOnly;
     // 「加入前のメッセージを新規メンバーに見せる」の現在の有効値（この寄合独自の
     // 設定がオンならその上書き、なければ広場全体の値、2026-10-08追加）。
-    final roomHistoryVisible =
+    var roomHistoryVisible =
         widget.currentRoom?.historyVisibleOverride ??
         widget.group.historyVisibleToNewMembers;
     final foreground = popupCardForeground(
       Theme.of(context).brightness,
       ref.read(appUiStyleProvider),
     );
+
+    // 既読の切り替えが実際に保存へ進んだか（確認・案内で止まった時はfalse）。
+    var readReceiptsApplied = false;
 
     Future<void> handle(_GroupMenuAction action) async {
       switch (action) {
@@ -3374,6 +3377,7 @@ class _GroupMenuButtonState extends ConsumerState<_GroupMenuButton> {
             );
             if (!confirmed) return;
           }
+          readReceiptsApplied = true;
           ref
               .read(groupRepositoryProvider)
               .setRoomReadReceiptsEnabledOverride(
@@ -3492,37 +3496,61 @@ class _GroupMenuButtonState extends ConsumerState<_GroupMenuButton> {
                       enabled: canManageRoles,
                       value: _GroupMenuAction.roomRolePriority,
                     ),
-                    _MenuTile(
-                      label: roomMuted
-                          ? strings.conversationUnmute
-                          : strings.conversationMute,
+                    // 通知・既読・既読の人数だけ・加入前のメッセージは、切り替えをスイッチにする
+                    // （2026-11-15）。押した値はメニュー内で即座に反映し、保存は従来の処理
+                    // （`handle`）に任せる。
+                    _MenuSwitchTile(
+                      title: strings.groupRoomNotificationsLabel,
                       foreground: foreground,
-                      value: _GroupMenuAction.toggleMute,
+                      value: !roomMuted,
+                      enabled: true,
+                      onChanged: (_) {
+                        setMenuState(() => roomMuted = !roomMuted);
+                        handle(_GroupMenuAction.toggleMute);
+                      },
                     ),
-                    _MenuTile(
-                      label: roomReadReceiptsEnabled
-                          ? strings.conversationReadReceiptsDisable
-                          : strings.conversationReadReceiptsEnable,
+                    _MenuSwitchTile(
+                      title: strings.groupRoomReadReceiptsLabel,
                       foreground: foreground,
+                      value: roomReadReceiptsEnabled,
                       enabled: canManageReadReceipts,
-                      value: _GroupMenuAction.toggleReadReceipts,
+                      onChanged: (_) async {
+                        // 確認・極みの案内で止まることがあるため、保存の結果が出てから反映する。
+                        readReceiptsApplied = false;
+                        await handle(_GroupMenuAction.toggleReadReceipts);
+                        if (readReceiptsApplied) {
+                          setMenuState(
+                            () => roomReadReceiptsEnabled =
+                                !roomReadReceiptsEnabled,
+                          );
+                        }
+                      },
                     ),
                     if (roomReadReceiptsEnabled)
-                      _MenuTile(
-                        label: roomReadReceiptsCountOnly
-                            ? strings.groupRoomReadReceiptsShowNames
-                            : strings.groupRoomReadReceiptsCountOnly,
+                      _MenuSwitchTile(
+                        title: strings.groupRoomReadReceiptsCountOnly,
                         foreground: foreground,
+                        value: roomReadReceiptsCountOnly,
                         enabled: canManageReadReceipts,
-                        value: _GroupMenuAction.toggleReadReceiptsCountOnly,
+                        onChanged: (_) {
+                          setMenuState(
+                            () => roomReadReceiptsCountOnly =
+                                !roomReadReceiptsCountOnly,
+                          );
+                          handle(_GroupMenuAction.toggleReadReceiptsCountOnly);
+                        },
                       ),
-                    _MenuTile(
-                      label: roomHistoryVisible
-                          ? strings.groupRoomHistoryVisibleHide
-                          : strings.groupRoomHistoryVisibleShow,
+                    _MenuSwitchTile(
+                      title: strings.groupRoomHistoryVisibleShow,
                       foreground: foreground,
+                      value: roomHistoryVisible,
                       enabled: canManageRooms,
-                      value: _GroupMenuAction.toggleHistoryVisible,
+                      onChanged: (_) {
+                        setMenuState(
+                          () => roomHistoryVisible = !roomHistoryVisible,
+                        );
+                        handle(_GroupMenuAction.toggleHistoryVisible);
+                      },
                     ),
                   ],
                   _MenuDivider(foreground: foreground),

@@ -141,7 +141,9 @@ List<Offset> distortedParallelogramVertices(
   double jitter(double range) => (random.nextDouble() - 0.5) * 2 * range;
   const skewRatio = 0.10;
   final skew = skewOverride ?? width * skewRatio;
-  final j = math.min(width, height) * 0.06;
+  // 四隅のばらつきは絶対量で頭打ちにする（長いメッセージで吹き出しが大きいと、割合のままでは
+  // 数十pxずれて、文字が枠にかかるため。2026-11-15）。
+  final j = math.min(math.min(width, height) * 0.06, 5.0);
   return [
     Offset(skew + jitter(j), jitter(j)),
     Offset(width + jitter(j), jitter(j)),

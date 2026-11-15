@@ -36,6 +36,7 @@ CharacterShortcutEvent customSlashCommand(
   bool singleColumn = true,
   SelectionMenuStyle style = SelectionMenuStyle.light,
   Set<String> supportSlashMenuNodeTypes = _defaultSupportSlashMenuNodeTypes,
+  Widget Function(Widget child)? surfaceBuilder,
 }) {
   return CharacterShortcutEvent(
     key: 'show the slash menu',
@@ -48,6 +49,7 @@ CharacterShortcutEvent customSlashCommand(
       singleColumn: singleColumn,
       style: style,
       supportSlashMenuNodeTypes: supportSlashMenuNodeTypes,
+      surfaceBuilder: surfaceBuilder,
     ),
   );
 }
@@ -61,6 +63,7 @@ Future<bool> _showSlashMenu(
   bool deleteKeywordsByDefault = false,
   SelectionMenuStyle style = SelectionMenuStyle.light,
   Set<String> supportSlashMenuNodeTypes = _defaultSupportSlashMenuNodeTypes,
+  Widget Function(Widget child)? surfaceBuilder,
 }) async {
   if (PlatformExtension.isMobile) {
     return false;
@@ -108,6 +111,7 @@ Future<bool> _showSlashMenu(
       deleteKeywordsByDefault: deleteKeywordsByDefault,
       singleColumn: singleColumn,
       style: style,
+      surfaceBuilder: surfaceBuilder,
     );
     if (!kIsWeb && Platform.environment.containsKey('FLUTTER_TEST')) {
       _selectionMenuService?.show();

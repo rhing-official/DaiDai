@@ -20,12 +20,14 @@ import '../guide/tutorial/tutorial_controller.dart';
 import '../guide/tutorial/tutorial_target.dart';
 import '../../models/app_ui_style.dart';
 import '../../models/app_user.dart';
+import '../../models/message.dart' show kMaxMultiAttachments;
 import '../../models/note.dart';
 import '../../models/note_op.dart';
 import '../../providers/app_ui_style_provider.dart';
 import '../../providers/home_shell_providers.dart';
 import '../../providers/repository_providers.dart';
 import '../../utils/attachment_upload.dart';
+import '../../utils/audio_only_mp4.dart';
 import '../../utils/auto_dismiss_banner.dart';
 import '../../utils/forward_message.dart';
 import '../../utils/note_export.dart';
@@ -47,6 +49,10 @@ import '../../widgets/media_preview_frame.dart'
     show GekigaStraightMonochromeBox;
 import '../../widgets/interactive_swipe_back.dart';
 import '../../widgets/swipe_gestures.dart';
+import '../../widgets/media_viewer_screen.dart';
+import 'blocks/audio_embed_block.dart';
+import 'blocks/code_block.dart';
+import 'blocks/video_embed_block.dart';
 import 'blocks/link_embed_block.dart';
 import 'block_move_drag.dart';
 import 'draw_canvas_view.dart';
@@ -458,7 +464,9 @@ class _NotePaneViewState extends ConsumerState<NotePaneView>
             DividerBlockKeys.type ||
             ImageBlockKeys.type ||
             TableOfContentsBlockKeys.type ||
-            LinkEmbedBlockKeys.type:
+            LinkEmbedBlockKeys.type ||
+            AudioEmbedBlockKeys.type ||
+            VideoEmbedBlockKeys.type:
           found.add('note-inserted');
       }
       final delta = node.delta;
@@ -788,10 +796,201 @@ class _NotePaneViewState extends ConsumerState<NotePaneView>
     ref.read(tutorialControllerProvider.notifier).notify('note-insert-menu');
     final isGlass = ref.read(appUiStyleProvider) == AppUiStyle.glass;
     final strings = ref.read(appStringsProvider);
-    // 「/」入力の後始末（直前の文字を消す処理）は挿入メニューを開いた
-    // 経緯に依存する為、AppBarから開くここでは無効にする。PCの「+」が
-    // `SelectionMenu.show()`内で行うのと同じ設定（`deleteSlashByDefault:
-    // false`相当）を、`show()`を呼ばないこの経路では自前で適用する。
+    // シートを開くとカーソルが外れる（モバイル）。項目の処理（見出し・区切り線・表など）は
+    // 選択を前提にするので、開く前の位置を覚えて、項目を選んだ時に戻す（2026-11-15）。
+    final savedSelection = editorState.selection;
+    final entries = _mobileMenuEntries(strings, savedSelection);
+    var chosen = false;
+    // 「＋」を押したらキーボードは閉じる（閉じたあと、項目を選ぶか閉じると出し直す）。
+    editorState.service.keyboardService?.closeKeyboard();
+    Widget builder(BuildContext sheetContext) => SafeArea(
+      child: ListView(
+        shrinkWrap: true,
+        children: [
+          for (final entry in entries)
+            ListTile(
+              leading: entry.icon(sheetContext),
+              title: Text(entry.label),
+              onTap: () {
+                chosen = true;
+                Navigator.of(sheetContext).pop();
+                if (editorState.selection == null && savedSelection != null) {
+                  editorState.selection = savedSelection;
+                }
+                entry.run(context);
+                // ダイアログや選択画面を開かない項目は、終わったらキーボードを出し直す。
+                if (!entry.opensUi) {
+                  WidgetsBinding.instance.addPostFrameCallback(
+                    (_) => _showMobileKeyboard(),
+                  );
+                }
+              },
+            ),
+        ],
+      ),
+    );
+    if (isGlass) {
+      await showGlassModalBottomSheet<void>(context: context, builder: builder);
+    } else {
+      await showModalBottomSheet<void>(context: context, builder: builder);
+    }
+    // 項目を選ばずに閉じた時は、カーソルを戻してキーボードを出し直す。
+    if (!chosen && mounted) {
+      if (editorState.selection == null && savedSelection != null) {
+        editorState.selection = savedSelection;
+      }
+      _showMobileKeyboard();
+    }
+  }
+
+  /// 見出しのレベル（1〜3）を選ぶシート。キーボードは閉じ、選ぶか閉じると出し直す。
+  Future<void> _openHeadingSheet() async {
+    final editorState = _editorState;
+    if (editorState == null) return;
+    final isGlass = ref.read(appUiStyleProvider) == AppUiStyle.glass;
+    final saved = editorState.selection;
+    editorState.service.keyboardService?.closeKeyboard();
+    Widget builder(BuildContext sheetContext) => SafeArea(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          for (final level in [1, 2, 3])
+            ListTile(
+              leading: const Icon(Icons.title),
+              title: Text('H$level'),
+              onTap: () {
+                Navigator.of(sheetContext).pop();
+                if (editorState.selection == null && saved != null) {
+                  editorState.selection = saved;
+                }
+                insertHeadingAfterSelection(editorState, level);
+              },
+            ),
+        ],
+      ),
+    );
+    if (isGlass) {
+      await showGlassModalBottomSheet<void>(context: context, builder: builder);
+    } else {
+      await showModalBottomSheet<void>(context: context, builder: builder);
+    }
+    if (!mounted) return;
+    if (editorState.selection == null && saved != null) {
+      editorState.selection = saved;
+    }
+    _showMobileKeyboard();
+  }
+
+  /// ノートの画像・動画を、メッセージと同じ全画面ビューアで開く。ノート内の画像・動画を
+  /// 並び順にまとめて渡すので、矢印・スワイプで前後に切り替えられる。
+  void _openNoteMedia(BuildContext context, String url) {
+    final editorState = _editorState;
+    if (editorState == null) return;
+    final items = <MediaViewerItem>[];
+    void visit(Node node) {
+      if (node.type == ImageBlockKeys.type) {
+        final u = node.attributes[ImageBlockKeys.url];
+        if (u is String) {
+          items.add(MediaViewerItem(id: node.id, url: u, contentType: 'image'));
+        }
+      } else if (node.type == VideoEmbedBlockKeys.type) {
+        final u = node.attributes[VideoEmbedBlockKeys.url];
+        if (u is String) {
+          items.add(
+            MediaViewerItem(
+              id: node.id,
+              url: u,
+              contentType: 'video',
+              fileName:
+                  node.attributes[VideoEmbedBlockKeys.fileName] as String?,
+            ),
+          );
+        }
+      }
+      node.children.forEach(visit);
+    }
+
+    visit(editorState.document.root);
+    if (items.isEmpty) return;
+    final index = items.indexWhere((i) => i.url == url);
+    openMediaViewer(context, items: items, initialIndex: index < 0 ? 0 : index);
+  }
+
+  /// 太字・取り消し線・コードの切り替え。範囲選択があればその範囲に、カーソルだけの時は
+  /// カーソルがある語（空白で区切られた範囲）に付け外しする。語が無い（空白の上・空行）時は、
+  /// これから入力する文字に効く切り替えにする（見た目が変わらず、何も起きないように見えるため）。
+  Future<void> _toggleInline(EditorState editorState, String key) async {
+    final selection = editorState.selection;
+    if (selection != null && selection.isCollapsed) {
+      final node = editorState.getNodeAtPath(selection.end.path);
+      final delta = node?.delta;
+      if (node != null && delta != null) {
+        final text = delta.toPlainText();
+        var start = selection.end.offset.clamp(0, text.length);
+        var end = start;
+        bool blank(int i) =>
+            text[i] == ' ' || text[i] == '\n' || text[i] == '\u3000';
+        while (start > 0 && !blank(start - 1)) {
+          start--;
+        }
+        while (end < text.length && !blank(end)) {
+          end++;
+        }
+        if (end > start) {
+          final range = Selection.single(
+            path: selection.end.path,
+            startOffset: start,
+            endOffset: end,
+          );
+          await editorState.toggleAttribute(key, selection: range);
+          editorState.selection = selection;
+          return;
+        }
+      }
+    }
+    // 語が無い所（空行・空白の上）は、これから入力する文字に効く切り替えでは見た目が変わらず
+    // 「何も起きない」ように見える。書式付きの仮の文字を挿入して選択し、そのまま打てば置き換わる。
+    final sel = editorState.selection;
+    if (sel != null && sel.isCollapsed) {
+      final node = editorState.getNodeAtPath(sel.end.path);
+      if (node != null && node.delta != null) {
+        final strings = ref.read(appStringsProvider);
+        final label = key == AppFlowyRichTextKeys.bold
+            ? strings.noteMenuBold
+            : key == AppFlowyRichTextKeys.strikethrough
+            ? strings.noteMenuStrikethrough
+            : strings.noteMenuCode;
+        final offset = sel.end.offset;
+        final transaction = editorState.transaction
+          ..insertText(node, offset, label, attributes: {key: true})
+          ..afterSelection = Selection.single(
+            path: sel.end.path,
+            startOffset: offset,
+            endOffset: offset + label.length,
+          );
+        await editorState.apply(transaction);
+        return;
+      }
+    }
+    await editorState.toggleAttribute(key);
+  }
+
+  /// キーボードを出し直す（カーソルの位置にフォーカス）。
+  void _showMobileKeyboard() {
+    final editorState = _editorState;
+    final selection = editorState?.selection;
+    if (editorState == null || selection == null) return;
+    editorState.service.keyboardService?.enableKeyBoard(selection);
+  }
+
+  /// 「＋」のシートと書式バーで共通の項目（2026-11-15）。どちらにも、挿入（見出し・リスト・
+  /// 引用・区切り線・表・目次・画像・音声・ファイル・URL）と書式（太字・取り消し線・コード・
+  /// リンク・元に戻す・やり直す）を同じだけ出す。
+  List<_MobileMenuEntry> _mobileMenuEntries(
+    Strings strings,
+    Selection? savedSelection,
+  ) {
+    final editorState = _editorState!;
     final items = _buildSelectionMenuItems(strings)
       ..forEach((item) {
         item.deleteSlash = false;
@@ -803,33 +1002,107 @@ class _NotePaneViewState extends ConsumerState<NotePaneView>
       selectionMenuItems: items,
       deleteSlashByDefault: false,
     );
-    Widget builder(BuildContext sheetContext) => SafeArea(
-      child: ListView(
-        shrinkWrap: true,
-        children: [
-          for (final item in items)
-            ListTile(
-              leading: item.icon(
-                editorState,
-                false,
-                Theme.of(sheetContext).brightness == Brightness.dark
-                    ? SelectionMenuStyle.dark
-                    : SelectionMenuStyle.light,
-              ),
-              title: Text(item.name),
-              onTap: () {
-                Navigator.of(sheetContext).pop();
-                item.handler(editorState, menu, context);
-              },
-            ),
-        ],
+    // 画面（ダイアログ・ファイル選択）を開く項目。終わったあとにキーボードを自動では出さない。
+    final uiNames = {
+      strings.noteMenuTable,
+      strings.noteMenuImage,
+      strings.noteMenuVideo,
+      strings.noteMenuAudio,
+      strings.noteMenuFile,
+      strings.noteMenuEmbed,
+    };
+    _MobileMenuEntry insertEntry(SelectionMenuItem item) => _MobileMenuEntry(
+      label: item.name,
+      opensUi: uiNames.contains(item.name),
+      icon: (context) => item.icon(
+        editorState,
+        false,
+        Theme.of(context).brightness == Brightness.dark
+            ? SelectionMenuStyle.dark
+            : SelectionMenuStyle.light,
       ),
+      run: (context) => item.handler(editorState, menu, context),
     );
-    if (isGlass) {
-      await showGlassModalBottomSheet<void>(context: context, builder: builder);
-    } else {
-      await showModalBottomSheet<void>(context: context, builder: builder);
+    return [for (final item in items) insertEntry(item)];
+  }
+
+  /// モバイルの書式バーの項目（2026-11-15）。左から、＋（シートを開く）・見出し・太字・
+  /// 取り消し線・リスト・引用・コード・リンク・区切り線・表・目次・画像・音声・ファイル・URL・
+  /// 元に戻す・やり直す。「＋」のシートと同じ項目をすべて並べる。
+  List<MobileToolbarItem> _buildMobileBarItems() {
+    final strings = ref.read(appStringsProvider);
+    // 線の太さ・大きさをそろえるため、バーの全アイコンをMaterialの同じ系統で描き（2026-11-15）。
+    Widget material(BuildContext context, IconData icon) {
+      final color = MobileToolbarTheme.of(context).iconColor;
+      return Icon(icon, size: 24, color: color);
     }
+
+    MobileToolbarItem decoration(String key, IconData icon) =>
+        MobileToolbarItem.action(
+          itemIconBuilder: (context, _, _) => material(context, icon),
+          actionHandler: (_, editorState) => _toggleInline(editorState, key),
+        );
+    final barIcons = <String, IconData>{
+      strings.noteMenuQuote: Icons.format_quote,
+      strings.noteMenuCode: Icons.code,
+      strings.noteMenuDivider: Icons.horizontal_rule,
+      strings.noteMenuTable: Icons.table_chart_outlined,
+      strings.noteMenuTableOfContents: Icons.toc,
+      strings.noteMenuImage: Icons.image_outlined,
+      strings.noteMenuVideo: Icons.videocam_outlined,
+      strings.noteMenuAudio: Icons.audiotrack,
+      strings.noteMenuFile: Icons.attach_file,
+      strings.noteMenuEmbed: Icons.link,
+    };
+    // シートと共通の項目のうち、バーにまだ無い挿入項目（区切り線・表・目次・画像・音声・
+    // ファイル・URL）を、同じ処理でバーにも並べる。
+    final barInsertNames = {
+      strings.noteMenuQuote,
+      strings.noteMenuCode,
+      strings.noteMenuDivider,
+      strings.noteMenuTable,
+      strings.noteMenuTableOfContents,
+      strings.noteMenuImage,
+      strings.noteMenuVideo,
+      strings.noteMenuAudio,
+      strings.noteMenuFile,
+      strings.noteMenuEmbed,
+    };
+    final shared = _editorState == null
+        ? const <_MobileMenuEntry>[]
+        : _mobileMenuEntries(
+            strings,
+            null,
+          ).where((e) => barInsertNames.contains(e.label)).toList();
+    return [
+      MobileToolbarItem.action(
+        itemIconBuilder: (context, _, _) => material(context, Icons.add),
+        actionHandler: (_, _) => _openInsertBottomSheet(),
+      ),
+      MobileToolbarItem.action(
+        itemIconBuilder: (context, _, _) => material(context, Icons.title),
+        actionHandler: (_, _) => _openHeadingSheet(),
+      ),
+      decoration(AppFlowyRichTextKeys.bold, Icons.format_bold),
+      decoration(
+        AppFlowyRichTextKeys.strikethrough,
+        Icons.format_strikethrough,
+      ),
+      for (final entry in shared)
+        MobileToolbarItem.action(
+          itemIconBuilder: (context, _, _) =>
+              material(context, barIcons[entry.label] ?? Icons.add),
+          actionHandler: (context, editorState) => entry.run(context),
+        ),
+      MobileToolbarItem.action(
+        itemIconBuilder: (context, _, _) => material(context, Icons.undo),
+        actionHandler: (_, editorState) => editorState.undoManager.undo(),
+      ),
+      MobileToolbarItem.action(
+        itemIconBuilder: (context, _, _) => material(context, Icons.redo),
+        actionHandler: (_, editorState) => editorState.undoManager.redo(),
+      ),
+    ];
   }
 
   /// モバイルのテキスト選択ポップアップ（2026-10-04追加、ユーザー指示）。
@@ -1039,6 +1312,18 @@ class _NotePaneViewState extends ConsumerState<NotePaneView>
         handler: (editorState, _, _) => _pickAndInsertImage(),
       ),
       SelectionMenuItem(
+        getName: () => strings.noteMenuVideo,
+        icon: (editorState, isSelected, style) => Icon(
+          Icons.videocam_outlined,
+          size: 18.0,
+          color: isSelected
+              ? style.selectionMenuItemSelectedIconColor
+              : style.selectionMenuItemIconColor,
+        ),
+        keywords: const ['video', 'movie'],
+        handler: (editorState, _, _) => _pickAndInsertVideos(),
+      ),
+      SelectionMenuItem(
         getName: () => strings.noteMenuAudio,
         icon: (editorState, isSelected, style) => Icon(
           Icons.audiotrack_outlined,
@@ -1074,6 +1359,46 @@ class _NotePaneViewState extends ConsumerState<NotePaneView>
         keywords: const ['embed', 'url', 'link'],
         handler: (editorState, _, _) => _promptAndInsertEmbed(strings),
       ),
+      SelectionMenuItem(
+        getName: () => strings.noteMenuBold,
+        icon: (editorState, isSelected, style) => Icon(
+          Icons.format_bold,
+          size: 18.0,
+          color: isSelected
+              ? style.selectionMenuItemSelectedIconColor
+              : style.selectionMenuItemIconColor,
+        ),
+        keywords: const ['bold'],
+        handler: (editorState, _, _) =>
+            _toggleInline(editorState, AppFlowyRichTextKeys.bold),
+      ),
+      SelectionMenuItem(
+        getName: () => strings.noteMenuStrikethrough,
+        icon: (editorState, isSelected, style) => Icon(
+          Icons.format_strikethrough,
+          size: 18.0,
+          color: isSelected
+              ? style.selectionMenuItemSelectedIconColor
+              : style.selectionMenuItemIconColor,
+        ),
+        keywords: const ['strikethrough'],
+        handler: (editorState, _, _) =>
+            _toggleInline(editorState, AppFlowyRichTextKeys.strikethrough),
+      ),
+      SelectionMenuItem(
+        getName: () => strings.noteMenuCode,
+        icon: (editorState, isSelected, style) => Icon(
+          Icons.code,
+          size: 18.0,
+          color: isSelected
+              ? style.selectionMenuItemSelectedIconColor
+              : style.selectionMenuItemIconColor,
+        ),
+        keywords: const ['code block', 'codeblock', 'code'],
+        handler: (editorState, _, _) {
+          insertNodeAfterSelection(editorState, codeBlockNode());
+        },
+      ),
     ];
   }
 
@@ -1081,13 +1406,37 @@ class _NotePaneViewState extends ConsumerState<NotePaneView>
   /// 📎ボタン用の3択ポップアップ（`_pickAndInsertAttachment`）とは別に、
   /// 参考画像の構成に合わせて単独タップで直接実行する。
   Future<void> _pickAndInsertImage() async {
-    final picked = await ImagePicker().pickImage(source: ImageSource.gallery);
-    if (picked == null) return;
-    await _insertAttachment(
-      bytes: await picked.readAsBytes(),
-      fileName: picked.name,
-      contentType: 'image',
+    // メッセージと同じく、画像は複数選べる（最大[kMaxMultiAttachments]枚）。
+    final picked = await ImagePicker().pickMultiImage(
+      limit: kMaxMultiAttachments,
     );
+    for (final file in picked) {
+      await _insertAttachment(
+        bytes: await file.readAsBytes(),
+        fileName: file.name,
+        contentType: 'image',
+      );
+    }
+  }
+
+  /// 動画の複数選択（メッセージと同じ。`pickMultipleMedia`で選び、種別は拡張子・中身で判定する。
+  /// 音声だけのmp4は音声として入れる）。
+  Future<void> _pickAndInsertVideos() async {
+    final picked = await ImagePicker().pickMultipleMedia(
+      limit: kMaxMultiAttachments,
+    );
+    for (final file in picked) {
+      final bytes = await file.readAsBytes();
+      final isVideo =
+          isVideoFileName(file.name, mimeType: file.mimeType) ||
+          looksLikeVideoBytes(bytes);
+      final isAudio = isVideo && isAudioOnlyIsoBmff(bytes);
+      await _insertAttachment(
+        bytes: bytes,
+        fileName: file.name,
+        contentType: isAudio ? 'audio' : (isVideo ? 'video' : 'image'),
+      );
+    }
   }
 
   Future<void> _pickAndInsertAudio() async {
@@ -1157,9 +1506,22 @@ class _NotePaneViewState extends ConsumerState<NotePaneView>
   /// （2026-09-27追加、ユーザー指示。Notion等の表挿入UIを参考にした）。
   /// `_TableSizePicker`はマスをクリックした瞬間に確定する（別途「作成」
   /// ボタンは置かない）。
+  /// 文書の最後のブロックの末尾に置いたカーソル（挿入先の最終手段）。
+  Selection? _endOfDocumentSelection(EditorState editorState) {
+    final children = editorState.document.root.children;
+    if (children.isEmpty) return null;
+    final last = children.last;
+    return Selection.collapsed(
+      Position(path: last.path, offset: last.delta?.length ?? 0),
+    );
+  }
+
   Future<void> _promptAndInsertTable() async {
     final editorState = _editorState;
     if (editorState == null) return;
+    // メニュー・ダイアログを開くとカーソル（選択）が外れる（特にモバイル）。挿入は選択が
+    // 無いと何もしないので、開く前の位置を覚えておき、挿入の前に戻す（2026-11-15）。
+    var savedSelection = editorState.selection;
     final noteColors = _noteColors;
     final isGlass = ref.read(appUiStyleProvider) == AppUiStyle.glass;
     final size = await showAppDialog<(int, int)>(
@@ -1181,12 +1543,22 @@ class _NotePaneViewState extends ConsumerState<NotePaneView>
     );
     if (size == null || !mounted) return;
     final (rows, columns) = size;
+    // 今の選択が無い、または範囲選択のままなら、覚えておいた位置（なければ末尾）に戻す。
+    var selection = editorState.selection;
+    if (selection == null || !selection.isCollapsed) {
+      selection = (savedSelection != null && savedSelection.isCollapsed)
+          ? savedSelection
+          : _endOfDocumentSelection(editorState);
+      if (selection != null) editorState.selection = selection;
+    }
     insertNodeAfterSelection(
       editorState,
       TableNode.fromList<String>(
         List.generate(columns, (_) => List.generate(rows, (_) => '')),
       ).node,
     );
+    // モバイルは、挿入が終わったらキーボードを出し直す（2026-11-15）。
+    if (_isMobilePlatform) _showMobileKeyboard();
   }
 
   /// 区切り線を挿入し、直後の空の段落へカーソルを置く（`dividerMenuItem`と
@@ -1228,6 +1600,16 @@ class _NotePaneViewState extends ConsumerState<NotePaneView>
       );
       if (contentType == 'image') {
         await editorState.insertImageNode(metadata.url);
+      } else if (contentType == 'video') {
+        insertNodeAfterSelection(
+          editorState,
+          videoEmbedNode(url: metadata.url, fileName: fileName),
+        );
+      } else if (contentType == 'audio') {
+        insertNodeAfterSelection(
+          editorState,
+          audioEmbedNode(url: metadata.url, fileName: fileName),
+        );
       } else {
         // 動画・ファイルはappflowy_editor組み込みの画像ブロックが対応
         // しない為、ファイル名をリンク（href=Storage URL）にした段落として
@@ -1239,6 +1621,21 @@ class _NotePaneViewState extends ConsumerState<NotePaneView>
             delta: Delta()
               ..insert('📎 $fileName', attributes: {'href': metadata.url}),
           ),
+        );
+      }
+    } catch (e) {
+      // メッセージと同じ上限・拒否の文言を出す。
+      if (mounted) {
+        final strings = ref.read(appStringsProvider);
+        showAutoDismissBanner(
+          context,
+          message: switch (e) {
+            AttachmentTooLargeException() =>
+              strings.chatAttachmentTooLargeMessage,
+            AttachmentExtensionBlockedException() =>
+              strings.chatAttachmentBlockedExtensionMessage,
+            _ => strings.chatAttachmentSendFailedMessage,
+          },
         );
       }
     } finally {
@@ -1436,14 +1833,8 @@ class _NotePaneViewState extends ConsumerState<NotePaneView>
       tooltip: '',
       onPressed: !_noteLoaded ? null : _download,
     );
-    // モバイル専用の挿入ボタン（2026-10-04追加、ユーザー指示）。PCの「+」
-    // /「/」メニューが使えない為、AppBarからボトムシートで同じ項目を開く
-    // （`_openInsertBottomSheet`参照）。書式は選択時ポップアップへ移した。
-    final insertAction = IconButton(
-      icon: const Icon(Icons.add),
-      tooltip: strings.noteInsertTooltip,
-      onPressed: _editorState == null ? null : () => _openInsertBottomSheet(),
-    );
+    // モバイルの挿入は、キーボードの上の書式バーの「＋」から行う（2026-11-15、AppBar・ハンバーガーの
+    // 「挿入」は削除）。
     // 閲覧・編集モードの切り替え（Obsidianと同じく、押すと切り替わる先のモードの絵）。
     // 転送ボタンの左隣。ドローは対象外（2026-11-06）。
     final modeAction = IconButton(
@@ -1495,9 +1886,7 @@ class _NotePaneViewState extends ConsumerState<NotePaneView>
       // 2026-11-10、ユーザー指示。マークダウン・ドロー共通）。
       child: LayoutBuilder(
         builder: (context, constraints) {
-          final showInsert = isMobile && !_isDraw && !_readOnly;
           final actions = <Widget>[
-            if (showInsert) insertAction,
             if (!_isDraw) modeAction,
             forwardAction,
             shareAction,
@@ -1518,8 +1907,6 @@ class _NotePaneViewState extends ConsumerState<NotePaneView>
                     enabled: _noteLoaded,
                     onSelected: (v) {
                       switch (v) {
-                        case 'insert':
-                          if (_editorState != null) _openInsertBottomSheet();
                         case 'mode':
                           _toggleReadOnly();
                         case 'forward':
@@ -1533,12 +1920,6 @@ class _NotePaneViewState extends ConsumerState<NotePaneView>
                       }
                     },
                     items: [
-                      if (showInsert)
-                        PressDragMenuItem(
-                          value: 'insert',
-                          icon: Icons.add,
-                          label: strings.noteInsertTooltip,
-                        ),
                       if (!_isDraw)
                         PressDragMenuItem(
                           value: 'mode',
@@ -1696,8 +2077,19 @@ class _NotePaneViewState extends ConsumerState<NotePaneView>
     // 仕様上デスクトップ/Web限定（`slash_command.dart`のPlatformExtension.
     // isMobileガード参照）。標準の`slashCommand`を、v1で対応する項目だけに
     // 絞った`customSlashCommand`に差し替える。
+    // 「/」のメニューも、「+」のメニューと同じ色・面にする。
+    final slashUi = ref.read(appUiStyleProvider);
+    final slashTheme = Theme.of(context);
+    final slashStyle = _insertMenuStyle(slashTheme, slashUi);
     final characterShortcutEvents = [
-      customSlashCommand(_buildSelectionMenuItems(strings)),
+      codeBlockNewLine,
+      customSlashCommand(
+        _buildSelectionMenuItems(strings),
+        style: slashStyle,
+        // 「+」と同じ、複数列のポップアップ（1列のプルダウンにしない）。
+        singleColumn: false,
+        surfaceBuilder: _insertMenuSurface(slashTheme, slashUi, slashStyle),
+      ),
       ...standardCharacterShortcutEvents.where((e) => e != slashCommand),
     ];
     final themeFont = Theme.of(context).textTheme.bodyLarge;
@@ -1717,7 +2109,16 @@ class _NotePaneViewState extends ConsumerState<NotePaneView>
         lineColor: noteColors.divider,
       ),
       // 埋め込み・目次（2026-09-27追加、ユーザー指示）。
+      // 画像はタップで全画面表示（メッセージと同じビューア）。拡大・縮小の操作は無し。
+      ImageBlockKeys.type: ImageBlockComponentBuilder(
+        onImageTap: _openNoteMedia,
+      ),
       LinkEmbedBlockKeys.type: LinkEmbedBlockComponentBuilder(),
+      AudioEmbedBlockKeys.type: AudioEmbedBlockComponentBuilder(),
+      CodeBlockKeys.type: CodeBlockComponentBuilder(),
+      VideoEmbedBlockKeys.type: VideoEmbedBlockComponentBuilder(
+        onTap: _openNoteMedia,
+      ),
       TableOfContentsBlockKeys.type: TableOfContentsBlockComponentBuilder(),
       // 表の左上の角に、表全体を文書内の別の位置へ移動するドラッグハンドルを
       // 置く（2026-10-04追加、ユーザー指示。行/列の並び替えハンドルとは別）。
@@ -1829,7 +2230,7 @@ class _NotePaneViewState extends ConsumerState<NotePaneView>
     // 書式）を出す（2026-10-04変更、ユーザー指示。以前は「T」の書式ボタン
     // からボトムシートを開く方式だったが廃止）。挿入はAppBarの「+」。
     if (isMobile) {
-      return MobileFloatingToolbar(
+      final mobileEditor = MobileFloatingToolbar(
         editorState: editorState,
         editorScrollController: scrollController,
         floatingToolbarHeight: 44,
@@ -1841,6 +2242,26 @@ class _NotePaneViewState extends ConsumerState<NotePaneView>
               editorState,
             ),
         child: editor,
+      );
+      // キーボードの上に書式バー（noteの編集画面と同じ作り、2026-11-15）。編集モードで選択がある
+      // 間だけ出る。閲覧モードでは出さない。
+      if (_readOnly) return mobileEditor;
+      final scheme = Theme.of(context).colorScheme;
+      final noteColors = _noteColors;
+      return MobileToolbarV2(
+        editorState: editorState,
+        toolbarItems: _buildMobileBarItems(),
+        backgroundColor: noteColors.background,
+        foregroundColor: noteColors.mutedText,
+        iconColor: noteColors.text,
+        itemHighlightColor: scheme.primary,
+        itemOutlineColor: noteColors.divider,
+        outlineColor: noteColors.divider,
+        primaryColor: scheme.primary,
+        onPrimaryColor: scheme.onPrimary,
+        tabBarSelectedBackgroundColor: scheme.primary.withValues(alpha: 0.2),
+        tabBarSelectedForegroundColor: noteColors.text,
+        child: mobileEditor,
       );
     }
     // PC専用: カーソルが乗っている行の右端に常設の「+」を表示し、「/」入力と
@@ -2234,6 +2655,7 @@ class _TableSizePickerState extends State<_TableSizePicker> {
     required VoidCallback onSubmitted,
     FocusNode? focusNode,
     bool autofocus = false,
+    bool isLast = false,
   }) {
     return SizedBox(
       width: 64,
@@ -2243,7 +2665,7 @@ class _TableSizePickerState extends State<_TableSizePicker> {
         autofocus: autofocus,
         textAlign: TextAlign.center,
         keyboardType: TextInputType.number,
-        textInputAction: TextInputAction.next,
+        textInputAction: isLast ? TextInputAction.done : TextInputAction.next,
         inputFormatters: [
           FilteringTextInputFormatter.digitsOnly,
           LengthLimitingTextInputFormatter(2),
@@ -2257,44 +2679,70 @@ class _TableSizePickerState extends State<_TableSizePicker> {
 
   @override
   Widget build(BuildContext context) {
-    const cellSize = 22.0;
-    const cellGap = 3.0;
+    // タッチでも押せる大きさ（2026-11-15。以前は22pxで、指では押しにくかった）。
+    const cellSize = 30.0;
+    const cellGap = 4.0;
+    const pitch = cellSize + cellGap;
     final onSurface = Theme.of(context).colorScheme.onSurface;
+    // 指・ポインターの位置から、対応するマス（行・列）を求める。範囲外は端に丸める。
+    void hoverAt(Offset local) {
+      final c = (local.dx / pitch).floor().clamp(
+        0,
+        _TableSizePicker.maxColumns - 1,
+      );
+      final r = (local.dy / pitch).floor().clamp(
+        0,
+        _TableSizePicker.maxRows - 1,
+      );
+      if (c != _hoverColumn || r != _hoverRow) {
+        setState(() {
+          _hoverColumn = c;
+          _hoverRow = r;
+        });
+      }
+    }
+
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
-        for (var r = 0; r < _TableSizePicker.maxRows; r++)
-          Padding(
-            padding: const EdgeInsets.only(bottom: cellGap),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                for (var c = 0; c < _TableSizePicker.maxColumns; c++)
-                  Padding(
-                    padding: const EdgeInsets.only(right: cellGap),
-                    child: MouseRegion(
-                      onEnter: (_) => setState(() {
-                        _hoverRow = r;
-                        _hoverColumn = c;
-                      }),
-                      child: GestureDetector(
-                        onTap: () => Navigator.of(context).pop((r + 1, c + 1)),
-                        child: Container(
-                          width: cellSize,
-                          height: cellSize,
+        // マス目は、押したまま小さいブロックの上をなぞって大きさを選び、離したところで確定する
+        // （マウスは、押さずに動かすと大きさだけが変わり、クリックで確定）。
+        MouseRegion(
+          onHover: (event) => hoverAt(event.localPosition),
+          child: Listener(
+            onPointerDown: (event) => hoverAt(event.localPosition),
+            onPointerMove: (event) => hoverAt(event.localPosition),
+            onPointerUp: (event) {
+              hoverAt(event.localPosition);
+              Navigator.of(context).pop((_hoverRow + 1, _hoverColumn + 1));
+            },
+            child: SizedBox(
+              width: pitch * _TableSizePicker.maxColumns - cellGap,
+              height: pitch * _TableSizePicker.maxRows - cellGap,
+              child: Stack(
+                children: [
+                  for (var r = 0; r < _TableSizePicker.maxRows; r++)
+                    for (var c = 0; c < _TableSizePicker.maxColumns; c++)
+                      Positioned(
+                        left: c * pitch,
+                        top: r * pitch,
+                        width: cellSize,
+                        height: cellSize,
+                        child: DecoratedBox(
                           decoration: BoxDecoration(
                             color: r <= _hoverRow && c <= _hoverColumn
                                 ? widget.accentColor
                                 : widget.neutralColor,
-                            borderRadius: BorderRadius.circular(3),
+                            borderRadius: BorderRadius.circular(4),
                           ),
                         ),
                       ),
-                    ),
-                  ),
-              ],
+                ],
+              ),
             ),
           ),
+        ),
+        const SizedBox(height: 8),
         Text(
           '${_hoverColumn + 1} × ${_hoverRow + 1}',
           style: TextStyle(color: onSurface),
@@ -2322,6 +2770,13 @@ class _TableSizePickerState extends State<_TableSizePicker> {
               focusNode: _rowsFocus,
               hint: '4',
               onSubmitted: _submit,
+              isLast: true,
+            ),
+            // キーボードに「確定」が無い端末でも作れるよう、確定のボタンを置く。
+            IconButton(
+              icon: const Icon(Icons.check),
+              color: widget.accentColor,
+              onPressed: _submit,
             ),
           ],
         ),
@@ -2445,4 +2900,21 @@ class _NoteStatsState extends State<_NoteStats> {
       ),
     );
   }
+}
+
+/// 「＋」のシートと書式バーで共通の項目1件（2026-11-15）。
+class _MobileMenuEntry {
+  const _MobileMenuEntry({
+    required this.label,
+    required this.icon,
+    required this.run,
+    required this.opensUi,
+  });
+
+  final String label;
+  final Widget Function(BuildContext context) icon;
+  final void Function(BuildContext context) run;
+
+  /// ダイアログやファイル選択を開く項目か（終わったあとのキーボードの出し直しを任せる）。
+  final bool opensUi;
 }

@@ -35,8 +35,11 @@ class TableColBorder extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       width: tableNode.config.borderWidth,
+      // 整数で保存された値でも読める（ネイティブでは`int`が`double`に暗黙変換されず、
+      // ノートが灰色のエラー表示になる。DaiDai patch 2026-11-15）。
       height: context.select(
-        (Node n) => n.attributes[TableBlockKeys.colsHeight],
+        (Node n) =>
+            (n.attributes[TableBlockKeys.colsHeight] as num?)?.toDouble(),
       ),
       color: resizable && highlighted ? borderHoverColor : borderColor,
     );

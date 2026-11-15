@@ -32,7 +32,7 @@ class ImageBlockKeys {
 
 Node imageNode({
   required String url,
-  String align = 'center',
+  String align = 'left',
   double? height,
   double? width,
 }) {
@@ -57,7 +57,12 @@ class ImageBlockComponentBuilder extends BlockComponentBuilder {
     super.configuration,
     this.showMenu = false,
     this.menuBuilder,
+    this.onImageTap,
   });
+
+  /// DaiDai側の追加: 指定すると、画像のタップで呼ばれ（全画面表示などに使う）、
+  /// 画像の拡大・縮小（端のドラッグ）は無効になる。
+  final void Function(BuildContext context, String url)? onImageTap;
 
   /// Whether to show the menu of this block component.
   final bool showMenu;
@@ -83,6 +88,7 @@ class ImageBlockComponentBuilder extends BlockComponentBuilder {
       ),
       showMenu: showMenu,
       menuBuilder: menuBuilder,
+      onImageTap: onImageTap,
     );
   }
 
@@ -101,7 +107,10 @@ class ImageBlockComponentWidget extends BlockComponentStatefulWidget {
     super.configuration = const BlockComponentConfiguration(),
     this.showMenu = false,
     this.menuBuilder,
+    this.onImageTap,
   });
+
+  final void Function(BuildContext context, String url)? onImageTap;
 
   /// Whether to show the menu of this block component.
   final bool showMenu;
@@ -136,18 +145,23 @@ class ImageBlockComponentWidgetState extends State<ImageBlockComponentWidget>
     final attributes = node.attributes;
     final src = attributes[ImageBlockKeys.url];
 
+    // DaiDai patch: 既定は左寄せ。保存済みの'center'（以前の既定値）も左寄せで表示する。
+    final storedAlign = attributes[ImageBlockKeys.align];
     final alignment = AlignmentExtension.fromString(
-      attributes[ImageBlockKeys.align] ?? 'left', // DaiDai patch: 既定は左寄せ
+      storedAlign == null || storedAlign == 'center' ? 'left' : storedAlign,
     );
+    // 幅の指定が無い画像は、画面幅いっぱいではなく最大360に収める（DaiDai側の調整、2026-11-15）。
     final width = attributes[ImageBlockKeys.width]?.toDouble() ??
-        MediaQuery.of(context).size.width;
+        (MediaQuery.of(context).size.width < 360.0
+            ? MediaQuery.of(context).size.width
+            : 360.0);
     final height = attributes[ImageBlockKeys.height]?.toDouble();
 
     Widget child = ResizableImage(
       src: src,
       width: width,
       height: height,
-      editable: editorState.editable,
+      editable: editorState.editable && widget.onImageTap == null,
       alignment: alignment,
       onResize: (width) {
         final transaction = editorState.transaction
@@ -157,6 +171,15 @@ class ImageBlockComponentWidgetState extends State<ImageBlockComponentWidget>
         editorState.apply(transaction);
       },
     );
+
+    if (widget.onImageTap != null && src is String) {
+      final tap = widget.onImageTap!;
+      child = GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: () => tap(context, src),
+        child: child,
+      );
+    }
 
     child = Padding(
       key: imageKey,

@@ -167,6 +167,8 @@ class Strings {
     required this.workshopMoveEarlier,
     required this.calendarGoogleNotSynced,
     required this.sharePreparing,
+    required this.groupRoomNotificationsLabel,
+    required this.groupRoomReadReceiptsLabel,
     required this.calendarGoogleSyncNow,
     required this.workshopMoveLater,
     required this.kiwamiPurchase,
@@ -948,6 +950,7 @@ class Strings {
     required this.noteMenuQuote,
     required this.noteMenuAttachment,
     required this.noteMenuImage,
+    required this.noteMenuVideo,
     required this.noteMenuAudio,
     required this.noteMenuFile,
     required this.noteMenuEmbed,
@@ -958,6 +961,13 @@ class Strings {
     required this.noteSelectionCopy,
     required this.noteSelectionPaste,
     required this.noteInsertTooltip,
+    required this.noteMenuHeading1,
+    required this.noteMenuBold,
+    required this.noteMenuStrikethrough,
+    required this.noteMenuCode,
+    required this.noteMenuLink,
+    required this.noteMenuUndo,
+    required this.noteMenuRedo,
     required this.noteModeToReadLabel,
     required this.noteModeToEditLabel,
     required this.scheduledSendOptionSilent,
@@ -1341,6 +1351,8 @@ class Strings {
   final String workshopMoveEarlier;
   final String calendarGoogleNotSynced;
   final String sharePreparing;
+  final String groupRoomNotificationsLabel;
+  final String groupRoomReadReceiptsLabel;
   final String calendarGoogleSyncNow;
   final String workshopMoveLater;
   final String kiwamiPurchase;
@@ -2431,12 +2443,20 @@ class Strings {
   final String noteDeleteAction;
   final String noteDeleteConfirmTitle;
   final String noteMenuHeading2;
+  final String noteMenuHeading1;
+  final String noteMenuBold;
+  final String noteMenuStrikethrough;
+  final String noteMenuCode;
+  final String noteMenuLink;
+  final String noteMenuUndo;
+  final String noteMenuRedo;
   final String noteMenuHeading3;
   final String noteMenuBulletedList;
   final String noteMenuNumberedList;
   final String noteMenuQuote;
   final String noteMenuAttachment;
   final String noteMenuImage;
+  final String noteMenuVideo;
   final String noteMenuAudio;
   final String noteMenuFile;
   final String noteMenuEmbed;
@@ -2835,6 +2855,8 @@ class Strings {
     calendarGoogleNotSynced: '回答を保存しました。Googleカレンダーにはまだ反映していません',
     calendarGoogleSyncNow: '反映する',
     sharePreparing: '共有の準備中',
+    groupRoomNotificationsLabel: '通知',
+    groupRoomReadReceiptsLabel: '既読',
     workshopMoveLater: '後ろへ動かす',
     kiwamiPurchase: '極みを購入する',
     kiwamiSectionTitle: '極み',
@@ -3664,12 +3686,20 @@ class Strings {
     noteDeleteAction: 'ノートを削除',
     noteDeleteConfirmTitle: 'ノートを削除しますか？',
     noteMenuHeading2: '見出し2',
+    noteMenuHeading1: '見出し1',
+    noteMenuBold: '太字',
+    noteMenuStrikethrough: '取り消し線',
+    noteMenuCode: 'コード',
+    noteMenuLink: 'リンク',
+    noteMenuUndo: '元に戻す',
+    noteMenuRedo: 'やり直す',
     noteMenuHeading3: '見出し3',
     noteMenuBulletedList: '箇条書き',
     noteMenuNumberedList: '番号リスト',
     noteMenuQuote: '引用',
     noteMenuAttachment: '添付ファイル',
     noteMenuImage: '画像',
+    noteMenuVideo: '動画',
     noteMenuAudio: '音声',
     noteMenuFile: 'ファイル',
     noteMenuEmbed: 'URL',
@@ -4083,6 +4113,8 @@ class Strings {
         'Your reply is saved. It hasn’t been added to Google Calendar yet',
     calendarGoogleSyncNow: 'Add now',
     sharePreparing: 'Preparing to share',
+    groupRoomNotificationsLabel: 'Notifications',
+    groupRoomReadReceiptsLabel: 'Read receipts',
     workshopMoveLater: 'Move later',
     kiwamiPurchase: 'Get Premium',
     kiwamiSectionTitle: 'Premium',
@@ -5016,12 +5048,20 @@ class Strings {
     noteDeleteAction: 'Delete note',
     noteDeleteConfirmTitle: 'Delete this note?',
     noteMenuHeading2: 'Heading 2',
+    noteMenuHeading1: 'Heading 1',
+    noteMenuBold: 'Bold',
+    noteMenuStrikethrough: 'Strikethrough',
+    noteMenuCode: 'Code',
+    noteMenuLink: 'Link',
+    noteMenuUndo: 'Undo',
+    noteMenuRedo: 'Redo',
     noteMenuHeading3: 'Heading 3',
     noteMenuBulletedList: 'Bulleted list',
     noteMenuNumberedList: 'Numbered list',
     noteMenuQuote: 'Quote',
     noteMenuAttachment: 'Attachment',
     noteMenuImage: 'Image',
+    noteMenuVideo: 'Video',
     noteMenuAudio: 'Audio',
     noteMenuFile: 'File',
     noteMenuEmbed: 'URL',

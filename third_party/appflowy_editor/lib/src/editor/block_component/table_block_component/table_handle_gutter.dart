@@ -57,7 +57,11 @@ class TableRowHandleGutter extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colsHeight = context.select(
-      (Node n) => n.attributes[TableBlockKeys.colsHeight] as double? ?? 0.0,
+      // 値が整数で保存されていることがある（ネイティブでは`int`と`double`が別の型。Webは
+      // 同じ数値なので通る）。`as double?`だとAndroidでエラーになり、ノートが灰色の
+      // エラー表示になる（DaiDai patch 2026-11-15）。
+      (Node n) =>
+          (n.attributes[TableBlockKeys.colsHeight] as num?)?.toDouble() ?? 0.0,
     );
     final rowsLen = tableNode.rowsLen;
     final borderWidth = tableNode.config.borderWidth;

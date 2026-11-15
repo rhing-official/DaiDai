@@ -9349,11 +9349,16 @@ class _FileAttachmentBlockState extends ConsumerState<_FileAttachmentBlock>
     return isPdfBlock ? _buildPlainRow() : _withActionBar(_buildPlainRow());
   }
 
-  Widget _actionBar() {
-    final fg = widget.onBubbleColor;
+  /// UIスタイルに沿った枠付きの小さなアイコンボタン（下のボタン行と、Markdownカードのフッターで共通）。
+  Widget _framedActionButton(
+    IconData icon,
+    VoidCallback onTap, {
+    Color? color,
+  }) {
+    final fg = color ?? widget.onBubbleColor;
     final scheme = Theme.of(context).colorScheme;
     final isBlock = isBlockTheme(context);
-    Widget button(IconData icon, VoidCallback onTap) {
+    {
       final inner = InkWell(
         borderRadius: BorderRadius.circular(8),
         onTap: onTap,
@@ -9397,6 +9402,12 @@ class _FileAttachmentBlockState extends ConsumerState<_FileAttachmentBlock>
         child: inner,
       );
     }
+  }
+
+  Widget _actionBar() {
+    final isBlock = isBlockTheme(context);
+    Widget button(IconData icon, VoidCallback onTap) =>
+        _framedActionButton(icon, onTap);
 
     final gap = SizedBox(width: isBlock ? 8 : 6);
     return Padding(
@@ -9739,33 +9750,23 @@ class _FileAttachmentBlockState extends ConsumerState<_FileAttachmentBlock>
               ],
             ),
           ),
-          InkWell(
-            onTap: () => _copyMarkdown(markdownText),
-            child: Padding(
-              padding: const EdgeInsets.all(4),
-              child: Icon(Icons.copy_outlined, size: 16, color: subFg),
-            ),
+          _framedActionButton(
+            Icons.copy_outlined,
+            () => _copyMarkdown(markdownText),
+            color: fg,
           ),
-          const SizedBox(width: 4),
-          InkWell(
-            onTap: _shareThisFile,
-            child: Padding(
-              padding: const EdgeInsets.all(4),
-              child: Icon(Icons.share_outlined, size: 16, color: subFg),
-            ),
-          ),
-          const SizedBox(width: 4),
+          const SizedBox(width: 6),
+          _framedActionButton(Icons.share_outlined, _shareThisFile, color: fg),
+          const SizedBox(width: 6),
           if (widget.onForward != null) ...[
-            InkWell(
-              onTap: widget.onForward,
-              child: Padding(
-                padding: const EdgeInsets.all(4),
-                child: Icon(Icons.forward_outlined, size: 16, color: subFg),
-              ),
+            _framedActionButton(
+              Icons.forward_outlined,
+              widget.onForward!,
+              color: fg,
             ),
-            const SizedBox(width: 4),
+            const SizedBox(width: 6),
           ],
-          _downloadButton(small: false, filled: false, color: subFg),
+          _framedActionButton(Icons.download, _download, color: fg),
         ],
       ),
     );
@@ -9904,7 +9905,8 @@ class _GekigaBubblePainter extends CustomPainter {
       size.width,
       size.height,
       seed,
-      skewOverride: math.min(size.width * 0.10, 20),
+      // 20→14（2026-11-15）。長いメッセージで、傾きと四隅のばらつきが重なって文字が枠にかかるため。
+      skewOverride: math.min(size.width * 0.10, 14),
     );
     MonochromeBoxPainter(
       vertices: alignRight ? mirrorHorizontal(vertices, size.width) : vertices,
