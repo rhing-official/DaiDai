@@ -160,6 +160,15 @@ class _BgmPanelSurface extends ConsumerWidget {
   }
 }
 
+/// シートを閉じても残す、開いていた状態。
+class _SheetMemory {
+  int tab = 0;
+  String? albumId;
+  double scroll = 0;
+  final Set<String> openArtists = {};
+  final Set<String> openArtistAlbums = {};
+}
+
 class _CallBgmSheet extends ConsumerStatefulWidget {
   const _CallBgmSheet({required this.binding});
 
@@ -174,10 +183,26 @@ class _CallBgmSheetState extends ConsumerState<_CallBgmSheet> {
   static const _tabArtists = 0;
   static const _tabAlbums = 1;
   static const _tabFavorites = 2;
-  int _tab = _tabArtists;
+
+  /// 閉じる前に開いていた状態（タブ・アルバム・開いたアーティスト・スクロール位置）。
+  /// 開き直した時に、同じ所から続ける（アプリを開いている間は残る）。
+  static final _memory = _SheetMemory();
+
+  int _tab = _memory.tab;
 
   /// 選んでいるアルバム（nullは、すべての曲）。
-  String? _albumId;
+  String? _albumId = _memory.albumId;
+
+  late ScrollController _scroll = ScrollController(
+    initialScrollOffset: _memory.scroll,
+  );
+
+  void _selectTab(int tab) => setState(() {
+    if (_tab == tab) return;
+    _tab = tab;
+    _scroll.dispose();
+    _scroll = ScrollController();
+  });
 
   /// アルバム名の入力中（作成・名前の変更）。ダイアログはNavigatorの無い通話画面で出せない為、
   /// 一覧の中に入力欄を出す。
@@ -205,15 +230,19 @@ class _CallBgmSheetState extends ConsumerState<_CallBgmSheet> {
   });
 
   /// 開いているアーティスト（アーティスト不明は空文字）。
-  final Set<String> _openArtists = {};
+  final Set<String> _openArtists = _memory.openArtists;
 
   /// アーティストの中で開いているアルバム（`アーティスト\u0000アルバムid`）。
-  final Set<String> _openArtistAlbums = {};
+  final Set<String> _openArtistAlbums = _memory.openArtistAlbums;
 
   CallBgm get _bgm => widget.binding.bgm;
 
   @override
   void dispose() {
+    _memory.tab = _tab;
+    _memory.albumId = _albumId;
+    _memory.scroll = _scroll.hasClients ? _scroll.offset : 0;
+    _scroll.dispose();
     _nameController.dispose();
     super.dispose();
   }
@@ -306,9 +335,6 @@ class _CallBgmSheetState extends ConsumerState<_CallBgmSheet> {
                             strings.callBgmTitle,
                             style: Theme.of(context).textTheme.titleMedium,
                           ),
-                          const SizedBox(width: 8),
-                          // 試験的な機能であることを、タイトルの隣に示す（2026-11-15）。
-                          const _BetaBadge(),
                         ],
                       ),
                       if (other != null) ...[
@@ -369,7 +395,20 @@ class _CallBgmSheetState extends ConsumerState<_CallBgmSheet> {
     children: [
       Text(strings.callBgmVolume),
       Expanded(
-        child: Slider(value: bgm.volume, onChanged: bgm.setVolume),
+        child: Slider(
+          value: bgm.volume,
+          divisions: 100,
+          label: '${(bgm.volume * 100).round()}%',
+          onChanged: bgm.setVolume,
+        ),
+      ),
+      SizedBox(
+        width: 44,
+        child: Text(
+          '${(bgm.volume * 100).round()}%',
+          textAlign: TextAlign.end,
+          style: Theme.of(context).textTheme.bodySmall,
+        ),
       ),
     ],
   );
@@ -535,21 +574,21 @@ class _CallBgmSheetState extends ConsumerState<_CallBgmSheet> {
             StyleChoiceChip(
               uiStyle: uiStyle,
               selected: _tab == _tabArtists,
-              onTap: () => setState(() => _tab = _tabArtists),
+              onTap: () => _selectTab(_tabArtists),
               labelBuilder: (fg) =>
                   Text(strings.callBgmTabArtists, style: TextStyle(color: fg)),
             ),
             StyleChoiceChip(
               uiStyle: uiStyle,
               selected: _tab == _tabAlbums,
-              onTap: () => setState(() => _tab = _tabAlbums),
+              onTap: () => _selectTab(_tabAlbums),
               labelBuilder: (fg) =>
                   Text(strings.callBgmTabAlbums, style: TextStyle(color: fg)),
             ),
             StyleChoiceChip(
               uiStyle: uiStyle,
               selected: _tab == _tabFavorites,
-              onTap: () => setState(() => _tab = _tabFavorites),
+              onTap: () => _selectTab(_tabFavorites),
               labelBuilder: (fg) => Text(
                 strings.callBgmTabFavorites,
                 style: TextStyle(color: fg),
@@ -835,10 +874,12 @@ class _CallBgmSheetState extends ConsumerState<_CallBgmSheet> {
               : album != null && bgm.albumHasMultipleDiscs(album.id)
               // 複数ディスクのアルバム: 「Disc 1」「Disc 2」の見出しで区切る（並べ替えは出来ない）。
               ? ListView(
+                  controller: _scroll,
                   children: _discSections(strings, bgm, tracks, album.id),
                 )
               : album != null
               ? ReorderableListView(
+                  scrollController: _scroll,
                   buildDefaultDragHandles: false,
                   onReorderItem: (from, to) {
                     final list = [...tracks];
@@ -870,6 +911,7 @@ class _CallBgmSheetState extends ConsumerState<_CallBgmSheet> {
                   ],
                 )
               : ListView(
+                  controller: _scroll,
                   children: [
                     for (final t in tracks) _trackRow(strings, bgm, t, null),
                   ],
@@ -920,6 +962,7 @@ class _CallBgmSheetState extends ConsumerState<_CallBgmSheet> {
       );
     }
     return ListView(
+      controller: _scroll,
       children: [
         for (final t in list) _trackRow(strings, bgm, t, null, favorites: true),
       ],
@@ -936,6 +979,7 @@ class _CallBgmSheetState extends ConsumerState<_CallBgmSheet> {
       );
     }
     return ListView(
+      controller: _scroll,
       children: [
         for (final g in groups) ...[
           ListTile(
@@ -1155,27 +1199,6 @@ class _AlbumCard extends StatelessWidget {
             ],
           ),
         ),
-      ),
-    );
-  }
-}
-
-/// 「β」の小さなバッジ（文字は言語に依らない）。
-class _BetaBadge extends StatelessWidget {
-  const _BetaBadge();
-
-  @override
-  Widget build(BuildContext context) {
-    final color = Theme.of(context).colorScheme.onSurface;
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 1),
-      decoration: BoxDecoration(
-        border: Border.all(color: color.withValues(alpha: 0.6)),
-        borderRadius: BorderRadius.circular(999),
-      ),
-      child: Text(
-        'β',
-        style: Theme.of(context).textTheme.labelMedium?.copyWith(color: color),
       ),
     );
   }

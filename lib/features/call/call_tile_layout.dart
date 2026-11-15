@@ -53,6 +53,32 @@ class CallTileGrid extends StatelessWidget {
             ),
           );
         }
+        // 横長で3人は、上に1人を中央揃え（幅は下の2人と同じ）、下に2人を並べる（2026-11-15）。
+        if (tiles.length == 3) {
+          final tileWidth = (constraints.maxWidth - spacing * 3) / 2;
+          return Padding(
+            padding: EdgeInsets.all(spacing),
+            child: Column(
+              children: [
+                Expanded(
+                  child: Center(
+                    child: SizedBox(width: tileWidth, child: tiles[0]),
+                  ),
+                ),
+                SizedBox(height: spacing),
+                Expanded(
+                  child: Row(
+                    children: [
+                      Expanded(child: tiles[1]),
+                      SizedBox(width: spacing),
+                      Expanded(child: tiles[2]),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          );
+        }
         // `GridView.count`は`childAspectRatio`未指定だと正方形タイルになり、
         // 横長の領域では縦の表示可能領域を超えてスクロールを要求してしまう。
         // 制約から`childAspectRatio`を逆算して常に収める。

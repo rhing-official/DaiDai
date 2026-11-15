@@ -44,6 +44,7 @@ import '../../models/send_key_mode.dart';
 import '../../models/sound_preset.dart';
 import '../../models/sticker_send_mode.dart';
 import '../../providers/accent_color_provider.dart';
+import '../../providers/mic_denoise_provider.dart';
 import '../../providers/calling_sound_provider.dart';
 import '../../providers/custom_accent_colors_provider.dart';
 import '../../providers/app_locale_provider.dart';
@@ -2563,7 +2564,27 @@ class _ApplicationPage extends ConsumerWidget {
           ),
         (weight: 300, child: _LanguageFolder(strings: strings)),
         (weight: 180, child: TimeFormatFolder(strings: strings)),
+        if (kIsWeb) (weight: 130, child: _MicDenoiseRow(strings: strings)),
       ],
+    );
+  }
+}
+
+/// 通話のマイクのノイズ除去（RNNoise）のオン/オフ（2026-11-15、Webのみ）。
+class _MicDenoiseRow extends ConsumerWidget {
+  const _MicDenoiseRow({required this.strings});
+
+  final Strings strings;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    return AppSwitchListTile(
+      contentPadding: const EdgeInsets.symmetric(horizontal: 16),
+      title: Text(strings.settingsMicDenoiseTitle),
+      subtitle: Text(strings.settingsMicDenoiseDescription),
+      value: ref.watch(micDenoiseProvider),
+      onChanged: (value) =>
+          ref.read(micDenoiseProvider.notifier).setEnabled(value),
     );
   }
 }

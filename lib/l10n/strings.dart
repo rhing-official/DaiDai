@@ -612,6 +612,8 @@ class Strings {
     required this.callBgmDisc,
     required this.callBgmTabAlbums,
     required this.callBgmTabArtists,
+    required this.settingsMicDenoiseTitle,
+    required this.settingsMicDenoiseDescription,
     required this.callIncomingVoice,
     required this.callIncomingVideo,
     required this.callBgmTabFavorites,
@@ -1950,6 +1952,8 @@ class Strings {
   final String Function(int number) callBgmDisc;
   final String callBgmTabAlbums;
   final String callBgmTabArtists;
+  final String settingsMicDenoiseTitle;
+  final String settingsMicDenoiseDescription;
   final String callIncomingVoice;
   final String callIncomingVideo;
   final String callBgmTabFavorites;
@@ -3416,6 +3420,9 @@ class Strings {
     callBgmDisc: (number) => 'Disc $number',
     callBgmTabAlbums: 'アルバム',
     callBgmTabArtists: 'アーティスト',
+    settingsMicDenoiseTitle: '通話のノイズ除去（高性能）',
+    settingsMicDenoiseDescription:
+        'マイクの雑音（キーボード・扇風機・テレビなど）を、AIで減らします。音声は端末の外へ出しません。次の通話から反映されます。ブラウザ版のみ。',
     callIncomingVoice: '音声通話の着信',
     callIncomingVideo: 'ビデオ通話の着信',
     callBgmTabFavorites: 'お気に入り',
@@ -4780,6 +4787,9 @@ class Strings {
     callBgmDisc: (number) => 'Disc $number',
     callBgmTabAlbums: 'Albums',
     callBgmTabArtists: 'Artists',
+    settingsMicDenoiseTitle: 'Call noise suppression (advanced)',
+    settingsMicDenoiseDescription:
+        'Reduces background noise from your microphone (keyboards, fans, TV) using AI. Your audio never leaves your device. Takes effect from your next call. Browser version only.',
     callIncomingVoice: 'Incoming voice call',
     callIncomingVideo: 'Incoming video call',
     callBgmTabFavorites: 'Favourites',

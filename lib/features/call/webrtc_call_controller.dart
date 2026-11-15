@@ -16,6 +16,7 @@ import 'rtc_config.dart';
 import 'audio_route.dart';
 import 'bgm/bgm_storage.dart';
 import 'bgm/bgm_now_playing.dart';
+import 'mic_denoiser.dart';
 import 'bgm/call_bgm.dart';
 import 'webrtc_media_constraints.dart';
 
@@ -54,6 +55,9 @@ class WebrtcCallController extends ChangeNotifier {
 
   RTCPeerConnection? _peerConnection;
   MediaStream? _localStream;
+
+  /// マイクのノイズ除去（RNNoise、Webで設定がオンの時だけ）。
+  MicDenoiser? _micDenoiser;
   StreamSubscription<Call?>? _callSub;
   StreamSubscription<List<Map<String, dynamic>>>? _candidatesSub;
 
@@ -476,9 +480,10 @@ class WebrtcCallController extends ChangeNotifier {
     bool cameraOn = true,
   }) async {
     var video = call.isVideo && videoNow && cameraOn;
+    final denoise = await shouldDenoiseMic();
     try {
       _localStream = await navigator.mediaDevices.getUserMedia({
-        'audio': buildAudioConstraints(),
+        'audio': buildAudioConstraints(rnnoise: denoise),
         'video': video
             ? buildVideoConstraints(
                 frontCamera: _isFrontCamera,
@@ -490,7 +495,7 @@ class WebrtcCallController extends ChangeNotifier {
       if (!video || !allowVideoFallback) rethrow;
       video = false;
       _localStream = await navigator.mediaDevices.getUserMedia({
-        'audio': buildAudioConstraints(),
+        'audio': buildAudioConstraints(rnnoise: denoise),
         'video': false,
       });
       // 相手には自分が音声のみであることを伝える。
@@ -500,7 +505,8 @@ class WebrtcCallController extends ChangeNotifier {
             .catchError((_) {}),
       );
     }
-    unawaited(ensureEchoCancellation(_localStream));
+    await ensureEchoCancellation(_localStream);
+    _micDenoiser = await applyMicDenoise(_localStream, denoise);
     // 設定（ビデオ通話に参加する時のカメラ）でオフにして入った時は、カメラの失敗時と
     // 同じく、相手には自分が音声のみであることを伝える（通話中にオンに出来る）。
     if (call.isVideo && videoNow && !cameraOn) {
@@ -1181,6 +1187,7 @@ class WebrtcCallController extends ChangeNotifier {
       track.stop();
     }
     _localStream?.dispose();
+    unawaited(_micDenoiser?.dispose());
     _peerConnection?.close();
     localRenderer.dispose();
     remoteRenderer.dispose();

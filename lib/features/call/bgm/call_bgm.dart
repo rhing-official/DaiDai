@@ -13,6 +13,10 @@ import 'bgm_track.dart';
 /// 通話中のBGMの再生状態と操作（2026-11-03）。通話コントローラー（一対・広場）が1つずつ持つ。
 /// 再生中だけ、マイクと曲を混ぜたトラックを送信に使い、止めると元のマイクのトラックへ戻す。
 /// 曲は端末内（[BgmStorage]）にあり、サーバーには上げない。
+/// 音量のスライダーが最大（100%）の時の、実際の音の大きさ（0〜1）。最大を下げて、同じ長さの
+/// スライダーでより細かく調整できるようにする（2026-11-15）。
+const kBgmMaxGain = 0.5;
+
 class CallBgm extends ChangeNotifier {
   CallBgm({
     required this.storage,
@@ -499,7 +503,7 @@ class CallBgm extends ChangeNotifier {
       _mixed = mixed;
       await replaceOutgoingAudio(mixed);
     }
-    _mixer.volume = _volume;
+    _mixer.volume = _volume * kBgmMaxGain;
     _current = track;
     _paused = false;
     notifyListeners();
@@ -550,7 +554,7 @@ class CallBgm extends ChangeNotifier {
 
   void setVolume(double value) {
     _volume = value.clamp(0.0, 1.0);
-    _mixer.volume = _volume;
+    _mixer.volume = _volume * kBgmMaxGain;
     notifyListeners();
   }
 

@@ -19,6 +19,7 @@ import '../../utils/page_exit/page_exit.dart';
 import 'audio_route.dart';
 import 'bgm/bgm_storage.dart';
 import 'bgm/bgm_now_playing.dart';
+import 'mic_denoiser.dart';
 import 'bgm/call_bgm.dart';
 import 'webrtc_media_constraints.dart';
 
@@ -139,6 +140,9 @@ class WebrtcGroupCallController extends ChangeNotifier {
   }
 
   MediaStream? _localStream;
+
+  /// マイクのノイズ除去（RNNoise、Webで設定がオンの時だけ）。
+  MicDenoiser? _micDenoiser;
   StreamSubscription<List<CallParticipant>>? _participantsSub;
   Timer? _presenceTimer;
 
@@ -369,10 +373,11 @@ class WebrtcGroupCallController extends ChangeNotifier {
       // webrtc_media_constraints.dartに集約している（本格的なRNNoise統合は
       // フェーズ3の別プロジェクト。詳細は会話参照）。
       // 映像を求められてもカメラが使えなければ、音声のみで参加する（2026-10-23）。
+      final denoise = await shouldDenoiseMic();
       final acquired = await acquireWithVideoFallback(
         wantVideo: _isVideo,
         acquire: (video) => navigator.mediaDevices.getUserMedia({
-          'audio': buildAudioConstraints(),
+          'audio': buildAudioConstraints(rnnoise: denoise),
           'video': video
               ? buildVideoConstraints(
                   frontCamera: _isFrontCamera,
@@ -383,7 +388,8 @@ class WebrtcGroupCallController extends ChangeNotifier {
       );
       _localStream = acquired.stream;
       _isVideo = acquired.usedVideo;
-      unawaited(ensureEchoCancellation(_localStream));
+      await ensureEchoCancellation(_localStream);
+      _micDenoiser = await applyMicDenoise(_localStream, denoise);
 
       if (_isVideo) {
         await localRenderer.initialize();
@@ -1123,6 +1129,7 @@ class WebrtcGroupCallController extends ChangeNotifier {
       track.stop();
     }
     _localStream?.dispose();
+    unawaited(_micDenoiser?.dispose());
     localRenderer.dispose();
     super.dispose();
   }

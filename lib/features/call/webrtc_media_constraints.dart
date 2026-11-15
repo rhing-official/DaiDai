@@ -2,7 +2,9 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_webrtc/flutter_webrtc.dart';
 
 import '../../utils/screen_orientation/screen_orientation.dart';
+import '../../providers/mic_denoise_provider.dart';
 import 'call_log.dart';
+import 'mic_denoiser.dart';
 
 /// getUserMedia用の音声制約。
 ///
@@ -15,20 +17,20 @@ import 'call_log.dart';
 ///
 /// 注記: ここで指定出来るのはあくまでWebRTC標準のエコー除去・ノイズ抑制・
 /// 自動ゲイン調整であり、Krisp等が行うような機械学習ベースのノイズ除去とは
-/// 原理的に別物で、性能差は埋まらない。本格対応はフェーズ3のRNNoise統合を待つ
-/// （CLAUDE.md参照）。
-dynamic buildAudioConstraints() {
+/// 原理的に別物。Webでは、設定がオンなら[applyMicDenoise]でRNNoiseを通す（2026-11-15）。
+/// その場合は標準のノイズ抑制を切る（[rnnoise]、二重にかけると声が劣化する為）。
+dynamic buildAudioConstraints({bool rnnoise = false}) {
   if (!kIsWeb && defaultTargetPlatform == TargetPlatform.android) {
     return true;
   }
   return {
     'echoCancellation': true,
-    'noiseSuppression': true,
+    'noiseSuppression': !rnnoise,
     'autoGainControl': true,
     // レガシー（Chromium/libwebrtcネイティブ層）向けの補助キー。対応していない
     // 環境では単に無視されるため害は無いが、効果があるとは保証されない。
     'googEchoCancellation': true,
-    'googNoiseSuppression': true,
+    'googNoiseSuppression': !rnnoise,
     'googAutoGainControl': true,
     'googHighpassFilter': true,
   };
@@ -115,6 +117,25 @@ void muteLocalPlayback(RTCVideoRenderer renderer) {
   } catch (_) {
     // 音声トラックが無い（映像のみ）等。無視してよい。
   }
+}
+
+/// 通話の開始時に、マイクのノイズ除去（RNNoise）を使うか（Webで、設定がオンの時だけtrue）。
+Future<bool> shouldDenoiseMic() async =>
+    MicDenoiser.isSupported && await loadMicDenoiseEnabled();
+
+/// [denoise]なら、[stream]のマイクをRNNoiseに通す。取り込めなければ、切っておいた標準の
+/// ノイズ抑制を入れ直して、通話は続ける。使っていればその[MicDenoiser]（通話の終了時に`dispose`）。
+Future<MicDenoiser?> applyMicDenoise(MediaStream? stream, bool denoise) async {
+  if (stream == null || !denoise) return null;
+  final denoiser = await MicDenoiser.attach(stream);
+  if (denoiser == null) {
+    for (final track in stream.getAudioTracks()) {
+      try {
+        await track.applyConstraints({'noiseSuppression': true});
+      } catch (_) {}
+    }
+  }
+  return denoiser;
 }
 
 /// マイク取得後に、エコー除去が実際に有効か確認し、無効なら再要求する

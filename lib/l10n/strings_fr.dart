@@ -743,6 +743,9 @@ final Strings _stringsFr = Strings._(
   callBgmDisc: (number) => 'Disc $number',
   callBgmTabAlbums: 'Albums',
   callBgmTabArtists: 'Artistes',
+  settingsMicDenoiseTitle: "Suppression du bruit en appel (avancée)",
+  settingsMicDenoiseDescription:
+      "Réduit les bruits de fond du micro (clavier, ventilateur, télévision) grâce à l’IA. Votre voix ne quitte jamais votre appareil. Effet dès le prochain appel. Version navigateur uniquement.",
   callIncomingVoice: 'Appel vocal entrant',
   callIncomingVideo: 'Appel vidéo entrant',
   callBgmTabFavorites: "Favoris",
