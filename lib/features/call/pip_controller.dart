@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_webrtc/flutter_webrtc.dart';
 
 import 'active_call_session.dart';
+import 'call_log.dart';
 import 'call_avatar.dart';
 import 'pinned_call_overlay.dart';
 
@@ -70,6 +71,10 @@ class _PipHostState extends ConsumerState<PipHost> {
     _pipChannel.setMethodCallHandler((call) async {
       if (call.method == 'pipChanged' && mounted) {
         ref.read(pipActiveProvider.notifier).set(call.arguments == true);
+      } else if (call.method == 'pipDismissed' && mounted) {
+        // PiPの小窓を×で閉じた。通話を続けると落ちるため、終了する。
+        callLog('PiPが閉じられたため通話を終了します');
+        await ref.read(activeCallSessionProvider.notifier).endCall();
       }
     });
   }

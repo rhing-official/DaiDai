@@ -58,7 +58,6 @@ import '../note/note_popup_content.dart';
 import '../poll/poll_detail_dialog.dart';
 import '../poll/poll_popup_content.dart';
 import 'button_anchored_menu.dart';
-import '../../router/back_stack.dart';
 import 'chat_screen.dart';
 import 'dm_settings_popup.dart';
 import 'group_leave_dialog.dart';
@@ -233,17 +232,11 @@ class DmChatPane extends ConsumerStatefulWidget {
     this.onCallPressed,
     this.onVideoCallPressed,
     this.showRoomTabBar = false,
-    this.trackRoomHistory = false,
     super.key,
   });
 
   final AppUser currentUser;
   final DirectMessage dm;
-
-  /// 狭い画面のフルスクリーンのチャット（`/chat/dm`ルート）で、寄合の切り替えを
-  /// 履歴に記録し、戻るで直前の寄合へ戻れるようにするか（2026-10-10追加）。
-  /// 広い画面の埋め込みペインは語らいタブ側の履歴が記録するためfalse。
-  final bool trackRoomHistory;
 
   /// 現在表示中の寄合。呼び出し側（TalksTab分割表示、又はgo_routerの
   /// フルスクリーン遷移）が選択状態を管理し、渡す。
@@ -494,20 +487,7 @@ class _DmChatPaneState extends ConsumerState<DmChatPane> {
   }
 
   @override
-  Widget build(BuildContext context) {
-    final body = _buildBody(context);
-    if (!widget.trackRoomHistory) return body;
-    // 狭い画面のフルスクリーンのチャットでは、寄合の切り替えを履歴に記録して
-    // 戻るで直前の寄合へ戻れるようにする（2026-10-10追加、層として登録し
-    // `GoRoute.onExit`の`closeTopLayer`が1つ戻す）。
-    return NavHistoryBackEntry<({String roomId, String roomName})>(
-      scope: BackScope.talks,
-      layer: true,
-      location: (roomId: _currentRoomId, roomName: _currentRoomName),
-      onRestore: (location) => _switchRoom(location.roomId, location.roomName),
-      child: body,
-    );
-  }
+  Widget build(BuildContext context) => _buildBody(context);
 
   Widget _buildBody(BuildContext context) {
     // 通話画面はメッセージ表示を差し替えず、画面の上に重ねる（2026-10-23、
@@ -2159,15 +2139,11 @@ class GroupChatPane extends ConsumerStatefulWidget {
     required this.roomId,
     required this.roomName,
     this.showRoomTabBar = false,
-    this.trackRoomHistory = false,
     super.key,
   });
 
   final AppUser currentUser;
   final Group group;
-
-  /// [DmChatPane.trackRoomHistory]と同じ（2026-10-10追加）。
-  final bool trackRoomHistory;
 
   /// 現在表示中の寄合。呼び出し側（TalksTab分割表示、又はgo_routerの
   /// フルスクリーン遷移）が選択状態を管理し、渡す。
@@ -2540,20 +2516,7 @@ class _GroupChatPaneState extends ConsumerState<GroupChatPane> {
   }
 
   @override
-  Widget build(BuildContext context) {
-    final body = _buildBody(context);
-    if (!widget.trackRoomHistory) return body;
-    // 狭い画面のフルスクリーンのチャットでは、寄合の切り替えを履歴に記録して
-    // 戻るで直前の寄合へ戻れるようにする（2026-10-10追加、層として登録し
-    // `GoRoute.onExit`の`closeTopLayer`が1つ戻す）。
-    return NavHistoryBackEntry<({String roomId, String roomName})>(
-      scope: BackScope.talks,
-      layer: true,
-      location: (roomId: _currentRoomId, roomName: _currentRoomName),
-      onRestore: (location) => _switchRoom(location.roomId, location.roomName),
-      child: body,
-    );
-  }
+  Widget build(BuildContext context) => _buildBody(context);
 
   Widget _buildBody(BuildContext context) {
     final group = widget.group;

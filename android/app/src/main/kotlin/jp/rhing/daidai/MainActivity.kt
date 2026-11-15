@@ -3,6 +3,7 @@ package jp.rhing.daidai
 import android.app.PictureInPictureParams
 import android.content.res.Configuration
 import android.os.Build
+import android.os.PowerManager
 import android.util.Rational
 import androidx.core.content.FileProvider
 import io.flutter.embedding.android.FlutterFragmentActivity
@@ -159,6 +160,19 @@ class MainActivity : FlutterFragmentActivity() {
             Build.VERSION.SDK_INT < Build.VERSION_CODES.S
         ) {
             buildPipParams()?.let { enterPictureInPictureMode(it) }
+        }
+    }
+
+    // PiPの小窓を×で閉じると、アクティビティだけが止まり、Flutterのエンジンが外れる。その後も
+    // 通話（映像の描画）が続くと、外れたエンジンへ描画を要求してアプリが落ちる
+    // （"FlutterJNI is not attached to native"）。落ちると退出の処理も走らず、次の参加が不安定になる。
+    // 画面の消灯でも止まるため、操作できる状態（点灯中）の時だけ「閉じられた」とみなして通話を終える。
+    override fun onStop() {
+        super.onStop()
+        if (!callActive || Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return
+        val interactive = (getSystemService(POWER_SERVICE) as PowerManager).isInteractive
+        if (isInPictureInPictureMode && interactive) {
+            pipChannel?.invokeMethod("pipDismissed", null)
         }
     }
 

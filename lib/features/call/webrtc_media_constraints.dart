@@ -152,15 +152,16 @@ bool? trackIsFrontFacing(MediaStreamTrack track) {
 /// カメラを切り替えた後に、自分のプレビューが前面（インカメラ）かどうか（2026-11-15）。
 /// Webは切替でトラックが作り直され設定（`facingMode`）が新しいので、それを使う（取れなければ
 /// 前回の反対）。ネイティブは同じトラックのままカメラだけが切り替わり、`getSettings()`は
-/// 作成時の値のままで古いので使わず、切替に成功したら前回の反対、失敗なら前回のまま。
+/// 作成時の値のままで古いので使わず、`Helper.switchCamera`の戻り値（[nativeIsFront]＝切替後が
+/// 前面カメラか。成功したかではない）を使う。取れなければ前回のまま。
 bool nextIsFrontFacing({
   required bool isWeb,
   required bool? settingsFront,
   required bool previousFront,
-  required bool switchSucceeded,
+  required bool? nativeIsFront,
 }) {
   if (isWeb) return settingsFront ?? !previousFront;
-  return switchSucceeded ? !previousFront : previousFront;
+  return nativeIsFront ?? previousFront;
 }
 
 /// 映像トラックを出しているカメラの`deviceId`。取れなければnull。

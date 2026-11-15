@@ -342,9 +342,6 @@ final goRouterProvider = Provider<GoRouter>((ref) {
             onVideoCallPressed: () =>
                 startCall(args.currentUser, args.dm, isVideo: true),
             showRoomTabBar: args.showRoomTabBar,
-            // フルスクリーンのチャットでは、寄合の切り替えを履歴に記録して
-            // 戻るで直前の寄合へ戻れるようにする（2026-10-10追加）。
-            trackRoomHistory: true,
           );
           if (args.instant) {
             return slideDetailPage(
@@ -385,9 +382,6 @@ final goRouterProvider = Provider<GoRouter>((ref) {
             roomId: args.roomId,
             roomName: args.roomName,
             showRoomTabBar: args.showRoomTabBar,
-            // フルスクリーンのチャットでは、寄合の切り替えを履歴に記録して
-            // 戻るで直前の寄合へ戻れるようにする（2026-10-10追加）。
-            trackRoomHistory: true,
           );
           if (args.instant) {
             return slideDetailPage(

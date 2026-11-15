@@ -559,6 +559,19 @@ class WebrtcGroupCallController extends ChangeNotifier {
         _localStream!,
       );
     }
+    // カメラ無し・カメラオフで入る時も、相手の映像を受け取れるようにする。映像の送信用の
+    // トラックが無いと、最初のofferに映像の枠が無く、こちらが映像をオンにして再ネゴシエーション
+    // するまで、相手の映像が届かない。
+    if (_localStream!.getVideoTracks().isEmpty) {
+      try {
+        await peerConnection.addTransceiver(
+          kind: RTCRtpMediaType.RTCRtpMediaTypeVideo,
+          init: RTCRtpTransceiverInit(direction: TransceiverDirection.RecvOnly),
+        );
+      } catch (e) {
+        callLog('group: $otherUserId recvonly video transceiver failed: $e');
+      }
+    }
 
     peerConnection.onTrack = (event) {
       callLog(
@@ -653,7 +666,15 @@ class WebrtcGroupCallController extends ChangeNotifier {
           if (link == null) return;
 
           final offerSdp = link.offer?['sdp'] as String?;
-          if (offerSdp != null &&
+          // 相手の前回の参加（別のsessionId）が残したofferは、適用しない。
+          final offerSid = link.offer?['sid'] as String?;
+          final peerSid = _peerSessionIds[otherUserId];
+          final staleOffer =
+              offerSid != null && peerSid != null && offerSid != peerSid;
+          if (staleOffer && offerSdp != _lastAppliedOfferSdp[otherUserId]) {
+            _lastAppliedOfferSdp[otherUserId] = offerSdp;
+            callLog('group: $otherUserId stale offer ignored');
+          } else if (offerSdp != null &&
               offerSdp != _pendingLocalOfferSdp[otherUserId] &&
               offerSdp != _lastAppliedOfferSdp[otherUserId]) {
             _lastAppliedOfferSdp[otherUserId] = offerSdp;
@@ -753,7 +774,12 @@ class WebrtcGroupCallController extends ChangeNotifier {
     await _repository.setPeerOffer(
       groupCallId: groupCallId,
       pairId: CallPeerLink.idFor(currentUser.userId, otherUserId),
-      offer: {'sdp': offer.sdp, 'type': offer.type, 'id': offerId},
+      offer: {
+        'sdp': offer.sdp,
+        'type': offer.type,
+        'id': offerId,
+        'sid': _sessionId,
+      },
     );
   }
 
@@ -1011,7 +1037,7 @@ class WebrtcGroupCallController extends ChangeNotifier {
     notifyListeners();
     try {
       final track = videoTracks.first;
-      var switchSucceeded = true;
+      bool? nativeIsFront;
       if (kIsWeb) {
         final cameras = await Helper.cameras;
         if (cameras.length < 2) return;
@@ -1022,16 +1048,17 @@ class WebrtcGroupCallController extends ChangeNotifier {
         final next = cameras[(currentIndex + 1) % cameras.length];
         await Helper.switchCamera(track, next.deviceId, _localStream);
       } else {
-        switchSucceeded = await Helper.switchCamera(track);
+        // ネイティブの戻り値は、成功したかではなく「切替後が前面カメラか」。
+        nativeIsFront = await Helper.switchCamera(track);
       }
       final switched = _localStream?.getVideoTracks().firstOrNull;
       // ネイティブは同じトラックのままカメラだけが切り替わり、`getSettings()`は作成時の値の
-      // まま（外カメラでも'user'）なので、設定は使わず前回の反転で決める（2026-11-15）。
+      // まま（外カメラでも'user'）なので、設定は使わず切替の戻り値で決める（2026-11-15）。
       _isFrontCamera = nextIsFrontFacing(
         isWeb: kIsWeb,
         settingsFront: switched == null ? null : trackIsFrontFacing(switched),
         previousFront: _isFrontCamera,
-        switchSucceeded: switchSucceeded,
+        nativeIsFront: nativeIsFront,
       );
       if (switched != null) {
         _cameraDeviceId = trackDeviceId(switched) ?? _cameraDeviceId;
