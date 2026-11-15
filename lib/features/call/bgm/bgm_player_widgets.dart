@@ -173,6 +173,12 @@ class BgmTransportControls extends StatelessWidget {
             icon: Icon(orderIcon),
             onPressed: bgm.cyclePlayOrder,
           ),
+        if (full)
+          IconButton(
+            tooltip: strings.callBgmRewind10,
+            icon: const Icon(Icons.replay_10),
+            onPressed: () => bgm.skipBy(const Duration(seconds: -10)),
+          ),
         IconButton(
           tooltip: strings.callBgmPrevious,
           iconSize: iconSize,
@@ -193,6 +199,12 @@ class BgmTransportControls extends StatelessWidget {
           icon: const Icon(Icons.skip_next),
           onPressed: bgm.playNext,
         ),
+        if (full)
+          IconButton(
+            tooltip: strings.callBgmForward10,
+            icon: const Icon(Icons.forward_10),
+            onPressed: () => bgm.skipBy(const Duration(seconds: 10)),
+          ),
         if (full)
           IconButton(
             tooltip: strings.callBgmStop,

@@ -185,7 +185,7 @@ void showScreenShareMenu(BuildContext context, CallScreenShareBinding binding) {
             Align(
               alignment: Alignment.bottomCenter,
               child: Padding(
-                padding: const EdgeInsets.only(bottom: 96, left: 8, right: 8),
+                padding: const EdgeInsets.only(bottom: 140, left: 8, right: 8),
                 child: ConstrainedBox(
                   constraints: const BoxConstraints(maxWidth: 360),
                   child: CallPanelSurface(

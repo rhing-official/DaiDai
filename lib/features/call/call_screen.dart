@@ -271,32 +271,103 @@ class _CallScreenState extends ConsumerState<CallScreen> {
     );
   }
 
-  /// 相手が画面共有（配信）している時の表示（2026-11-15）。画面を全体に出し、下に操作を並べる。
+  /// 拡大している画面共有のグリッドのタイル（`screen`・`remote`・`self`。nullならグリッド）。
+  String? _focusedScreenKey;
+
+  /// 相手が画面共有している時の表示（2026-11-15）。共有の画面を、Discordのように、相手・自分の
+  /// タイルと同じグリッド（縦長なので縦に積む）の1つとして出す。タップで拡大・もう一度で戻る。
   Widget _screenBody(ColorScheme colorScheme) {
     final strings = ref.watch(appStringsProvider);
-    final renderer = _controller.remoteScreenRenderer;
+    final keys = ['screen', 'remote', 'self'];
+    final focused = keys.contains(_focusedScreenKey) ? _focusedScreenKey : null;
+
+    Widget person({required bool remote}) {
+      final hasVideo = remote ? _remoteIsVideo : _myIsVideo;
+      final renderer = remote
+          ? _controller.remoteRenderer
+          : _controller.localRenderer;
+      return ClipRRect(
+        borderRadius: BorderRadius.circular(kCallTileRadius),
+        child: Container(
+          color: Colors.grey.shade900,
+          child: Stack(
+            fit: StackFit.expand,
+            children: [
+              hasVideo
+                  ? RTCVideoView(
+                      key: ObjectKey(renderer),
+                      renderer,
+                      mirror: !remote && _controller.isFrontCamera,
+                      objectFit:
+                          RTCVideoViewObjectFit.RTCVideoViewObjectFitCover,
+                    )
+                  : Center(
+                      child: _placeholderAvatar(remote: remote, radius: 28),
+                    ),
+              Positioned(
+                left: 8,
+                bottom: 8,
+                child: CallLabelSheet(
+                  child: CallParticipantNameLabel(
+                    userId: remote ? _otherUserId : widget.currentUserId,
+                    rhingSeed: remote
+                        ? _otherRhingSeed
+                        : widget.call.myRhingSeed(widget.currentUserId),
+                    conversationId: widget.call.dmId,
+                    style: const TextStyle(color: Colors.white, fontSize: 13),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    Widget tileFor(String key) {
+      final renderer = _controller.remoteScreenRenderer;
+      final tile = switch (key) {
+        'screen' => ScreenShareFrame(
+          video: RTCVideoView(
+            key: ObjectKey(renderer),
+            renderer,
+            objectFit: RTCVideoViewObjectFit.RTCVideoViewObjectFitContain,
+          ),
+          name: CallParticipantNameLabel(
+            userId: _otherUserId,
+            rhingSeed: _otherRhingSeed,
+            conversationId: widget.call.dmId,
+            style: const TextStyle(color: Colors.white, fontSize: 13),
+          ),
+          qualityLabel: _controller.remoteScreenLabel ?? '',
+          liveText: strings.callScreenShareLive,
+        ),
+        'remote' => person(remote: true),
+        _ => person(remote: false),
+      };
+      return GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: () =>
+            setState(() => _focusedScreenKey = focused == key ? null : key),
+        child: tile,
+      );
+    }
+
     return SafeArea(
       child: Column(
         children: [
-          CallAudioSinks(renderers: [_controller.remoteRenderer]),
+          CallAudioSinks(
+            renderers:
+                (_remoteIsVideo && (focused == null || focused == 'remote'))
+                ? const []
+                : [_controller.remoteRenderer],
+          ),
           Expanded(
             child: Padding(
               padding: const EdgeInsets.all(8),
-              child: ScreenShareFrame(
-                video: RTCVideoView(
-                  key: ObjectKey(renderer),
-                  renderer,
-                  objectFit: RTCVideoViewObjectFit.RTCVideoViewObjectFitContain,
-                ),
-                name: CallParticipantNameLabel(
-                  userId: _otherUserId,
-                  rhingSeed: _otherRhingSeed,
-                  conversationId: widget.call.dmId,
-                  style: const TextStyle(color: Colors.white, fontSize: 13),
-                ),
-                qualityLabel: _controller.remoteScreenLabel ?? '',
-                liveText: strings.callScreenShareLive,
-              ),
+              child: focused != null
+                  ? tileFor(focused)
+                  : CallTileGrid(tiles: [for (final k in keys) tileFor(k)]),
             ),
           ),
           Padding(

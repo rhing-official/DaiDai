@@ -19,6 +19,7 @@ import 'bgm/call_bgm_bindings.dart';
 import 'screen_share_menu.dart';
 import 'call_control_bar.dart';
 import 'call_video_viewer.dart';
+import 'call_focus_provider.dart';
 import 'call_tile_layout.dart';
 import 'camera_availability.dart';
 import 'webrtc_call_controller.dart';
@@ -101,7 +102,15 @@ class _CallOverlayBody extends ConsumerWidget {
           children: [
             GestureDetector(
               behavior: HitTestBehavior.opaque,
-              onTap: close,
+              // 拡大しているタイルがあれば、外（余白）のクリックでまずグリッドへ戻す。
+              onTap: () {
+                final focus = ref.read(callFocusedTileProvider.notifier);
+                if (ref.read(callFocusedTileProvider) != null) {
+                  focus.clear();
+                } else {
+                  close();
+                }
+              },
               child: BackdropFilter(
                 filter: ImageFilter.blur(sigmaX: 18, sigmaY: 18),
                 child: ColoredBox(color: Colors.black.withValues(alpha: 0.45)),
@@ -292,84 +301,201 @@ class _OneToOneStageState extends ConsumerState<_OneToOneStage> {
     );
   }
 
-  /// 画面共有（配信）を主役にした表示（2026-11-15）。相手が配信中ならその画面、自分だけが
-  /// 配信中なら自分の画面のプレビューを大きく、相手のカメラ（無ければアイコン）を右下の小窓に出す。
+  /// 拡大しているタイル（`remote`・`self`・`screen-remote`・`screen-self`。nullならグリッド）。
+  String? get _focusedKey => ref.watch(callFocusedTileProvider);
+  set _focusedKey(String? value) {
+    final notifier = ref.read(callFocusedTileProvider.notifier);
+    value == null ? notifier.clear() : notifier.focus(value);
+  }
+
+  /// 1人ぶんのタイル（映像、無ければアイコン。呼び名とミュート表示つき）。
+  Widget _participantTile({required bool remote, required bool focused}) {
+    final session = widget.session;
+    final controller = session.controller;
+    final call = session.call;
+    final me = session.currentUserId;
+    final hasVideo = remote ? controller.remoteVideoShown : controller.isVideo;
+    final renderer = remote
+        ? controller.remoteRenderer
+        : controller.localRenderer;
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(kCallTileRadius),
+      child: Container(
+        color: Colors.grey.shade900,
+        child: Stack(
+          fit: StackFit.expand,
+          children: [
+            hasVideo
+                ? RTCVideoView(
+                    key: ValueKey((renderer, _viewerGeneration)),
+                    renderer,
+                    mirror: !remote && controller.isFrontCamera,
+                    objectFit: focused
+                        ? RTCVideoViewObjectFit.RTCVideoViewObjectFitContain
+                        : RTCVideoViewObjectFit.RTCVideoViewObjectFitCover,
+                  )
+                : Center(
+                    child: _avatar(remote: remote, radius: focused ? 56 : 28),
+                  ),
+            Positioned(
+              left: 8,
+              bottom: 8,
+              child: IgnorePointer(
+                child: CallLabelSheet(
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      CallParticipantNameLabel(
+                        userId: remote ? call.otherUserId(me) : me,
+                        rhingSeed: remote
+                            ? call.otherRhingSeed(me)
+                            : call.myRhingSeed(me),
+                        conversationId: call.dmId,
+                        style: const TextStyle(
+                          color: Colors.white,
+                          shadows: [Shadow(blurRadius: 6)],
+                        ),
+                      ),
+                      if (remote ? controller.remoteMuted : controller.muted)
+                        const Padding(
+                          padding: EdgeInsets.only(left: 4),
+                          child: Icon(
+                            Icons.mic_off,
+                            size: 14,
+                            color: Colors.white,
+                          ),
+                        ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// 画面共有の中のタイル（共有の画面。ライブ・画質つき）。
+  Widget _screenTile({required bool remote}) {
+    final session = widget.session;
+    final controller = session.controller;
+    final strings = ref.watch(appStringsProvider);
+    final call = session.call;
+    final me = session.currentUserId;
+    final renderer = remote
+        ? controller.remoteScreenRenderer
+        : controller.localScreenRenderer;
+    return ScreenShareFrame(
+      video: RTCVideoView(
+        key: ValueKey((renderer, _viewerGeneration)),
+        renderer,
+        objectFit: RTCVideoViewObjectFit.RTCVideoViewObjectFitContain,
+      ),
+      name: CallParticipantNameLabel(
+        userId: remote ? call.otherUserId(me) : me,
+        rhingSeed: remote ? call.otherRhingSeed(me) : call.myRhingSeed(me),
+        conversationId: call.dmId,
+        style: const TextStyle(color: Colors.white, fontSize: 13),
+      ),
+      qualityLabel: remote
+          ? (controller.remoteScreenLabel ?? '')
+          : controller.screenQuality.label,
+      liveText: strings.callScreenShareLive,
+    );
+  }
+
+  /// 画面共有（配信）がある時の表示（2026-11-15）。共有の画面を、Discordのように参加者の
+  /// タイルの1つとして、相手・自分のタイルと同じグリッドに並べる。タイルのクリックで拡大し、
+  /// もう一度のクリック・戻るボタン・Escでグリッドへ戻る。
   Widget _screenStage() {
     final session = widget.session;
     final controller = session.controller;
     final strings = ref.watch(appStringsProvider);
-    final remoteScreen = controller.remoteScreenShown;
-    final renderer = remoteScreen
-        ? controller.remoteScreenRenderer
-        : controller.localScreenRenderer;
-    final me = session.currentUserId;
-    final call = session.call;
-    final sharerId = remoteScreen ? call.otherUserId(me) : me;
-    final sharerSeed = remoteScreen
-        ? call.otherRhingSeed(me)
-        : call.myRhingSeed(me);
-    final audioSink = controller.remoteVideoShown
+    final keys = <String>[
+      if (controller.remoteScreenShown) 'screen-remote',
+      if (controller.isScreenSharing) 'screen-self',
+      'remote',
+      'self',
+    ];
+    final focused = keys.contains(_focusedKey) ? _focusedKey : null;
+
+    Widget tileFor(String key, bool isFocused) {
+      final tile = switch (key) {
+        'screen-remote' => _screenTile(remote: true),
+        'screen-self' => _screenTile(remote: false),
+        'remote' => _participantTile(remote: true, focused: isFocused),
+        _ => _participantTile(remote: false, focused: isFocused),
+      };
+      // Webでは映像（プラットフォームビュー）がクリックを奪うため、`PointerInterceptor`で受ける。
+      return Stack(
+        fit: StackFit.expand,
+        children: [
+          tile,
+          Positioned.fill(
+            child: PointerInterceptor(
+              child: GestureDetector(
+                behavior: HitTestBehavior.opaque,
+                onTap: () =>
+                    setState(() => _focusedKey = isFocused ? null : key),
+                child: const SizedBox.expand(),
+              ),
+            ),
+          ),
+        ],
+      );
+    }
+
+    // 相手のタイルを画面に出していない（拡大中で他のタイル）時や、映像が無い時は、
+    // 相手の音声を鳴らす見えない動画要素で補う。
+    final remoteTileShown =
+        (focused == null || focused == 'remote') && controller.remoteVideoShown;
+    final audioSink = remoteTileShown
         ? const SizedBox.shrink()
         : CallAudioSinks(renderers: [controller.remoteRenderer]);
+
+    final Widget stage;
+    if (focused != null) {
+      stage = Focus(
+        autofocus: true,
+        onKeyEvent: (node, event) {
+          if (event is KeyDownEvent &&
+              event.logicalKey == LogicalKeyboardKey.escape) {
+            setState(() => _focusedKey = null);
+            return KeyEventResult.handled;
+          }
+          return KeyEventResult.ignored;
+        },
+        child: Stack(
+          fit: StackFit.expand,
+          children: [
+            tileFor(focused, true),
+            Positioned(
+              top: 8,
+              right: 8,
+              child: PointerInterceptor(
+                child: IconButton(
+                  tooltip: strings.groupCallBackToGridTooltip,
+                  icon: const Icon(
+                    Icons.close_fullscreen,
+                    color: Colors.white,
+                    shadows: [Shadow(blurRadius: 6)],
+                  ),
+                  onPressed: () => setState(() => _focusedKey = null),
+                ),
+              ),
+            ),
+          ],
+        ),
+      );
+    } else {
+      stage = CallTileGrid(tiles: [for (final k in keys) tileFor(k, false)]);
+    }
     return Stack(
       fit: StackFit.expand,
       children: [
+        Positioned.fill(child: stage),
         Positioned(left: 0, top: 0, child: audioSink),
-        Positioned.fill(
-          child: ScreenShareFrame(
-            video: RTCVideoView(
-              key: ValueKey((renderer, _viewerGeneration)),
-              renderer,
-              objectFit: RTCVideoViewObjectFit.RTCVideoViewObjectFitContain,
-            ),
-            name: CallParticipantNameLabel(
-              userId: sharerId,
-              rhingSeed: sharerSeed,
-              conversationId: call.dmId,
-              style: const TextStyle(color: Colors.white, fontSize: 13),
-            ),
-            qualityLabel: remoteScreen
-                ? (controller.remoteScreenLabel ?? '')
-                : controller.screenQuality.label,
-            liveText: strings.callScreenShareLive,
-          ),
-        ),
-        // 画面のクリックで拡大表示（Webでは映像がクリックを奪うので`PointerInterceptor`）。
-        Positioned.fill(
-          child: PointerInterceptor(
-            child: GestureDetector(
-              behavior: HitTestBehavior.opaque,
-              onTap: () => showCallVideoViewer(
-                context,
-                renderer: renderer,
-                mirror: false,
-                onClosed: () {
-                  if (mounted) setState(() => _viewerGeneration++);
-                },
-              ),
-              child: const SizedBox.expand(),
-            ),
-          ),
-        ),
-        Positioned(
-          right: 12,
-          bottom: 12,
-          child: IgnorePointer(
-            child: ClipRRect(
-              borderRadius: BorderRadius.circular(8),
-              child: SizedBox(
-                width: 140,
-                height: 100,
-                child: controller.remoteVideoShown
-                    ? _video(remote: true, main: false)
-                    : ColoredBox(
-                        color: Colors.grey.shade800,
-                        child: Center(child: _avatar(remote: true, radius: 28)),
-                      ),
-              ),
-            ),
-          ),
-        ),
       ],
     );
   }
@@ -540,7 +666,11 @@ class _GroupStageState extends ConsumerState<_GroupStage> {
   /// 2026-10-21追加）。タイルのクリックで拡大し、もう一度クリック・戻るボタン・
   /// Escでグリッドへ戻る。モバイルの全画面通話画面（`group_call_screen.dart`の
   /// `_focusedTileKey`）と同じ考え方。
-  String? _focusedUserId;
+  String? get _focusedUserId => ref.watch(callFocusedTileProvider);
+  set _focusedUserId(String? value) {
+    final notifier = ref.read(callFocusedTileProvider.notifier);
+    value == null ? notifier.clear() : notifier.focus(value);
+  }
 
   GroupCallSession get session => widget.session;
 

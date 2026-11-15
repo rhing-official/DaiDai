@@ -122,6 +122,20 @@ class CallBgm extends ChangeNotifier {
     _updateProgress();
   }
 
+  /// 今の位置から[delta]だけ進める（負なら戻す）。曲の頭より前・終わりより後には行かない。
+  void skipBy(Duration delta) {
+    if (_current == null) return;
+    final duration = _mixer.duration;
+    var to = _mixer.position + delta;
+    if (to < Duration.zero) to = Duration.zero;
+    // 終わりを越える時は、終わりの少し手前で止める（次の曲へ飛ばない）。
+    if (duration != null && to >= duration) {
+      to = duration - const Duration(milliseconds: 500);
+      if (to < Duration.zero) to = Duration.zero;
+    }
+    seek(to);
+  }
+
   /// 一時停止／再開。
   Future<void> togglePause() async {
     if (_current == null) return;

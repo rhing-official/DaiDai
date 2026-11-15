@@ -403,6 +403,12 @@ class _CallBgmSheetState extends ConsumerState<_CallBgmSheet> {
   Widget _volumeRow(Strings strings, CallBgm bgm) => Row(
     children: [
       Text(strings.callBgmVolume),
+      IconButton(
+        tooltip: strings.callBgmVolumeDown,
+        visualDensity: VisualDensity.compact,
+        icon: const Icon(Icons.remove),
+        onPressed: () => bgm.setVolume(bgm.volume - 0.01),
+      ),
       Expanded(
         child: Slider(
           value: bgm.volume,
@@ -410,6 +416,12 @@ class _CallBgmSheetState extends ConsumerState<_CallBgmSheet> {
           label: '${(bgm.volume * 100).round()}%',
           onChanged: bgm.setVolume,
         ),
+      ),
+      IconButton(
+        tooltip: strings.callBgmVolumeUp,
+        visualDensity: VisualDensity.compact,
+        icon: const Icon(Icons.add),
+        onPressed: () => bgm.setVolume(bgm.volume + 0.01),
       ),
       SizedBox(
         width: 44,

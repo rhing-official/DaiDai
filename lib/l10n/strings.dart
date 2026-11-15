@@ -612,6 +612,10 @@ class Strings {
     required this.callBgmDisc,
     required this.callBgmTabAlbums,
     required this.callBgmTabArtists,
+    required this.callBgmRewind10,
+    required this.callBgmForward10,
+    required this.callBgmVolumeDown,
+    required this.callBgmVolumeUp,
     required this.callScreenShare,
     required this.callScreenShareStop,
     required this.callScreenShareChange,
@@ -1965,6 +1969,10 @@ class Strings {
   final String Function(int number) callBgmDisc;
   final String callBgmTabAlbums;
   final String callBgmTabArtists;
+  final String callBgmRewind10;
+  final String callBgmForward10;
+  final String callBgmVolumeDown;
+  final String callBgmVolumeUp;
   final String callScreenShare;
   final String callScreenShareStop;
   final String callScreenShareChange;
@@ -3446,13 +3454,17 @@ class Strings {
     callBgmDisc: (number) => 'Disc $number',
     callBgmTabAlbums: 'アルバム',
     callBgmTabArtists: 'アーティスト',
+    callBgmRewind10: '10秒戻す',
+    callBgmForward10: '10秒送る',
+    callBgmVolumeDown: '音量を下げる',
+    callBgmVolumeUp: '音量を上げる',
     callScreenShare: '画面を共有',
-    callScreenShareStop: '配信を中止',
-    callScreenShareChange: '配信を変更',
-    callScreenShareQuality: '配信画質',
+    callScreenShareStop: '画面共有を中止',
+    callScreenShareChange: '画面共有を変更',
+    callScreenShareQuality: '画面共有の画質',
     callScreenShareFps: 'フレームレート',
     callScreenShareResolution: '解像度',
-    callScreenShareAudio: '配信音声を共有',
+    callScreenShareAudio: '音声も共有',
     callScreenShareLive: 'ライブ',
     callScreenShareKiwami: '極み',
     callScreenShareKiwamiOnly: '高画質（1080p以上・60FPS）は、極みプランで使えます。',
@@ -4826,6 +4838,10 @@ class Strings {
     callBgmDisc: (number) => 'Disc $number',
     callBgmTabAlbums: 'Albums',
     callBgmTabArtists: 'Artists',
+    callBgmRewind10: 'Back 10 seconds',
+    callBgmForward10: 'Forward 10 seconds',
+    callBgmVolumeDown: 'Volume down',
+    callBgmVolumeUp: 'Volume up',
     callScreenShare: 'Share your screen',
     callScreenShareStop: 'Stop sharing',
     callScreenShareChange: 'Change what you share',
