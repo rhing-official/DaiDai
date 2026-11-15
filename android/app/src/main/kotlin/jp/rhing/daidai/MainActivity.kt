@@ -83,6 +83,9 @@ class MainActivity : FlutterFragmentActivity() {
             if (call.method == "setCallActive") {
                 callActive = call.argument<Boolean>("active") ?: false
                 updatePipParams()
+                // 通話が終わった時、既にPiPの小窓に入っていたら閉じる（残ると、終わった通話の
+                // 最後の映像がホーム画面の上に出たままになる）。
+                if (!callActive) dismissPipIfNoCall()
                 // 通話中は前面サービスで、アプリを離れても画面が消えてもOSに止められないようにする。
                 if (callActive) CallForegroundService.start(applicationContext)
                 else CallForegroundService.stop(applicationContext)
@@ -159,11 +162,20 @@ class MainActivity : FlutterFragmentActivity() {
         }
     }
 
+    /// 通話が無いのにPiPの小窓が出ている時に、小窓を閉じる（アプリは終了させない）。
+    private fun dismissPipIfNoCall() {
+        if (callActive) return
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return
+        if (isInPictureInPictureMode) moveTaskToBack(true)
+    }
+
     override fun onPictureInPictureModeChanged(
         isInPictureInPictureMode: Boolean,
         newConfig: Configuration,
     ) {
         super.onPictureInPictureModeChanged(isInPictureInPictureMode, newConfig)
         pipChannel?.invokeMethod("pipChanged", isInPictureInPictureMode)
+        // 通話が終わった直後に遅れてPiPへ入った場合の保険。
+        if (isInPictureInPictureMode) dismissPipIfNoCall()
     }
 }
