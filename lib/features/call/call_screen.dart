@@ -247,11 +247,8 @@ class _CallScreenState extends ConsumerState<CallScreen> {
       canPop: _intentionalPop,
       onPopInvokedWithResult: (didPop, _) {
         if (didPop || _intentionalPop) return;
-        if (dialing) {
-          _dockCall();
-        } else {
-          _controller.hangUp();
-        }
+        // 戻る操作は通話を切らず、ミニ表示にする（切るのは終話ボタンだけ）。
+        _dockCall();
       },
       child: body,
     );

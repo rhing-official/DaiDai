@@ -140,7 +140,8 @@ class _GroupCallScreenState extends ConsumerState<GroupCallScreen> {
     return PopScope(
       canPop: _intentionalPop,
       onPopInvokedWithResult: (didPop, _) {
-        if (!didPop && !_intentionalPop) _controller.leave();
+        // 戻る操作は退出せず、ミニ表示にする（退出は終話ボタンだけ）。
+        if (!didPop && !_intentionalPop) _dockCall();
       },
       child: Scaffold(
         backgroundColor: _anyVideo ? colorScheme.surface : displayAreaGrey,
