@@ -281,6 +281,9 @@ class _SignInGateState extends ConsumerState<_SignInGate> {
   Widget build(BuildContext context) {
     if (_restoring) return const Scaffold(body: DelayedSpinner());
     final adding = ref.watch(hasPendingAccountAddProvider).value ?? false;
-    return SignInScreen(popup: adding);
+    // アカウント追加の途中のポップアップは縦画面だけ。横画面は、普段のログイン画面の
+    // デザインのまま出す（追加中の案内とやめる操作は`SavedAccountsSignIn`が出す、2026-11-15）。
+    final size = MediaQuery.sizeOf(context);
+    return SignInScreen(popup: adding && size.height >= size.width);
   }
 }

@@ -10,6 +10,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:passkeys/authenticator.dart';
 import 'package:passkeys/availability.dart';
+import 'package:passkeys/exceptions.dart';
 import 'package:passkeys/types.dart';
 import 'package:passkeys_platform_interface/passkeys_platform_interface.dart';
 
@@ -59,6 +60,24 @@ class PasskeyRecoveryQuestions {
   });
   final String recoveryId;
   final List<String> questions;
+}
+
+/// パスキーでの新規登録を、利用者が中断した（提案・セキュリティキーを断った等）こと
+/// （2026-11-15）。エラーとしては表示しない。
+class PasskeyRegistrationCancelled implements Exception {
+  const PasskeyRegistrationCancelled();
+}
+
+/// [error]が、パスキー作成の中断かを判定する。パッケージの中断・使えるパスキー無しの
+/// 例外と、パッケージの例外ではないもの（Webでブラウザが返す中断の例外が、型が
+/// 分からない`Instance of 'minified:…'`になる）は中断とみなす。端末・ドメインの問題
+/// などを表すパッケージの例外は中断ではない。
+bool isPasskeyRegistrationCancellation(Object error) {
+  if (error is PasskeyAuthCancelledException ||
+      error is NoCredentialsAvailableException) {
+    return true;
+  }
+  return error is! AuthenticatorException;
 }
 
 abstract class AuthRepository {
@@ -473,9 +492,21 @@ class FirebaseAuthRepository implements AuthRepository {
     final options = beginData['options'] as Map<String, dynamic>;
 
     final authenticator = PasskeyAuthenticator();
-    final attestationResponse = await authenticator.register(
-      RegisterRequestType.fromJson(options),
-    );
+    final RegisterResponseType attestationResponse;
+    try {
+      attestationResponse = await authenticator.register(
+        RegisterRequestType.fromJson(options),
+      );
+    } catch (e) {
+      // パスワードマネージャーの提案もセキュリティキーも断った場合など、利用者が
+      // 中断した（又はブラウザが中断を返した）時は、エラーではなく中断として扱う
+      // （2026-11-15、以前は`Instance of ...`がそのままエラー表示された）。端末・設定の
+      // 問題を表すパッケージの例外だけは、そのまま投げる。
+      if (isPasskeyRegistrationCancellation(e)) {
+        throw const PasskeyRegistrationCancelled();
+      }
+      rethrow;
+    }
 
     final finishResult = await _functions
         .httpsCallable('finishPasskeyRegistration')

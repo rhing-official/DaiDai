@@ -87,7 +87,10 @@ class RoomTabBar extends ConsumerStatefulWidget {
   static const int _maxVisibleRows = 2;
   static const double _cellHPad = 14;
   static const double _cellMinWidth = 64;
-  static const double _dividerWidth = 1;
+  static const double _dividerWidth = 8;
+
+  /// フラット/ガラス/版画のチップ列の左右の余白（折り返し判定の幅から引く）。
+  static const double _chipSidePad = 8;
 
   /// 折り返し判定専用の測定スタイル（実際の描画には使わない）。選択中セルの
   /// 太字より確実に広めに出るサイズ・太さにすることで、測定結果が実際の
@@ -415,12 +418,13 @@ class _RoomTabBarState extends ConsumerState<RoomTabBar> {
         ? Colors.white
         : Theme.of(context).colorScheme.onSurface;
     final borderColor = foregroundColor.withValues(alpha: 0.35);
-    final highlightColor = foregroundColor.withValues(alpha: 0.15);
 
     final rows = RoomTabBar._chunkIntoRows(
       rooms: widget.rooms,
       hasAddCell: widget.onCreateRoom != null,
-      maxWidth: widget.maxWidth,
+      maxWidth: isGekiga
+          ? widget.maxWidth
+          : widget.maxWidth - RoomTabBar._chipSidePad * 2,
       textScaler: widget.textScaler,
       itemGap: widget._itemGap,
     );
@@ -431,56 +435,95 @@ class _RoomTabBarState extends ConsumerState<RoomTabBar> {
     final totalHeight =
         visibleRows * RoomTabBar._height + (visibleRows - 1) * widget._itemGap;
 
-    // フラット/ガラス共通のセル。`room`がnullなら末尾の「＋」追加セル。
+    // フラット/ガラス/版画共通のチップ状のセル（2026-11-15、区切り線で仕切る平らな
+    // 見た目から、他の画面のナビチップ・項目と同じ角丸の箱へ変更）。`room`がnullなら
+    // 末尾の「＋」追加セル。
     Widget flatCell(RoomListEntry? room) {
       final isAdd = room == null;
       final selected = !isAdd && room.roomId == _effectiveSelectedRoomId;
-      // `maxWidth`は行全体の幅ではなく、`_chunkIntoRows`がこのセル分として
-      // 見積もった幅そのものにする（2026-09-08修正、`_gekigaCell`と同じ
-      // 理由）。「＋」セルは名前を持たないため見積り不要、固定の最小幅で足りる。
+      final scheme = Theme.of(context).colorScheme;
+      final isBlock = isBlockTheme(context);
       final cellMaxWidth = isAdd
           ? RoomTabBar._cellMinWidth
           : RoomTabBar._itemWidth(room, widget.textScaler);
-      final child = InkWell(
+      // 版画・フラットの選択中は、アクセントの塗りに onPrimary。ガラスは背景の塗りだけで
+      // 選択を表し、文字色は変えない（寄合一覧[RoomListPane]と同じ）。
+      final onAccent = selected && !isGlass;
+      final fg = onAccent ? scheme.onPrimary : foregroundColor;
+      final label = isAdd
+          ? Icon(Icons.add, size: 20, color: fg)
+          : _withUnreadBadge(
+              room,
+              selected,
+              Text(
+                '#${room.name}',
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  color: fg,
+                  fontWeight: selected ? FontWeight.bold : FontWeight.normal,
+                ),
+              ),
+            );
+      final inner = InkWell(
+        borderRadius: BorderRadius.circular(12),
         onTap: isAdd
             ? () => _createRoom(context, strings, vocab, false, isGlass)
             : () => widget.onSelectRoom(room),
         child: Container(
+          height: 36,
           constraints: BoxConstraints(
             minWidth: RoomTabBar._cellMinWidth,
             maxWidth: cellMaxWidth,
           ),
           padding: const EdgeInsets.symmetric(horizontal: RoomTabBar._cellHPad),
           alignment: Alignment.center,
-          color: selected
-              ? (isBlockTheme(context)
-                    ? Theme.of(context).colorScheme.primary
-                    : highlightColor)
-              : null,
-          child: isAdd
-              ? Icon(Icons.add, size: 20, color: foregroundColor)
-              : _withUnreadBadge(
-                  room,
-                  selected,
-                  Text(
-                    '#${room.name}',
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                      color: selected && isBlockTheme(context)
-                          ? Theme.of(context).colorScheme.onPrimary
-                          : foregroundColor,
-                      fontWeight: selected
-                          ? FontWeight.bold
-                          : FontWeight.normal,
-                    ),
-                  ),
-                ),
+          child: label,
         ),
       );
+      final Widget chip;
+      if (isBlock) {
+        chip = blockMaterialBox(
+          context,
+          color: selected
+              ? scheme.primary
+              : (Theme.of(context).brightness == Brightness.light
+                    ? Colors.white
+                    : scheme.surface),
+          child: Material(type: MaterialType.transparency, child: inner),
+        );
+      } else if (isGlass) {
+        chip = GlassSurface(
+          variant: GlassVariant.card,
+          borderRadius: BorderRadius.circular(12),
+          accentColorOverride: selected ? scheme.primary : null,
+          child: Material(
+            color: selected
+                ? scheme.primary.withValues(alpha: 0.45)
+                : Colors.transparent,
+            child: inner,
+          ),
+        );
+      } else {
+        chip = Material(
+          color: selected
+              ? scheme.primary
+              : scheme.onSurface.withValues(alpha: 0.08),
+          borderRadius: BorderRadius.circular(12),
+          clipBehavior: Clip.antiAlias,
+          child: inner,
+        );
+      }
+      // 版画の硬い影が右・下へはみ出す分、余白を多めに取る。
+      final padded = Padding(
+        padding: isBlock
+            ? const EdgeInsets.fromLTRB(0, 3, 3, 5)
+            : const EdgeInsets.symmetric(vertical: 4),
+        child: chip,
+      );
       return isAdd
-          ? child
-          : KeyedSubtree(key: _keyFor(room.roomId), child: child);
+          ? padded
+          : KeyedSubtree(key: _keyFor(room.roomId), child: padded);
     }
 
     Widget buildRow(List<RoomListEntry?> row) {
@@ -549,35 +592,40 @@ class _RoomTabBarState extends ConsumerState<RoomTabBar> {
       }
       return SizedBox(
         height: RoomTabBar._height,
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Flexible(
-              child: Center(
-                // 万一chip群の合計幅が見積りを超えても、はみ出しが「＋」ボタン
-                // 側に影響しないようクリップする（2026-09-08追加の安全策、
-                // 劇画側のクリップと同じ狙い。2026-09-11、「＋」を含む行全体
-                // ではなくchip群側だけをクリップする構成に変更）。
-                child: ClipRect(
-                  child: Row(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      for (var i = 0; i < realRooms.length; i++) ...[
-                        if (i > 0)
-                          VerticalDivider(width: 1, color: borderColor),
-                        flatCell(realRooms[i]),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(
+            horizontal: RoomTabBar._chipSidePad,
+          ),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Flexible(
+                child: Center(
+                  // 万一chip群の合計幅が見積りを超えても、はみ出しが「＋」ボタン
+                  // 側に影響しないようクリップする（2026-09-08追加の安全策、
+                  // 劇画側のクリップと同じ狙い。2026-09-11、「＋」を含む行全体
+                  // ではなくchip群側だけをクリップする構成に変更）。
+                  child: ClipRect(
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        for (var i = 0; i < realRooms.length; i++) ...[
+                          if (i > 0)
+                            const SizedBox(width: RoomTabBar._dividerWidth),
+                          flatCell(realRooms[i]),
+                        ],
                       ],
-                    ],
+                    ),
                   ),
                 ),
               ),
-            ),
-            if (hasAdd) ...[
-              VerticalDivider(width: 1, color: borderColor),
-              flatCell(null),
+              if (hasAdd) ...[
+                const SizedBox(width: RoomTabBar._dividerWidth),
+                flatCell(null),
+              ],
             ],
-          ],
+          ),
         ),
       );
     }
@@ -601,10 +649,7 @@ class _RoomTabBarState extends ConsumerState<RoomTabBar> {
               // （劇画8px／それ以外1px）を流用する。`totalHeight`の計算にも
               // この値を使っており、ずれると劇画UIで2行目が途切れる不具合に
               // なる（2026-09-11修正）。
-              if (i > 0)
-                isGekiga
-                    ? const SizedBox(height: 8)
-                    : Divider(height: 1, color: borderColor),
+              if (i > 0) SizedBox(height: widget._itemGap),
               buildRow(rows[i]),
             ],
           ],

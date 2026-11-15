@@ -46,6 +46,13 @@ bool _deepEquals(Object? a, Object? b) {
 }
 
 class _FakeUserRepository implements UserRepository {
+  @override
+  Future<void> deleteAccountAsAdmin(
+    String userId, {
+    required bool immediate,
+    String? note,
+  }) async {}
+
   AppUser? saved;
 
   // 特定のフィールドへの書き込みだけを意図的に遅延させ、複数の追加操作が
@@ -334,6 +341,14 @@ Future<void> _pumpProfileTabNarrow(
 }
 
 void main() {
+  // カルーセルの下のボタン・オーバーレイが画面外に出ないよう、縦に長い画面にする。
+  void tallView(WidgetTester tester) {
+    tester.view.physicalSize = const Size(800, 2400);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+  }
+
   // 工房は2026-10-11時点で「ダイアログ」ではなく、枠をタップするとその場で
   // カードが拡大する編集画面（名前欄＋カード上の各項目）になっている。名前は
   // 確定（Enter・欄の外をタップ）した時点で保存される（`_CardZoomEditor`）。
@@ -345,8 +360,8 @@ void main() {
     await tester.tap(find.text('仕立て'));
     await tester.pumpAndSettle();
 
-    // 3枠全てが「+」の白紙カードとして表示される。
-    expect(find.byIcon(Icons.add), findsNWidgets(3));
+    // 狭い画面はカルーセル（2026-11-15）。カードが無い時は「+」の白紙カード1枚だけ。
+    expect(find.byIcon(Icons.add), findsOneWidget);
 
     await tester.tap(find.byIcon(Icons.add).first);
     await tester.pumpAndSettle();
@@ -577,7 +592,8 @@ void main() {
     expect(find.byType(FocalEditOverlay), findsOneWidget);
     expect(find.byType(PopupMenuItem<String>), findsNothing);
 
-    await tester.tap(find.text('キャンセル'));
+    // 位置調整の画面は「リセット／完了」（完了で閉じる）。
+    await tester.tap(find.text('完了'));
     await tester.pumpAndSettle();
     tester.takeException();
     expect(find.byType(FocalEditOverlay), findsNothing);
@@ -621,7 +637,8 @@ void main() {
     expect(reset.textAlign, isNull);
   });
 
-  testWidgets('カードが2枚以上ならハンドルでドラッグして並べ替えられ、保存される', (tester) async {
+  testWidgets('カードが2枚以上なら、カルーセルの矢印で1つずつ動かして並べ替えられ、保存される', (tester) async {
+    tallView(tester);
     const a = ProfileCard(id: 'a', name: 'カードA');
     const b = ProfileCard(id: 'b', name: 'カードB');
     const user = AppUser(userId: 'u1', rhingSeed: 'taro', profileCards: [a, b]);
@@ -630,19 +647,9 @@ void main() {
     await tester.tap(find.text('仕立て'));
     await tester.pumpAndSettle();
 
-    expect(find.byIcon(Icons.drag_indicator), findsNWidgets(2));
-    // 先頭カードのハンドルをつかみ、2枚目の位置まで少しずつ動かして離す。
-    final handles = find.byIcon(Icons.drag_indicator);
-    final from = tester.getCenter(handles.at(0));
-    final to = tester.getCenter(handles.at(1));
-    final gesture = await tester.startGesture(from);
-    await tester.pump(const Duration(milliseconds: 100));
-    final step = (to - from) / 10;
-    for (var i = 0; i < 12; i++) {
-      await gesture.moveBy(step);
-      await tester.pump(const Duration(milliseconds: 50));
-    }
-    await gesture.up();
+    // カルーセルは、表示中のカードを「後ろへ動かす」矢印で入れ替える（2026-11-15）。
+    await tester.ensureVisible(find.text('後ろへ動かす'));
+    await tester.tap(find.text('後ろへ動かす'));
     await tester.pumpAndSettle();
 
     expect(repo.saved?.profileCards.map((c) => c.id), ['b', 'a']);
@@ -858,7 +865,8 @@ void main() {
 
     // 工房のカード一覧（並べ替えリスト）を目印に、現在どのセクションが
     // 表示されているかを判定する。
-    Finder cardSlotHeroes() => find.byType(ReorderableListView);
+    Finder cardSlotHeroes() =>
+        find.byIcon(Icons.add); // 白紙の追加枠（カルーセルの1枚目、2026-11-15）
 
     // カテゴリ一覧から「工房」（蔵→工房→縁結びの2番目）へドリルダウンする。
     await tester.tap(find.text('仕立て'));
@@ -888,6 +896,7 @@ void main() {
 
   testWidgets('過去の重複バグ等でprofileCardsが上限(kMaxProfileCards)を超えていても、'
       '超過分を隠さず全て表示する（回帰テスト）', (tester) async {
+    tallView(tester);
     // 過去に「arrayRemove→arrayUnion」の非原子的な2手順のせいで
     // profileCardsに重複が残ってしまった場合、工房タブが先頭3件だけを
     // 位置ベースで表示していると、4件目以降が画面から完全に見えなくなり
@@ -907,7 +916,8 @@ void main() {
     await tester.tap(find.text('仕立て'));
     await tester.pumpAndSettle();
 
-    expect(find.byType(ProfileCardView), findsNWidgets(4));
+    // 狭い画面はカルーセル。4件全てに届く（「1 / 4」）。
+    expect(find.text('1 / 4'), findsOneWidget);
     // 新規作成用の白紙枠は上限(3枠)以上には増えない。
     expect(find.byIcon(Icons.add), findsNothing);
   });

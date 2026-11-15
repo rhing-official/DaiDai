@@ -137,7 +137,7 @@ class ImageBlockComponentWidgetState extends State<ImageBlockComponentWidget>
     final src = attributes[ImageBlockKeys.url];
 
     final alignment = AlignmentExtension.fromString(
-      attributes[ImageBlockKeys.align] ?? 'center',
+      attributes[ImageBlockKeys.align] ?? 'left', // DaiDai patch: 既定は左寄せ
     );
     final width = attributes[ImageBlockKeys.width]?.toDouble() ??
         MediaQuery.of(context).size.width;

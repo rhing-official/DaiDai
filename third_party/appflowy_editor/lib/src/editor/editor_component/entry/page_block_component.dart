@@ -1,6 +1,10 @@
+import 'dart:math' as math;
+
 import 'package:appflowy_editor/appflowy_editor.dart';
 import 'package:appflowy_editor/src/editor/block_component/base_component/widget/ignore_parent_gesture.dart';
 import 'package:appflowy_editor/src/flutter/scrollable_positioned_list/scrollable_positioned_list.dart';
+import 'package:appflowy_editor/src/editor/block_component/table_block_component/table_handle_gutter.dart'
+    show kTableHandleGutterSize;
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
@@ -30,6 +34,15 @@ class PageBlockComponentBuilder extends BlockComponentBuilder {
       wrapper: blockComponentContext.wrapper,
     );
   }
+}
+
+/// 表は、左の行ハンドル（ガター）の分だけ左へ出し、表の左端を本文の左端に揃える
+/// （DaiDai patch 2026-11-15。以前はガターの分だけ表が右にずれていた）。ガターは左の余白に
+/// 入る。余白が足りない時（モバイル）は、足りない分だけ右にずれる。
+EdgeInsets _blockPadding(EdgeInsets padding, Node node) {
+  if (node.type != TableBlockKeys.type) return padding;
+  return padding.copyWith(
+      left: math.max(0, padding.left - kTableHandleGutterSize));
 }
 
 class PageBlockComponent extends BlockComponentStatelessWidget {
@@ -64,6 +77,7 @@ class PageBlockComponent extends BlockComponentStatelessWidget {
               editorState.updateAutoScroller(scroller);
             }
             return Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 if (header != null) header!,
                 ...items.map(
@@ -77,7 +91,8 @@ class PageBlockComponent extends BlockComponentStatelessWidget {
                         maxWidth:
                             editorState.editorStyle.maxWidth ?? double.infinity,
                       ),
-                      padding: editorState.editorStyle.padding,
+                      padding:
+                          _blockPadding(editorState.editorStyle.padding, e),
                       child: child,
                     );
                   },
@@ -120,12 +135,15 @@ class PageBlockComponent extends BlockComponentStatelessWidget {
             child = wrapper!(context, node: node, child: child);
           }
 
-          return Center(
+          // 各ブロックは左端に寄せる（DaiDai patch 2026-11-15。以前はCenterで、幅が本文より
+          // 狭いブロック（表・画像・リンクのプレビューなど）が中央に寄っていた）。
+          return Align(
+            alignment: Alignment.centerLeft,
             child: Container(
               constraints: BoxConstraints(
                 maxWidth: editorState.editorStyle.maxWidth ?? double.infinity,
               ),
-              padding: editorState.editorStyle.padding,
+              padding: _blockPadding(editorState.editorStyle.padding, node),
               child: child,
             ),
           );

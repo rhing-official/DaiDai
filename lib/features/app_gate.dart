@@ -6,6 +6,7 @@ import 'calendar/calendar_sync_bootstrap.dart';
 import 'call/group_incoming_call_listener.dart';
 import 'call/incoming_call_listener.dart';
 import 'home/home_screen.dart';
+import 'incoming_share_bootstrap.dart';
 import 'push_notification_bootstrap.dart';
 
 /// アプリのルート画面。認証状態・Rhing Seed登録状態に応じて表示を切り替える
@@ -26,7 +27,10 @@ class AppGate extends StatelessWidget {
               currentUserId: currentUser.userId,
               child: GroupIncomingCallListener(
                 currentUser: currentUser,
-                child: HomeScreen(currentUser: currentUser),
+                child: IncomingShareBootstrap(
+                  currentUserId: currentUser.userId,
+                  child: HomeScreen(currentUser: currentUser),
+                ),
               ),
             ),
           ),

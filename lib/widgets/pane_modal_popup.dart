@@ -1,3 +1,4 @@
+import 'dart:math' as math;
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -97,15 +98,16 @@ class _PopupSurface extends ConsumerWidget {
       ),
     };
     final defaultMaxWidth = wide ? 960.0 : 560.0;
-    Widget sized(double maxWidth) => Center(
-      child: FractionallySizedBox(
-        widthFactor: wide ? 0.9 : 0.7,
-        heightFactor: wide ? 0.9 : 0.7,
-        child: ConstrainedBox(
-          constraints: BoxConstraints(
-            maxWidth: maxWidth,
-            maxHeight: wide ? 800 : 640,
-          ),
+    // 幅・高さは「画面の割合」と「上限」の小さい方。`FractionallySizedBox`の中に
+    // `ConstrainedBox`を置くと、内側の上限が（きつい制約に負けて）効かなかった。
+    Widget sized(double maxWidth) => LayoutBuilder(
+      builder: (context, constraints) => Center(
+        child: SizedBox(
+          width: math.min(constraints.maxWidth * (wide ? 0.9 : 0.7), maxWidth),
+          // ノート（wide）は縦に長く使う（2026-11-15）。上限なしで画面の高さの92%。
+          height: wide
+              ? constraints.maxHeight * 0.92
+              : math.min(constraints.maxHeight * 0.7, 640.0),
           child: surface,
         ),
       ),

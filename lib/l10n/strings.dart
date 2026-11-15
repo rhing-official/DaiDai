@@ -164,6 +164,11 @@ class Strings {
     required this.kiwamiOnlyClose,
     required this.kiwamiOnlyProfileLimitBody,
     required this.workshopMoreWithKiwami,
+    required this.workshopMoveEarlier,
+    required this.calendarGoogleNotSynced,
+    required this.sharePreparing,
+    required this.calendarGoogleSyncNow,
+    required this.workshopMoveLater,
     required this.kiwamiPurchase,
     required this.kiwamiSectionTitle,
     required this.kiwamiManage,
@@ -223,6 +228,8 @@ class Strings {
     required this.qrLoginRefreshButton,
     required this.qrLoginSignInError,
     required this.passkeyCreateAccountButton,
+    required this.passkeyCreateAccountNote,
+    required this.passkeyCreateFailed,
     required this.passkeySignInButton,
     required this.passkeySignInDialogDescription,
     required this.passkeySignInDialogRhingSeedLabel,
@@ -1331,6 +1338,11 @@ class Strings {
   final String kiwamiOnlyClose;
   final String kiwamiOnlyProfileLimitBody;
   final String workshopMoreWithKiwami;
+  final String workshopMoveEarlier;
+  final String calendarGoogleNotSynced;
+  final String sharePreparing;
+  final String calendarGoogleSyncNow;
+  final String workshopMoveLater;
   final String kiwamiPurchase;
   final String kiwamiSectionTitle;
   final String kiwamiManage;
@@ -1393,6 +1405,8 @@ class Strings {
   final String qrLoginRefreshButton;
   final String qrLoginSignInError;
   final String passkeyCreateAccountButton;
+  final String passkeyCreateAccountNote;
+  final String passkeyCreateFailed;
   final String passkeySignInButton;
   final String passkeySignInDialogDescription;
   final String passkeySignInDialogRhingSeedLabel;
@@ -2772,7 +2786,7 @@ class Strings {
     settingsRoomListSwipeTitle: '寄合一覧の横スワイプ',
     settingsRoomListSwipeNote:
         'スマホの縦表示で「アイコン＋寄合一覧」の寄合一覧を横にスワイプした時の動きです。この端末だけに保存します。',
-    settingsRoomListSwipeOpenTitle: 'メッセージ画面を開く β',
+    settingsRoomListSwipeOpenTitle: 'メッセージ画面を開く',
     settingsRoomListSwipeOpenDescription:
         '左へスワイプすると、選択中の寄合のメッセージ画面を開きます。先に右へスワイプすると、隣のタブへ切り替わります。',
     settingsRoomListSwipeTabTitle: 'メニューのタブを切り替える',
@@ -2817,6 +2831,11 @@ class Strings {
     kiwamiOnlyProfileLimitBody:
         '極みでは、プロフィールカードを10枚まで作れ、蔵のSNSのURLは7件まで、カード1枚に載せるURLは5件まで使えます。',
     workshopMoreWithKiwami: '極みでカードをもっと作る（最大10枚）',
+    workshopMoveEarlier: '前へ動かす',
+    calendarGoogleNotSynced: '回答を保存しました。Googleカレンダーにはまだ反映していません',
+    calendarGoogleSyncNow: '反映する',
+    sharePreparing: '共有の準備中',
+    workshopMoveLater: '後ろへ動かす',
     kiwamiPurchase: '極みを購入する',
     kiwamiSectionTitle: '極み',
     kiwamiManage: '契約の管理（解約・カードの変更）',
@@ -2879,7 +2898,10 @@ class Strings {
     qrLoginExpiredMessage: 'QRコードの有効期限が切れました',
     qrLoginRefreshButton: '更新する',
     qrLoginSignInError: 'ログインに失敗しました',
-    passkeyCreateAccountButton: 'Rhing Seedでアカウントを作成',
+    passkeyCreateAccountButton: 'パスキーで新しく始める',
+    passkeyCreateAccountNote:
+        'Google・Appleのアカウントは使いません。パスキーを、この端末かパスワードマネージャーに保存します。保存の提案を断ると、セキュリティキーを求められることがあります。',
+    passkeyCreateFailed: 'パスキーを作れませんでした。もう一度お試しください。',
     passkeySignInButton: 'パスキーでログイン',
     passkeySignInDialogDescription:
         '登録済みのRhing Seedを入力して下さい。空欄のまま「ログイン」を押すと、保存済みのパスキーから選べます。',
@@ -4007,7 +4029,7 @@ class Strings {
     settingsRoomListSwipeTitle: 'Swiping the room list',
     settingsRoomListSwipeNote:
         'What happens when you swipe sideways on the room list of "Icons + room list" on a phone held upright. Saved on this device only.',
-    settingsRoomListSwipeOpenTitle: 'Open the messages β',
+    settingsRoomListSwipeOpenTitle: 'Open the messages',
     settingsRoomListSwipeOpenDescription:
         'Swipe left to open the messages of the selected room. Swipe right first to move to the neighbouring tab.',
     settingsRoomListSwipeTabTitle: 'Switch the menu tab',
@@ -4056,6 +4078,12 @@ class Strings {
     kiwamiOnlyProfileLimitBody:
         'With Premium you can make up to 10 profile cards, save up to 7 social links, and show up to 5 links on each card.',
     workshopMoreWithKiwami: 'Make more cards with Premium (up to 10)',
+    workshopMoveEarlier: 'Move earlier',
+    calendarGoogleNotSynced:
+        'Your reply is saved. It hasn’t been added to Google Calendar yet',
+    calendarGoogleSyncNow: 'Add now',
+    sharePreparing: 'Preparing to share',
+    workshopMoveLater: 'Move later',
     kiwamiPurchase: 'Get Premium',
     kiwamiSectionTitle: 'Premium',
     kiwamiManage: 'Manage subscription (cancel, change card)',
@@ -4125,7 +4153,10 @@ class Strings {
     qrLoginExpiredMessage: 'This QR code has expired',
     qrLoginRefreshButton: 'Refresh',
     qrLoginSignInError: 'Sign-in failed',
-    passkeyCreateAccountButton: 'Create account with Rhing Seed',
+    passkeyCreateAccountButton: 'Start new with a passkey',
+    passkeyCreateAccountNote:
+        'Your Google or Apple account is not used. The passkey is saved on this device or in your password manager. If you decline the save prompt, you may be asked for a security key.',
+    passkeyCreateFailed: 'Could not create the passkey. Please try again.',
     passkeySignInButton: 'Sign in with Rhing Seed',
     passkeySignInDialogDescription:
         'Enter your registered Rhing Seed. Leave it blank and tap "Sign in" to choose from your saved passkeys.',

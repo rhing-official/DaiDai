@@ -226,6 +226,10 @@ class _TableBlockComponentWidgetState extends State<TableBlockComponentWidget>
   late final editorState = Provider.of<EditorState>(context, listen: false);
   final _scrollController = ScrollController();
 
+  /// 表が表示領域に収まらず、横にスクロールできるか（DaiDai patch 2026-11-15）。収まって
+  /// いる時は、下のスクロールバーを出さない（ぎりぎり収まる表にもバーが出ていた）。
+  bool _canScrollHorizontally = false;
+
   // 複数セルにまたがる選択が行われた時、選択範囲全体を囲む枠線を描画する
   // ための矩形（2026-09-27追加、ユーザー指示。Notion/スプレッドシートの
   // セル範囲選択を参考にした）。単一セル内のテキスト選択の間はnullのままで、
@@ -349,28 +353,41 @@ class _TableBlockComponentWidgetState extends State<TableBlockComponentWidget>
 
   @override
   Widget build(BuildContext context) {
-    Widget child = Scrollbar(
-      controller: _scrollController,
-      // 列の追加・列幅リサイズで表が表示領域の右端を超えて見えなくなっても
-      // スクロール可能なことが常に分かるよう、常時表示にする
-      // （2026-09-27追加、ユーザー指摘）。
-      thumbVisibility: true,
-      child: SingleChildScrollView(
-        // 左のパディングは本文（段落等）の左端と揃えるために無くした
-        // （2026-09-27修正、ユーザー指示）。以前は列のリサイズハンドル用に
-        // 10px確保していたが、ホバー時のみ表示されるハンドルのはみ出しより
-        // 本文との左揃えを優先する。表は行の並び替えハンドル用ガターの分
-        // だけ右にずれる（2026-09-27、ユーザー確認済み）。
-        padding: const EdgeInsets.only(top: 10, bottom: 4),
+    Widget child = NotificationListener<ScrollMetricsNotification>(
+      onNotification: (notification) {
+        if (notification.metrics.axis != Axis.horizontal) return false;
+        final canScroll = notification.metrics.maxScrollExtent > 0.5;
+        if (canScroll != _canScrollHorizontally) {
+          // 通知はレイアウト中に届くため、次のフレームで反映する。
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (mounted) setState(() => _canScrollHorizontally = canScroll);
+          });
+        }
+        return false;
+      },
+      child: Scrollbar(
         controller: _scrollController,
-        scrollDirection: Axis.horizontal,
-        child: TableView(
-          tableNode: widget.tableNode,
-          editorState: editorState,
-          menuBuilder: widget.menuBuilder,
-          cornerHandleBuilder: widget.cornerHandleBuilder,
-          tableStyle: widget.tableStyle,
-          scrollController: _scrollController,
+        // 列の追加・列幅リサイズで表が表示領域の右端を超えて見えなくなっても
+        // スクロール可能なことが常に分かるよう、常時表示にする
+        // （2026-09-27追加、ユーザー指摘）。
+        thumbVisibility: _canScrollHorizontally,
+        child: SingleChildScrollView(
+          // 左のパディングは本文（段落等）の左端と揃えるために無くした
+          // （2026-09-27修正、ユーザー指示）。以前は列のリサイズハンドル用に
+          // 10px確保していたが、ホバー時のみ表示されるハンドルのはみ出しより
+          // 本文との左揃えを優先する。表は行の並び替えハンドル用ガターの分
+          // だけ右にずれる（2026-09-27、ユーザー確認済み）。
+          padding: const EdgeInsets.only(top: 10, bottom: 4),
+          controller: _scrollController,
+          scrollDirection: Axis.horizontal,
+          child: TableView(
+            tableNode: widget.tableNode,
+            editorState: editorState,
+            menuBuilder: widget.menuBuilder,
+            cornerHandleBuilder: widget.cornerHandleBuilder,
+            tableStyle: widget.tableStyle,
+            scrollController: _scrollController,
+          ),
         ),
       ),
     );

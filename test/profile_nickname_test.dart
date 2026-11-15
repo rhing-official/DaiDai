@@ -18,6 +18,13 @@ import 'package:flutter_test/flutter_test.dart';
 /// Firestore/Storageを使わない、身だしなみタブのUIロジックだけを検証する為の
 /// インメモリのフェイクリポジトリ。
 class _FakeUserRepository implements UserRepository {
+  @override
+  Future<void> deleteAccountAsAdmin(
+    String userId, {
+    required bool immediate,
+    String? note,
+  }) async {}
+
   AppUser? saved;
 
   @override

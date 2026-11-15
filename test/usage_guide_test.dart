@@ -27,6 +27,13 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 class _FakeUserRepository implements UserRepository {
+  @override
+  Future<void> deleteAccountAsAdmin(
+    String userId, {
+    required bool immediate,
+    String? note,
+  }) async {}
+
   final writes = <(String, String, Object?)>[];
   bool failWrite = false;
 

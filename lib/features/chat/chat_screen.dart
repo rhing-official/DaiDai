@@ -83,6 +83,7 @@ import '../../utils/platform_info.dart';
 import '../../utils/screenshot_save_directory.dart';
 import '../../utils/forward_message.dart';
 import '../../utils/share_attachment.dart';
+import '../../widgets/share_progress.dart';
 import 'forward_target_dialog.dart';
 import '../../utils/sound_upload.dart' show kPlayableAudioExtensions;
 import '../../widgets/swipe_gestures.dart' show WheelScrollAbsorber;
@@ -5679,6 +5680,9 @@ class _MessageRow extends ConsumerWidget {
               context,
               onBubbleColor,
               isGekiga,
+              onForward: canForwardMessage(message)
+                  ? () => _forward(context, ref, strings)
+                  : null,
               // 複数添付の音声・その他のファイルは、それぞれ自分の吹き出しで包む。
               wrapFileGroup: isMultiSplit
                   ? (child, isAudio) =>
@@ -6068,7 +6072,12 @@ class _MessageRow extends ConsumerWidget {
           : null,
       // 添付が無い本文だけのメッセージも共有出来る（2026-11-05、本文を共有シートへ）。
       onShare: shareableMessage(message)
-          ? () => shareMessageAttachments(message)
+          ? () => runWithShareProgress(
+              context,
+              label: strings.sharePreparing,
+              task: (onProgress) =>
+                  shareMessageAttachments(message, onProgress: onProgress),
+            )
           : null,
       onForward: canForwardMessage(message)
           ? () => _forward(context, ref, strings)
@@ -7393,9 +7402,12 @@ class _MessageRow extends ConsumerWidget {
         for (final i in files)
           if (_FileAttachmentBlock.isPlayableAudio(message.attachments[i])) i,
       ];
+      // マークダウンのプレビューカードも自前の枠を持つため、PDFと同じく外側に吹き出しを
+      // 付けない（付けると枠が二重になる）。
       bool isPdfCard(int i) =>
-          isPreviewablePdf(message.attachments[i]) &&
-          message.attachments[i].sizeBytes <= kMaxPdfThumbnailBytes;
+          _FileAttachmentBlock.isPreviewableMarkdown(message.attachments[i]) ||
+          (isPreviewablePdf(message.attachments[i]) &&
+              message.attachments[i].sizeBytes <= kMaxPdfThumbnailBytes);
       // プレビュー付きのPDFは、ファイル名の行とプレビューがそれぞれ自分の枠を持つため、
       // 外側に吹き出しを付けない（単独送信と同じ見た目）。
       final pdfs = [
@@ -7493,6 +7505,7 @@ class _MessageRow extends ConsumerWidget {
     BuildContext context,
     Color onBubbleColor,
     bool isGekiga, {
+    VoidCallback? onForward,
     Widget Function(Widget child, bool isAudio)? wrapFileGroup,
     double groupGap = 6,
   }) {
@@ -7590,6 +7603,7 @@ class _MessageRow extends ConsumerWidget {
       isGekiga: isGekiga,
       isGlass: uiStyle == AppUiStyle.glass,
       isMe: isMe,
+      onForward: onForward,
     );
   }
 
@@ -8976,7 +8990,12 @@ class _FileAttachmentBlock extends ConsumerStatefulWidget {
     required this.isGekiga,
     required this.isGlass,
     required this.isMe,
+    this.onForward,
   });
+
+  /// マークダウンのプレビューカードの転送ボタン。nullなら出さない（複数添付の中の1件は
+  /// メッセージ全体の転送になってしまうため渡さない）。
+  final VoidCallback? onForward;
 
   final MessageFileMetadata metadata;
   final String messageId;
@@ -9188,8 +9207,8 @@ class _FileAttachmentBlockState extends ConsumerState<_FileAttachmentBlock>
   @override
   Widget build(BuildContext context) {
     super.build(context);
-    if (_isAudio) return _buildAudioRow();
-    if (!_isMarkdown) return _buildPlainRow();
+    if (_isAudio) return _withActionBar(_buildAudioRow());
+    if (!_isMarkdown) return _plainWithActionBar();
 
     return FutureBuilder<String?>(
       future: _markdownFuture,
@@ -9198,7 +9217,7 @@ class _FileAttachmentBlockState extends ConsumerState<_FileAttachmentBlock>
         if (snapshot.connectionState != ConnectionState.done ||
             content == null) {
           // 取得中・取得失敗時は通常のファイル行にフォールバックする。
-          return _buildPlainRow();
+          return _plainWithActionBar();
         }
         return _buildMarkdownCard(context, content);
       },
@@ -9297,11 +9316,110 @@ class _FileAttachmentBlockState extends ConsumerState<_FileAttachmentBlock>
     );
   }
 
+  /// 音声・実行ファイルなどの行の下に常に出す、転送・共有・ダウンロードのボタン
+  /// （2026-11-15）。UIスタイルごとの小さな角丸の箱で、右に寄せる。
+  /// このファイルだけを共有する（取得の進捗を画面の上に出す）。
+  Future<void> _shareThisFile() => runWithShareProgress(
+    context,
+    label: ref.read(appStringsProvider).sharePreparing,
+    task: (onProgress) => shareFiles([
+      (
+        url: widget.metadata.url,
+        name: widget.metadata.fileName,
+        mimeType: widget.metadata.mimeType,
+      ),
+    ], onProgress: onProgress),
+  );
+
+  Widget _withActionBar(Widget row) {
+    // 幅は行の中身に合わせる（ボタンのために横へ広げない）。ボタンは行の右端に寄せる。
+    return IntrinsicWidth(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [row, const SizedBox(height: 6), _actionBar()],
+      ),
+    );
+  }
+
+  /// プレビュー付きPDFは自前のブロック（ダウンロードボタン付き）なので、バーを付けない。
+  Widget _plainWithActionBar() {
+    final isPdfBlock =
+        _isPdf && widget.metadata.sizeBytes <= kMaxPdfThumbnailBytes;
+    return isPdfBlock ? _buildPlainRow() : _withActionBar(_buildPlainRow());
+  }
+
+  Widget _actionBar() {
+    final fg = widget.onBubbleColor;
+    final scheme = Theme.of(context).colorScheme;
+    final isBlock = isBlockTheme(context);
+    Widget button(IconData icon, VoidCallback onTap) {
+      final inner = InkWell(
+        borderRadius: BorderRadius.circular(8),
+        onTap: onTap,
+        child: SizedBox(
+          width: 36,
+          height: 28,
+          child: Icon(icon, size: 16, color: fg),
+        ),
+      );
+      if (isBlock) {
+        return blockMaterialBox(
+          context,
+          radius: 8,
+          shadowOffset: const Offset(2, 2),
+          color: Theme.of(context).brightness == Brightness.light
+              ? Colors.white
+              : scheme.surface,
+          child: Material(type: MaterialType.transparency, child: inner),
+        );
+      }
+      if (widget.isGekiga) {
+        return DecoratedBox(
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(color: fg.withValues(alpha: 0.7), width: 1.5),
+          ),
+          child: Material(type: MaterialType.transparency, child: inner),
+        );
+      }
+      if (widget.isGlass) {
+        return GlassSurface(
+          variant: GlassVariant.card,
+          borderRadius: BorderRadius.circular(8),
+          child: Material(type: MaterialType.transparency, child: inner),
+        );
+      }
+      return Material(
+        color: fg.withValues(alpha: 0.1),
+        borderRadius: BorderRadius.circular(8),
+        clipBehavior: Clip.antiAlias,
+        child: inner,
+      );
+    }
+
+    final gap = SizedBox(width: isBlock ? 8 : 6);
+    return Padding(
+      padding: EdgeInsets.only(right: isBlock ? 3 : 0, bottom: isBlock ? 2 : 0),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.end,
+        children: [
+          if (widget.onForward != null) ...[
+            button(Icons.forward_outlined, widget.onForward!),
+            gap,
+          ],
+          button(Icons.share_outlined, () => _shareThisFile()),
+          gap,
+          button(Icons.download, _download),
+        ],
+      ),
+    );
+  }
+
   Widget _buildPlainRow() {
     if (_isPdf && widget.metadata.sizeBytes <= kMaxPdfThumbnailBytes) {
       return _buildPdfBlock(context);
     }
-    final showIcon = _hovering || _alwaysShowDownload;
     return MouseRegion(
       onEnter: (_) => setState(() => _hovering = true),
       onExit: (_) => setState(() => _hovering = false),
@@ -9356,8 +9474,6 @@ class _FileAttachmentBlockState extends ConsumerState<_FileAttachmentBlock>
               ),
             ],
           ),
-          if (showIcon)
-            Positioned(top: -6, right: -6, child: _downloadButton(small: true)),
         ],
       ),
     );
@@ -9386,7 +9502,6 @@ class _FileAttachmentBlockState extends ConsumerState<_FileAttachmentBlock>
   /// 静的アイコン＋ファイルサイズの代わりに再生/一時停止ボタン＋シーク
   /// バー＋再生時間を表示する。波形表示は行わず単純な`Slider`のみに留める。
   Widget _buildAudioRow() {
-    final showIcon = _hovering || _alwaysShowDownload;
     final playback = _playback;
     final duration = playback.duration;
     final durationMs = duration?.inMilliseconds.toDouble();
@@ -9472,8 +9587,6 @@ class _FileAttachmentBlockState extends ConsumerState<_FileAttachmentBlock>
               ],
             ),
           ),
-          if (showIcon)
-            Positioned(top: -6, right: -6, child: _downloadButton(small: true)),
         ],
       ),
     );
@@ -9634,6 +9747,24 @@ class _FileAttachmentBlockState extends ConsumerState<_FileAttachmentBlock>
             ),
           ),
           const SizedBox(width: 4),
+          InkWell(
+            onTap: _shareThisFile,
+            child: Padding(
+              padding: const EdgeInsets.all(4),
+              child: Icon(Icons.share_outlined, size: 16, color: subFg),
+            ),
+          ),
+          const SizedBox(width: 4),
+          if (widget.onForward != null) ...[
+            InkWell(
+              onTap: widget.onForward,
+              child: Padding(
+                padding: const EdgeInsets.all(4),
+                child: Icon(Icons.forward_outlined, size: 16, color: subFg),
+              ),
+            ),
+            const SizedBox(width: 4),
+          ],
           _downloadButton(small: false, filled: false, color: subFg),
         ],
       ),

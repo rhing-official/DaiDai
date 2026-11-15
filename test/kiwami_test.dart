@@ -15,6 +15,13 @@ import 'package:flutter_test/flutter_test.dart';
 // 会話に極みの人がいるかの判定。
 
 class _FakeUserRepository implements UserRepository {
+  @override
+  Future<void> deleteAccountAsAdmin(
+    String userId, {
+    required bool immediate,
+    String? note,
+  }) async {}
+
   _FakeUserRepository(this.users);
   final Map<String, AppUser> users;
 

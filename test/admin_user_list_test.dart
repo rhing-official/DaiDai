@@ -19,6 +19,13 @@ import 'package:shared_preferences/shared_preferences.dart';
 /// 管理画面の一覧が呼ぶ2メソッドだけを記録するリポジトリ。それ以外は呼ばれない
 /// 想定（呼ばれたら`noSuchMethod`で失敗する）。
 class _RecordingUserRepository implements UserRepository {
+  @override
+  Future<void> deleteAccountAsAdmin(
+    String userId, {
+    required bool immediate,
+    String? note,
+  }) async {}
+
   final suspendCalls = <({List<String> ids, bool suspend})>[];
   final kiwamiCalls = <({List<String> ids, bool kiwami})>[];
   final profileViewCalls = <({String userId, String reason, String note})>[];

@@ -103,8 +103,9 @@ class _ObsidianNoteColors {
   );
 }
 
-/// 本文の1行の長さ（半角換算の文字数。全角は2字分）。この幅で折り返す（2026-11-06）。
-const _kNoteLineChars = 77;
+/// 本文の幅。標準の6列の表（1列160px）と、その左の操作の余白（28px）がちょうど収まる
+/// 幅（2026-11-15。以前は半角77字の幅、2026-11-06）。
+const _kNoteTextColumnWidth = 6 * 160.0 + 28.0;
 
 /// コンピューターの本文の左右の余白。左は、カーソル行の「+」ボタン
 /// （26px＋8pxの隙間）が入る分を空ける。
@@ -1762,17 +1763,10 @@ class _NotePaneViewState extends ConsumerState<NotePaneView>
             cursorColor: cursorColor,
             selectionColor: selectionColor,
           );
-    // 本文は半角77字の幅で折り返す（Obsidianの「読みやすい行の長さ」のように、本文の範囲を
-    // 決める）。ポップアップの幅も、この範囲＋左右の余白に合わせる（`popupWidth`）。
-    // 半角1字の幅は数字「0」で測る（文字サイズ・フォント・拡大率に追従）。全角は2字分になる。
-    final bodyTextStyle = Theme.of(
-      context,
-    ).textTheme.bodyLarge!.merge(textStyleConfiguration.text);
-    final textColumnWidth = (TextPainter(
-      text: TextSpan(text: '0' * _kNoteLineChars, style: bodyTextStyle),
-      textDirection: TextDirection.ltr,
-      textScaler: MediaQuery.textScalerOf(context),
-    )..layout()).width;
+    // 本文の幅は、標準の6列の表がちょうど収まる幅にする（2026-11-15、以前は半角77字）。
+    // Obsidianのように本文の範囲を絞る。ポップアップの幅も、この範囲＋左右の余白に合わせる
+    // （`popupWidth`）。文字サイズに左右されない固定のpx幅（表の列幅も拡大率に連動しない）。
+    const textColumnWidth = _kNoteTextColumnWidth;
     final sidePadding = isMobile ? 20.0 : _kNoteDesktopSidePadding;
     final popupWidthWanted = textColumnWidth + sidePadding * 2;
     final popupWidth = widget.popupWidth;
@@ -1792,6 +1786,8 @@ class _NotePaneViewState extends ConsumerState<NotePaneView>
       // 閲覧モードでは編集不可（再構築のたびに`editorState.editable`が上書きされる為、
       // ウィジェットの引数で渡す。2026-11-06）。
       editable: !_readOnly,
+      // 末尾の下に余白を空ける（2026-11-15）。最後のブロックが領域の下端にくっつかない。
+      footer: const SizedBox(height: 64),
       editorStyle: editorStyle.copyWith(
         padding: EdgeInsets.fromLTRB(
           sidePadding,
@@ -2167,7 +2163,11 @@ class _TableSizePicker extends StatefulWidget {
 class _TableSizePickerState extends State<_TableSizePicker> {
   int _hoverRow = 0;
   int _hoverColumn = 0;
-  final _controller = TextEditingController();
+  // 列と行を、中央の「×」を挟んだ2つの欄に打ち込む（2026-11-15）。開いた時は左（列）に
+  // カーソルがあり、左でEnterを押すと右（行）へ移る。右でEnterを押すと作る。
+  final _columnsController = TextEditingController();
+  final _rowsController = TextEditingController();
+  final _rowsFocus = FocusNode();
   bool _invalid = false;
 
   /// 入力で作れる大きさの上限（列×行）。マス目より大きい表も、入力なら作れる。
@@ -2176,46 +2176,83 @@ class _TableSizePickerState extends State<_TableSizePicker> {
 
   @override
   void dispose() {
-    _controller.dispose();
+    _columnsController.dispose();
+    _rowsController.dispose();
+    _rowsFocus.dispose();
     super.dispose();
   }
 
-  /// 「3x4」「3×4」「3,4」「3 4」のような入力を、(列, 行)として読む。読めなければnull。
-  (int, int)? _parse(String text) {
-    final m = RegExp(r'^\s*(\d+)\s*[xX×*,，\s]\s*(\d+)\s*$').firstMatch(text);
-    if (m == null) return null;
-    final columns = int.parse(m.group(1)!);
-    final rows = int.parse(m.group(2)!);
-    if (columns < 1 ||
-        rows < 1 ||
-        columns > _maxTypedColumns ||
-        rows > _maxTypedRows) {
-      return null;
-    }
-    return (columns, rows);
+  int? _number(String text, int max) {
+    final n = int.tryParse(text.trim());
+    if (n == null || n < 1 || n > max) return null;
+    return n;
   }
 
-  void _onChanged(String text) {
-    final parsed = _parse(text);
+  void _onChanged(String _) {
+    final columns = _number(_columnsController.text, _maxTypedColumns);
+    final rows = _number(_rowsController.text, _maxTypedRows);
+    final anyText =
+        _columnsController.text.trim().isNotEmpty ||
+        _rowsController.text.trim().isNotEmpty;
     setState(() {
-      _invalid = text.trim().isNotEmpty && parsed == null;
+      _invalid =
+          (_columnsController.text.trim().isNotEmpty && columns == null) ||
+          (_rowsController.text.trim().isNotEmpty && rows == null);
+      if (!anyText) return;
       // マス目の範囲内なら、その大きさまで塗って見せる。
-      if (parsed != null &&
-          parsed.$1 <= _TableSizePicker.maxColumns &&
-          parsed.$2 <= _TableSizePicker.maxRows) {
-        _hoverColumn = parsed.$1 - 1;
-        _hoverRow = parsed.$2 - 1;
+      if (columns != null && columns <= _TableSizePicker.maxColumns) {
+        _hoverColumn = columns - 1;
+      }
+      if (rows != null && rows <= _TableSizePicker.maxRows) {
+        _hoverRow = rows - 1;
       }
     });
   }
 
   void _submit() {
-    final parsed = _parse(_controller.text);
-    if (parsed == null) {
+    final columns = _number(_columnsController.text, _maxTypedColumns);
+    final rows = _number(_rowsController.text, _maxTypedRows);
+    if (columns == null || rows == null) {
       setState(() => _invalid = true);
       return;
     }
-    Navigator.of(context).pop((parsed.$2, parsed.$1));
+    Navigator.of(context).pop((rows, columns));
+  }
+
+  /// 左（列）でEnter: 正しければ右（行）へ移る。
+  void _submitColumns() {
+    if (_number(_columnsController.text, _maxTypedColumns) == null) {
+      setState(() => _invalid = true);
+      return;
+    }
+    _rowsFocus.requestFocus();
+  }
+
+  Widget _numberField({
+    required TextEditingController controller,
+    required String hint,
+    required VoidCallback onSubmitted,
+    FocusNode? focusNode,
+    bool autofocus = false,
+  }) {
+    return SizedBox(
+      width: 64,
+      child: TextField(
+        controller: controller,
+        focusNode: focusNode,
+        autofocus: autofocus,
+        textAlign: TextAlign.center,
+        keyboardType: TextInputType.number,
+        textInputAction: TextInputAction.next,
+        inputFormatters: [
+          FilteringTextInputFormatter.digitsOnly,
+          LengthLimitingTextInputFormatter(2),
+        ],
+        decoration: InputDecoration(isDense: true, hintText: hint),
+        onChanged: _onChanged,
+        onSubmitted: (_) => onSubmitted(),
+      ),
+    );
   }
 
   @override
@@ -2263,26 +2300,42 @@ class _TableSizePickerState extends State<_TableSizePicker> {
           style: TextStyle(color: onSurface),
         ),
         const SizedBox(height: 8),
-        // タイピングでも作れる。「列×行」（例: 3x4）を入れてEnter。
-        SizedBox(
-          width: 160,
-          child: TextField(
-            controller: _controller,
-            textAlign: TextAlign.center,
-            keyboardType: TextInputType.text,
-            inputFormatters: [
-              FilteringTextInputFormatter.allow(RegExp(r'[0-9xX×*,，\s]')),
-              LengthLimitingTextInputFormatter(10),
-            ],
-            decoration: InputDecoration(
-              isDense: true,
-              hintText: '3 × 4',
-              errorText: _invalid ? '$_maxTypedColumns × $_maxTypedRows' : null,
+        // タイピングでも作れる。左に列、右に行を打つ（左でEnter→右、右でEnter→作成）。
+        Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            _numberField(
+              controller: _columnsController,
+              autofocus: true,
+              hint: '3',
+              onSubmitted: _submitColumns,
             ),
-            onChanged: _onChanged,
-            onSubmitted: (_) => _submit(),
-          ),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 10),
+              child: Text(
+                '×',
+                style: TextStyle(color: onSurface, fontSize: 18),
+              ),
+            ),
+            _numberField(
+              controller: _rowsController,
+              focusNode: _rowsFocus,
+              hint: '4',
+              onSubmitted: _submit,
+            ),
+          ],
         ),
+        if (_invalid)
+          Padding(
+            padding: const EdgeInsets.only(top: 4),
+            child: Text(
+              '$_maxTypedColumns × $_maxTypedRows',
+              style: TextStyle(
+                color: Theme.of(context).colorScheme.error,
+                fontSize: 12,
+              ),
+            ),
+          ),
       ],
     );
   }

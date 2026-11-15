@@ -214,12 +214,17 @@ final goRouterProvider = Provider<GoRouter>((ref) {
     Widget child, {
     Widget Function(Animation<double>, Widget) transition =
         buildSlideInFromRightTransition,
+    bool Function()? consumeBack,
   }) => opaqueFalsePage(
     state,
     InteractiveSwipeBackTransition(
       onBack: () {
         if (router.canPop()) router.pop();
       },
+      // 全画面のメッセージ画面は、`onExit`が上の層（寄合の切り替えの履歴・カレンダー等）を
+      // 先に閉じてpopを止める。止められた後に画面が右へ消えたまま固まらないよう、指を
+      // 離した時に先に層を閉じて、画面を元の位置へ戻す（2026-11-15）。
+      consumeBack: consumeBack,
       child: child,
     ),
     transition: transition,
@@ -345,14 +350,20 @@ final goRouterProvider = Provider<GoRouter>((ref) {
             return slideDetailPage(
               state,
               pane,
+              consumeBack: backStack.closeTopLayer,
               transition: (animation, child) => _holdWhileOpening(child),
             );
           }
           return args.enterFromRight
-              ? slideDetailPage(state, pane)
+              ? slideDetailPage(
+                  state,
+                  pane,
+                  consumeBack: backStack.closeTopLayer,
+                )
               : slideDetailPage(
                   state,
                   pane,
+                  consumeBack: backStack.closeTopLayer,
                   transition: buildPopSlideTransition,
                 );
         },
@@ -382,14 +393,20 @@ final goRouterProvider = Provider<GoRouter>((ref) {
             return slideDetailPage(
               state,
               pane,
+              consumeBack: backStack.closeTopLayer,
               transition: (animation, child) => _holdWhileOpening(child),
             );
           }
           return args.enterFromRight
-              ? slideDetailPage(state, pane)
+              ? slideDetailPage(
+                  state,
+                  pane,
+                  consumeBack: backStack.closeTopLayer,
+                )
               : slideDetailPage(
                   state,
                   pane,
+                  consumeBack: backStack.closeTopLayer,
                   transition: buildPopSlideTransition,
                 );
         },

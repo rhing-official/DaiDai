@@ -139,7 +139,7 @@ final Strings _stringsFr = Strings._(
   settingsRoomListSwipeTitle: 'Balayage de la liste des salons',
   settingsRoomListSwipeNote:
       'Action du balayage latéral sur la liste des salons de « Icônes + liste des salons », sur téléphone en mode portrait. Enregistré sur cet appareil uniquement.',
-  settingsRoomListSwipeOpenTitle: 'Ouvrir les messages β',
+  settingsRoomListSwipeOpenTitle: 'Ouvrir les messages',
   settingsRoomListSwipeOpenDescription:
       'Balayez vers la gauche pour ouvrir les messages du salon sélectionné. Balayez d’abord vers la droite pour passer à l’onglet voisin.',
   settingsRoomListSwipeTabTitle: 'Changer d’onglet du menu',
@@ -184,6 +184,12 @@ final Strings _stringsFr = Strings._(
   kiwamiOnlyProfileLimitBody:
       'Avec Premium, vous pouvez créer jusqu’à 10 cartes de profil, enregistrer 7 liens de réseaux sociaux et en afficher 5 par carte.',
   workshopMoreWithKiwami: 'Créer plus de cartes avec Premium (jusqu’à 10)',
+  workshopMoveEarlier: 'Déplacer avant',
+  calendarGoogleNotSynced:
+      'Votre réponse est enregistrée. Elle n’a pas encore été ajoutée à Google Agenda',
+  calendarGoogleSyncNow: 'Ajouter maintenant',
+  sharePreparing: 'Préparation du partage',
+  workshopMoveLater: 'Déplacer après',
   kiwamiPurchase: 'Obtenir Premium',
   kiwamiSectionTitle: 'Premium',
   kiwamiManage: "Gérer l'abonnement (résilier, changer de carte)",
@@ -254,7 +260,11 @@ final Strings _stringsFr = Strings._(
   qrLoginExpiredMessage: 'Ce code QR a expiré',
   qrLoginRefreshButton: 'Actualiser',
   qrLoginSignInError: 'Échec de la connexion',
-  passkeyCreateAccountButton: 'Créer un compte avec Rhing Seed',
+  passkeyCreateAccountButton: 'Commencer avec une clé d’accès',
+  passkeyCreateAccountNote:
+      'Votre compte Google ou Apple n’est pas utilisé. La clé d’accès est enregistrée sur cet appareil ou dans votre gestionnaire de mots de passe. Si vous refusez la proposition d’enregistrement, une clé de sécurité peut vous être demandée.',
+  passkeyCreateFailed:
+      'Impossible de créer la clé d’accès. Veuillez réessayer.',
   passkeySignInButton: 'Se connecter avec Rhing Seed',
   passkeySignInDialogDescription:
       'Saisissez votre Rhing Seed enregistré. Laissez le champ vide et touchez « Se connecter » pour choisir parmi vos clés d’accès enregistrées.',

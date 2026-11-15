@@ -245,6 +245,7 @@ Future<void> forwardBytes({
   required ForwardTarget target,
   required String senderId,
   required String senderRhingSeed,
+  String? caption,
 }) async {
   if (target.kind == ForwardTargetKind.dm) {
     await ref
@@ -257,6 +258,7 @@ Future<void> forwardBytes({
           bytes: bytes,
           fileName: fileName,
           contentType: contentType,
+          caption: caption,
         );
   } else {
     await ref
@@ -269,6 +271,7 @@ Future<void> forwardBytes({
           bytes: bytes,
           fileName: fileName,
           contentType: contentType,
+          caption: caption,
         );
   }
 }

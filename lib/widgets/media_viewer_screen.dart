@@ -20,6 +20,7 @@ import 'swipe_gestures.dart' show PinchPriorityPageView, ZoomReporter;
 import 'video_thumbnail.dart';
 import '../l10n/strings.dart';
 import 'blurred_viewer_route.dart';
+import 'share_progress.dart';
 import 'confirm_download_dialog.dart';
 import 'viewer_nav_arrows.dart';
 
@@ -256,9 +257,13 @@ class _MediaViewerScreenState extends ConsumerState<MediaViewerScreen> {
   Future<void> _shareCurrent() async {
     final item = widget.items[_currentIndex];
     if (item.bytes != null) return;
-    return shareFiles([
-      (url: item.url, name: mediaDownloadFileName(item), mimeType: null),
-    ]);
+    return runWithShareProgress(
+      context,
+      label: ref.read(appStringsProvider).sharePreparing,
+      task: (onProgress) => shareFiles([
+        (url: item.url, name: mediaDownloadFileName(item), mimeType: null),
+      ], onProgress: onProgress),
+    );
   }
 
   @override

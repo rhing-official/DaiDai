@@ -157,21 +157,15 @@ class _CalendarEventDetailDialogState
     try {
       final note = _noteController.text.trim();
       final uid = widget.currentUser.userId;
-      // 連携済みの住人は、ボタン操作の最初（ユーザー操作の有効期間内）に
-      // Googleのアクセストークンを取得しておく（Webではユーザー操作なしに
-      // 取れない為。2026-10-04追加）。
       final user =
           ref.read(watchedUserProvider(uid)).asData?.value ??
           widget.currentUser;
       final calendarId = user.googleCalendarId;
-      String? token;
-      if (user.googleCalendarSyncEnabled == true && calendarId != null) {
-        try {
-          token = await GoogleCalendarAuthService().requestConsent();
-        } catch (e) {
-          debugPrint('[calendarRsvpSync] token failed: $e');
-        }
-      }
+      final linked =
+          user.googleCalendarSyncEnabled == true && calendarId != null;
+      // 出欠の保存は、Googleの連携に左右されない（先に保存する、2026-11-15）。
+      // 以前は連携済みの人の保存のたびにGoogleの同意・ログイン画面を出していた。
+      final dayStatuses = Map.of(_myDayStatuses);
       await ref
           .read(calendarEventRepositoryProvider)
           .setRsvp(
@@ -179,31 +173,38 @@ class _CalendarEventDetailDialogState
             conversationId: widget.conversationId,
             roomId: widget.roomId,
             eventId: widget.event.eventId,
-            userId: widget.currentUser.userId,
+            userId: uid,
             dayStatuses: _myDayStatuses,
             note: note.isEmpty ? null : note,
           );
-      // 出欠の保存後、自分のGoogleカレンダーへ同期する（参加/遅刻なら追加・
-      // 更新、そうでなくなったら削除）。同期の失敗は出欠の保存自体を巻き戻さず、
-      // エラー表示のみ行う。
-      if (token != null && calendarId != null) {
-        try {
-          await CalendarRsvpSync(
-            repository: ref.read(calendarEventRepositoryProvider),
-            syncService: GoogleCalendarSyncService(),
-          ).syncOnRsvp(
-            isDm: widget.isDm,
-            conversationId: widget.conversationId,
-            roomId: widget.roomId,
-            event: widget.event,
-            uid: uid,
-            calendarId: calendarId,
-            accessToken: token,
-            dayStatuses: _myDayStatuses,
-          );
-        } catch (e) {
-          if (mounted) showAutoDismissBanner(context, message: '$e');
-        }
+      if (!linked) return;
+      // 連携済みの人だけ、画面を出さずにトークンを取れた時に自動で同期する。取れない時
+      // （Webのリロード後・失効後など）は同期せず、バナーの「反映する」を押した時にだけ
+      // 同意画面を出す。
+      String? token;
+      try {
+        token = await GoogleCalendarAuthService().getAccessTokenSilently();
+      } catch (e) {
+        debugPrint('[calendarRsvpSync] silent token failed: $e');
+      }
+      if (token != null) {
+        await _syncToGoogle(token, calendarId, dayStatuses);
+      } else if (mounted) {
+        final strings = ref.read(appStringsProvider);
+        showAutoDismissBanner(
+          context,
+          message: strings.calendarGoogleNotSynced,
+          duration: const Duration(seconds: 8),
+          actions: [
+            TextButton(
+              onPressed: () {
+                dismissAutoDismissBanner();
+                _syncWithConsent(calendarId, dayStatuses);
+              },
+              child: Text(strings.calendarGoogleSyncNow),
+            ),
+          ],
+        );
       }
     } catch (e) {
       // 例外を握りつぶすと保存が失敗しても何も起きたように見えず、ユーザーが
@@ -214,6 +215,46 @@ class _CalendarEventDetailDialogState
       }
     } finally {
       if (mounted) setState(() => _saving = false);
+    }
+  }
+
+  /// 自分のGoogleカレンダーへ同期する（参加/遅刻なら追加・更新、そうでなくなったら削除）。
+  /// 同期の失敗は出欠の保存自体を巻き戻さず、エラー表示のみ行う。
+  Future<void> _syncToGoogle(
+    String token,
+    String calendarId,
+    Map<String, CalendarRsvpStatus> dayStatuses,
+  ) async {
+    try {
+      await CalendarRsvpSync(
+        repository: ref.read(calendarEventRepositoryProvider),
+        syncService: GoogleCalendarSyncService(),
+      ).syncOnRsvp(
+        isDm: widget.isDm,
+        conversationId: widget.conversationId,
+        roomId: widget.roomId,
+        event: widget.event,
+        uid: widget.currentUser.userId,
+        calendarId: calendarId,
+        accessToken: token,
+        dayStatuses: dayStatuses,
+      );
+    } catch (e) {
+      if (mounted) showAutoDismissBanner(context, message: '$e');
+    }
+  }
+
+  /// バナーの「反映する」（ユーザー操作）から、同意画面を出して同期する。
+  Future<void> _syncWithConsent(
+    String calendarId,
+    Map<String, CalendarRsvpStatus> dayStatuses,
+  ) async {
+    try {
+      final token = await GoogleCalendarAuthService().requestConsent();
+      if (token == null) return;
+      await _syncToGoogle(token, calendarId, dayStatuses);
+    } catch (e) {
+      if (mounted) showAutoDismissBanner(context, message: '$e');
     }
   }
 

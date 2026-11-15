@@ -1366,90 +1366,295 @@ class _WorkshopView extends StatelessWidget {
         // はみ出して右端の枠が途切れて見えていた。3等分した幅が最小幅を
         // 下回る場合は1枠ずつ縦に並べ、カード自体を画面幅いっぱいまで
         // 大きく表示する（結果的にズーム編集画面に近い大きさになる）。
-        LayoutBuilder(
-          builder: (context, constraints) {
-            const gap = 24.0;
-            const minCardWidth = 160.0;
-            const maxCardWidth = 640.0;
-            // 通常は常に[kMaxProfileCards]枠だが、過去の不具合等で配列が
-            // それを超えて残っている場合に超過分を画面から隠してしまうと、
-            // ユーザーが気付いて削除する手段が無くなってしまう。表示枠数
-            // 自体は実際のカード数に合わせて広げ、全てのカードを必ず
-            // 表示・削除出来るようにする（新規作成用の白紙枠は
-            // [kMaxProfileCards]までしか出さない）。
-            final slotCount = max(
-              user.maxProfileCards,
-              user.profileCards.length,
-            );
-            final rawWidth =
-                (constraints.maxWidth - gap * (slotCount - 1)) / slotCount;
-            final isVertical = rawWidth < minCardWidth;
-            final cardWidth = isVertical
-                ? constraints.maxWidth.clamp(minCardWidth, maxCardWidth)
-                : rawWidth.clamp(minCardWidth, maxCardWidth);
-            final cardHeight = cardWidth * 1.25;
+        _WorkshopCardLayout(
+          user: user,
+          strings: strings,
+          onReorder: onReorder,
+          // 並べ替え中は、会話用のカードの欄を隠す（2026-11-15）。
+          belowBuilder: (reordering) => Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              if (!isKiwami(user)) ...[
+                const SizedBox(height: 12),
+                Align(
+                  alignment: Alignment.centerLeft,
+                  child: TextButton(
+                    onPressed: () => showKiwamiOnlyDialog(
+                      context,
+                      strings,
+                      body: strings.kiwamiOnlyProfileLimitBody,
+                    ),
+                    child: Text(strings.workshopMoreWithKiwami),
+                  ),
+                ),
+              ],
+              if (!reordering) ...[
+                const Divider(height: 32),
+                _WorkshopConversationCardSection(user: user, strings: strings),
+              ],
+            ],
+          ),
+          slotBuilder: (context, i, width, height, reorderIndex, dragWrapper) {
             final cards = user.profileCards;
-            // カードが2枚以上ある時だけ、ドラッグハンドルで並べ替えられる
-            // （2026-10-11追加）。白紙の枠はドラッグ不可で、並べ替え後も
-            // カードは常に先頭から詰める（白紙枠は末尾固定）。
-            final canReorder = cards.length > 1;
-
-            Widget slotAt(int i) {
-              if (i < cards.length) {
-                // 極みが切れて無料の上限を超えたカードは、保存したまま使えない
-                // （極みに戻れば復活する、2026-11-14）。
-                final locked = i >= user.maxProfileCards;
-                final slot = _WorkshopCardSlot(
-                  index: i,
-                  card: cards[i],
-                  user: user,
-                  strings: strings,
-                  vocab: vocab,
-                  width: cardWidth,
-                  height: cardHeight,
-                  isActive: user.activeProfileCardId == cards[i].id,
-                  onTap: (origin) => locked
-                      ? showKiwamiOnlyDialog(
-                          context,
-                          strings,
-                          body: strings.kiwamiOnlyProfileLimitBody,
-                        )
-                      : onTapSlot(i, cards[i], origin),
-                  openingIndex: openingIndex,
-                  onSetActive: () => onSetActive(cards[i].id),
-                  reorderIndex: canReorder ? i : null,
-                );
-                return locked ? Opacity(opacity: 0.45, child: slot) : slot;
-              }
-              return _WorkshopBlankSlot(
+            if (i < cards.length) {
+              // 極みが切れて無料の上限を超えたカードは、保存したまま使えない
+              // （極みに戻れば復活する、2026-11-14）。
+              final locked = i >= user.maxProfileCards;
+              final slot = _WorkshopCardSlot(
                 index: i,
-                width: cardWidth,
-                height: cardHeight,
-                onTap: (origin) => onTapSlot(i, null, origin),
+                card: cards[i],
+                user: user,
+                strings: strings,
+                vocab: vocab,
+                width: width,
+                height: height,
+                isActive: user.activeProfileCardId == cards[i].id,
+                onTap: (origin) => locked
+                    ? showKiwamiOnlyDialog(
+                        context,
+                        strings,
+                        body: strings.kiwamiOnlyProfileLimitBody,
+                      )
+                    : onTapSlot(i, cards[i], origin),
                 openingIndex: openingIndex,
+                onSetActive: () => onSetActive(cards[i].id),
+                reorderIndex: reorderIndex,
+                dragWrapper: dragWrapper,
               );
+              return locked ? Opacity(opacity: 0.45, child: slot) : slot;
             }
+            return _WorkshopBlankSlot(
+              index: i,
+              width: width,
+              height: height,
+              onTap: (origin) => onTapSlot(i, null, origin),
+              openingIndex: openingIndex,
+            );
+          },
+        ),
+      ],
+    );
+  }
+}
 
-            // 縦（モバイル）・横（PC）どちらも同じ`ReorderableListView`で並べる。
-            // ハンドル（`ReorderableDragStartListener`）でだけドラッグが始まる
-            // （カード本体のタップ＝ズーム編集とは衝突しない）。
-            final list = ReorderableListView(
-              scrollDirection: isVertical ? Axis.vertical : Axis.horizontal,
+/// 仕立てのカード一覧の並べ方（2026-11-15）。カードが多い（最大10枚）と、縦一列では
+/// スクロールが長く、横一列では1枚が小さくなるため、画面に応じて切り替える。
+/// - 狭い画面（[_carouselMaxWidth]未満、縦画面のスマホ）: 横に1枚ずつ切り替える
+///   カルーセル。末尾は白紙の1枚（追加）だけ。
+/// - 広い画面で1枚200px以上のまま1行に収まる: 従来どおりの横一列（ドラッグで並べ替え）。
+/// - 広い画面で収まらない: 2行以上に折り返して並べる。
+/// 並べ替えは、カルーセル・折り返しでは「並べ替え」ボタンで小さいカードの縦リストに
+/// 切り替えて行う（`ReorderableListView`は1方向のリスト専用のため）。
+class _WorkshopCardLayout extends StatefulWidget {
+  const _WorkshopCardLayout({
+    required this.user,
+    required this.strings,
+    required this.onReorder,
+    required this.slotBuilder,
+    required this.belowBuilder,
+  });
+
+  final AppUser user;
+  final Strings strings;
+  final void Function(List<String> orderedIds) onReorder;
+
+  /// カード一覧の下に出す内容。並べ替え中かどうかを渡す。
+  final Widget Function(bool reordering) belowBuilder;
+  final Widget Function(
+    BuildContext context,
+    int index,
+    double width,
+    double height,
+    int? reorderIndex,
+    Widget Function(Widget handle)? dragWrapper,
+  )
+  slotBuilder;
+
+  @override
+  State<_WorkshopCardLayout> createState() => _WorkshopCardLayoutState();
+}
+
+class _WorkshopCardLayoutState extends State<_WorkshopCardLayout> {
+  static const _gap = 24.0;
+  static const _minCardWidth = 160.0;
+  static const _preferredMinWidth = 200.0;
+  static const _maxCardWidth = 640.0;
+  static const _carouselMaxWidth = 600.0;
+
+  // カルーセルは循環する（2026-11-15）。大きな基準のページから始め、実際の項目は
+  // 基準からの差を枚数で割った余りで決める（最後の次は最初、最初の前は最後）。
+  static const _carouselBase = 100000;
+  final _page = PageController(
+    viewportFraction: 0.82,
+    initialPage: _carouselBase,
+  );
+  int _pageIndex = _carouselBase;
+
+  @override
+  void dispose() {
+    _page.dispose();
+    super.dispose();
+  }
+
+  void _reorder(int oldIndex, int newIndex) {
+    final cards = widget.user.profileCards;
+    // 白紙枠はドラッグ元にも落とし先にもならない。
+    if (oldIndex >= cards.length) return;
+    final target = newIndex.clamp(0, cards.length - 1);
+    if (target == oldIndex) return;
+    final ids = [for (final c in cards) c.id];
+    ids.insert(target, ids.removeAt(oldIndex));
+    widget.onReorder(ids);
+  }
+
+  /// カルーセルの枚数（カード＋白紙の1枚）。
+  int get _carouselCount {
+    final user = widget.user;
+    final cards = user.profileCards;
+    final slotCount = max(user.maxProfileCards, cards.length);
+    return cards.length < slotCount ? cards.length + 1 : cards.length;
+  }
+
+  /// いま表示中のカードを、[delta]（-1=前へ、1=次へ）だけ動かす。カルーセルは動いたカードを
+  /// 追いかける（2026-11-15）。
+  void _moveCurrent(int delta) {
+    final cards = widget.user.profileCards;
+    final count = cards.length;
+    final total = _carouselCount;
+    final from = ((_pageIndex - _carouselBase) % total + total) % total;
+    final to = from + delta;
+    if (from >= count || to < 0 || to >= count) return;
+    final ids = [for (final c in cards) c.id];
+    ids.insert(to, ids.removeAt(from));
+    widget.onReorder(ids);
+    _page.animateToPage(
+      _pageIndex + delta,
+      duration: const Duration(milliseconds: 250),
+      curve: Curves.easeOut,
+    );
+  }
+
+  Widget _carousel(BuildContext context, double maxWidth) {
+    final user = widget.user;
+    final cards = user.profileCards;
+    // カード＋白紙の1枚（追加用）。
+    final count = _carouselCount;
+    final cardWidth = (maxWidth * 0.82 - 16).clamp(
+      _minCardWidth,
+      _maxCardWidth,
+    );
+    final cardHeight = cardWidth * 1.25;
+    int itemOf(int page) => ((page - _carouselBase) % count + count) % count;
+    final index = itemOf(_pageIndex);
+    return Column(
+      children: [
+        SizedBox(
+          height: cardHeight + 6 + 34,
+          child: count <= 1
+              // 1枚だけの時は切り替え・循環しない。
+              ? Align(
+                  alignment: Alignment.topCenter,
+                  child: widget.slotBuilder(
+                    context,
+                    0,
+                    cardWidth,
+                    cardHeight,
+                    null,
+                    null,
+                  ),
+                )
+              : PageView.builder(
+                  controller: _page,
+                  itemCount: _carouselBase * 2,
+                  onPageChanged: (i) => setState(() => _pageIndex = i),
+                  itemBuilder: (context, i) => Align(
+                    alignment: Alignment.topCenter,
+                    child: widget.slotBuilder(
+                      context,
+                      itemOf(i),
+                      cardWidth,
+                      cardHeight,
+                      null,
+                      null,
+                    ),
+                  ),
+                ),
+        ),
+        const SizedBox(height: 8),
+        // 位置表示（ページ送りの矢印は付けない。スワイプで切り替える）。
+        Text(
+          '${index + 1} / $count',
+          style: TextStyle(
+            fontSize: 12,
+            color: Theme.of(context).colorScheme.onSurfaceVariant,
+          ),
+        ),
+        // 並べ替えは、文字付きのボタンで1つずつ動かす（矢印だけだとページ送りと見分けが
+        // つかないため、2026-11-15）。白紙の枠は動かせない。
+        if (cards.length > 1)
+          Padding(
+            padding: const EdgeInsets.only(top: 4),
+            child: Wrap(
+              alignment: WrapAlignment.center,
+              spacing: 8,
+              children: [
+                TextButton.icon(
+                  onPressed: index > 0 && index < cards.length
+                      ? () => _moveCurrent(-1)
+                      : null,
+                  icon: const Icon(Icons.west, size: 16),
+                  label: Text(widget.strings.workshopMoveEarlier),
+                ),
+                TextButton.icon(
+                  onPressed: index < cards.length - 1
+                      ? () => _moveCurrent(1)
+                      : null,
+                  icon: const Icon(Icons.east, size: 16),
+                  label: Text(widget.strings.workshopMoveLater),
+                ),
+              ],
+            ),
+          ),
+      ],
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [_buildArea(context), widget.belowBuilder(false)],
+    );
+  }
+
+  Widget _buildArea(BuildContext context) {
+    final user = widget.user;
+    final cards = user.profileCards;
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final maxWidth = constraints.maxWidth;
+        // 通常は常に[kMaxProfileCards]枠だが、過去の不具合等で配列がそれを超えて残って
+        // いる場合も、全てのカードを必ず表示・削除出来るよう枠数を広げる。
+        final slotCount = max(user.maxProfileCards, cards.length);
+        if (maxWidth < _carouselMaxWidth) return _carousel(context, maxWidth);
+
+        final oneRowWidth = (maxWidth - _gap * (slotCount - 1)) / slotCount;
+        if (oneRowWidth >= _preferredMinWidth) {
+          // 従来どおりの横一列（ドラッグで並べ替え）。
+          final cardWidth = oneRowWidth.clamp(_minCardWidth, _maxCardWidth);
+          final cardHeight = cardWidth * 1.25;
+          final canReorder = cards.length > 1;
+          return SizedBox(
+            height: cardHeight + 6 + 34,
+            child: ReorderableListView(
+              scrollDirection: Axis.horizontal,
               shrinkWrap: true,
               physics: const NeverScrollableScrollPhysics(),
               buildDefaultDragHandles: false,
               padding: EdgeInsets.zero,
               proxyDecorator: (child, index, animation) =>
                   _cardDragProxy(context, child, animation),
-              onReorderItem: (oldIndex, newIndex) {
-                // 白紙枠はドラッグ元にも落とし先にもならない。
-                if (oldIndex >= cards.length) return;
-                final target = newIndex.clamp(0, cards.length - 1);
-                if (target == oldIndex) return;
-                final ids = [for (final c in cards) c.id];
-                ids.insert(target, ids.removeAt(oldIndex));
-                onReorder(ids);
-              },
+              onReorderItem: _reorder,
               children: [
                 for (var i = 0; i < slotCount; i++)
                   Padding(
@@ -1458,36 +1663,95 @@ class _WorkshopView extends StatelessWidget {
                     ),
                     padding: i == slotCount - 1
                         ? EdgeInsets.zero
-                        : (isVertical
-                              ? const EdgeInsets.only(bottom: gap)
-                              : const EdgeInsets.only(right: gap)),
-                    child: slotAt(i),
+                        : const EdgeInsets.only(right: _gap),
+                    child: widget.slotBuilder(
+                      context,
+                      i,
+                      cardWidth,
+                      cardHeight,
+                      canReorder && i < cards.length ? i : null,
+                      null,
+                    ),
                   ),
               ],
-            );
-            if (isVertical) return list;
-            // 横並びは高さが必要。作成済みの枠はカード本体の下にカード名
-            // （最大22pt）を出す分だけ高い。枠内はFittedBoxで収まる。
-            return SizedBox(height: cardHeight + 6 + 34, child: list);
-          },
-        ),
-        if (!isKiwami(user)) ...[
-          const SizedBox(height: 12),
-          Align(
-            alignment: Alignment.centerLeft,
-            child: TextButton(
-              onPressed: () => showKiwamiOnlyDialog(
-                context,
-                strings,
-                body: strings.kiwamiOnlyProfileLimitBody,
-              ),
-              child: Text(strings.workshopMoreWithKiwami),
             ),
-          ),
-        ],
-        const Divider(height: 32),
-        _WorkshopConversationCardSection(user: user, strings: strings),
-      ],
+          );
+        }
+
+        // 収まらない時は折り返す。行数を先に決め、各行の枚数を揃える（10枚→5枚×2行）。
+        final maxCols = max(
+          1,
+          ((maxWidth + _gap) / (_preferredMinWidth + _gap)).floor(),
+        );
+        final rows = (slotCount / maxCols).ceil();
+        final cols = (slotCount / rows).ceil();
+        final cardWidth = ((maxWidth - _gap * (cols - 1)) / cols).clamp(
+          _minCardWidth,
+          _maxCardWidth,
+        );
+        final cardHeight = cardWidth * 1.25;
+        final canReorder = cards.length > 1;
+        // 並べ替え用のボタンは無く、各カードの左上のハンドルをつかんで、入れ替えたいカードの上へ
+        // ドラッグする（2026-11-15）。
+        Widget cell(int i) {
+          final isCard = i < cards.length;
+          Widget child(Widget Function(Widget handle)? wrapper) => widget
+              .slotBuilder(context, i, cardWidth, cardHeight, null, wrapper);
+          final slot = SizedBox(
+            width: cardWidth,
+            height: cardHeight + 6 + 34,
+            child: child(
+              canReorder && isCard
+                  ? (handle) => Draggable<int>(
+                      data: i,
+                      feedback: Material(
+                        type: MaterialType.transparency,
+                        child: HeroMode(
+                          enabled: false,
+                          child: Opacity(
+                            opacity: 0.85,
+                            child: SizedBox(
+                              width: cardWidth,
+                              height: cardHeight + 6 + 34,
+                              child: child(null),
+                            ),
+                          ),
+                        ),
+                      ),
+                      child: MouseRegion(
+                        cursor: SystemMouseCursors.grab,
+                        child: handle,
+                      ),
+                    )
+                  : null,
+            ),
+          );
+          if (!isCard) return slot;
+          return DragTarget<int>(
+            onWillAcceptWithDetails: (details) => details.data != i,
+            onAcceptWithDetails: (details) => _reorder(details.data, i),
+            builder: (context, candidates, _) => DecoratedBox(
+              position: DecorationPosition.foreground,
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(16),
+                border: candidates.isNotEmpty
+                    ? Border.all(
+                        color: Theme.of(context).colorScheme.primary,
+                        width: 2,
+                      )
+                    : null,
+              ),
+              child: slot,
+            ),
+          );
+        }
+
+        return Wrap(
+          spacing: _gap,
+          runSpacing: _gap,
+          children: [for (var i = 0; i < slotCount; i++) cell(i)],
+        );
+      },
     );
   }
 }
@@ -2067,10 +2331,15 @@ class _WorkshopCardSlot extends StatelessWidget {
     required this.onSetActive,
     required this.openingIndex,
     this.reorderIndex,
+    this.dragWrapper,
   });
 
   /// 並べ替えのドラッグハンドルを出す時の、リスト内の位置（nullなら出さない）。
   final int? reorderIndex;
+
+  /// 一覧が`ReorderableListView`でない時（折り返しの一覧）、ハンドルを包んでドラッグできる
+  /// ようにする（非nullならハンドルを出す）。
+  final Widget Function(Widget handle)? dragWrapper;
 
   final int index;
   final ProfileCard card;
@@ -2178,17 +2447,22 @@ class _WorkshopCardSlot extends StatelessWidget {
                             fontFamily: fontFamily,
                           ),
                         ),
-                        if (reorderIndex != null)
+                        if (reorderIndex != null || dragWrapper != null)
                           Positioned(
                             top: padding * 0.4,
                             left: padding * 0.4,
-                            child: ReorderableDragStartListener(
-                              index: reorderIndex!,
-                              child: Tooltip(
+                            child: () {
+                              final handle = Tooltip(
                                 message: strings.workshopReorderTooltip,
                                 child: const _DragHandleBadge(),
-                              ),
-                            ),
+                              );
+                              return dragWrapper != null
+                                  ? dragWrapper!(handle)
+                                  : ReorderableDragStartListener(
+                                      index: reorderIndex!,
+                                      child: handle,
+                                    );
+                            }(),
                           ),
                         Positioned(
                           top: padding * 0.4,

@@ -46,6 +46,13 @@ class _FakeGroups implements GroupRepository {
 
 class _FakeUsers implements UserRepository {
   @override
+  Future<void> deleteAccountAsAdmin(
+    String userId, {
+    required bool immediate,
+    String? note,
+  }) async {}
+
+  @override
   Stream<AppUser?> watchUser(String userId) => Stream.value(null);
 
   @override

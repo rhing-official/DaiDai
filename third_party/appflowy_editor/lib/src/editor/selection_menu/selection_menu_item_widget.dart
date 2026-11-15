@@ -113,7 +113,10 @@ class _SelectionMenuItemWidgetState extends State<SelectionMenuItemWidget> {
             overlayColor: WidgetStateProperty.all(
               style.selectionMenuItemSelectedColor,
             ),
-            backgroundColor: widget.isSelected
+            // ホバー中も背景を即塗る（文字色はホバーで反転するのに、背景がインクの
+            // フェード任せだと、反転した文字が背景と同色になって一瞬見えなくなる。劇画の
+            // 黒地で顕著）。
+            backgroundColor: isSelected
                 ? WidgetStateProperty.all(
                     style.selectionMenuItemSelectedColor,
                   )

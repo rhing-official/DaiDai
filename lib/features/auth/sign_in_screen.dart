@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../l10n/strings.dart';
 import '../../providers/repository_providers.dart';
 import '../../repositories/auth_repository.dart';
+import '../../services/app_functions.dart';
 import '../../utils/apple_sign_in.dart';
 import '../../utils/fullwidth_digits_formatter.dart';
 import '../../utils/totp_clipboard_autofill.dart';
@@ -97,9 +98,17 @@ class _SignInScreenState extends ConsumerState<SignInScreen>
       setState(() {
         _resolver = e.resolver;
       });
+    } on PasskeyRegistrationCancelled {
+      // パスキーの作成を中断した（提案・セキュリティキーを断った）。エラーは出さず、
+      // ログイン画面に残る（2026-11-15）。
     } catch (e) {
+      final strings = ref.read(appStringsProvider);
       setState(() {
-        _errorMessage = ref.read(appStringsProvider).signInFailedTemplate(e);
+        // 例外の中身（`Instance of ...`）をそのまま出さない。メッセージを持つ例外だけ渡す。
+        _errorMessage =
+            (e is FirebaseAuthException || e is AppFunctionsException)
+            ? strings.signInFailedTemplate(e)
+            : strings.passkeyCreateFailed;
       });
     } finally {
       if (mounted) {
@@ -438,6 +447,14 @@ class _SignInScreenState extends ConsumerState<SignInScreen>
               ? null
               : () => _signIn((repo) => repo.registerWithPasskey()),
           child: Text(strings.passkeyCreateAccountButton),
+        ),
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 8),
+          child: Text(
+            strings.passkeyCreateAccountNote,
+            textAlign: TextAlign.center,
+            style: Theme.of(context).textTheme.bodySmall,
+          ),
         ),
       ],
     ];
