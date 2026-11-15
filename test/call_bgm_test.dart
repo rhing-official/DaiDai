@@ -1,8 +1,13 @@
+import 'package:daidai/features/call/bgm/bgm_storage.dart';
+import 'package:daidai/features/call/bgm/call_bgm.dart';
 import 'package:daidai/features/call/bgm/call_bgm_sheet.dart';
 import 'package:daidai/l10n/app_locale.dart';
 import 'package:daidai/l10n/strings.dart';
 import 'package:daidai/models/group_call.dart';
+import 'package:daidai/providers/app_locale_provider.dart';
 import 'package:daidai/models/group_role.dart';
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
@@ -41,5 +46,53 @@ void main() {
     expect(bgmMimeTypeFor('noext'), 'audio/mpeg');
     expect(bgmDisplayName('my.song.mp3'), 'my.song');
     expect(bgmDisplayName('noext'), 'noext');
+  });
+
+  testWidgets('Navigatorの無い通話画面（Overlayだけ）でも、BGMのパネルが開く', (tester) async {
+    final bgm = CallBgm(
+      storage: createBgmStorage(),
+      micTrack: () => null,
+      replaceOutgoingAudio: (_) async {},
+      onPlayingChanged: (_) {},
+    );
+    final binding = CallBgmBinding(
+      bgm: bgm,
+      controller: ChangeNotifier(),
+      otherPlayingTitle: () => null,
+    );
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          initialAppLocaleProvider.overrideWithValue(AppLocale.japanese),
+        ],
+        child: MaterialApp(
+          home: const SizedBox.shrink(),
+          // `MaterialApp.builder`の位置（Navigatorの外）に、専用のOverlayで置く。
+          builder: (context, child) => Stack(
+            children: [
+              Positioned.fill(child: child!),
+              Positioned.fill(
+                child: Overlay(
+                  initialEntries: [
+                    OverlayEntry(
+                      builder: (context) => Center(
+                        child: TextButton(
+                          onPressed: () => showCallBgmSheet(context, binding),
+                          child: const Text('open'),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+    await tester.tap(find.text('open'));
+    await tester.pumpAndSettle();
+    expect(tester.takeException(), isNull);
+    expect(find.byType(Slider), findsOneWidget);
   });
 }

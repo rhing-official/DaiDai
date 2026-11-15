@@ -2,8 +2,10 @@ import '../../../utils/auto_dismiss_banner.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:pointer_interceptor/pointer_interceptor.dart';
 
 import '../../../l10n/strings.dart';
+import '../../../router/back_stack.dart';
 import 'bgm_track.dart';
 import 'call_bgm.dart';
 
@@ -48,6 +50,51 @@ String bgmDisplayName(String fileName) {
 
 Future<void> showCallBgmSheet(BuildContext context, CallBgmBinding binding) {
   binding.bgm.loadTracks();
+  // PC・Webの通話画面（`CallOverlay`）は`MaterialApp.builder`の位置にあり、Navigatorが
+  // 無い為、`showModalBottomSheet`は例外になり何も起きない（2026-11-15）。専用の
+  // `Overlay`へ直接出す。
+  if (Navigator.maybeOf(context) == null) {
+    final overlay = Overlay.maybeOf(context);
+    if (overlay == null) return Future.value();
+    late final OverlayEntry entry;
+    void close() {
+      if (entry.mounted) entry.remove();
+    }
+
+    entry = OverlayEntry(
+      builder: (context) => PointerInterceptor(
+        child: BackEntry(
+          scope: null,
+          active: true,
+          layer: true,
+          onBack: close,
+          child: Stack(
+            fit: StackFit.expand,
+            children: [
+              GestureDetector(
+                behavior: HitTestBehavior.opaque,
+                onTap: close,
+                child: ColoredBox(color: Colors.black.withValues(alpha: 0.4)),
+              ),
+              Align(
+                alignment: Alignment.bottomCenter,
+                child: Material(
+                  color: Theme.of(context).colorScheme.surface,
+                  borderRadius: const BorderRadius.vertical(
+                    top: Radius.circular(24),
+                  ),
+                  clipBehavior: Clip.antiAlias,
+                  child: _CallBgmSheet(binding: binding),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+    overlay.insert(entry);
+    return Future.value();
+  }
   return showModalBottomSheet<void>(
     context: context,
     isScrollControlled: true,
