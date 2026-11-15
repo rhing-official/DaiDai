@@ -95,6 +95,10 @@ abstract class GroupCallRepository {
     bool? bgmPaused,
     String? bgmCover,
     bool clearBgm = false,
+
+    /// 画面共有中の画質の表示。[clearScreen]がtrueなら消す（共有していない状態）。
+    String? screenLabel,
+    bool clearScreen = false,
   });
 
   /// 2人ぶんのペアリンクを作成する（offer/answerのやり取りを始める前に、
@@ -373,6 +377,8 @@ class FirestoreGroupCallRepository implements GroupCallRepository {
     bool? bgmPaused,
     String? bgmCover,
     bool clearBgm = false,
+    String? screenLabel,
+    bool clearScreen = false,
   }) async {
     final data = <String, dynamic>{};
     if (micMuted != null) data['micMuted'] = micMuted;
@@ -387,6 +393,8 @@ class FirestoreGroupCallRepository implements GroupCallRepository {
       data['bgmPaused'] = FieldValue.delete();
       data['bgmCover'] = FieldValue.delete();
     }
+    if (screenLabel != null) data['screenLabel'] = screenLabel;
+    if (clearScreen) data['screenLabel'] = FieldValue.delete();
     if (data.isEmpty) return;
     await _participantsOf(groupCallId).doc(userId).update(data);
   }

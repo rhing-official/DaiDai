@@ -612,6 +612,19 @@ class Strings {
     required this.callBgmDisc,
     required this.callBgmTabAlbums,
     required this.callBgmTabArtists,
+    required this.callScreenShare,
+    required this.callScreenShareStop,
+    required this.callScreenShareChange,
+    required this.callScreenShareQuality,
+    required this.callScreenShareFps,
+    required this.callScreenShareResolution,
+    required this.callScreenShareAudio,
+    required this.callScreenShareLive,
+    required this.callScreenShareKiwami,
+    required this.callScreenShareKiwamiOnly,
+    required this.callScreenShareNoAudio,
+    required this.callScreenShareHint,
+    required this.callScreenShareYourScreen,
     required this.settingsMicDenoiseTitle,
     required this.settingsMicDenoiseDescription,
     required this.callIncomingVoice,
@@ -1952,6 +1965,19 @@ class Strings {
   final String Function(int number) callBgmDisc;
   final String callBgmTabAlbums;
   final String callBgmTabArtists;
+  final String callScreenShare;
+  final String callScreenShareStop;
+  final String callScreenShareChange;
+  final String callScreenShareQuality;
+  final String callScreenShareFps;
+  final String callScreenShareResolution;
+  final String callScreenShareAudio;
+  final String callScreenShareLive;
+  final String callScreenShareKiwami;
+  final String callScreenShareKiwamiOnly;
+  final String callScreenShareNoAudio;
+  final String callScreenShareHint;
+  final String callScreenShareYourScreen;
   final String settingsMicDenoiseTitle;
   final String settingsMicDenoiseDescription;
   final String callIncomingVoice;
@@ -3420,6 +3446,19 @@ class Strings {
     callBgmDisc: (number) => 'Disc $number',
     callBgmTabAlbums: 'アルバム',
     callBgmTabArtists: 'アーティスト',
+    callScreenShare: '画面を共有',
+    callScreenShareStop: '配信を中止',
+    callScreenShareChange: '配信を変更',
+    callScreenShareQuality: '配信画質',
+    callScreenShareFps: 'フレームレート',
+    callScreenShareResolution: '解像度',
+    callScreenShareAudio: '配信音声を共有',
+    callScreenShareLive: 'ライブ',
+    callScreenShareKiwami: '極み',
+    callScreenShareKiwamiOnly: '高画質（1080p以上・60FPS）は、極みプランで使えます。',
+    callScreenShareNoAudio: '音声を取得できなかったため、映像だけを共有します。',
+    callScreenShareHint: '人数が多い時は、画質を下げると安定します。',
+    callScreenShareYourScreen: 'あなたの画面',
     settingsMicDenoiseTitle: '通話のノイズ除去（高性能）',
     settingsMicDenoiseDescription:
         'マイクの雑音（キーボード・扇風機・テレビなど）を、AIで減らします。音声は端末の外へ出しません。次の通話から反映されます。ブラウザ版のみ。',
@@ -4787,6 +4826,21 @@ class Strings {
     callBgmDisc: (number) => 'Disc $number',
     callBgmTabAlbums: 'Albums',
     callBgmTabArtists: 'Artists',
+    callScreenShare: 'Share your screen',
+    callScreenShareStop: 'Stop sharing',
+    callScreenShareChange: 'Change what you share',
+    callScreenShareQuality: 'Stream quality',
+    callScreenShareFps: 'Frame rate',
+    callScreenShareResolution: 'Resolution',
+    callScreenShareAudio: 'Share audio',
+    callScreenShareLive: 'LIVE',
+    callScreenShareKiwami: 'Kiwami',
+    callScreenShareKiwamiOnly:
+        'High quality (1080p or higher, 60 FPS) is available with the Kiwami plan.',
+    callScreenShareNoAudio:
+        'Couldn’t capture audio, so only the video is shared.',
+    callScreenShareHint: 'With many people, a lower quality is more stable.',
+    callScreenShareYourScreen: 'Your screen',
     settingsMicDenoiseTitle: 'Call noise suppression (advanced)',
     settingsMicDenoiseDescription:
         'Reduces background noise from your microphone (keyboards, fans, TV) using AI. Your audio never leaves your device. Takes effect from your next call. Browser version only.',

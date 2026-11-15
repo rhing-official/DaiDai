@@ -17,6 +17,7 @@ import 'audio_route.dart';
 import 'bgm/bgm_storage.dart';
 import 'bgm/bgm_now_playing.dart';
 import 'mic_denoiser.dart';
+import 'screen_share.dart';
 import 'bgm/call_bgm.dart';
 import 'webrtc_media_constraints.dart';
 
@@ -135,6 +136,38 @@ class WebrtcCallController extends ChangeNotifier {
     replaceOutgoingAudio: _replaceOutgoingAudio,
     onPlayingChanged: _sendBgmState,
   )..addListener(notifyListeners);
+
+  // 画面共有（配信、2026-11-15）。広場の通話（`webrtc_group_call_controller.dart`）と同じ作り。
+  // 取得した画面は[_screenDisplay]、相手へ送る入れ物は[_screenContainer]（止めて始め直しても同じ）。
+  MediaStream? _screenDisplay;
+  MediaStream? _screenContainer;
+  ScreenShareQuality _screenQuality = ScreenShareQuality.standard;
+  ScreenShareQuality get screenQuality => _screenQuality;
+  bool _screenAudio = false;
+  bool get isScreenSharing => _screenDisplay != null;
+
+  /// 「音声も共有」を求めたのに、音が取れなかった（ブラウザ・共有する対象による）。
+  bool screenAudioMissing = false;
+  RTCRtpSender? _screenVideoSender;
+  RTCRtpSender? _screenAudioSender;
+
+  /// 自分の配信のプレビュー用（音は出さない）。
+  final RTCVideoRenderer localScreenRenderer = RTCVideoRenderer();
+  bool _localScreenRendererInitialized = false;
+
+  /// 相手の配信（画面）。カメラとは別のストリームで届く。
+  final RTCVideoRenderer remoteScreenRenderer = RTCVideoRenderer();
+  bool _remoteScreenRendererInitialized = false;
+  bool _remoteScreenAttached = false;
+
+  /// 相手が配信中の時の画質の表示（`720P 30FPS`）。配信していなければnull。
+  String? _remoteScreenLabel;
+  String? get remoteScreenLabel => _remoteScreenLabel;
+  bool get remoteScreenShown =>
+      _remoteScreenLabel != null && _remoteScreenAttached;
+
+  /// 最初に届いたストリーム＝カメラ・マイク。これと違うストリームが相手の画面。
+  String? _cameraStreamId;
 
   /// 相手がBGMを流している時の表示用の情報（流していなければnull）。
   BgmNowPlaying? _remoteBgm;
@@ -378,6 +411,14 @@ class WebrtcCallController extends ChangeNotifier {
           '1:1 onTrack kind=${event.track.kind} '
           'streams=${event.streams.length} muted=${event.track.muted}',
         );
+        final streamId = event.streams.firstOrNull?.id;
+        if (streamId != null) {
+          final cameraId = _cameraStreamId ??= streamId;
+          if (streamId != cameraId) {
+            unawaited(_attachRemoteScreen(event.streams.first));
+            return;
+          }
+        }
         if (event.track.kind == 'video') {
           final track = event.track;
           _setRemoteVideoReady(track.muted != true);
@@ -880,6 +921,16 @@ class WebrtcCallController extends ChangeNotifier {
         if (_remoteBgm == null && bgm.playing) unawaited(bgm.stop());
         _remoteBgm = state;
         notifyListeners();
+      } else if (text.startsWith(_screenOnPrefix)) {
+        _remoteScreenLabel = text.substring(_screenOnPrefix.length);
+        notifyListeners();
+      } else if (text == _screenOffMessage) {
+        _remoteScreenLabel = null;
+        if (_remoteScreenRendererInitialized) {
+          remoteScreenRenderer.srcObject = null;
+          _remoteScreenAttached = false;
+        }
+        notifyListeners();
       } else if (text == _bgmOffMessage) {
         _remoteBgm = null;
         notifyListeners();
@@ -892,6 +943,7 @@ class WebrtcCallController extends ChangeNotifier {
         if (_muted) _sendMuteState();
         final playing = bgm.nowPlaying;
         if (playing != null) _sendBgmState(playing);
+        if (_screenDisplay != null) _sendScreenState(_screenQuality.label);
       }
     };
   }
@@ -1001,6 +1053,191 @@ class WebrtcCallController extends ChangeNotifier {
       _switchingCallType = false;
       notifyListeners();
     }
+  }
+
+  // ---- 画面共有（配信、2026-11-15） ----
+
+  static const _screenOnPrefix = 'screen:on:';
+  static const _screenOffMessage = 'screen:off';
+
+  /// 相手へ、配信の画質の表示（配信をやめたらnull）を知らせる。
+  void _sendScreenState(String? label) {
+    final channel = _controlChannel;
+    if (channel == null ||
+        channel.state != RTCDataChannelState.RTCDataChannelOpen) {
+      return;
+    }
+    try {
+      channel.send(
+        RTCDataChannelMessage(
+          label == null ? _screenOffMessage : '$_screenOnPrefix$label',
+        ),
+      );
+    } catch (_) {
+      // 送れなくても通話は続ける（相手の表示が古いままになるだけ）。
+    }
+  }
+
+  Future<void> _attachRemoteScreen(MediaStream stream) async {
+    if (!_remoteScreenRendererInitialized) {
+      await remoteScreenRenderer.initialize();
+      _remoteScreenRendererInitialized = true;
+    }
+    remoteScreenRenderer.srcObject = stream;
+    _remoteScreenAttached = true;
+    callLog('1:1 screen stream attached');
+    notifyListeners();
+  }
+
+  /// 画面のトラックを相手へ送る。初めてなら追加（`true`＝再ネゴシエーションが要る）、既に枠が
+  /// あれば差し替えだけ（`false`）。
+  Future<bool> _attachScreenTracks() async {
+    final pc = _peerConnection;
+    final display = _screenDisplay;
+    final container = _screenContainer;
+    if (pc == null || display == null || container == null) return false;
+    var renegotiate = false;
+    final video = display.getVideoTracks().firstOrNull;
+    if (video != null) {
+      final sender = _screenVideoSender;
+      if (sender == null) {
+        final added = await pc.addTrack(video, container);
+        _screenVideoSender = added;
+        await ScreenShareCapture.applySenderLimits(added, _screenQuality);
+        renegotiate = true;
+      } else {
+        await sender.replaceTrack(video);
+        await ScreenShareCapture.applySenderLimits(sender, _screenQuality);
+      }
+    }
+    final audio = display.getAudioTracks().firstOrNull;
+    if (audio != null) {
+      final sender = _screenAudioSender;
+      if (sender == null) {
+        _screenAudioSender = await pc.addTrack(audio, container);
+        renegotiate = true;
+      } else {
+        await sender.replaceTrack(audio);
+      }
+    }
+    return renegotiate;
+  }
+
+  Future<void> _sendRenegotiationOffer() async {
+    final pc = _peerConnection;
+    if (pc == null) return;
+    final offer = await pc.createOffer();
+    await pc.setLocalDescription(offer);
+    callLog('1:1 screen offer sent sdp=${offer.sdp?.length}');
+    _pendingLocalOfferSdp = offer.sdp;
+    await _callRepository.setOffer(call.callId, {
+      'sdp': offer.sdp,
+      'type': offer.type,
+    });
+  }
+
+  /// 画面の共有を始める。配信元の選択はブラウザが出す。やめた（キャンセル）時は`false`。
+  Future<bool> startScreenShare({
+    required ScreenShareQuality quality,
+    required bool shareAudio,
+  }) async {
+    if (_screenDisplay != null) return true;
+    if (_state != CallConnectionState.active) return false;
+    final display = await ScreenShareCapture.start(
+      quality,
+      shareAudio: shareAudio,
+    );
+    if (display == null) return false;
+    _screenDisplay = display;
+    _screenQuality = quality;
+    _screenAudio = shareAudio;
+    _screenContainer ??= await createLocalMediaStream('screen');
+    display.getVideoTracks().firstOrNull?.onEnded = () => stopScreenShare();
+    screenAudioMissing = shareAudio && display.getAudioTracks().isEmpty;
+    if (screenAudioMissing) {
+      callLog('1:1 screen audio was not available');
+    }
+    if (!_localScreenRendererInitialized) {
+      await localScreenRenderer.initialize();
+      _localScreenRendererInitialized = true;
+    }
+    localScreenRenderer.srcObject = display;
+    notifyListeners();
+    try {
+      final renegotiate = await _attachScreenTracks();
+      _sendScreenState(quality.label);
+      if (renegotiate) await _sendRenegotiationOffer();
+    } catch (e) {
+      callLog('1:1 screen share failed: $e');
+    }
+    return true;
+  }
+
+  /// 画面の共有をやめる（送信の枠は残し、中身だけ外す）。
+  Future<void> stopScreenShare() async {
+    final display = _screenDisplay;
+    if (display == null) return;
+    _screenDisplay = null;
+    for (final sender in [_screenVideoSender, _screenAudioSender]) {
+      try {
+        await sender?.replaceTrack(null);
+      } catch (_) {}
+    }
+    for (final track in display.getTracks()) {
+      try {
+        await track.stop();
+      } catch (_) {}
+    }
+    localScreenRenderer.srcObject = null;
+    _sendScreenState(null);
+    callLog('1:1 screen share stopped');
+    notifyListeners();
+  }
+
+  /// 配信元を選び直す（送信は止めず、トラックを差し替える）。
+  Future<void> changeScreenSource() async {
+    final old = _screenDisplay;
+    if (old == null) return;
+    final next = await ScreenShareCapture.start(
+      _screenQuality,
+      shareAudio: _screenAudio,
+    );
+    if (next == null) return;
+    _screenDisplay = next;
+    next.getVideoTracks().firstOrNull?.onEnded = () => stopScreenShare();
+    localScreenRenderer.srcObject = next;
+    try {
+      final renegotiate = await _attachScreenTracks();
+      if (renegotiate) await _sendRenegotiationOffer();
+    } catch (e) {
+      callLog('1:1 change screen failed: $e');
+    }
+    for (final track in old.getTracks()) {
+      try {
+        await track.stop();
+      } catch (_) {}
+    }
+    notifyListeners();
+  }
+
+  /// 配信の画質を変える（配信中なら、取得の制約と送信の上限にも反映する）。
+  Future<void> setScreenQuality(ScreenShareQuality quality) async {
+    _screenQuality = quality;
+    final track = _screenDisplay?.getVideoTracks().firstOrNull;
+    if (track != null) {
+      try {
+        await track.applyConstraints(
+          ScreenShareCapture.constraints(quality, shareAudio: false)['video']
+              as Map<String, dynamic>,
+        );
+      } catch (_) {}
+      final sender = _screenVideoSender;
+      if (sender != null) {
+        await ScreenShareCapture.applySenderLimits(sender, quality);
+      }
+      _sendScreenState(quality.label);
+    }
+    notifyListeners();
   }
 
   /// 映像のオンに失敗した時、途中まで進んだ状態（取得済みのカメラ等）を片付けて映像オフへ
@@ -1188,6 +1425,11 @@ class WebrtcCallController extends ChangeNotifier {
     }
     _localStream?.dispose();
     unawaited(_micDenoiser?.dispose());
+    for (final track in _screenDisplay?.getTracks() ?? <MediaStreamTrack>[]) {
+      track.stop();
+    }
+    localScreenRenderer.dispose();
+    remoteScreenRenderer.dispose();
     _peerConnection?.close();
     localRenderer.dispose();
     remoteRenderer.dispose();

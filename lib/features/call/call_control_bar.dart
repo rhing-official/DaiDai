@@ -9,6 +9,7 @@ import 'bgm/call_bgm.dart';
 import 'bgm/bgm_player_widgets.dart';
 import 'bgm/call_bgm_sheet.dart';
 import 'call_controls.dart';
+import 'screen_share_menu.dart';
 
 /// 通話中のコントロールボタン列（マイク・スピーカー・音声⇔ビデオ切替・
 /// カメラ前後切替・通話終了）。1対1（`CallScreen`）・広場（`GroupCallScreen`）
@@ -35,6 +36,7 @@ class CallControlBar extends ConsumerWidget {
     required this.onSwitchCamera,
     required this.onHangUp,
     this.bgmBinding,
+    this.screenShare,
     this.remoteBgm,
     this.videoFailed = false,
     super.key,
@@ -77,6 +79,9 @@ class CallControlBar extends ConsumerWidget {
   /// ボタンの枠も出さない）。権限が無くても枠は残し、他のボタンの位置を動かさない。
   final CallBgmBinding? bgmBinding;
 
+  /// 画面共有の操作（対応しない環境はnull。ボタンを出さない）。
+  final CallScreenShareBinding? screenShare;
+
   /// 相手が流している曲（細いプレーヤーで表示のみ。Web以外の端末にも出す）。
   final BgmNowPlaying? remoteBgm;
 
@@ -93,7 +98,9 @@ class CallControlBar extends ConsumerWidget {
     // 常に固定する。加えて、Row自体を幅固定のコンテナで包む（PC埋め込み
     // ペイン・全画面モバイルなど置かれる場所によってコンテナの幅が違っても
     // 常に同じ大きさで描画されるようにする為、2026-08-19追加）。
-    final maxWidth = CallBgm.isSupported ? 420.0 : 360.0;
+    // 画面共有のボタン（ボタン＋「^」）が付く分、幅を足す（2026-11-15）。
+    final maxWidth =
+        (CallBgm.isSupported ? 420.0 : 360.0) + (screenShare != null ? 100 : 0);
     final bar = Center(
       child: ConstrainedBox(
         constraints: BoxConstraints(maxWidth: maxWidth),
@@ -147,6 +154,13 @@ class CallControlBar extends ConsumerWidget {
                         : null,
                   ),
                 ),
+                if (screenShare != null)
+                  ScreenShareControl(
+                    binding: screenShare!,
+                    enabled: enabled,
+                    isGekiga: isGekiga,
+                    isGlass: isGlass,
+                  ),
                 if (CallBgm.isSupported)
                   _maybeHidden(
                     visible: bgmBinding != null,

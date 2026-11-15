@@ -16,6 +16,7 @@ import 'call_audio_sinks.dart';
 import 'call_avatar.dart';
 import '../../providers/call_bgm_provider.dart';
 import 'bgm/call_bgm_bindings.dart';
+import 'screen_share_menu.dart';
 import 'call_control_bar.dart';
 import 'call_video_viewer.dart';
 import 'call_tile_layout.dart';
@@ -216,15 +217,15 @@ class _CallOverlayViewState extends State<CallOverlayView> {
   }
 }
 
-class _OneToOneStage extends StatefulWidget {
+class _OneToOneStage extends ConsumerStatefulWidget {
   const _OneToOneStage({required this.session});
   final OneToOneCallSession session;
 
   @override
-  State<_OneToOneStage> createState() => _OneToOneStageState();
+  ConsumerState<_OneToOneStage> createState() => _OneToOneStageState();
 }
 
-class _OneToOneStageState extends State<_OneToOneStage> {
+class _OneToOneStageState extends ConsumerState<_OneToOneStage> {
   /// 大きく表示している（メインの）映像が相手か自分か（2026-10-13追加）。
   /// 右下の小さい映像（コーナー）をクリックすると入れ替わり、入れ替えた後に
   /// メインをクリックすれば元に戻る（`call_screen.dart`の`_mainViewIsRemote`と
@@ -291,10 +292,95 @@ class _OneToOneStageState extends State<_OneToOneStage> {
     );
   }
 
+  /// 画面共有（配信）を主役にした表示（2026-11-15）。相手が配信中ならその画面、自分だけが
+  /// 配信中なら自分の画面のプレビューを大きく、相手のカメラ（無ければアイコン）を右下の小窓に出す。
+  Widget _screenStage() {
+    final session = widget.session;
+    final controller = session.controller;
+    final strings = ref.watch(appStringsProvider);
+    final remoteScreen = controller.remoteScreenShown;
+    final renderer = remoteScreen
+        ? controller.remoteScreenRenderer
+        : controller.localScreenRenderer;
+    final me = session.currentUserId;
+    final call = session.call;
+    final sharerId = remoteScreen ? call.otherUserId(me) : me;
+    final sharerSeed = remoteScreen
+        ? call.otherRhingSeed(me)
+        : call.myRhingSeed(me);
+    final audioSink = controller.remoteVideoShown
+        ? const SizedBox.shrink()
+        : CallAudioSinks(renderers: [controller.remoteRenderer]);
+    return Stack(
+      fit: StackFit.expand,
+      children: [
+        Positioned(left: 0, top: 0, child: audioSink),
+        Positioned.fill(
+          child: ScreenShareFrame(
+            video: RTCVideoView(
+              key: ValueKey((renderer, _viewerGeneration)),
+              renderer,
+              objectFit: RTCVideoViewObjectFit.RTCVideoViewObjectFitContain,
+            ),
+            name: CallParticipantNameLabel(
+              userId: sharerId,
+              rhingSeed: sharerSeed,
+              conversationId: call.dmId,
+              style: const TextStyle(color: Colors.white, fontSize: 13),
+            ),
+            qualityLabel: remoteScreen
+                ? (controller.remoteScreenLabel ?? '')
+                : controller.screenQuality.label,
+            liveText: strings.callScreenShareLive,
+          ),
+        ),
+        // 画面のクリックで拡大表示（Webでは映像がクリックを奪うので`PointerInterceptor`）。
+        Positioned.fill(
+          child: PointerInterceptor(
+            child: GestureDetector(
+              behavior: HitTestBehavior.opaque,
+              onTap: () => showCallVideoViewer(
+                context,
+                renderer: renderer,
+                mirror: false,
+                onClosed: () {
+                  if (mounted) setState(() => _viewerGeneration++);
+                },
+              ),
+              child: const SizedBox.expand(),
+            ),
+          ),
+        ),
+        Positioned(
+          right: 12,
+          bottom: 12,
+          child: IgnorePointer(
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(8),
+              child: SizedBox(
+                width: 140,
+                height: 100,
+                child: controller.remoteVideoShown
+                    ? _video(remote: true, main: false)
+                    : ColoredBox(
+                        color: Colors.grey.shade800,
+                        child: Center(child: _avatar(remote: true, radius: 28)),
+                      ),
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final session = widget.session;
     final controller = session.controller;
+    if (controller.remoteScreenShown || controller.isScreenSharing) {
+      return _screenStage();
+    }
     // 相手の映像を画面に出していない間は、相手の音声を鳴らす`RTCVideoView`が
     // 無くなり音が出ない（Web）。見えない動画要素で補う（2026-10-31追加）。
     final audioSink = controller.remoteVideoShown
@@ -464,9 +550,16 @@ class _GroupStageState extends ConsumerState<_GroupStage> {
     final selfId = controller.currentUser.userId;
     final remotes = controller.remoteParticipants;
     // 拡大中の参加者が退出したら、グリッドへ戻る。
+    // 画面共有のタイルは`<userId>#screen`をキーにする（拡大・解除は参加者のタイルと同じ）。
+    final screenKeys = <String>{
+      if (controller.isScreenSharing) '$selfId#screen',
+      for (final p in remotes)
+        if (controller.remoteScreenShown(p)) '${p.userId}#screen',
+    };
     final focusedId =
         _focusedUserId != null &&
             (_focusedUserId == selfId ||
+                screenKeys.contains(_focusedUserId) ||
                 remotes.any((p) => p.userId == _focusedUserId))
         ? _focusedUserId
         : null;
@@ -508,7 +601,76 @@ class _GroupStageState extends ConsumerState<_GroupStage> {
       );
     }
 
+    final strings = ref.watch(appStringsProvider);
+    Widget screenTileFor({
+      required String key,
+      required String userId,
+      required String rhingSeed,
+      required RTCVideoRenderer renderer,
+      required String label,
+      required bool focused,
+    }) {
+      return Stack(
+        fit: StackFit.expand,
+        children: [
+          ScreenShareFrame(
+            video: RTCVideoView(
+              key: ObjectKey(renderer),
+              renderer,
+              objectFit: RTCVideoViewObjectFit.RTCVideoViewObjectFitContain,
+            ),
+            name: CallParticipantNameLabel(
+              userId: userId,
+              rhingSeed: rhingSeed,
+              conversationId: session.groupId,
+              style: const TextStyle(
+                color: Colors.white,
+                shadows: [Shadow(blurRadius: 6)],
+              ),
+            ),
+            qualityLabel: label,
+            liveText: strings.callScreenShareLive,
+          ),
+          Positioned.fill(
+            child: PointerInterceptor(
+              child: GestureDetector(
+                behavior: HitTestBehavior.opaque,
+                onTap: () =>
+                    setState(() => _focusedUserId = focused ? null : key),
+                child: const SizedBox.expand(),
+              ),
+            ),
+          ),
+        ],
+      );
+    }
+
     final entries = <({String userId, Widget Function(bool focused) build})>[
+      if (controller.isScreenSharing)
+        (
+          userId: '$selfId#screen',
+          build: (focused) => screenTileFor(
+            key: '$selfId#screen',
+            userId: selfId,
+            rhingSeed: controller.currentUser.rhingSeed,
+            renderer: controller.localScreenRenderer,
+            label: controller.screenQuality.label,
+            focused: focused,
+          ),
+        ),
+      for (final p in remotes)
+        if (controller.remoteScreenShown(p))
+          (
+            userId: '${p.userId}#screen',
+            build: (focused) => screenTileFor(
+              key: '${p.userId}#screen',
+              userId: p.userId,
+              rhingSeed: p.rhingSeed,
+              renderer: controller.screenRenderers[p.userId]!,
+              label: p.screenLabel ?? '',
+              focused: focused,
+            ),
+          ),
       (
         userId: selfId,
         build: (focused) => tileFor(
@@ -556,7 +718,6 @@ class _GroupStageState extends ConsumerState<_GroupStage> {
     final Widget stage;
     if (focusedId != null) {
       final focusedEntry = entries.firstWhere((e) => e.userId == focusedId);
-      final strings = ref.watch(appStringsProvider);
       stage = Focus(
         // Escで、通話エリアの拡大だけを解除する（親の「メッセージに戻る」より先に
         // 受ける）。
@@ -693,28 +854,31 @@ class _EmbeddedControls extends ConsumerWidget {
         ref.watch(cameraAvailabilityProvider).value ??
         CameraAvailability.unknown;
     return switch (session) {
-      OneToOneCallSession(:final controller) => CallControlBar(
-        isGekiga: isGekiga,
-        isGlass: isGlass,
-        enabled: controller.state == CallConnectionState.active,
-        muted: controller.muted,
-        onToggleMute: controller.toggleMute,
-        speakerOn: controller.speakerOn,
-        onToggleSpeaker: controller.toggleSpeaker,
-        showSpeakerToggle: controller.showSpeakerToggle,
-        switchingCallType: controller.switchingCallType,
-        onToggleVideoType: cameraAvailability == CameraAvailability.unavailable
-            ? null
-            : () => controller.setVideoEnabled(!controller.isVideo),
-        isVideo: controller.isVideo,
-        hasMultipleCameras: controller.hasMultipleCameras,
-        switchingCamera: controller.switchingCamera,
-        onSwitchCamera: controller.switchCamera,
-        onHangUp: controller.hangUp,
-        bgmBinding: oneToOneBgmBinding(controller),
-        remoteBgm: controller.remoteBgm,
-        videoFailed: controller.videoFailed,
-      ),
+      OneToOneCallSession(:final controller, :final currentUserId) =>
+        CallControlBar(
+          isGekiga: isGekiga,
+          isGlass: isGlass,
+          enabled: controller.state == CallConnectionState.active,
+          muted: controller.muted,
+          onToggleMute: controller.toggleMute,
+          speakerOn: controller.speakerOn,
+          onToggleSpeaker: controller.toggleSpeaker,
+          showSpeakerToggle: controller.showSpeakerToggle,
+          switchingCallType: controller.switchingCallType,
+          onToggleVideoType:
+              cameraAvailability == CameraAvailability.unavailable
+              ? null
+              : () => controller.setVideoEnabled(!controller.isVideo),
+          isVideo: controller.isVideo,
+          hasMultipleCameras: controller.hasMultipleCameras,
+          switchingCamera: controller.switchingCamera,
+          onSwitchCamera: controller.switchCamera,
+          onHangUp: controller.hangUp,
+          bgmBinding: oneToOneBgmBinding(controller),
+          screenShare: oneToOneScreenShare(controller, currentUserId),
+          remoteBgm: controller.remoteBgm,
+          videoFailed: controller.videoFailed,
+        ),
       GroupCallSession(:final controller, :final groupId) => CallControlBar(
         isGekiga: isGekiga,
         isGlass: isGlass,
@@ -735,6 +899,7 @@ class _EmbeddedControls extends ConsumerWidget {
         onHangUp: () => controller.leave(),
         videoFailed: controller.videoFailed,
         remoteBgm: controller.remoteBgm,
+        screenShare: groupScreenShare(controller),
         bgmBinding: groupBgmBinding(
           controller,
           allowed: ref.watch(

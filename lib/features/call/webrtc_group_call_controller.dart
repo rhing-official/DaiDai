@@ -14,6 +14,8 @@ import 'call_sound_player.dart';
 import 'acquire_with_video_fallback.dart';
 import 'peer_answer_match.dart';
 import 'peer_connect_guard.dart';
+import 'peer_watchdog.dart';
+import 'screen_share.dart';
 import 'rtc_config.dart';
 import '../../utils/page_exit/page_exit.dart';
 import 'audio_route.dart';
@@ -92,6 +94,35 @@ class WebrtcGroupCallController extends ChangeNotifier {
   /// 元にグリッドを組む。
   final Map<String, RTCVideoRenderer> remoteRenderers = {};
 
+  // 画面共有（配信、2026-11-15）。取得した画面は[_screenDisplay]、相手へ送る時の入れ物（ストリーム）は
+  // [_screenContainer]で、共有を止めて始め直しても同じ（相手のストリームが変わらず、送信側は
+  // `replaceTrack`で差し替えるだけで済む）。
+  MediaStream? _screenDisplay;
+  MediaStream? _screenContainer;
+  ScreenShareQuality _screenQuality = ScreenShareQuality.standard;
+  ScreenShareQuality get screenQuality => _screenQuality;
+  bool _screenAudio = false;
+  bool get isScreenSharing => _screenDisplay != null;
+
+  /// 「音声も共有」を求めたのに、音が取れなかった（ブラウザ・共有する対象による）。
+  bool screenAudioMissing = false;
+
+  /// 自分の配信のプレビュー用（音は出さない）。
+  final RTCVideoRenderer localScreenRenderer = RTCVideoRenderer();
+  bool _localScreenRendererInitialized = false;
+
+  /// 他の参加者の配信（画面）の映像・音声。カメラとは別のストリームで届く。
+  final Map<String, RTCVideoRenderer> screenRenderers = {};
+
+  /// 相手の最初に届いたストリーム＝カメラ・マイク。これと違うストリームが画面。
+  final Map<String, String> _cameraStreamIds = {};
+  final Map<String, RTCRtpSender> _screenVideoSenders = {};
+  final Map<String, RTCRtpSender> _screenAudioSenders = {};
+
+  /// [p]の配信を画面に出してよいか（配信中と申告し、映像も届いている）。
+  bool remoteScreenShown(CallParticipant p) =>
+      p.screenLabel != null && screenRenderers.containsKey(p.userId);
+
   final Map<String, RTCPeerConnection> _peerConnections = {};
   final Map<String, StreamSubscription> _peerLinkSubs = {};
   final Map<String, StreamSubscription> _peerCandidateSubs = {};
@@ -122,6 +153,18 @@ class WebrtcGroupCallController extends ChangeNotifier {
   /// UI側はこれを見て、シグナリングは完了しているのに実際には映像/音声が
   /// 流れていない参加者のタイルに控えめな表示を重ねる。
   final Map<String, bool> peerConnectionIssues = {};
+
+  // ICEが確立しないまま固まった接続の見張り（[peerWatchdogAction]、2026-11-15）。
+  final Map<String, Timer> _watchdogs = {};
+  final Map<String, DateTime> _watchStageStart = {};
+  final Map<String, bool> _watchIceRestarted = {};
+  final Set<String> _iceEstablished = {};
+
+  /// このペアで、固まって接続を作り直した回数（確立したら0に戻す）。作り直しをまたいで保つ。
+  final Map<String, int> _watchRecreates = {};
+
+  /// 相手の候補の数（診断用: 受信・適用・失敗）。
+  final Map<String, List<int>> _candidateCounts = {};
 
   /// この参加（端末1台ぶん）を区別する値（2026-10-21追加）。参加者ドキュメントの
   /// `sessionId`に書き、他の値になったら別の端末に乗っ取られたとして通話から抜ける。
@@ -510,6 +553,13 @@ class WebrtcGroupCallController extends ChangeNotifier {
       }
       _peerSessionIds[p.userId] = p.sessionId;
     }
+    // 配信をやめた相手の画面は片付ける（再開すると、同じストリームで届き直す）。
+    for (final p in participants) {
+      if (p.userId != currentUser.userId && p.screenLabel == null) {
+        final screen = screenRenderers[p.userId];
+        if (screen != null) screen.srcObject = null;
+      }
+    }
     for (final userId in liveOtherIds) {
       if (!_peerConnections.containsKey(userId) &&
           !_connectGuard.isConnecting(userId)) {
@@ -571,6 +621,7 @@ class WebrtcGroupCallController extends ChangeNotifier {
     _remoteDescriptionSet[otherUserId] = false;
     _pendingRemoteCandidates[otherUserId] = [];
     _appliedCandidateKeys[otherUserId] = {};
+    _startWatchdog(otherUserId, peerConnection);
 
     for (final track in _localStream!.getTracks()) {
       // BGMを流している間に入ってきた相手には、マイクの代わりに混合トラックを送る。
@@ -579,6 +630,11 @@ class WebrtcGroupCallController extends ChangeNotifier {
         track.kind == 'audio' && mixed != null ? mixed : track,
         _localStream!,
       );
+    }
+    // 今画面を共有していれば、入ってきた相手にも画面を送る（カメラの後に追加する。受信側は
+    // 最初のストリームをカメラとして扱う）。
+    if (_screenDisplay != null) {
+      await _attachScreenTracks(otherUserId, peerConnection);
     }
     // カメラ無し・カメラオフで入る時も、相手の映像を受け取れるようにする。映像の送信用の
     // トラックが無いと、最初のofferに映像の枠が無く、こちらが映像をオンにして再ネゴシエーション
@@ -599,6 +655,15 @@ class WebrtcGroupCallController extends ChangeNotifier {
         'group: $otherUserId onTrack kind=${event.track.kind} '
         'streams=${event.streams.length} muted=${event.track.muted}',
       );
+      // 最初に届いたストリームがカメラ・マイク。違うストリームは相手の画面共有。
+      final streamId = event.streams.firstOrNull?.id;
+      if (streamId != null) {
+        final cameraId = _cameraStreamIds[otherUserId] ??= streamId;
+        if (streamId != cameraId) {
+          unawaited(_attachRemoteScreen(otherUserId, event.streams.first));
+          return;
+        }
+      }
       if (event.track.kind == 'video') {
         final track = event.track;
         _setRemoteVideoReady(otherUserId, track.muted != true);
@@ -624,6 +689,18 @@ class WebrtcGroupCallController extends ChangeNotifier {
         'group: $otherUserId ice=$iceState '
         '(${connectWatch.elapsedMilliseconds}ms)',
       );
+      if (iceState == RTCIceConnectionState.RTCIceConnectionStateConnected ||
+          iceState == RTCIceConnectionState.RTCIceConnectionStateCompleted) {
+        _iceEstablished.add(otherUserId);
+        _watchRecreates.remove(otherUserId);
+        final counts = _candidateCounts[otherUserId];
+        if (counts != null) {
+          callLog(
+            'group: $otherUserId remoteCandidates received=${counts[0]} '
+            'applied=${counts[1]} failed=${counts[2]}',
+          );
+        }
+      }
       if (iceState == RTCIceConnectionState.RTCIceConnectionStateFailed ||
           iceState == RTCIceConnectionState.RTCIceConnectionStateConnected ||
           iceState == RTCIceConnectionState.RTCIceConnectionStateCompleted) {
@@ -781,9 +858,18 @@ class WebrtcGroupCallController extends ChangeNotifier {
 
   Future<void> _createAndSendPeerOffer(
     String otherUserId,
-    RTCPeerConnection peerConnection,
-  ) async {
-    final offer = await peerConnection.createOffer();
+    RTCPeerConnection peerConnection, {
+    bool iceRestart = false,
+  }) async {
+    // Webは`iceRestart`、ネイティブは`mandatory.IceRestart`を見る（互いに他方は無視する）。
+    final offer = await peerConnection.createOffer(
+      iceRestart
+          ? {
+              'iceRestart': true,
+              'mandatory': {'IceRestart': true},
+            }
+          : <String, dynamic>{},
+    );
     await peerConnection.setLocalDescription(offer);
     callLog(
       'group: $otherUserId offer sent sdp=${offer.sdp?.length} '
@@ -817,7 +903,9 @@ class WebrtcGroupCallController extends ChangeNotifier {
       (_pendingRemoteCandidates[otherUserId] ??= []).add(data);
       return;
     }
-    appliedKeys.add(key);
+    // 適用に成功してから「適用済み」に入れる（失敗した候補は、次に届いた時に再試行する）。
+    final counts = _candidateCounts[otherUserId] ??= [0, 0, 0];
+    counts[0]++;
     peerConnection
         .addCandidate(
           RTCIceCandidate(
@@ -826,8 +914,14 @@ class WebrtcGroupCallController extends ChangeNotifier {
             data['sdpMLineIndex'] as int?,
           ),
         )
-        .catchError((_) {
+        .then((_) {
+          appliedKeys.add(key);
+          counts[1]++;
+        })
+        .catchError((Object e) {
           // 相手のPeerConnectionが既に閉じている等。通話自体は継続させる。
+          counts[2]++;
+          callLog('group: $otherUserId addCandidate failed: $e');
         });
   }
 
@@ -843,7 +937,80 @@ class WebrtcGroupCallController extends ChangeNotifier {
     }
   }
 
+  void _stopWatchdog(String otherUserId) {
+    _watchdogs.remove(otherUserId)?.cancel();
+    _watchStageStart.remove(otherUserId);
+    _watchIceRestarted.remove(otherUserId);
+    _iceEstablished.remove(otherUserId);
+    _candidateCounts.remove(otherUserId);
+  }
+
+  /// 接続を作った時から、確立するまで見張る。固まっていれば、ICE再起動→作り直しで復旧する。
+  void _startWatchdog(String otherUserId, RTCPeerConnection peerConnection) {
+    _stopWatchdog(otherUserId);
+    _watchStageStart[otherUserId] = DateTime.now();
+    _watchIceRestarted[otherUserId] = false;
+    _watchdogs[otherUserId] = Timer.periodic(const Duration(seconds: 2), (_) {
+      if (_state == GroupCallConnectionState.ended ||
+          _peerConnections[otherUserId] != peerConnection) {
+        _stopWatchdog(otherUserId);
+        return;
+      }
+      final action = peerWatchdogAction(
+        established: _iceEstablished.contains(otherUserId),
+        sinceStageStart: DateTime.now().difference(
+          _watchStageStart[otherUserId] ?? DateTime.now(),
+        ),
+        iceRestarted: _watchIceRestarted[otherUserId] ?? false,
+        recreates: _watchRecreates[otherUserId] ?? 0,
+      );
+      if (action == PeerWatchdogAction.none) return;
+      final counts = _candidateCounts[otherUserId] ?? const [0, 0, 0];
+      callLog(
+        'group: $otherUserId ice stuck state=${peerConnection.iceConnectionState} '
+        'remoteCandidates received=${counts[0]} applied=${counts[1]} '
+        'failed=${counts[2]} action=${action.name}',
+      );
+      switch (action) {
+        case PeerWatchdogAction.restartIce:
+          _watchIceRestarted[otherUserId] = true;
+          _watchStageStart[otherUserId] = DateTime.now();
+          // オファー役（userA）が、新しいufragのofferを送る。相手は通常の再ネゴシエーションとして受ける。
+          if (currentUser.userId.compareTo(otherUserId) < 0) {
+            unawaited(
+              _createAndSendPeerOffer(
+                otherUserId,
+                peerConnection,
+                iceRestart: true,
+              ).catchError((Object e) {
+                callLog('group: $otherUserId ice restart failed: $e');
+              }),
+            );
+          }
+        case PeerWatchdogAction.recreate:
+          _watchRecreates[otherUserId] =
+              (_watchRecreates[otherUserId] ?? 0) + 1;
+          callLog('group: $otherUserId recreate peer');
+          _disconnectFromPeer(otherUserId);
+          _connectToPeer(otherUserId);
+        case PeerWatchdogAction.giveUp:
+          callLog('group: $otherUserId giving up');
+          _watchdogs.remove(otherUserId)?.cancel();
+          peerConnectionIssues[otherUserId] = true;
+          notifyListeners();
+        case PeerWatchdogAction.none:
+          break;
+      }
+    });
+  }
+
   void _disconnectFromPeer(String otherUserId) {
+    _stopWatchdog(otherUserId);
+    _cameraStreamIds.remove(otherUserId);
+    _screenVideoSenders.remove(otherUserId);
+    _screenAudioSenders.remove(otherUserId);
+    final screen = screenRenderers.remove(otherUserId);
+    if (screen != null) unawaited(screen.dispose());
     _connectGuard.cancel(otherUserId);
     _peerLinkSubs.remove(otherUserId)?.cancel();
     _peerCandidateSubs.remove(otherUserId)?.cancel();
@@ -888,6 +1055,192 @@ class WebrtcGroupCallController extends ChangeNotifier {
       userId: currentUser.userId,
       micMuted: _muted,
     );
+    notifyListeners();
+  }
+
+  // ---- 画面共有（配信、2026-11-15） ----
+
+  Future<void> _attachRemoteScreen(String userId, MediaStream stream) async {
+    var renderer = screenRenderers[userId];
+    if (renderer == null) {
+      renderer = RTCVideoRenderer();
+      await renderer.initialize();
+      screenRenderers[userId] = renderer;
+    }
+    renderer.srcObject = stream;
+    callLog('group: $userId screen stream attached');
+    notifyListeners();
+  }
+
+  /// [pc]へ画面のトラックを送る。初めてなら追加（`true`＝再ネゴシエーションが要る）、既に送信の
+  /// 枠があれば差し替えだけ（`false`）。
+  Future<bool> _attachScreenTracks(String userId, RTCPeerConnection pc) async {
+    final display = _screenDisplay;
+    final container = _screenContainer;
+    if (display == null || container == null) return false;
+    var renegotiate = false;
+    final video = display.getVideoTracks().firstOrNull;
+    if (video != null) {
+      final sender = _screenVideoSenders[userId];
+      if (sender == null) {
+        final added = await pc.addTrack(video, container);
+        _screenVideoSenders[userId] = added;
+        await ScreenShareCapture.applySenderLimits(added, _screenQuality);
+        renegotiate = true;
+      } else {
+        await sender.replaceTrack(video);
+        await ScreenShareCapture.applySenderLimits(sender, _screenQuality);
+      }
+    }
+    final audio = display.getAudioTracks().firstOrNull;
+    if (audio != null) {
+      final sender = _screenAudioSenders[userId];
+      if (sender == null) {
+        _screenAudioSenders[userId] = await pc.addTrack(audio, container);
+        renegotiate = true;
+      } else {
+        await sender.replaceTrack(audio);
+      }
+    }
+    return renegotiate;
+  }
+
+  Future<void> _renegotiateAll(Iterable<String> userIds) async {
+    for (final userId in userIds) {
+      final pc = _peerConnections[userId];
+      if (pc == null) continue;
+      try {
+        await _createAndSendPeerOffer(userId, pc);
+      } catch (e) {
+        callLog('group: $userId screen re-offer failed: $e');
+      }
+    }
+  }
+
+  void _setScreenLabelOnServer(String? label) {
+    _repository
+        .updateParticipantState(
+          groupCallId: groupCallId,
+          userId: currentUser.userId,
+          screenLabel: label,
+          clearScreen: label == null,
+        )
+        .catchError((_) {});
+  }
+
+  /// 画面の共有を始める。配信元の選択はブラウザが出す。やめた（キャンセル）時は`false`。
+  Future<bool> startScreenShare({
+    required ScreenShareQuality quality,
+    required bool shareAudio,
+  }) async {
+    if (_screenDisplay != null) return true;
+    final display = await ScreenShareCapture.start(
+      quality,
+      shareAudio: shareAudio,
+    );
+    if (display == null) return false;
+    _screenDisplay = display;
+    _screenQuality = quality;
+    _screenAudio = shareAudio;
+    _screenContainer ??= await createLocalMediaStream('screen');
+    display.getVideoTracks().firstOrNull?.onEnded = () => stopScreenShare();
+    screenAudioMissing = shareAudio && display.getAudioTracks().isEmpty;
+    if (screenAudioMissing) {
+      callLog('group: screen audio was not available');
+    }
+    if (!_localScreenRendererInitialized) {
+      await localScreenRenderer.initialize();
+      _localScreenRendererInitialized = true;
+    }
+    localScreenRenderer.srcObject = display;
+    final changed = <String>[];
+    for (final entry in [..._peerConnections.entries]) {
+      try {
+        if (await _attachScreenTracks(entry.key, entry.value)) {
+          changed.add(entry.key);
+        }
+      } catch (e) {
+        callLog('group: ${entry.key} attach screen failed: $e');
+      }
+    }
+    _setScreenLabelOnServer(quality.label);
+    callLog('group: screen share started ${quality.label}');
+    notifyListeners();
+    await _renegotiateAll(changed);
+    return true;
+  }
+
+  /// 画面の共有をやめる（送信の枠は残し、中身だけ外す。次に始める時は差し替えで済む）。
+  Future<void> stopScreenShare() async {
+    final display = _screenDisplay;
+    if (display == null) return;
+    _screenDisplay = null;
+    for (final sender in [
+      ..._screenVideoSenders.values,
+      ..._screenAudioSenders.values,
+    ]) {
+      try {
+        await sender.replaceTrack(null);
+      } catch (_) {}
+    }
+    for (final track in display.getTracks()) {
+      try {
+        await track.stop();
+      } catch (_) {}
+    }
+    localScreenRenderer.srcObject = null;
+    _setScreenLabelOnServer(null);
+    callLog('group: screen share stopped');
+    notifyListeners();
+  }
+
+  /// 配信元を選び直す（送信は止めず、トラックを差し替える）。
+  Future<void> changeScreenSource() async {
+    final old = _screenDisplay;
+    if (old == null) return;
+    final next = await ScreenShareCapture.start(
+      _screenQuality,
+      shareAudio: _screenAudio,
+    );
+    if (next == null) return;
+    _screenDisplay = next;
+    next.getVideoTracks().firstOrNull?.onEnded = () => stopScreenShare();
+    localScreenRenderer.srcObject = next;
+    final changed = <String>[];
+    for (final entry in [..._peerConnections.entries]) {
+      try {
+        if (await _attachScreenTracks(entry.key, entry.value)) {
+          changed.add(entry.key);
+        }
+      } catch (e) {
+        callLog('group: ${entry.key} change screen failed: $e');
+      }
+    }
+    for (final track in old.getTracks()) {
+      try {
+        await track.stop();
+      } catch (_) {}
+    }
+    notifyListeners();
+    await _renegotiateAll(changed);
+  }
+
+  /// 配信の画質を変える（配信中なら、取得の制約と送信の上限にも反映する）。
+  Future<void> setScreenQuality(ScreenShareQuality quality) async {
+    _screenQuality = quality;
+    final track = _screenDisplay?.getVideoTracks().firstOrNull;
+    if (track != null) {
+      try {
+        await track.applyConstraints(
+          ScreenShareCapture.constraints(quality, shareAudio: false)['video']
+              as Map<String, dynamic>,
+        );
+      } catch (_) {}
+      for (final sender in _screenVideoSenders.values) {
+        await ScreenShareCapture.applySenderLimits(sender, quality);
+      }
+      _setScreenLabelOnServer(quality.label);
+    }
     notifyListeners();
   }
 
@@ -1125,6 +1478,13 @@ class WebrtcGroupCallController extends ChangeNotifier {
     for (final userId in [..._peerConnections.keys]) {
       _disconnectFromPeer(userId);
     }
+    for (final timer in _watchdogs.values) {
+      timer.cancel();
+    }
+    for (final track in _screenDisplay?.getTracks() ?? <MediaStreamTrack>[]) {
+      track.stop();
+    }
+    localScreenRenderer.dispose();
     for (final track in _localStream?.getTracks() ?? <MediaStreamTrack>[]) {
       track.stop();
     }

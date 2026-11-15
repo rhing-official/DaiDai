@@ -153,3 +153,95 @@ class CallLabelSheet extends StatelessWidget {
     ),
   );
 }
+
+/// 画面共有（配信）のタイル（2026-11-15）。映像（切り抜かず全体を見せる）、左下に
+/// 「モニターのアイコン＋名前」、右上に赤い「ライブ」と画質の表示（Discordの配信と同じ配置）。
+class ScreenShareFrame extends StatelessWidget {
+  const ScreenShareFrame({
+    required this.video,
+    required this.name,
+    required this.qualityLabel,
+    required this.liveText,
+    super.key,
+  });
+
+  /// 映像（`RTCVideoView`。`objectFit`はContain）。
+  final Widget video;
+
+  /// 配信している人の呼び名（文字は白）。
+  final Widget name;
+  final String qualityLabel;
+  final String liveText;
+
+  @override
+  Widget build(BuildContext context) {
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(kCallTileRadius),
+      child: Stack(
+        fit: StackFit.expand,
+        children: [
+          ColoredBox(color: Colors.black, child: video),
+          Positioned(
+            left: 8,
+            bottom: 8,
+            child: IgnorePointer(
+              child: CallLabelSheet(
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Icon(
+                      Icons.desktop_windows_outlined,
+                      size: 14,
+                      color: Colors.white,
+                    ),
+                    const SizedBox(width: 6),
+                    name,
+                  ],
+                ),
+              ),
+            ),
+          ),
+          Positioned(
+            top: 8,
+            right: 8,
+            child: IgnorePointer(
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  DecoratedBox(
+                    decoration: BoxDecoration(
+                      // 濃い赤に白（明るい色に白文字は禁止）。
+                      color: Colors.red.shade700,
+                      borderRadius: BorderRadius.circular(6),
+                    ),
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 6,
+                        vertical: 2,
+                      ),
+                      child: Text(
+                        liveText,
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 11,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 6),
+                  CallLabelSheet(
+                    child: Text(
+                      qualityLabel,
+                      style: const TextStyle(color: Colors.white, fontSize: 11),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}

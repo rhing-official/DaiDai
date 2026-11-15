@@ -15,6 +15,7 @@ import 'call_audio_sinks.dart';
 import 'call_avatar.dart';
 import '../../providers/call_bgm_provider.dart';
 import 'bgm/call_bgm_bindings.dart';
+import 'screen_share_menu.dart';
 import 'call_control_bar.dart';
 import 'call_tile_layout.dart';
 import 'camera_availability.dart';
@@ -316,7 +317,54 @@ class _GroupCallScreenState extends ConsumerState<GroupCallScreen> {
     // 2人以上は人数によらず常にグリッド表示から始め、任意の枠をタップすると
     // その参加者を全画面表示、全画面表示中に下スワイプするとグリッドに
     // 戻る（一対通話の「フルスクリーン＋コーナーPIP」とは意図的に差別化）。
+    final strings = ref.watch(appStringsProvider);
+    Widget screenTile({
+      required String userId,
+      required String rhingSeed,
+      required RTCVideoRenderer renderer,
+      required String label,
+    }) => ScreenShareFrame(
+      video: RTCVideoView(
+        key: ObjectKey(renderer),
+        renderer,
+        objectFit: RTCVideoViewObjectFit.RTCVideoViewObjectFitContain,
+      ),
+      name: CallParticipantNameLabel(
+        userId: userId,
+        rhingSeed: rhingSeed,
+        conversationId: widget.groupId,
+        style: const TextStyle(
+          color: Colors.white,
+          shadows: [Shadow(blurRadius: 6)],
+        ),
+      ),
+      qualityLabel: label,
+      liveText: strings.callScreenShareLive,
+    );
+
     final entries = <_CallTileEntry>[
+      // 画面共有（配信）のタイル（2026-11-15）。
+      if (_controller.isScreenSharing)
+        _CallTileEntry(
+          key: 'self#screen',
+          tile: screenTile(
+            userId: widget.currentUser.userId,
+            rhingSeed: widget.currentUser.rhingSeed,
+            renderer: _controller.localScreenRenderer,
+            label: _controller.screenQuality.label,
+          ),
+        ),
+      for (final participant in remoteParticipants)
+        if (_controller.remoteScreenShown(participant))
+          _CallTileEntry(
+            key: '${participant.userId}#screen',
+            tile: screenTile(
+              userId: participant.userId,
+              rhingSeed: participant.rhingSeed,
+              renderer: _controller.screenRenderers[participant.userId]!,
+              label: participant.screenLabel ?? '',
+            ),
+          ),
       _CallTileEntry(
         key: 'self',
         tile: _videoTile(
@@ -535,6 +583,7 @@ class _GroupCallScreenState extends ConsumerState<GroupCallScreen> {
       onHangUp: () => _controller.leave(),
       videoFailed: _controller.videoFailed,
       remoteBgm: _controller.remoteBgm,
+      screenShare: groupScreenShare(_controller),
       bgmBinding: groupBgmBinding(
         _controller,
         allowed: ref.watch(

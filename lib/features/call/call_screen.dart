@@ -14,6 +14,8 @@ import 'active_call_session.dart';
 import 'call_audio_sinks.dart';
 import 'call_avatar.dart';
 import 'bgm/call_bgm_bindings.dart';
+import 'call_tile_layout.dart';
+import 'screen_share_menu.dart';
 import 'call_control_bar.dart';
 import 'call_video_viewer.dart';
 import 'call_tile_layout.dart' show callVideoFitFor;
@@ -179,7 +181,8 @@ class _CallScreenState extends ConsumerState<CallScreen> {
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
-    final anyVideo = _myIsVideo || _remoteIsVideo;
+    final anyVideo =
+        _myIsVideo || _remoteIsVideo || _controller.remoteScreenShown;
     final ended = _controller.state == CallConnectionState.ended;
     if (anyVideo && !ended) _hadVideo = true;
     // 下スワイプでのドックは、映像がある通話が実際に繋がってから、かつ
@@ -210,7 +213,9 @@ class _CallScreenState extends ConsumerState<CallScreen> {
         ? const Scaffold(backgroundColor: Colors.black)
         : Scaffold(
             backgroundColor: anyVideo ? colorScheme.surface : displayAreaGrey,
-            body: anyVideo
+            body: _controller.remoteScreenShown
+                ? _screenBody(colorScheme)
+                : anyVideo
                 ? _videoBody(colorScheme, displayAreaGrey)
                 : _audioBody(colorScheme),
           );
@@ -263,6 +268,43 @@ class _CallScreenState extends ConsumerState<CallScreen> {
       conversationId: widget.call.dmId,
       radius: radius,
       fontSize: radius * 0.7,
+    );
+  }
+
+  /// 相手が画面共有（配信）している時の表示（2026-11-15）。画面を全体に出し、下に操作を並べる。
+  Widget _screenBody(ColorScheme colorScheme) {
+    final strings = ref.watch(appStringsProvider);
+    final renderer = _controller.remoteScreenRenderer;
+    return SafeArea(
+      child: Column(
+        children: [
+          CallAudioSinks(renderers: [_controller.remoteRenderer]),
+          Expanded(
+            child: Padding(
+              padding: const EdgeInsets.all(8),
+              child: ScreenShareFrame(
+                video: RTCVideoView(
+                  key: ObjectKey(renderer),
+                  renderer,
+                  objectFit: RTCVideoViewObjectFit.RTCVideoViewObjectFitContain,
+                ),
+                name: CallParticipantNameLabel(
+                  userId: _otherUserId,
+                  rhingSeed: _otherRhingSeed,
+                  conversationId: widget.call.dmId,
+                  style: const TextStyle(color: Colors.white, fontSize: 13),
+                ),
+                qualityLabel: _controller.remoteScreenLabel ?? '',
+                liveText: strings.callScreenShareLive,
+              ),
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.only(bottom: 24, top: 8),
+            child: _controls(colorScheme),
+          ),
+        ],
+      ),
     );
   }
 
@@ -555,6 +597,7 @@ class _CallScreenState extends ConsumerState<CallScreen> {
       onSwitchCamera: _controller.switchCamera,
       onHangUp: _controller.hangUp,
       bgmBinding: oneToOneBgmBinding(_controller),
+      screenShare: oneToOneScreenShare(_controller, widget.currentUserId),
       remoteBgm: _controller.remoteBgm,
       videoFailed: _controller.videoFailed,
     );

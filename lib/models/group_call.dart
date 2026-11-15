@@ -90,6 +90,7 @@ class CallParticipant {
     this.bgmTitle,
     this.bgmPaused = false,
     this.bgmCover,
+    this.screenLabel,
   });
 
   final String userId;
@@ -103,6 +104,9 @@ class CallParticipant {
   /// BGMを一時停止中か・縮小したジャケット画像（base64のJPEG。表示用、2026-11-15追加）。
   final bool bgmPaused;
   final String? bgmCover;
+
+  /// 画面共有（配信）中の画質の表示（`720P 30FPS`）。配信していなければnull（2026-11-15追加）。
+  final String? screenLabel;
 
   /// この参加（端末1台ぶん）を区別するランダムな文字列（2026-10-21追加）。
   /// 参加者ドキュメントのIDはuserIdで端末の区別が無い為、同じ人が別の端末から
@@ -133,6 +137,7 @@ class CallParticipant {
       bgmTitle: json['bgmTitle'] as String?,
       bgmPaused: json['bgmPaused'] as bool? ?? false,
       bgmCover: json['bgmCover'] as String?,
+      screenLabel: json['screenLabel'] as String?,
     );
   }
 
@@ -147,6 +152,7 @@ class CallParticipant {
       if (bgmTitle != null) 'bgmTitle': bgmTitle,
       if (bgmTitle != null) 'bgmPaused': bgmPaused,
       if (bgmCover != null) 'bgmCover': bgmCover,
+      if (screenLabel != null) 'screenLabel': screenLabel,
     };
   }
 }

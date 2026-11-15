@@ -743,6 +743,21 @@ final Strings _stringsFr = Strings._(
   callBgmDisc: (number) => 'Disc $number',
   callBgmTabAlbums: 'Albums',
   callBgmTabArtists: 'Artistes',
+  callScreenShare: "Partager l’écran",
+  callScreenShareStop: "Arrêter le partage",
+  callScreenShareChange: "Changer le partage",
+  callScreenShareQuality: "Qualité du partage",
+  callScreenShareFps: "Fréquence d’images",
+  callScreenShareResolution: "Résolution",
+  callScreenShareAudio: "Partager le son",
+  callScreenShareLive: "EN DIRECT",
+  callScreenShareKiwami: "Kiwami",
+  callScreenShareKiwamiOnly:
+      "La haute qualité (1080p ou plus, 60 FPS) est réservée au forfait Kiwami.",
+  callScreenShareNoAudio:
+      "Le son n’a pas pu être capturé : seule la vidéo est partagée.",
+  callScreenShareHint: "À plusieurs, une qualité plus basse est plus stable.",
+  callScreenShareYourScreen: "Votre écran",
   settingsMicDenoiseTitle: "Suppression du bruit en appel (avancée)",
   settingsMicDenoiseDescription:
       "Réduit les bruits de fond du micro (clavier, ventilateur, télévision) grâce à l’IA. Votre voix ne quitte jamais votre appareil. Effet dès le prochain appel. Version navigateur uniquement.",

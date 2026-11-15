@@ -87,7 +87,7 @@ Future<void> showCallBgmSheet(BuildContext context, CallBgmBinding binding) {
               ),
               Align(
                 alignment: Alignment.bottomCenter,
-                child: _BgmPanelSurface(child: _CallBgmSheet(binding: binding)),
+                child: CallPanelSurface(child: _CallBgmSheet(binding: binding)),
               ),
             ],
           ),
@@ -103,22 +103,31 @@ Future<void> showCallBgmSheet(BuildContext context, CallBgmBinding binding) {
     backgroundColor: Colors.transparent,
     elevation: 0,
     builder: (context) =>
-        _BgmPanelSurface(child: _CallBgmSheet(binding: binding)),
+        CallPanelSurface(child: _CallBgmSheet(binding: binding)),
   );
 }
 
 /// BGMのシートの面。UIスタイル（フラット・ガラス・劇画・版画）に合わせる（2026-11-15）。
 /// 上端だけ角丸の、下から出る面で、影は使わない（版画だけ、ぼかしの無い硬い影の例外）。
-class _BgmPanelSurface extends ConsumerWidget {
-  const _BgmPanelSurface({required this.child});
+class CallPanelSurface extends ConsumerWidget {
+  const CallPanelSurface({
+    required this.child,
+    this.allRounded = false,
+    super.key,
+  });
 
   final Widget child;
+
+  /// 下も角丸にする（ポップアップ用。下から出るシートは上だけ角丸）。
+  final bool allRounded;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final uiStyle = ref.watch(appUiStyleProvider);
     final theme = Theme.of(context);
-    const radius = BorderRadius.vertical(top: Radius.circular(24));
+    final radius = allRounded
+        ? BorderRadius.circular(24)
+        : const BorderRadius.vertical(top: Radius.circular(24));
     return switch (uiStyle) {
       AppUiStyle.gekiga => GekigaStraightMonochromeBox(
         isMe: true,
