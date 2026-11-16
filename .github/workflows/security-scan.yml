@@ -1,0 +1,24 @@
+name: Security Scan (Strix)
+
+# 手動実行のみ。定期実行にする時は、下のコメントを外す。
+# 結果（strix_runs/）には脆弱性の詳細が入るため、公開リポジトリではArtifactに保存しない。
+on:
+  workflow_dispatch:
+  # schedule:
+  #   - cron: '0 18 * * 0'   # 毎週月曜 03:00 JST
+
+jobs:
+  strix:
+    runs-on: ubuntu-latest
+    timeout-minutes: 300
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Install Strix
+        run: curl -sSL https://strix.ai/install | bash
+      - name: Run scan
+        env:
+          STRIX_LLM: ${{ secrets.STRIX_LLM }}
+          LLM_API_KEY: ${{ secrets.LLM_API_KEY }}
+        run: strix -n -t ./ --scan-mode deep --max-budget 5 --fail-on high
