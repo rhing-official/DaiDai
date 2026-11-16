@@ -9,6 +9,7 @@ import 'package:pointer_interceptor/pointer_interceptor.dart';
 import '../../../l10n/strings.dart';
 import '../../../models/app_ui_style.dart';
 import '../../../providers/app_ui_style_provider.dart';
+import '../../../providers/bgm_preferences_provider.dart';
 import '../../../router/back_stack.dart';
 import '../../../theme/block/block_theme.dart';
 import '../../../widgets/glass/glass_surface.dart';
@@ -211,6 +212,9 @@ class _CallBgmSheetState extends ConsumerState<_CallBgmSheet> {
   /// 開き直した時に、同じ所から続ける（アプリを開いている間は残る）。
   static final _memory = _SheetMemory();
 
+  /// 起動後の最初に開く時だけ、保存された前回のタブ・アルバムを読み込む。
+  static bool _memoryLoaded = false;
+
   int _tab = _memory.tab;
 
   /// 選んでいるアルバム（nullは、すべての曲）。
@@ -226,6 +230,7 @@ class _CallBgmSheetState extends ConsumerState<_CallBgmSheet> {
   void _selectTab(int tab) => setState(() {
     if (_tab == tab) return;
     _tab = tab;
+    ref.read(bgmPreferencesProvider.notifier).saveTab(tab);
     _scroll.dispose();
     _scroll = ScrollController();
   });
@@ -262,6 +267,25 @@ class _CallBgmSheetState extends ConsumerState<_CallBgmSheet> {
   final Set<String> _openArtistAlbums = _memory.openArtistAlbums;
 
   CallBgm get _bgm => widget.binding.bgm;
+
+  @override
+  void initState() {
+    super.initState();
+    if (!_memoryLoaded) {
+      _memoryLoaded = true;
+      final saved = ref.read(bgmPreferencesProvider);
+      _memory.tab = saved.tab;
+      _memory.albumId = saved.albumId;
+      _tab = saved.tab;
+      _albumId = saved.albumId;
+    }
+  }
+
+  /// 選んでいるアルバムを変える。端末にだけ保存する（idは端末固有）。
+  void _setAlbum(String? id) {
+    _albumId = id;
+    ref.read(bgmPreferencesProvider.notifier).saveAlbumId(id);
+  }
 
   @override
   void dispose() {
@@ -599,12 +623,40 @@ class _CallBgmSheetState extends ConsumerState<_CallBgmSheet> {
     ),
   );
 
+  /// 何も流していない時に出す「前回の続き」（最後に再生していた曲と位置。曲が端末に残っている時だけ）。
+  /// 通話の開始時に自動では流さず、ここを押した時だけ流す。曲名は端末の中だけで使い、アカウントへは保存しない。
+  Widget _resumeRow(Strings strings, CallBgm bgm) {
+    final last = ref.watch(bgmPreferencesProvider).lastPlayed;
+    if (last == null || bgm.playing) return const SizedBox.shrink();
+    final track = bgm.tracks.where((t) => t.id == last.trackId).firstOrNull;
+    if (track == null) return const SizedBox.shrink();
+    final seconds = last.positionMs ~/ 1000;
+    final position =
+        '${seconds ~/ 60}:${(seconds % 60).toString().padLeft(2, '0')}';
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: ListTile(
+        key: const ValueKey('bgm-resume-last'),
+        dense: true,
+        contentPadding: EdgeInsets.zero,
+        leading: const Icon(Icons.play_circle_outline),
+        title: Text(
+          strings.callBgmResumeLast(track.name, position),
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+        ),
+        onTap: () => bgm.resumeLast(last),
+      ),
+    );
+  }
+
   /// 左の曲の置き場（タブ・追加ボタン・ジャケットの帯・曲の一覧）。
   Widget _library(Strings strings, CallBgm bgm) {
     final uiStyle = ref.watch(appUiStyleProvider);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
+        _resumeRow(strings, bgm),
         Wrap(
           spacing: 8,
           runSpacing: 8,
@@ -845,7 +897,7 @@ class _CallBgmSheetState extends ConsumerState<_CallBgmSheet> {
                   selected: _albumId == null,
                   strings: strings,
                   onTap: () => setState(() {
-                    _albumId = null;
+                    _setAlbum(null);
                     _renaming = false;
                   }),
                 ),
@@ -859,7 +911,7 @@ class _CallBgmSheetState extends ConsumerState<_CallBgmSheet> {
                     selected: _albumId == a.id,
                     strings: strings,
                     onTap: () => setState(() {
-                      _albumId = a.id;
+                      _setAlbum(a.id);
                       _renaming = false;
                     }),
                   ),
@@ -915,7 +967,7 @@ class _CallBgmSheetState extends ConsumerState<_CallBgmSheet> {
                 icon: const Icon(Icons.delete_outline),
                 onPressed: () async {
                   await bgm.removeAlbum(album.id);
-                  if (mounted) setState(() => _albumId = null);
+                  if (mounted) setState(() => _setAlbum(null));
                 },
               ),
             ],

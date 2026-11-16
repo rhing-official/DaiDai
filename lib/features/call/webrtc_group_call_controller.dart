@@ -53,6 +53,7 @@ class WebrtcGroupCallController extends ChangeNotifier {
     IceServersLoader? iceServersLoader,
     this.bgmPreferences = const BgmPreferences(),
     this.onBgmPreferencesChanged,
+    this.onBgmLastPlayedChanged,
   }) : _isVideo = isVideo,
        _repository = groupCallRepository,
        _iceServersLoader = iceServersLoader;
@@ -65,6 +66,7 @@ class WebrtcGroupCallController extends ChangeNotifier {
   final BgmPreferences bgmPreferences;
   final void Function(double volume, BgmPlayOrder order)?
   onBgmPreferencesChanged;
+  final void Function(BgmLastPlayed last)? onBgmLastPlayedChanged;
 
   /// 中継（TURN）の認証情報の取得（nullならSTUNのみ、2026-10-21）。
   final IceServersLoader? _iceServersLoader;
@@ -277,6 +279,7 @@ class WebrtcGroupCallController extends ChangeNotifier {
     initialVolume: bgmPreferences.volume,
     initialOrder: bgmPreferences.order,
     onPreferencesChanged: onBgmPreferencesChanged,
+    onLastPlayedChanged: onBgmLastPlayedChanged,
     onPlayingChanged: (nowPlaying) => _repository
         .updateParticipantState(
           groupCallId: groupCallId,

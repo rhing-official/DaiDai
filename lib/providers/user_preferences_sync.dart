@@ -196,12 +196,15 @@ void applyRemoteUserPreferences(WidgetRef ref, AppUserPreferences preferences) {
         .read(joinVideoCameraOnProvider.notifier)
         .syncFromRemote(preferences.joinVideoCameraOn!);
   }
-  if (preferences.bgmVolume != null || preferences.bgmPlayOrder != null) {
+  if (preferences.bgmVolume != null ||
+      preferences.bgmPlayOrder != null ||
+      preferences.bgmTab != null) {
     ref
         .read(bgmPreferencesProvider.notifier)
         .syncFromRemote(
           volume: preferences.bgmVolume,
           order: preferences.bgmPlayOrder,
+          tab: preferences.bgmTab,
         );
   }
   if (preferences.conversationSortOrder != null) {

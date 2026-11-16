@@ -803,6 +803,8 @@ final Strings _stringsFr = Strings._(
   callBgmHeadphones:
       'Vous entendez aussi la musique de fond. Avec des haut-parleurs, le micro la capte et crée de l’écho : un casque est recommandé',
   callBgmTrackCount: (count) => count == 1 ? '1 morceau' : '$count morceaux',
+  callBgmResumeLast: (title, position) =>
+      'Reprendre : $title (à partir de $position)',
   callBgmBack: 'Retour',
   callBgmAlbumEmpty:
       'Aucun morceau. « Ajouter un morceau » l’ajoute à cet album',

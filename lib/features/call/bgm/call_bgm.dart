@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_webrtc/flutter_webrtc.dart';
 
+import '../../../providers/bgm_preferences_provider.dart' show BgmLastPlayed;
 import 'bgm_cover.dart';
 import 'bgm_import_source.dart';
 import 'bgm_mixer.dart';
@@ -27,6 +28,7 @@ class CallBgm extends ChangeNotifier {
     double initialVolume = 0.5,
     BgmPlayOrder initialOrder = BgmPlayOrder.inOrder,
     this.onPreferencesChanged,
+    this.onLastPlayedChanged,
   }) : _mixer = mixer ?? BgmMixer(),
        _volume = initialVolume.clamp(0.0, 1.0),
        _order = initialOrder {
@@ -56,6 +58,44 @@ class CallBgm extends ChangeNotifier {
 
   /// 音量・再生順が変わった時（前回の状態として、アカウントへ保存する）。
   final void Function(double volume, BgmPlayOrder order)? onPreferencesChanged;
+
+  /// 最後に再生していた曲と位置が変わった時（端末にだけ保存する。曲名は渡さない）。
+  final void Function(BgmLastPlayed last)? onLastPlayedChanged;
+
+  /// 今の曲と位置を、最後に再生していた曲として通知する（流していなければ何もしない）。
+  void _reportLastPlayed() {
+    final track = _current;
+    if (track == null) return;
+    onLastPlayedChanged?.call(
+      BgmLastPlayed(
+        trackId: track.id,
+        positionMs: _mixer.position.inMilliseconds,
+        queueAlbumId: _queueAlbumId,
+        queueFavorites: _queueFavorites,
+      ),
+    );
+  }
+
+  /// 前回の続き（保存された曲・位置）から流す。曲が端末に無ければ何もしない。通話の開始時に
+  /// 自動では流さず、本人が押した時だけ呼ぶ（相手に急にBGMが聞こえないように）。
+  Future<void> resumeLast(BgmLastPlayed last) async {
+    final track = _tracks.where((t) => t.id == last.trackId).firstOrNull;
+    if (track == null) return;
+    await play(
+      track,
+      albumId: last.queueAlbumId,
+      inAlbum: true,
+      favorites: last.queueFavorites,
+    );
+    if (_disposed || _current?.id != track.id) return;
+    final position = Duration(milliseconds: last.positionMs);
+    final duration = _mixer.duration;
+    // 終わり際で止まっていた時は、頭から流す。
+    if (duration != null && position >= duration - const Duration(seconds: 3)) {
+      return;
+    }
+    if (position > Duration.zero) seek(position);
+  }
 
   static bool get isSupported => BgmMixer.isSupported;
 
@@ -116,10 +156,12 @@ class CallBgm extends ChangeNotifier {
 
   void _startProgress() {
     _progressTimer?.cancel();
-    _progressTimer = Timer.periodic(
-      const Duration(milliseconds: 500),
-      (_) => _updateProgress(),
-    );
+    var ticks = 0;
+    _progressTimer = Timer.periodic(const Duration(milliseconds: 500), (_) {
+      _updateProgress();
+      // 再生中は、10秒ごとに位置を保存する（流している間だけ。一時停止中は変わらない）。
+      if (!_paused && ++ticks % 20 == 0) _reportLastPlayed();
+    });
     _updateProgress();
   }
 
@@ -166,6 +208,7 @@ class CallBgm extends ChangeNotifier {
       } catch (_) {}
     } else {
       _paused = true;
+      _reportLastPlayed();
       _mixer.pause();
       notifyListeners();
       onPlayingChanged(nowPlaying);
@@ -539,6 +582,14 @@ class CallBgm extends ChangeNotifier {
     _mixer.volume = _volume * kBgmMaxGain;
     _current = track;
     _paused = false;
+    onLastPlayedChanged?.call(
+      BgmLastPlayed(
+        trackId: track.id,
+        positionMs: 0,
+        queueAlbumId: _queueAlbumId,
+        queueFavorites: _queueFavorites,
+      ),
+    );
     notifyListeners();
     _lazyStoreCover(track, bytes);
     await _prepareThumb(track);
@@ -595,6 +646,7 @@ class CallBgm extends ChangeNotifier {
   /// 流すのを止め、送信を元のマイクのトラックへ戻す。
   Future<void> stop() async {
     if (_current == null && _mixed == null) return;
+    _reportLastPlayed();
     _mixer.stop();
     _stopProgress();
     final hadMixed = _mixed != null;
@@ -615,6 +667,7 @@ class CallBgm extends ChangeNotifier {
 
   @override
   void dispose() {
+    _reportLastPlayed();
     _disposed = true;
     _preloadTimer?.cancel();
     _progressTimer?.cancel();

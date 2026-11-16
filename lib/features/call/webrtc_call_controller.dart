@@ -38,6 +38,7 @@ class WebrtcCallController extends ChangeNotifier {
     this.joinWithCamera = true,
     this.bgmPreferences = const BgmPreferences(),
     this.onBgmPreferencesChanged,
+    this.onBgmLastPlayedChanged,
   }) : _callRepository = callRepository,
        _directMessageRepository = directMessageRepository,
        _iceServersLoader = iceServersLoader;
@@ -53,6 +54,7 @@ class WebrtcCallController extends ChangeNotifier {
   final BgmPreferences bgmPreferences;
   final void Function(double volume, BgmPlayOrder order)?
   onBgmPreferencesChanged;
+  final void Function(BgmLastPlayed last)? onBgmLastPlayedChanged;
   final CallRepository _callRepository;
   final DirectMessageRepository _directMessageRepository;
 
@@ -178,6 +180,7 @@ class WebrtcCallController extends ChangeNotifier {
     initialVolume: bgmPreferences.volume,
     initialOrder: bgmPreferences.order,
     onPreferencesChanged: onBgmPreferencesChanged,
+    onLastPlayedChanged: onBgmLastPlayedChanged,
   )..addListener(notifyListeners);
 
   // 画面共有（配信、2026-11-15）。広場の通話（`webrtc_group_call_controller.dart`）と同じ作り。

@@ -158,6 +158,11 @@ class ActiveCallSessionNotifier extends Notifier<ActiveCallSession?> {
     return null;
   }
 
+  /// 最後に再生していた曲と位置を、端末にだけ保存する（アカウントへは書かない）。
+  void _saveBgmLastPlayed(BgmLastPlayed last) {
+    ref.read(bgmPreferencesProvider.notifier).saveLastPlayed(last);
+  }
+
   /// BGMの音量・再生順の変更を、端末とアカウントへ保存する。
   void _saveBgmPreferences(double volume, BgmPlayOrder order) {
     ref
@@ -191,6 +196,7 @@ class ActiveCallSessionNotifier extends Notifier<ActiveCallSession?> {
       joinWithCamera: ref.read(joinVideoCameraOnProvider),
       bgmPreferences: ref.read(bgmPreferencesProvider),
       onBgmPreferencesChanged: _saveBgmPreferences,
+      onBgmLastPlayedChanged: _saveBgmLastPlayed,
     );
     final session = OneToOneCallSession(
       controller: controller,
@@ -237,6 +243,7 @@ class ActiveCallSessionNotifier extends Notifier<ActiveCallSession?> {
       iceServersLoader: _loader,
       bgmPreferences: ref.read(bgmPreferencesProvider),
       onBgmPreferencesChanged: _saveBgmPreferences,
+      onBgmLastPlayedChanged: _saveBgmLastPlayed,
     );
     final session = GroupCallSession(
       controller: controller,

@@ -19,6 +19,7 @@ class AppUserPreferences {
     this.joinVideoCameraOn,
     this.bgmVolume,
     this.bgmPlayOrder,
+    this.bgmTab,
     this.iconSplitMirrored,
     this.slidePickEnabled,
     this.chatLayoutStyle,
@@ -68,6 +69,10 @@ class AppUserPreferences {
   /// 引き継ぐ（2026-11-16追加、null=標準の50%・順番）。
   final double? bgmVolume;
   final String? bgmPlayOrder;
+
+  /// BGMのシートで最後に開いていたタブ（0: アーティスト別、1: アルバム、2: お気に入り、2026-11-16）。
+  /// 曲・アルバムのidは端末固有の為、選んでいた曲・アルバムはアカウントに保存しない。
+  final int? bgmTab;
 
   /// 「アイコン＋寄合一覧」を左右反転するか（2026-11-01、nullは標準のオフ）。
   final bool? iconSplitMirrored;
@@ -163,6 +168,7 @@ class AppUserPreferences {
       joinVideoCameraOn: json['joinVideoCameraOn'] as bool?,
       bgmVolume: (json['bgmVolume'] as num?)?.toDouble(),
       bgmPlayOrder: json['bgmPlayOrder'] as String?,
+      bgmTab: (json['bgmTab'] as num?)?.toInt(),
       iconSplitMirrored: json['iconSplitMirrored'] as bool?,
       slidePickEnabled: json['slidePickEnabled'] as bool?,
       chatLayoutStyle: json['chatLayoutStyle'] as String?,
@@ -213,6 +219,7 @@ class AppUserPreferences {
       if (joinVideoCameraOn != null) 'joinVideoCameraOn': joinVideoCameraOn,
       if (bgmVolume != null) 'bgmVolume': bgmVolume,
       if (bgmPlayOrder != null) 'bgmPlayOrder': bgmPlayOrder,
+      if (bgmTab != null) 'bgmTab': bgmTab,
       if (iconSplitMirrored != null) 'iconSplitMirrored': iconSplitMirrored,
       if (slidePickEnabled != null) 'slidePickEnabled': slidePickEnabled,
       if (chatLayoutStyle != null) 'chatLayoutStyle': chatLayoutStyle,

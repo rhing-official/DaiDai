@@ -666,6 +666,7 @@ class Strings {
     required this.callBgmOrderRepeatOne,
     required this.callBgmHeadphones,
     required this.callBgmTrackCount,
+    required this.callBgmResumeLast,
     required this.callBgmBack,
     required this.callBgmAlbumEmpty,
     required this.callBgmCreate,
@@ -2032,6 +2033,7 @@ class Strings {
   final String callBgmOrderRepeatOne;
   final String callBgmHeadphones;
   final String Function(int count) callBgmTrackCount;
+  final String Function(String title, String position) callBgmResumeLast;
   final String callBgmBack;
   final String callBgmAlbumEmpty;
   final String callBgmCreate;
@@ -3528,6 +3530,7 @@ class Strings {
     callBgmOrderRepeatOne: '1曲をくり返す',
     callBgmHeadphones: '相手に聞こえるBGMは、あなたにも聞こえます。スピーカーだとマイクが拾って響くので、イヤホンをおすすめします',
     callBgmTrackCount: (count) => '$count曲',
+    callBgmResumeLast: (title, position) => '前回の続き: $title（$position〜）',
     callBgmBack: '戻る',
     callBgmAlbumEmpty: '曲が有りません。「曲を追加」で、このアルバムに登録出来ます',
     callBgmCreate: '作成',
@@ -4926,6 +4929,8 @@ class Strings {
     callBgmHeadphones:
         'You hear the background music too. On speakers your microphone picks it up and it echoes, so headphones are recommended',
     callBgmTrackCount: (count) => count == 1 ? '1 track' : '$count tracks',
+    callBgmResumeLast: (title, position) =>
+        'Continue where you left off: $title (from $position)',
     callBgmBack: 'Back',
     callBgmAlbumEmpty:
         'No tracks yet. Use “Add a track” to add one to this album',
