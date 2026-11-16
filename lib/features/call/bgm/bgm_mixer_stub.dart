@@ -20,5 +20,11 @@ class BgmMixer {
   Future<void> pause() async {}
   Future<void> resume() async {}
   set volume(double value) {}
+  set effectVolume(double value) {}
+  Future<void> playEffect(
+    String key,
+    Uint8List bytes, {
+    void Function()? onEnded,
+  }) async {}
   void dispose() {}
 }

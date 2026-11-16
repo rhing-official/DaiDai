@@ -9,6 +9,7 @@ import 'bgm/call_bgm.dart';
 import 'call_tile_layout.dart';
 import 'bgm/bgm_player_widgets.dart';
 import 'bgm/call_bgm_sheet.dart';
+import 'soundboard/call_soundboard_sheet.dart';
 import 'call_controls.dart';
 import 'screen_share_menu.dart';
 
@@ -37,6 +38,7 @@ class CallControlBar extends ConsumerWidget {
     required this.onSwitchCamera,
     required this.onHangUp,
     this.bgmBinding,
+    this.soundboardBinding,
     this.screenShare,
     this.remoteBgm,
     this.videoFailed = false,
@@ -86,6 +88,9 @@ class CallControlBar extends ConsumerWidget {
   /// ボタンの枠も出さない）。権限が無くても枠は残し、他のボタンの位置を動かさない。
   final CallBgmBinding? bgmBinding;
 
+  /// 通話のサウンドボード（2026-11-16、Webのみ。会話の全員が使える）。
+  final CallSoundboardBinding? soundboardBinding;
+
   /// 画面共有の操作（対応しない環境はnull。ボタンを出さない）。
   final CallScreenShareBinding? screenShare;
 
@@ -107,7 +112,7 @@ class CallControlBar extends ConsumerWidget {
     // 常に同じ大きさで描画されるようにする為、2026-08-19追加）。
     // 画面共有のボタン（ボタン＋「^」）が付く分、幅を足す（2026-11-15）。
     final maxWidth =
-        (CallBgm.isSupported ? 420.0 : 360.0) + (screenShare != null ? 100 : 0);
+        (CallBgm.isSupported ? 480.0 : 360.0) + (screenShare != null ? 100 : 0);
     final bar = Center(
       child: ConstrainedBox(
         constraints: BoxConstraints(maxWidth: maxWidth),
@@ -178,6 +183,22 @@ class CallControlBar extends ConsumerWidget {
                         isGlass: isGlass,
                         onPressed: enabled && bgmBinding != null
                             ? () => showCallBgmSheet(context, bgmBinding!)
+                            : null,
+                      ),
+                    ),
+                  if (CallBgm.isSupported)
+                    _maybeHidden(
+                      visible: soundboardBinding != null,
+                      child: CallRoundButton(
+                        icon: Icons.graphic_eq,
+                        color: Colors.grey[700]!,
+                        isGekiga: isGekiga,
+                        isGlass: isGlass,
+                        onPressed: enabled && soundboardBinding != null
+                            ? () => showCallSoundboardSheet(
+                                context,
+                                soundboardBinding!,
+                              )
                             : null,
                       ),
                     ),

@@ -22,6 +22,12 @@ class BgmMixer {
   web.MediaStreamAudioDestinationNode? _destination;
   web.GainNode? _bgmGain;
 
+  /// サウンドボードの効果音用のゲイン（曲とは独立。2026-11-16）。
+  web.GainNode? _effectGain;
+  web.MediaStreamAudioSourceNode? _micSource;
+  final Map<String, web.AudioBuffer> _effectBuffers = {};
+  double _effectVolume = 0.5;
+
   /// フェード専用のゲイン（音量用の[_bgmGain]と直列。音量の操作とぶつからない）。
   web.GainNode? _fadeGain;
 
@@ -41,7 +47,15 @@ class BgmMixer {
     final destination = _destination ??= context.createMediaStreamDestination();
     final micJs = (mic as MediaStreamTrackWeb).jsTrack;
     final micStream = web.MediaStream([micJs].toJS);
-    context.createMediaStreamSource(micStream).connect(destination);
+    // 作り直して繋ぎ直す時に、前のマイク入力が残って声が二重にならないよう外す。
+    _micSource?.disconnect();
+    final micSource = context.createMediaStreamSource(micStream)
+      ..connect(destination);
+    _micSource = micSource;
+    _effectGain ??= (context.createGain()
+      ..gain.value = _effectVolume
+      ..connect(destination)
+      ..connect(context.destination));
     if (_audio == null) {
       // 送信用（相手へ）に加え、自分のスピーカー（`context.destination`）にも出す。以前は送信用に
       // だけ繋いでいた為、相手には聞こえるが自分には全く聞こえなかった（2026-11-15）。
@@ -187,6 +201,37 @@ class BgmMixer {
     _bgmGain?.gain.value = _volume;
   }
 
+  set effectVolume(double value) {
+    _effectVolume = value.clamp(0.0, 1.0);
+    _effectGain?.gain.value = _effectVolume;
+  }
+
+  /// 効果音を1回鳴らす（BGMとは独立で、同時に何個でも重ねられる）。[key]はデコード結果の
+  /// キャッシュ用。鳴り終わったら[onEnded]。[attach]の後に呼ぶ。
+  Future<void> playEffect(
+    String key,
+    Uint8List bytes, {
+    void Function()? onEnded,
+  }) async {
+    final context = _context;
+    final gain = _effectGain;
+    if (context == null || gain == null) return;
+    unawaited(context.resume().toDart);
+    var buffer = _effectBuffers[key];
+    if (buffer == null) {
+      // decodeAudioDataは渡した配列を使い切る（detachする）為、コピーを渡す。
+      final copy = Uint8List.fromList(bytes);
+      buffer = await context.decodeAudioData(copy.buffer.toJS).toDart;
+      _effectBuffers[key] = buffer;
+    }
+    final source = context.createBufferSource()..buffer = buffer;
+    source.connect(gain);
+    if (onEnded != null) {
+      source.addEventListener('ended', ((web.Event _) => onEnded()).toJS);
+    }
+    source.start();
+  }
+
   void dispose() {
     unawaited(stop(fade: false));
     unawaited(_context?.close().toDart);
@@ -194,6 +239,9 @@ class BgmMixer {
     _destination = null;
     _bgmGain = null;
     _fadeGain = null;
+    _effectGain = null;
+    _micSource = null;
+    _effectBuffers.clear();
     _audio = null;
   }
 }

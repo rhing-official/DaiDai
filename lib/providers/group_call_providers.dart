@@ -80,15 +80,16 @@ final activeGroupCallsForUserProvider =
     });
 
 /// 進行中の広場通話の、今の参加人数（離脱扱いの人を除く）。通話ボタンの
-/// バッジ表示に使う（2026-10-21）。
-final groupCallParticipantCountProvider = StreamProvider.family<int, String>((
-  ref,
-  groupCallId,
-) {
-  return ref
-      .watch(groupCallRepositoryProvider)
-      .watchParticipants(groupCallId)
-      .map(
-        (participants) => liveParticipantCount(participants, DateTime.now()),
-      );
-});
+/// バッジ表示に使う（2026-10-21）。ハートビート切れは時間経過で成立し、参加者の
+/// スナップショットは届かない為、15秒ごとに数え直す（2026-11-17。以前は最後の1人が
+/// 落ちても「1人」のまま固まっていた）。
+final groupCallParticipantCountProvider =
+    Provider.family<AsyncValue<int>, String>((ref, groupCallId) {
+      ref.watch(_presenceTickProvider);
+      return ref
+          .watch(_callParticipantsProvider(groupCallId))
+          .whenData(
+            (participants) =>
+                liveParticipantCount(participants, DateTime.now()),
+          );
+    });

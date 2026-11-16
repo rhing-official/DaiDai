@@ -504,6 +504,18 @@ service cloud.firestore {
             && resource.data.accountDeletedUserId != request.auth.uid)
         );
 
+      // soundboardSounds: 通話のサウンドボードの効果音（2026-11-16）。参加者2人が対等に
+      // 読み・追加・削除できる。ファイル本体はStorageの`soundboard/dm/{dmId}/...`。
+      match /soundboardSounds/{soundId} {
+        allow read: if request.auth != null
+          && request.auth.uid in get(/databases/$(database)/documents/directMessages/$(dmId)).data.participants;
+        allow create: if request.auth != null
+          && request.auth.uid in get(/databases/$(database)/documents/directMessages/$(dmId)).data.participants
+          && request.resource.data.createdBy == request.auth.uid;
+        allow delete: if request.auth != null
+          && request.auth.uid in get(/databases/$(database)/documents/directMessages/$(dmId)).data.participants;
+      }
+
       // rooms/{roomId}: 寄合（テキストチャンネル、2026-07-28追加）。
       // 参加者を広場のRoom.memberIdsと同じ考え方でparticipantsとして
       // 非正規化して持つ（DM作成と同じバッチ内でこの寄合を作成する際、
@@ -1214,6 +1226,20 @@ service cloud.firestore {
           );
         allow delete: if request.auth != null
           && hasGroupPermission(groupId, 'manageRoles');
+      }
+
+      // soundboardSounds: 通話のサウンドボードの効果音（2026-11-16）。広場のメンバーなら
+      // 誰でも読める・追加できる。削除は追加した本人か長。ファイル本体は
+      // Storageの`soundboard/group/{groupId}/...`。
+      match /soundboardSounds/{soundId} {
+        allow read: if request.auth != null
+          && request.auth.uid in get(/databases/$(database)/documents/groups/$(groupId)).data.memberIds;
+        allow create: if request.auth != null
+          && request.auth.uid in get(/databases/$(database)/documents/groups/$(groupId)).data.memberIds
+          && request.resource.data.createdBy == request.auth.uid;
+        allow delete: if request.auth != null
+          && (resource.data.createdBy == request.auth.uid
+              || get(/databases/$(database)/documents/groups/$(groupId)).data.ownerId == request.auth.uid);
       }
 
       // rooms/{roomId}: 寄合。memberIdsを広場から非正規化して持つ

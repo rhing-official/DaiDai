@@ -544,8 +544,6 @@ final Strings _stringsFr = Strings._(
   mentionSectionRoles: 'Rôles',
   mentionEveryoneDescription: (plaza) =>
       'Notifie tout le monde dans cette $plaza.',
-  mentionRoleDescription: (plaza) =>
-      'Notifie tous les membres ayant ce rôle dans cette $plaza.',
   chatEditingLabel: 'Modification du message',
   chatUnsendConfirmTitle: 'Annuler l’envoi de ce message ?',
   chatUnsendConfirmMessage:
@@ -829,6 +827,16 @@ final Strings _stringsFr = Strings._(
   callBgmAlbumEmpty:
       'Aucun morceau. « Ajouter un morceau » l’ajoute à cet album',
   callBgmCreate: 'Créer',
+  callSoundboardTitle: 'Tableau de sons',
+  callSoundboardAdd: 'Ajouter un effet sonore',
+  callSoundboardEmpty:
+      'Aucun effet sonore. Ajoutez-en un et tout le monde dans cette conversation pourra l’utiliser',
+  callSoundboardEdit: 'Modifier',
+  callSoundboardDone: 'Terminé',
+  callSoundboardAddFailed: 'Impossible d’ajouter l’effet sonore',
+  callSoundboardTooLarge: 'Un effet sonore ne peut pas dépasser 2 Mo',
+  callSoundboardFull: 'Vous pouvez ajouter jusqu’à 30 effets sonores',
+  callSoundboardVolume: 'Volume',
   groupRoleDeleteConfirmTitle: 'Supprimer ce rôle ?',
   groupRoleDeleteConfirmButton: 'Supprimer',
   groupRoleNoneLabel: 'Aucun rôle',

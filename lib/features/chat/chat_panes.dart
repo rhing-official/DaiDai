@@ -53,6 +53,7 @@ import '../calendar/calendar_pane_view.dart';
 import '../calendar/calendar_event_detail_dialog.dart';
 import '../calendar/calendar_popup_content.dart';
 import '../call/active_call_session.dart';
+import '../call/pinned_call_overlay.dart';
 import '../note/note_pane_view.dart';
 import '../note/note_popup_content.dart';
 import '../poll/poll_detail_dialog.dart';
@@ -2453,6 +2454,13 @@ class _GroupChatPaneState extends ConsumerState<GroupChatPane> {
     BuildContext context, {
     required bool isVideo,
   }) async {
+    // 通話中（ミニ表示を含む）に通話ボタンを押したら、新しい通話は始めず、ミニ表示を
+    // タップした時と同じく進行中の通話画面を開き直す（一対の`startCall`と同じ挙動）。
+    final ongoing = ref.read(activeCallSessionProvider);
+    if (ongoing != null && !ongoing.hasEnded) {
+      reopenActiveCall(ref.read, ongoing);
+      return;
+    }
     final group = widget.group;
     final currentUser = widget.currentUser;
     final groupCallRepository = ref.read(groupCallRepositoryProvider);

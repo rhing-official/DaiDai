@@ -688,6 +688,47 @@ class CallBgm extends ChangeNotifier {
     }
   }
 
+  /// 鳴っている効果音の数（0になり、BGMも流れていなければ、送信を元のマイクへ戻す）。
+  int _activeEffects = 0;
+
+  /// 効果音の音量（0〜1、スライダーの値。実際の大きさは[kBgmMaxGain]を掛ける）。
+  void setEffectVolume(double value) {
+    _mixer.effectVolume = value.clamp(0.0, 1.0) * kBgmMaxGain;
+  }
+
+  /// サウンドボードの効果音を鳴らす（相手にも聞こえる）。ユーザー操作の中で呼ぶこと。
+  /// BGMが流れていれば同じ混合の経路へ重ねる。
+  Future<void> playEffect(String key, Uint8List bytes) async {
+    final mic = micTrack();
+    if (mic == null || _disposed) return;
+    if (_mixed == null) {
+      final mixed = _mixer.attach(mic);
+      _mixed = mixed;
+      await replaceOutgoingAudio(mixed);
+    }
+    _activeEffects++;
+    try {
+      await _mixer.playEffect(key, bytes, onEnded: _onEffectEnded);
+    } catch (_) {
+      _onEffectEnded();
+    }
+  }
+
+  void _onEffectEnded() {
+    if (_activeEffects > 0) _activeEffects--;
+    if (_activeEffects == 0 && _current == null && _mixed != null) {
+      _mixed = null;
+      final mic = micTrack();
+      if (mic != null && !_disposed) {
+        unawaited(
+          replaceOutgoingAudio(mic).catchError((Object _) {
+            // 通話が既に切れている等。
+          }),
+        );
+      }
+    }
+  }
+
   void setVolume(double value) {
     _volume = value.clamp(0.0, 1.0);
     _mixer.volume = _volume * kBgmMaxGain;
@@ -701,8 +742,9 @@ class CallBgm extends ChangeNotifier {
     _reportLastPlayed();
     final fadeOut = _mixer.stop();
     _stopProgress();
-    final hadMixed = _mixed != null;
-    _mixed = null;
+    // 効果音が鳴っている間は混合の経路を残す（鳴り終わった時に元へ戻す）。
+    final hadMixed = _mixed != null && _activeEffects == 0;
+    if (_activeEffects == 0) _mixed = null;
     _current = null;
     _paused = false;
     if (!_disposed) notifyListeners();

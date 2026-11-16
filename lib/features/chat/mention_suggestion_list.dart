@@ -134,7 +134,7 @@ class _MentionSuggestionListState extends State<MentionSuggestionList> {
               MentionKind.everyone => strings.mentionEveryoneDescription(
                 plazaLabel,
               ),
-              MentionKind.role => strings.mentionRoleDescription(plazaLabel),
+              MentionKind.role => null,
             },
             onTap: () => onPick(candidate),
           ),

@@ -452,7 +452,6 @@ class Strings {
     required this.mentionSectionMembers,
     required this.mentionSectionRoles,
     required this.mentionEveryoneDescription,
-    required this.mentionRoleDescription,
     required this.chatEditingLabel,
     required this.chatUnsendConfirmTitle,
     required this.chatUnsendConfirmMessage,
@@ -685,6 +684,15 @@ class Strings {
     required this.callBgmBack,
     required this.callBgmAlbumEmpty,
     required this.callBgmCreate,
+    required this.callSoundboardTitle,
+    required this.callSoundboardAdd,
+    required this.callSoundboardEmpty,
+    required this.callSoundboardEdit,
+    required this.callSoundboardDone,
+    required this.callSoundboardAddFailed,
+    required this.callSoundboardTooLarge,
+    required this.callSoundboardFull,
+    required this.callSoundboardVolume,
     required this.groupRoleDeleteConfirmTitle,
     required this.groupRoleDeleteConfirmButton,
     required this.groupRoleNoneLabel,
@@ -1782,7 +1790,6 @@ class Strings {
 
   /// 引数は広場の呼称（`Vocabulary.plaza`）。
   final String Function(String plaza) mentionEveryoneDescription;
-  final String Function(String plaza) mentionRoleDescription;
   final String chatEditingLabel;
   final String chatUnsendConfirmTitle;
   final String chatUnsendConfirmMessage;
@@ -2078,6 +2085,15 @@ class Strings {
   final String callBgmBack;
   final String callBgmAlbumEmpty;
   final String callBgmCreate;
+  final String callSoundboardTitle;
+  final String callSoundboardAdd;
+  final String callSoundboardEmpty;
+  final String callSoundboardEdit;
+  final String callSoundboardDone;
+  final String callSoundboardAddFailed;
+  final String callSoundboardTooLarge;
+  final String callSoundboardFull;
+  final String callSoundboardVolume;
   final String groupRoleDeleteConfirmTitle;
   final String groupRoleDeleteConfirmButton;
   final String groupRoleNoneLabel;
@@ -3341,7 +3357,6 @@ class Strings {
     mentionSectionMembers: 'メンバー',
     mentionSectionRoles: 'ロール',
     mentionEveryoneDescription: (plaza) => 'この$plazaの全員へ通知します。',
-    mentionRoleDescription: (plaza) => 'この$plazaでそのロールを持つ人へ通知します。',
     chatEditingLabel: 'メッセージを編集中',
     chatUnsendConfirmTitle: '送信を取り消しますか？',
     chatUnsendConfirmMessage:
@@ -3593,6 +3608,15 @@ class Strings {
     callBgmBack: '戻る',
     callBgmAlbumEmpty: '曲が有りません。「曲を追加」で、このアルバムに登録出来ます',
     callBgmCreate: '作成',
+    callSoundboardTitle: 'サウンドボード',
+    callSoundboardAdd: '効果音を追加',
+    callSoundboardEmpty: '効果音がありません。「効果音を追加」で登録すると、この語らいの全員が使えます',
+    callSoundboardEdit: '編集',
+    callSoundboardDone: '完了',
+    callSoundboardAddFailed: '効果音を追加できませんでした',
+    callSoundboardTooLarge: '効果音は2MBまでです',
+    callSoundboardFull: '効果音は30個までです',
+    callSoundboardVolume: '音量',
     groupRoleDeleteConfirmTitle: 'このロールを削除しますか？',
     groupRoleDeleteConfirmButton: '削除する',
     groupRoleNoneLabel: 'ロール未設定',
@@ -4736,8 +4760,6 @@ class Strings {
     mentionSectionMembers: 'Members',
     mentionSectionRoles: 'Roles',
     mentionEveryoneDescription: (plaza) => 'Notifies everyone in this $plaza.',
-    mentionRoleDescription: (plaza) =>
-        'Notifies everyone with this role in this $plaza.',
     chatEditingLabel: 'Editing message',
     chatUnsendConfirmTitle: 'Unsend this message?',
     chatUnsendConfirmMessage:
@@ -5015,6 +5037,16 @@ class Strings {
     callBgmAlbumEmpty:
         'No tracks yet. Use “Add a track” to add one to this album',
     callBgmCreate: 'Create',
+    callSoundboardTitle: 'Soundboard',
+    callSoundboardAdd: 'Add a sound effect',
+    callSoundboardEmpty:
+        'No sound effects yet. Add one and everyone in this conversation can use it',
+    callSoundboardEdit: 'Edit',
+    callSoundboardDone: 'Done',
+    callSoundboardAddFailed: 'Couldn’t add the sound effect',
+    callSoundboardTooLarge: 'Sound effects can be up to 2 MB',
+    callSoundboardFull: 'You can add up to 30 sound effects',
+    callSoundboardVolume: 'Volume',
     groupRoleDeleteConfirmTitle: 'Delete this role?',
     groupRoleDeleteConfirmButton: 'Delete',
     groupRoleNoneLabel: 'No role',

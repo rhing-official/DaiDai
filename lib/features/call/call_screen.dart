@@ -502,6 +502,10 @@ class _CallScreenState extends ConsumerState<CallScreen> {
       onSwitchCamera: _controller.switchCamera,
       onHangUp: _controller.hangUp,
       bgmBinding: oneToOneBgmBinding(_controller),
+      soundboardBinding: oneToOneSoundboardBinding(
+        _controller,
+        widget.currentUserId,
+      ),
       screenShare: oneToOneScreenShare(_controller, widget.currentUserId),
       remoteBgm: _controller.remoteBgm,
       videoFailed: _controller.videoFailed,

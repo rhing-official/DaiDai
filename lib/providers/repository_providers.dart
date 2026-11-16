@@ -1,6 +1,7 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../repositories/soundboard_repository.dart';
 import '../repositories/announcement_repository.dart';
 import '../repositories/turn_credentials_repository.dart';
 import '../repositories/album_repository.dart';
@@ -68,6 +69,10 @@ final callRepositoryProvider = Provider<CallRepository>((ref) {
 
 final groupCallRepositoryProvider = Provider<GroupCallRepository>((ref) {
   return FirestoreGroupCallRepository();
+});
+
+final soundboardRepositoryProvider = Provider<SoundboardRepository>((ref) {
+  return FirestoreSoundboardRepository();
 });
 
 final friendRepositoryProvider = Provider<FriendRepository>((ref) {

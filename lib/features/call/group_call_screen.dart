@@ -627,6 +627,7 @@ class _GroupCallScreenState extends ConsumerState<GroupCallScreen> {
       micBusyAtJoin: _controller.micBusyAtJoin,
       remoteBgm: _controller.remoteBgm,
       screenShare: groupScreenShare(_controller),
+      soundboardBinding: groupSoundboardBinding(_controller, widget.groupId),
       bgmBinding: groupBgmBinding(
         _controller,
         allowed: ref.watch(

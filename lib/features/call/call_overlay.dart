@@ -67,6 +67,11 @@ class _CallOverlayState extends ConsumerState<CallOverlay>
   @override
   void initState() {
     super.initState();
+    // 閉じ終わったら作り直し、`SizedBox.shrink()`へ切り替える。切り替えないと、全面を覆う
+    // 透明な層が残り、ミニ表示のタップ・ドラッグを奪っていた（2026-11-17）。
+    _controller.addStatusListener((status) {
+      if (status == AnimationStatus.dismissed && mounted) setState(() {});
+    });
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) _sync();
     });
@@ -111,14 +116,18 @@ class _CallOverlayState extends ConsumerState<CallOverlay>
     }
     // `MaterialApp.builder`の位置にはNavigator・Overlayが無く、`Tooltip`等が
     // 使えない為、専用の`Overlay`を持つ。
+    // 閉じる途中は操作を受けず、縮んでいくミニ表示を触れるようにする。
     return Positioned.fill(
-      child: Overlay(
-        initialEntries: [
-          OverlayEntry(
-            // 初期エントリは作り直されない為、開閉の状態は本体が自分で購読する。
-            builder: (context) => _CallOverlayBody(animation: _curved),
-          ),
-        ],
+      child: IgnorePointer(
+        ignoring: !open,
+        child: Overlay(
+          initialEntries: [
+            OverlayEntry(
+              // 初期エントリは作り直されない為、開閉の状態は本体が自分で購読する。
+              builder: (context) => _CallOverlayBody(animation: _curved),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -802,6 +811,10 @@ class _EmbeddedControls extends ConsumerWidget {
           onSwitchCamera: controller.switchCamera,
           onHangUp: controller.hangUp,
           bgmBinding: oneToOneBgmBinding(controller),
+          soundboardBinding: oneToOneSoundboardBinding(
+            controller,
+            currentUserId,
+          ),
           screenShare: oneToOneScreenShare(controller, currentUserId),
           remoteBgm: controller.remoteBgm,
           videoFailed: controller.videoFailed,
@@ -831,6 +844,7 @@ class _EmbeddedControls extends ConsumerWidget {
         micBusyAtJoin: controller.micBusyAtJoin,
         remoteBgm: controller.remoteBgm,
         screenShare: groupScreenShare(controller),
+        soundboardBinding: groupSoundboardBinding(controller, groupId),
         bgmBinding: groupBgmBinding(
           controller,
           allowed: ref.watch(
