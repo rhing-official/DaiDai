@@ -55,18 +55,17 @@ Future<Uint8List?> pickBgmImage() {
   final input = web.HTMLInputElement()
     ..type = 'file'
     ..accept = 'image/*';
-  input.onchange = ((web.Event _) async {
+  input.onchange = ((web.Event _) {
     final file = input.files?.item(0);
     if (file == null) {
       completer.complete(null);
       return;
     }
-    try {
-      final buffer = await file.arrayBuffer().toDart;
-      completer.complete(buffer.toDart.asUint8List());
-    } catch (_) {
-      completer.complete(null);
-    }
+    // `toJS`に渡す関数は`Future`を返せない為、読み込みは別に走らせる。
+    file.arrayBuffer().toDart.then(
+      (buffer) => completer.complete(buffer.toDart.asUint8List()),
+      onError: (Object _) => completer.complete(null),
+    );
   }).toJS;
   input.oncancel = ((web.Event _) {
     if (!completer.isCompleted) completer.complete(null);
