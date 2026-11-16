@@ -163,10 +163,10 @@ class ScreenShareControl extends ConsumerWidget {
                 child: FittedBox(
                   fit: BoxFit.scaleDown,
                   child: IconButton(
-                    iconSize: 20,
+                    iconSize: 28,
                     padding: EdgeInsets.zero,
                     constraints: const BoxConstraints.tightFor(
-                      width: 28,
+                      width: 36,
                       height: 40,
                     ),
                     icon: const Icon(Icons.keyboard_arrow_up),

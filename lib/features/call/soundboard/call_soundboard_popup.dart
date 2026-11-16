@@ -276,7 +276,7 @@ class _SoundboardPopupState extends ConsumerState<_SoundboardPopup> {
   }
 }
 
-class _SoundTile extends StatelessWidget {
+class _SoundTile extends StatefulWidget {
   const _SoundTile({
     required this.sound,
     required this.canManage,
@@ -292,14 +292,75 @@ class _SoundTile extends StatelessWidget {
   final VoidCallback onDelete;
 
   @override
+  State<_SoundTile> createState() => _SoundTileState();
+}
+
+class _SoundTileState extends State<_SoundTile>
+    with SingleTickerProviderStateMixin {
+  /// クリックした時の反応（ぽんと縮んで戻り、アクセントの色が広がって消える、2026-11-17）。
+  late final AnimationController _pulse = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 450),
+  );
+
+  @override
+  void dispose() {
+    _pulse.dispose();
+    super.dispose();
+  }
+
+  void _tap() {
+    _pulse.forward(from: 0);
+    widget.onPlay();
+  }
+
+  @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
-    return Material(
-      color: scheme.surfaceContainerHighest,
-      borderRadius: BorderRadius.circular(8),
+    final sound = widget.sound;
+    final canManage = widget.canManage;
+    final onEdit = widget.onEdit;
+    final onDelete = widget.onDelete;
+    return AnimatedBuilder(
+      animation: _pulse,
+      builder: (context, child) {
+        final t = _pulse.value;
+        // 前半で0.94まで縮み、後半で戻る。
+        final scale = 1 - 0.06 * math.sin(math.pi * t);
+        return Transform.scale(
+          scale: scale,
+          child: Material(
+            color: scheme.surfaceContainerHighest,
+            borderRadius: BorderRadius.circular(8),
+            clipBehavior: Clip.antiAlias,
+            child: Stack(
+              children: [
+                child!,
+                // 左から色が走り、全体が染まってから消える。
+                if (_pulse.isAnimating)
+                  Positioned.fill(
+                    child: IgnorePointer(
+                      child: FractionallySizedBox(
+                        alignment: Alignment.centerLeft,
+                        widthFactor: Curves.easeOut.transform(
+                          (t * 1.6).clamp(0.0, 1.0),
+                        ),
+                        child: ColoredBox(
+                          color: scheme.primary.withValues(
+                            alpha: 0.45 * (1 - t),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+          ),
+        );
+      },
       child: InkWell(
         borderRadius: BorderRadius.circular(8),
-        onTap: onPlay,
+        onTap: _tap,
         child: SizedBox(
           height: 40,
           child: Row(
