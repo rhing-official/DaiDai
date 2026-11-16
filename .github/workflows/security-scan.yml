@@ -21,4 +21,4 @@ jobs:
         env:
           STRIX_LLM: ${{ secrets.STRIX_LLM }}
           LLM_API_KEY: ${{ secrets.LLM_API_KEY }}
-        run: strix -n -t ./ --scan-mode deep --max-budget 5 --fail-on high --instruction-file .github/strix-instruction.md
+        run: strix -n -t ./ --scan-mode deep --max-budget 15 --fail-on high --instruction-file .github/strix-instruction.md
