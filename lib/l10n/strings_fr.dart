@@ -1423,7 +1423,8 @@ final Strings _stringsFr = Strings._(
   groupCallInProgressBannerLabel: (isVideo) => isVideo
       ? 'Un appel vidéo est en cours. Touchez pour rejoindre'
       : 'Un appel est en cours. Touchez pour rejoindre',
-  groupCallBackToGridTooltip: 'Retour à la grille',
+  callPinWindow: 'Épingler',
+  callUnpinWindow: 'Désépingler',
   groupProfileCardChangeImage: "Changer l'image",
   profileBirthdaySectionTitle: 'Date de naissance',
   profileAddBirthday: 'Ajouter la date de naissance',

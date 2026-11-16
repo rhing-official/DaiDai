@@ -1188,7 +1188,8 @@ class Strings {
     required this.mediaSkipBackwardLabel,
     required this.mediaVideoUnplayableNotice,
     required this.groupCallInProgressBannerLabel,
-    required this.groupCallBackToGridTooltip,
+    required this.callPinWindow,
+    required this.callUnpinWindow,
     required this.groupProfileCardChangeImage,
     required this.profileBirthdaySectionTitle,
     required this.profileAddBirthday,
@@ -2766,7 +2767,8 @@ class Strings {
   final String Function(bool isVideo) groupCallInProgressBannerLabel;
 
   /// 広場通話で1人を拡大表示している間の、一覧（グリッド）に戻るボタンの説明（2026-10-21）。
-  final String groupCallBackToGridTooltip;
+  final String callPinWindow;
+  final String callUnpinWindow;
   final String groupProfileCardChangeImage;
 
   /// 誕生日（蔵で登録、仕立てでカード毎に表示を選ぶ、2026-10-23追加）。
@@ -4085,7 +4087,8 @@ class Strings {
         'この端末では、この動画の映像を再生できません。4Kなど画質が高くて重い動画は、映像が再生されないことがあります。しばらくしてからもう一度開くか、ダウンロードして別のアプリで開いてください。',
     groupCallInProgressBannerLabel: (isVideo) =>
         isVideo ? 'ビデオ通話中です。タップして参加' : '通話中です。タップして参加',
-    groupCallBackToGridTooltip: 'グリッドに戻る',
+    callPinWindow: 'ピン留め',
+    callUnpinWindow: 'ピン留めを外す',
     groupProfileCardChangeImage: '画像を変更',
     profileBirthdaySectionTitle: '誕生日',
     profileAddBirthday: '誕生日を登録',
@@ -5543,7 +5546,8 @@ class Strings {
     groupCallInProgressBannerLabel: (isVideo) => isVideo
         ? 'A video call is in progress. Tap to join'
         : 'A call is in progress. Tap to join',
-    groupCallBackToGridTooltip: 'Back to grid',
+    callPinWindow: 'Pin',
+    callUnpinWindow: 'Unpin',
     groupProfileCardChangeImage: 'Change image',
     profileBirthdaySectionTitle: 'Birthday',
     profileAddBirthday: 'Add birthday',

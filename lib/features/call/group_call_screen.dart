@@ -1,4 +1,3 @@
-import 'package:collection/collection.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_webrtc/flutter_webrtc.dart';
@@ -18,6 +17,7 @@ import 'bgm/call_bgm_bindings.dart';
 import 'screen_share_menu.dart';
 import 'call_control_bar.dart';
 import 'call_tile_layout.dart';
+import 'call_video_viewer.dart';
 import 'camera_availability.dart';
 import 'webrtc_group_call_controller.dart';
 import '../../l10n/strings.dart';
@@ -55,9 +55,20 @@ class GroupCallScreen extends ConsumerStatefulWidget {
 class _GroupCallScreenState extends ConsumerState<GroupCallScreen> {
   late final GroupCallSession _session;
 
-  /// タップでフォーカス（全画面表示）中のタイルのキー。
-  /// 自分は`'self'`、相手は`userId`。nullならグリッド表示。
-  String? _focusedTileKey;
+  /// 拡大表示（映像のビューア）を閉じるたびに増やし、映像の部品を作り直す
+  /// （Webの描画要素は拡大側へ移る為）。
+  int _viewerGeneration = 0;
+
+  void _openViewer(RTCVideoRenderer renderer, {required bool mirror}) {
+    showCallVideoViewer(
+      context,
+      renderer: renderer,
+      mirror: mirror,
+      onClosed: () {
+        if (mounted) setState(() => _viewerGeneration++);
+      },
+    );
+  }
 
   /// このウィジェット自身の意図したpop（下スワイプでのドック・通話終了後の
   /// 自動クローズ）かどうか。詳細は[CallScreen]の同名フィールドのコメント
@@ -219,9 +230,8 @@ class _GroupCallScreenState extends ConsumerState<GroupCallScreen> {
     );
   }
 
-  /// 映像を画面に出していない参加者のレンダラー（音声だけ鳴らす）。映像のある
-  /// 参加者でも、1人をフォーカス表示している間は他の参加者のタイルが無いため
-  /// 含める（2026-10-21、映像オフの参加者の音声が聞こえなかった不具合の修正）。
+  /// 映像を画面に出していない参加者のレンダラー（音声だけ鳴らす、2026-10-21、映像オフの
+  /// 参加者の音声が聞こえなかった不具合の修正）。
   List<RTCVideoRenderer> _undisplayedRemoteRenderers() {
     final remotes = _controller.remoteParticipants;
     final ids = groupAudioOnlyUserIds(
@@ -230,7 +240,6 @@ class _GroupCallScreenState extends ConsumerState<GroupCallScreen> {
         for (final p in remotes)
           if (_controller.remoteVideoShown(p)) p.userId,
       },
-      focusedUserId: _focusedTileKey,
     );
     return [
       for (final id in ids)
@@ -371,150 +380,110 @@ class _GroupCallScreenState extends ConsumerState<GroupCallScreen> {
       );
     }
 
-    // 2人以上は人数によらず常にグリッド表示から始め、任意の枠をタップすると
-    // その参加者を全画面表示、全画面表示中に下スワイプするとグリッドに
-    // 戻る（一対通話の「フルスクリーン＋コーナーPIP」とは意図的に差別化）。
+    // 2人以上は、一対と同じ並べ方（`CallTileStage`、画面共有も1枚と数えて最上行、
+    // ピン留め可、2026-11-16）。タップは映像の拡大ビューア。
     final strings = ref.watch(appStringsProvider);
-    Widget screenTile({
+    CallTileSpec screenSpec({
       required String userId,
       required String rhingSeed,
       required RTCVideoRenderer renderer,
       required String label,
-    }) => ScreenShareFrame(
-      video: RTCVideoView(
-        key: ObjectKey(renderer),
-        renderer,
-        objectFit: RTCVideoViewObjectFit.RTCVideoViewObjectFitContain,
-      ),
-      name: CallParticipantNameLabel(
-        userId: userId,
-        rhingSeed: rhingSeed,
-        conversationId: widget.groupId,
-        style: const TextStyle(
-          color: Colors.white,
-          shadows: [Shadow(blurRadius: 6)],
+    }) => CallTileSpec(
+      key: '$userId#screen',
+      onTap: () => _openViewer(renderer, mirror: false),
+      build: (_) => ScreenShareFrame(
+        video: RTCVideoView(
+          key: ValueKey((renderer, _viewerGeneration)),
+          renderer,
+          objectFit: RTCVideoViewObjectFit.RTCVideoViewObjectFitContain,
         ),
+        name: CallParticipantNameLabel(
+          userId: userId,
+          rhingSeed: rhingSeed,
+          conversationId: widget.groupId,
+          style: const TextStyle(
+            color: Colors.white,
+            shadows: [Shadow(blurRadius: 6)],
+          ),
+        ),
+        qualityLabel: label,
+        liveText: strings.callScreenShareLive,
       ),
-      qualityLabel: label,
-      liveText: strings.callScreenShareLive,
     );
 
-    final entries = <_CallTileEntry>[
-      // 画面共有（配信）のタイル（2026-11-15）。
+    CallTileSpec personSpec({
+      required String userId,
+      required String rhingSeed,
+      required RTCVideoRenderer? renderer,
+      required bool mirror,
+      required bool micMuted,
+      required bool videoEnabled,
+      required bool connectionIssue,
+      bool connecting = false,
+    }) => CallTileSpec(
+      key: userId,
+      onTap: videoEnabled && renderer != null
+          ? () => _openViewer(renderer, mirror: mirror)
+          : null,
+      build: (_) => _videoTile(
+        userId: userId,
+        rhingSeed: rhingSeed,
+        renderer: renderer,
+        mirror: mirror,
+        micMuted: micMuted,
+        videoEnabled: videoEnabled,
+        connectionIssue: connectionIssue,
+        connecting: connecting,
+        placeholderColor: placeholderColor,
+      ),
+    );
+
+    final specs = <CallTileSpec>[
       if (_controller.isScreenSharing)
-        _CallTileEntry(
-          key: 'self#screen',
-          tile: screenTile(
-            userId: widget.currentUser.userId,
-            rhingSeed: widget.currentUser.rhingSeed,
-            renderer: _controller.localScreenRenderer,
-            label: _controller.screenQuality.label,
-          ),
+        screenSpec(
+          userId: widget.currentUser.userId,
+          rhingSeed: widget.currentUser.rhingSeed,
+          renderer: _controller.localScreenRenderer,
+          label: _controller.screenQuality.label,
         ),
       for (final participant in remoteParticipants)
         if (_controller.remoteScreenShown(participant))
-          _CallTileEntry(
-            key: '${participant.userId}#screen',
-            tile: screenTile(
-              userId: participant.userId,
-              rhingSeed: participant.rhingSeed,
-              renderer: _controller.screenRenderers[participant.userId]!,
-              label: participant.screenLabel ?? '',
-            ),
-          ),
-      _CallTileEntry(
-        key: 'self',
-        tile: _videoTile(
-          userId: widget.currentUser.userId,
-          rhingSeed: widget.currentUser.rhingSeed,
-          renderer: _controller.isVideo ? _controller.localRenderer : null,
-          mirror: _controller.isFrontCamera,
-          micMuted: _controller.muted,
-          videoEnabled: _controller.isVideo,
-          connectionIssue: false,
-          placeholderColor: placeholderColor,
-        ),
-      ),
-      for (final participant in remoteParticipants)
-        _CallTileEntry(
-          key: participant.userId,
-          tile: _videoTile(
+          screenSpec(
             userId: participant.userId,
             rhingSeed: participant.rhingSeed,
-            renderer: _controller.remoteRenderers[participant.userId],
-            mirror: false,
-            micMuted: participant.micMuted,
-            videoEnabled: _controller.remoteVideoShown(participant),
-            connectionIssue:
-                _controller.peerConnectionIssues[participant.userId] ?? false,
-            connecting:
-                _controller.state == GroupCallConnectionState.active &&
-                !_controller.isPeerEstablished(participant.userId),
-            placeholderColor: placeholderColor,
+            renderer: _controller.screenRenderers[participant.userId]!,
+            label: participant.screenLabel ?? '',
           ),
+      personSpec(
+        userId: widget.currentUser.userId,
+        rhingSeed: widget.currentUser.rhingSeed,
+        renderer: _controller.isVideo ? _controller.localRenderer : null,
+        mirror: _controller.isFrontCamera,
+        micMuted: _controller.muted,
+        videoEnabled: _controller.isVideo,
+        connectionIssue: false,
+      ),
+      for (final participant in remoteParticipants)
+        personSpec(
+          userId: participant.userId,
+          rhingSeed: participant.rhingSeed,
+          renderer: _controller.remoteRenderers[participant.userId],
+          mirror: false,
+          micMuted: participant.micMuted,
+          videoEnabled: _controller.remoteVideoShown(participant),
+          connectionIssue:
+              _controller.peerConnectionIssues[participant.userId] ?? false,
+          connecting:
+              _controller.state == GroupCallConnectionState.active &&
+              !_controller.isPeerEstablished(participant.userId),
         ),
     ];
-
-    final focused = entries.firstWhereOrNull(
-      (entry) => entry.key == _focusedTileKey,
-    );
-
-    if (focused != null) {
-      // フォーカス中は既存の下スワイプ（グリッドへ戻る）を優先し、ドック用の
-      // ジェスチャーは重ねない（同じ縦ドラッグの二重登録を避ける為）。
-      return SafeArea(
-        child: Stack(
-          children: [
-            Positioned.fill(
-              child: GestureDetector(
-                onVerticalDragEnd: (details) {
-                  if ((details.primaryVelocity ?? 0) > 200) {
-                    setState(() => _focusedTileKey = null);
-                  }
-                },
-                child: focused.tile,
-              ),
-            ),
-            const Positioned(
-              top: 16,
-              left: 0,
-              right: 0,
-              child: Center(
-                child: Icon(
-                  Icons.keyboard_arrow_down,
-                  color: Colors.white70,
-                  size: 28,
-                ),
-              ),
-            ),
-            Positioned(
-              left: 0,
-              right: 0,
-              bottom: 16,
-              child: Center(child: _controls()),
-            ),
-          ],
-        ),
-      );
-    }
 
     return _dockable(
       SafeArea(
         child: Column(
           children: [
-            Expanded(
-              // 領域が縦長なら縦に積み、横長なら従来のグリッド（`CallTileGrid`、
-              // 2026-10-13。スクロール無しで常に収まる設計は従来どおり）。
-              child: CallTileGrid(
-                tiles: [
-                  for (final entry in entries)
-                    GestureDetector(
-                      onTap: () => setState(() => _focusedTileKey = entry.key),
-                      child: entry.tile,
-                    ),
-                ],
-              ),
-            ),
+            Expanded(child: CallTileStage(specs: specs)),
             Padding(
               padding: const EdgeInsets.only(bottom: 16),
               child: _controls(),
@@ -551,7 +520,7 @@ class _GroupCallScreenState extends ConsumerState<GroupCallScreen> {
                 // Stateを使い回してしまい映像が入れ替わらない不具合になって
                 // いた。レンダラーの実体が変わったら必ず作り直されるよう、
                 // レンダラー自体をキーにする。
-                key: ObjectKey(renderer),
+                key: ValueKey((renderer, _viewerGeneration)),
                 renderer,
                 mirror: mirror,
                 objectFit: RTCVideoViewObjectFit.RTCVideoViewObjectFitCover,
@@ -658,10 +627,4 @@ class _GroupCallScreenState extends ConsumerState<GroupCallScreen> {
       ),
     );
   }
-}
-
-class _CallTileEntry {
-  const _CallTileEntry({required this.key, required this.tile});
-  final String key;
-  final Widget tile;
 }

@@ -19,7 +19,7 @@ import 'bgm/call_bgm_bindings.dart';
 import 'screen_share_menu.dart';
 import 'call_control_bar.dart';
 import 'call_video_viewer.dart';
-import 'call_focus_provider.dart';
+import 'call_pin_provider.dart';
 import 'call_tile_layout.dart';
 import 'camera_availability.dart';
 import 'webrtc_call_controller.dart';
@@ -102,11 +102,11 @@ class _CallOverlayBody extends ConsumerWidget {
           children: [
             GestureDetector(
               behavior: HitTestBehavior.opaque,
-              // 拡大しているタイルがあれば、外（余白）のクリックでまずグリッドへ戻す。
+              // ピン留めしたウィンドウがあれば、外（余白）のクリックでまずピンを外す。
               onTap: () {
-                final focus = ref.read(callFocusedTileProvider.notifier);
-                if (ref.read(callFocusedTileProvider) != null) {
-                  focus.clear();
+                final pins = ref.read(callPinnedTilesProvider.notifier);
+                if (ref.read(callPinnedTilesProvider).isNotEmpty) {
+                  pins.clear();
                 } else {
                   close();
                 }
@@ -235,35 +235,24 @@ class _OneToOneStage extends ConsumerStatefulWidget {
 }
 
 class _OneToOneStageState extends ConsumerState<_OneToOneStage> {
-  /// 大きく表示している（メインの）映像が相手か自分か（2026-10-13追加）。
-  /// 右下の小さい映像（コーナー）をクリックすると入れ替わり、入れ替えた後に
-  /// メインをクリックすれば元に戻る（`call_screen.dart`の`_mainViewIsRemote`と
-  /// 同じ規則）。
-  bool _mainIsRemote = true;
-
   /// 拡大表示（画像・動画・PDFと同じぼかしの拡大、2026-11-03）を閉じるたびに増やし、
   /// 映像の部品を作り直す（Webの描画要素は拡大側へ移る為、元の映像が空になる）。
   int _viewerGeneration = 0;
 
-  /// 大きい映像のクリックで、その映像を拡大表示する（入れ替えは右下の小窓）。
-  void _openViewer() {
-    final controller = widget.session.controller;
-    final remote = _mainIsRemote;
+  /// ウィンドウの映像を拡大表示する（ウィンドウのタップ）。
+  void _openViewer(RTCVideoRenderer renderer, {required bool mirror}) {
     showCallVideoViewer(
       context,
-      renderer: remote ? controller.remoteRenderer : controller.localRenderer,
-      mirror: !remote && controller.isFrontCamera,
+      renderer: renderer,
+      mirror: mirror,
       onClosed: () {
         if (mounted) setState(() => _viewerGeneration++);
       },
     );
   }
 
-  void _swap() => setState(() => _mainIsRemote = !_mainIsRemote);
-
   /// 映像が無い側の枠に出す、その人のプロフィールアイコン（2026-10-21追加）。
-  /// 片方だけ映像をオンにすると、オフの側の枠が空白になり誰か分からなく
-  /// なっていた。[remote]が相手、falseなら自分。
+  /// [remote]が相手、falseなら自分。
   Widget _avatar({required bool remote, required double radius}) {
     final session = widget.session;
     final call = session.call;
@@ -277,39 +266,9 @@ class _OneToOneStageState extends ConsumerState<_OneToOneStage> {
     );
   }
 
-  /// 映像の描画。メインは切り抜かず全体を見せ（Contain、余白は灰色。2026-10-11
-  /// 変更）、コーナーは枠いっぱいに切り抜く（Cover）。自分の映像は前面カメラの
-  /// 時だけ左右反転する（どちらの位置でも同じ）。
-  Widget _video({required bool remote, required bool main}) {
-    final controller = widget.session.controller;
-    final renderer = remote
-        ? controller.remoteRenderer
-        : controller.localRenderer;
-    // 領域が縦長ならメインも画面いっぱいに切り抜く（[callVideoFitFor]）。
-    return LayoutBuilder(
-      builder: (context, constraints) => RTCVideoView(
-        // Web版の`RTCVideoView`はinitState時にしか描画要素を取らない為、
-        // レンダラー自体をキーにして入れ替え時に確実に作り直す。
-        key: ValueKey((renderer, _viewerGeneration)),
-        renderer,
-        mirror: !remote && controller.isFrontCamera,
-        objectFit: callVideoFitFor(
-          portraitArea: constraints.maxHeight > constraints.maxWidth,
-          main: main,
-        ),
-      ),
-    );
-  }
-
-  /// 拡大しているタイル（`remote`・`self`・`screen-remote`・`screen-self`。nullならグリッド）。
-  String? get _focusedKey => ref.watch(callFocusedTileProvider);
-  set _focusedKey(String? value) {
-    final notifier = ref.read(callFocusedTileProvider.notifier);
-    value == null ? notifier.clear() : notifier.focus(value);
-  }
-
-  /// 1人ぶんのタイル（映像、無ければアイコン。呼び名とミュート表示つき）。
-  Widget _participantTile({required bool remote, required bool focused}) {
+  /// 1人ぶんのタイル（映像、無ければアイコン。呼び名とミュート表示つき）。[pinned]は
+  /// ピン留めで大きく出している時。
+  Widget _participantTile({required bool remote, required bool pinned}) {
     final session = widget.session;
     final controller = session.controller;
     final call = session.call;
@@ -330,12 +289,12 @@ class _OneToOneStageState extends ConsumerState<_OneToOneStage> {
                     key: ValueKey((renderer, _viewerGeneration)),
                     renderer,
                     mirror: !remote && controller.isFrontCamera,
-                    objectFit: focused
+                    objectFit: pinned
                         ? RTCVideoViewObjectFit.RTCVideoViewObjectFitContain
                         : RTCVideoViewObjectFit.RTCVideoViewObjectFitCover,
                   )
                 : Center(
-                    child: _avatar(remote: remote, radius: focused ? 56 : 28),
+                    child: _avatar(remote: remote, radius: pinned ? 56 : 28),
                   ),
             Positioned(
               left: 8,
@@ -405,250 +364,53 @@ class _OneToOneStageState extends ConsumerState<_OneToOneStage> {
     );
   }
 
-  /// 画面共有（配信）がある時の表示（2026-11-15）。共有の画面を、Discordのように参加者の
-  /// タイルの1つとして、相手・自分のタイルと同じグリッドに並べる。タイルのクリックで拡大し、
-  /// もう一度のクリック・戻るボタン・Escでグリッドへ戻る。
-  Widget _screenStage() {
-    final session = widget.session;
-    final controller = session.controller;
-    final strings = ref.watch(appStringsProvider);
-    final keys = <String>[
-      if (controller.remoteScreenShown) 'screen-remote',
-      if (controller.isScreenSharing) 'screen-self',
-      'self',
-      'remote',
-    ];
-    final focused = keys.contains(_focusedKey) ? _focusedKey : null;
-
-    Widget tileFor(String key, bool isFocused) {
-      final tile = switch (key) {
-        'screen-remote' => _screenTile(remote: true),
-        'screen-self' => _screenTile(remote: false),
-        'remote' => _participantTile(remote: true, focused: isFocused),
-        _ => _participantTile(remote: false, focused: isFocused),
-      };
-      // Webでは映像（プラットフォームビュー）がクリックを奪うため、`PointerInterceptor`で受ける。
-      return Stack(
-        fit: StackFit.expand,
-        children: [
-          tile,
-          Positioned.fill(
-            child: PointerInterceptor(
-              child: GestureDetector(
-                behavior: HitTestBehavior.opaque,
-                onTap: () =>
-                    setState(() => _focusedKey = isFocused ? null : key),
-                child: const SizedBox.expand(),
-              ),
-            ),
-          ),
-        ],
-      );
-    }
-
-    // 相手のタイルを画面に出していない（拡大中で他のタイル）時や、映像が無い時は、
-    // 相手の音声を鳴らす見えない動画要素で補う。
-    final remoteTileShown =
-        (focused == null || focused == 'remote') && controller.remoteVideoShown;
-    final audioSink = remoteTileShown
-        ? const SizedBox.shrink()
-        : CallAudioSinks(renderers: [controller.remoteRenderer]);
-
-    final Widget stage;
-    if (focused != null) {
-      stage = Focus(
-        autofocus: true,
-        onKeyEvent: (node, event) {
-          if (event is KeyDownEvent &&
-              event.logicalKey == LogicalKeyboardKey.escape) {
-            setState(() => _focusedKey = null);
-            return KeyEventResult.handled;
-          }
-          return KeyEventResult.ignored;
-        },
-        child: Stack(
-          fit: StackFit.expand,
-          children: [
-            tileFor(focused, true),
-            Positioned(
-              top: 8,
-              right: 8,
-              child: PointerInterceptor(
-                child: IconButton(
-                  tooltip: strings.groupCallBackToGridTooltip,
-                  icon: const Icon(
-                    Icons.close_fullscreen,
-                    color: Colors.white,
-                    shadows: [Shadow(blurRadius: 6)],
-                  ),
-                  onPressed: () => setState(() => _focusedKey = null),
-                ),
-              ),
-            ),
-          ],
-        ),
-      );
-    } else {
-      // 縦に、共有・自分・相手の順（共有が2つなら共有2枚が先）。
-      stage = CallTileColumn(tiles: [for (final k in keys) tileFor(k, false)]);
-    }
-    return Stack(
-      fit: StackFit.expand,
-      children: [
-        Positioned.fill(child: stage),
-        Positioned(left: 0, top: 0, child: audioSink),
-      ],
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
-    final session = widget.session;
-    final controller = session.controller;
-    if (controller.remoteScreenShown || controller.isScreenSharing) {
-      return _screenStage();
-    }
-    // 相手の映像を画面に出していない間は、相手の音声を鳴らす`RTCVideoView`が
-    // 無くなり音が出ない（Web）。見えない動画要素で補う（2026-10-31追加）。
+    final controller = widget.session.controller;
+    // ウィンドウ（共有は1枚と数え、先頭＝最上行。2026-11-16、広場と同じ並べ方・ピン留め）。
+    final specs = [
+      if (controller.remoteScreenShown)
+        CallTileSpec(
+          key: 'remote#screen',
+          onTap: () =>
+              _openViewer(controller.remoteScreenRenderer, mirror: false),
+          build: (_) => _screenTile(remote: true),
+        ),
+      if (controller.isScreenSharing)
+        CallTileSpec(
+          key: 'self#screen',
+          onTap: () =>
+              _openViewer(controller.localScreenRenderer, mirror: false),
+          build: (_) => _screenTile(remote: false),
+        ),
+      CallTileSpec(
+        key: 'self',
+        onTap: controller.isVideo
+            ? () => _openViewer(
+                controller.localRenderer,
+                mirror: controller.isFrontCamera,
+              )
+            : null,
+        build: (pinned) => _participantTile(remote: false, pinned: pinned),
+      ),
+      CallTileSpec(
+        key: 'remote',
+        onTap: controller.remoteVideoShown
+            ? () => _openViewer(controller.remoteRenderer, mirror: false)
+            : null,
+        build: (pinned) => _participantTile(remote: true, pinned: pinned),
+      ),
+    ];
+    // 相手の映像のタイルが無い時は、相手の音声を鳴らす見えない動画要素で補う
+    // （Webは`RTCVideoView`が音を鳴らす、2026-10-31追加）。
     final audioSink = controller.remoteVideoShown
         ? const SizedBox.shrink()
         : CallAudioSinks(renderers: [controller.remoteRenderer]);
-    if (!controller.remoteVideoShown && !controller.isVideo) {
-      return ColoredBox(
-        color: Colors.grey.shade900,
-        child: Stack(
-          children: [
-            Center(
-              child: CallParticipantAvatar(
-                userId: session.call.otherUserId(session.currentUserId),
-                rhingSeed: session.call.otherRhingSeed(session.currentUserId),
-                conversationId: session.call.dmId,
-                radius: 56,
-                fontSize: 40,
-              ),
-            ),
-            audioSink,
-            Positioned(
-              left: 12,
-              bottom: 12,
-              child: CallLabelSheet(
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    CallParticipantNameLabel(
-                      userId: session.call.otherUserId(session.currentUserId),
-                      rhingSeed: session.call.otherRhingSeed(
-                        session.currentUserId,
-                      ),
-                      conversationId: session.call.dmId,
-                      style: const TextStyle(color: Colors.white, fontSize: 13),
-                    ),
-                    if (controller.remoteMuted)
-                      const Padding(
-                        padding: EdgeInsets.only(left: 6),
-                        child: Icon(
-                          Icons.mic_off,
-                          size: 14,
-                          color: Colors.white,
-                        ),
-                      ),
-                  ],
-                ),
-              ),
-            ),
-          ],
-        ),
-      );
-    }
-    final mainHasVideo = _mainIsRemote
-        ? controller.remoteVideoShown
-        : controller.isVideo;
-    final cornerHasVideo = _mainIsRemote
-        ? controller.isVideo
-        : controller.remoteVideoShown;
-    // 領域いっぱいに広げる（2026-11-03）。以前は、位置を指定しない子が`audioSink`
-    // （大きさ0）だけで、Stack自体が幅0・高さ0に縮み、映像の枠が細い縦線になって
-    // 映像が見えなかった（一対の映像通話）。
     return Stack(
       fit: StackFit.expand,
       children: [
+        Positioned.fill(child: CallTileStage(specs: specs)),
         Positioned(left: 0, top: 0, child: audioSink),
-        Positioned.fill(
-          child: ColoredBox(
-            color: Colors.grey.shade900,
-            child: mainHasVideo
-                ? _video(remote: _mainIsRemote, main: true)
-                : Center(child: _avatar(remote: _mainIsRemote, radius: 56)),
-          ),
-        ),
-        // メインの画面のクリックで拡大表示（入れ替えは右下の小窓、2026-11-03変更）。
-        // Webでは映像（プラットフォームビュー）がクリックを奪うため
-        // `PointerInterceptor`で受ける。映像が無い（アイコン表示）時は拡大しない。
-        Positioned.fill(
-          child: PointerInterceptor(
-            child: GestureDetector(
-              behavior: HitTestBehavior.opaque,
-              onTap: mainHasVideo ? _openViewer : null,
-              child: const SizedBox.expand(),
-            ),
-          ),
-        ),
-        // 大きく映っている側の呼び名とミュート表示（広場のタイルと同じ、
-        // 2026-10-31追加）。クリックは下の拡大操作へ通す。
-        Positioned(
-          left: 12,
-          bottom: 12,
-          child: IgnorePointer(
-            child: CallLabelSheet(
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  CallParticipantNameLabel(
-                    userId: _mainIsRemote
-                        ? session.call.otherUserId(session.currentUserId)
-                        : session.currentUserId,
-                    rhingSeed: _mainIsRemote
-                        ? session.call.otherRhingSeed(session.currentUserId)
-                        : session.call.myRhingSeed(session.currentUserId),
-                    conversationId: session.call.dmId,
-                    style: const TextStyle(color: Colors.white, fontSize: 13),
-                  ),
-                  if (_mainIsRemote ? controller.remoteMuted : controller.muted)
-                    const Padding(
-                      padding: EdgeInsets.only(left: 6),
-                      child: Icon(Icons.mic_off, size: 14, color: Colors.white),
-                    ),
-                ],
-              ),
-            ),
-          ),
-        ),
-        // 映像が無い側も小窓を出し、その人のアイコンを入れる（2026-10-21変更、
-        // 以前は映像がある時だけ出していた為、オフの側が消えていた）。
-        Positioned(
-          right: 12,
-          bottom: 12,
-          child: PointerInterceptor(
-            child: GestureDetector(
-              onTap: _swap,
-              child: ClipRRect(
-                borderRadius: BorderRadius.circular(8),
-                child: SizedBox(
-                  width: 80,
-                  height: 110,
-                  child: cornerHasVideo
-                      ? _video(remote: !_mainIsRemote, main: false)
-                      : ColoredBox(
-                          color: Colors.grey.shade800,
-                          child: Center(
-                            child: _avatar(remote: !_mainIsRemote, radius: 28),
-                          ),
-                        ),
-                ),
-              ),
-            ),
-          ),
-        ),
       ],
     );
   }
@@ -663,182 +425,128 @@ class _GroupStage extends ConsumerStatefulWidget {
 }
 
 class _GroupStageState extends ConsumerState<_GroupStage> {
-  /// 通話エリアいっぱいに拡大している参加者（自分も可、nullならグリッド、
-  /// 2026-10-21追加）。タイルのクリックで拡大し、もう一度クリック・戻るボタン・
-  /// Escでグリッドへ戻る。モバイルの全画面通話画面（`group_call_screen.dart`の
-  /// `_focusedTileKey`）と同じ考え方。
-  String? get _focusedUserId => ref.watch(callFocusedTileProvider);
-  set _focusedUserId(String? value) {
-    final notifier = ref.read(callFocusedTileProvider.notifier);
-    value == null ? notifier.clear() : notifier.focus(value);
-  }
+  /// 拡大表示を閉じるたびに増やし、映像の部品を作り直す（Webの描画要素は拡大側へ移る為）。
+  int _viewerGeneration = 0;
 
   GroupCallSession get session => widget.session;
+
+  void _openViewer(RTCVideoRenderer renderer, {required bool mirror}) {
+    showCallVideoViewer(
+      context,
+      renderer: renderer,
+      mirror: mirror,
+      onClosed: () {
+        if (mounted) setState(() => _viewerGeneration++);
+      },
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
     final controller = session.controller;
     final selfId = controller.currentUser.userId;
     final remotes = controller.remoteParticipants;
-    // 拡大中の参加者が退出したら、グリッドへ戻る。
-    // 画面共有のタイルは`<userId>#screen`をキーにする（拡大・解除は参加者のタイルと同じ）。
-    final screenKeys = <String>{
-      if (controller.isScreenSharing) '$selfId#screen',
-      for (final p in remotes)
-        if (controller.remoteScreenShown(p)) '${p.userId}#screen',
-    };
-    final focusedId =
-        _focusedUserId != null &&
-            (_focusedUserId == selfId ||
-                screenKeys.contains(_focusedUserId) ||
-                remotes.any((p) => p.userId == _focusedUserId))
-        ? _focusedUserId
-        : null;
+    final strings = ref.watch(appStringsProvider);
 
-    Widget tileFor({
+    CallTileSpec screenSpec({
+      required String userId,
+      required String rhingSeed,
+      required RTCVideoRenderer renderer,
+      required String label,
+    }) {
+      return CallTileSpec(
+        key: '$userId#screen',
+        onTap: () => _openViewer(renderer, mirror: false),
+        build: (_) => ScreenShareFrame(
+          video: RTCVideoView(
+            key: ValueKey((renderer, _viewerGeneration)),
+            renderer,
+            objectFit: RTCVideoViewObjectFit.RTCVideoViewObjectFitContain,
+          ),
+          name: CallParticipantNameLabel(
+            userId: userId,
+            rhingSeed: rhingSeed,
+            conversationId: session.groupId,
+            style: const TextStyle(
+              color: Colors.white,
+              shadows: [Shadow(blurRadius: 6)],
+            ),
+          ),
+          qualityLabel: label,
+          liveText: strings.callScreenShareLive,
+        ),
+      );
+    }
+
+    CallTileSpec personSpec({
       required String userId,
       required String rhingSeed,
       required RTCVideoRenderer? renderer,
       required bool mirror,
       required bool videoEnabled,
       required bool micMuted,
-      required bool focused,
     }) {
-      return Stack(
-        fit: StackFit.expand,
-        children: [
-          _tile(
-            userId: userId,
-            rhingSeed: rhingSeed,
-            renderer: renderer,
-            mirror: mirror,
-            videoEnabled: videoEnabled,
-            micMuted: micMuted,
-            focused: focused,
-          ),
-          // Webでは映像（プラットフォームビュー）がクリックを奪うため、
-          // `PointerInterceptor`で受けて、拡大・拡大の解除を切り替える。
-          Positioned.fill(
-            child: PointerInterceptor(
-              child: GestureDetector(
-                behavior: HitTestBehavior.opaque,
-                onTap: () =>
-                    setState(() => _focusedUserId = focused ? null : userId),
-                child: const SizedBox.expand(),
-              ),
-            ),
-          ),
-        ],
+      return CallTileSpec(
+        key: userId,
+        onTap: videoEnabled && renderer != null
+            ? () => _openViewer(renderer, mirror: mirror)
+            : null,
+        build: (pinned) => _tile(
+          userId: userId,
+          rhingSeed: rhingSeed,
+          renderer: renderer,
+          mirror: mirror,
+          videoEnabled: videoEnabled,
+          micMuted: micMuted,
+          focused: pinned,
+        ),
       );
     }
 
-    final strings = ref.watch(appStringsProvider);
-    Widget screenTileFor({
-      required String key,
-      required String userId,
-      required String rhingSeed,
-      required RTCVideoRenderer renderer,
-      required String label,
-      required bool focused,
-    }) {
-      return Stack(
-        fit: StackFit.expand,
-        children: [
-          ScreenShareFrame(
-            video: RTCVideoView(
-              key: ObjectKey(renderer),
-              renderer,
-              objectFit: RTCVideoViewObjectFit.RTCVideoViewObjectFitContain,
-            ),
-            name: CallParticipantNameLabel(
-              userId: userId,
-              rhingSeed: rhingSeed,
-              conversationId: session.groupId,
-              style: const TextStyle(
-                color: Colors.white,
-                shadows: [Shadow(blurRadius: 6)],
-              ),
-            ),
-            qualityLabel: label,
-            liveText: strings.callScreenShareLive,
-          ),
-          Positioned.fill(
-            child: PointerInterceptor(
-              child: GestureDetector(
-                behavior: HitTestBehavior.opaque,
-                onTap: () =>
-                    setState(() => _focusedUserId = focused ? null : key),
-                child: const SizedBox.expand(),
-              ),
-            ),
-          ),
-        ],
-      );
-    }
-
-    final entries = <({String userId, Widget Function(bool focused) build})>[
+    // ウィンドウ（画面共有は1枚と数え、先頭＝最上行。2026-11-16）。
+    final specs = <CallTileSpec>[
       if (controller.isScreenSharing)
-        (
-          userId: '$selfId#screen',
-          build: (focused) => screenTileFor(
-            key: '$selfId#screen',
-            userId: selfId,
-            rhingSeed: controller.currentUser.rhingSeed,
-            renderer: controller.localScreenRenderer,
-            label: controller.screenQuality.label,
-            focused: focused,
-          ),
+        screenSpec(
+          userId: selfId,
+          rhingSeed: controller.currentUser.rhingSeed,
+          renderer: controller.localScreenRenderer,
+          label: controller.screenQuality.label,
         ),
       for (final p in remotes)
         if (controller.remoteScreenShown(p))
-          (
-            userId: '${p.userId}#screen',
-            build: (focused) => screenTileFor(
-              key: '${p.userId}#screen',
-              userId: p.userId,
-              rhingSeed: p.rhingSeed,
-              renderer: controller.screenRenderers[p.userId]!,
-              label: p.screenLabel ?? '',
-              focused: focused,
-            ),
-          ),
-      (
-        userId: selfId,
-        build: (focused) => tileFor(
-          userId: selfId,
-          rhingSeed: controller.currentUser.rhingSeed,
-          renderer: controller.isVideo ? controller.localRenderer : null,
-          mirror: controller.isFrontCamera,
-          videoEnabled: controller.isVideo,
-          micMuted: controller.muted,
-          focused: focused,
-        ),
-      ),
-      for (final p in remotes)
-        (
-          userId: p.userId,
-          build: (focused) => tileFor(
+          screenSpec(
             userId: p.userId,
             rhingSeed: p.rhingSeed,
-            renderer: controller.remoteRenderers[p.userId],
-            mirror: false,
-            videoEnabled: controller.remoteVideoShown(p),
-            micMuted: p.micMuted,
-            focused: focused,
+            renderer: controller.screenRenderers[p.userId]!,
+            label: p.screenLabel ?? '',
           ),
+      personSpec(
+        userId: selfId,
+        rhingSeed: controller.currentUser.rhingSeed,
+        renderer: controller.isVideo ? controller.localRenderer : null,
+        mirror: controller.isFrontCamera,
+        videoEnabled: controller.isVideo,
+        micMuted: controller.muted,
+      ),
+      for (final p in remotes)
+        personSpec(
+          userId: p.userId,
+          rhingSeed: p.rhingSeed,
+          renderer: controller.remoteRenderers[p.userId],
+          mirror: false,
+          videoEnabled: controller.remoteVideoShown(p),
+          micMuted: p.micMuted,
         ),
     ];
 
     // 映像のタイルを画面に出していない参加者の音声を鳴らす、見えない動画要素
-    // （2026-10-21追加、映像オフの参加者の音声がWebで聞こえなかった。拡大中は
-    // 拡大している1人以外のタイルが無い為、他の映像の参加者の音声も鳴らす）。
+    // （2026-10-21追加、映像オフの参加者の音声がWebで聞こえなかった）。
     final audioIds = groupAudioOnlyUserIds(
       remoteIds: [for (final p in remotes) p.userId],
       videoOnIds: {
         for (final p in remotes)
           if (controller.remoteVideoShown(p)) p.userId,
       },
-      focusedUserId: focusedId,
     );
     final audioOnly = [
       for (final id in audioIds)
@@ -846,52 +554,9 @@ class _GroupStageState extends ConsumerState<_GroupStage> {
           controller.remoteRenderers[id]!,
     ];
 
-    final Widget stage;
-    if (focusedId != null) {
-      final focusedEntry = entries.firstWhere((e) => e.userId == focusedId);
-      stage = Focus(
-        // Escで、通話エリアの拡大だけを解除する（親の「メッセージに戻る」より先に
-        // 受ける）。
-        autofocus: true,
-        onKeyEvent: (node, event) {
-          if (event is KeyDownEvent &&
-              event.logicalKey == LogicalKeyboardKey.escape) {
-            setState(() => _focusedUserId = null);
-            return KeyEventResult.handled;
-          }
-          return KeyEventResult.ignored;
-        },
-        child: Stack(
-          fit: StackFit.expand,
-          children: [
-            focusedEntry.build(true),
-            Positioned(
-              top: 8,
-              right: 8,
-              child: PointerInterceptor(
-                child: IconButton(
-                  tooltip: strings.groupCallBackToGridTooltip,
-                  icon: const Icon(
-                    Icons.close_fullscreen,
-                    color: Colors.white,
-                    shadows: [Shadow(blurRadius: 6)],
-                  ),
-                  onPressed: () => setState(() => _focusedUserId = null),
-                ),
-              ),
-            ),
-          ],
-        ),
-      );
-    } else {
-      // 領域が縦長（スマホ等）なら縦に積み、横長なら従来のグリッド
-      // （`CallTileGrid`、2026-10-13）。
-      stage = CallTileGrid(tiles: [for (final e in entries) e.build(false)]);
-    }
-
     return Stack(
       children: [
-        Positioned.fill(child: stage),
+        Positioned.fill(child: CallTileStage(specs: specs)),
         Positioned(
           left: 0,
           top: 0,
@@ -919,10 +584,10 @@ class _GroupStageState extends ConsumerState<_GroupStage> {
           children: [
             videoEnabled && renderer != null
                 ? RTCVideoView(
-                    key: ObjectKey(renderer),
+                    key: ValueKey((renderer, _viewerGeneration)),
                     renderer,
                     mirror: mirror,
-                    // 拡大中は映像全体を見せる（余白は灰色）、グリッドは枠いっぱい。
+                    // ピン留め中は映像全体を見せる（余白は灰色）、グリッドは枠いっぱい。
                     objectFit: focused
                         ? RTCVideoViewObjectFit.RTCVideoViewObjectFitContain
                         : RTCVideoViewObjectFit.RTCVideoViewObjectFitCover,
