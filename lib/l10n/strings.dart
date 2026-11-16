@@ -691,11 +691,8 @@ class Strings {
     required this.callBgmPlaylistsNone,
     required this.callBgmAddToPlaylist,
     required this.callBgmRemoveFromPlaylist,
-    required this.callSoundboardTitle,
     required this.callSoundboardAdd,
     required this.callSoundboardEmpty,
-    required this.callSoundboardEdit,
-    required this.callSoundboardDone,
     required this.callSoundboardAddFailed,
     required this.callSoundboardTooLarge,
     required this.callSoundboardFull,
@@ -2111,11 +2108,8 @@ class Strings {
   final String callBgmPlaylistsNone;
   final String callBgmAddToPlaylist;
   final String callBgmRemoveFromPlaylist;
-  final String callSoundboardTitle;
   final String callSoundboardAdd;
   final String callSoundboardEmpty;
-  final String callSoundboardEdit;
-  final String callSoundboardDone;
   final String callSoundboardAddFailed;
   final String callSoundboardTooLarge;
   final String callSoundboardFull;
@@ -3653,16 +3647,13 @@ class Strings {
     callBgmPlaylistsNone: 'プレイリストが有りません。「プレイリストを作成」で作れます',
     callBgmAddToPlaylist: 'プレイリストへ追加',
     callBgmRemoveFromPlaylist: 'プレイリストから外す',
-    callSoundboardTitle: 'サウンドボード',
     callSoundboardAdd: 'サウンドを追加',
     callSoundboardEmpty: '効果音がありません。「効果音を追加」で登録すると、この語らいの全員が使えます',
-    callSoundboardEdit: '編集',
-    callSoundboardDone: '完了',
     callSoundboardAddFailed: '効果音を追加できませんでした',
     callSoundboardTooLarge: '効果音は2MBまでです',
     callSoundboardFull: '効果音は30個までです',
     callSoundboardVolume: '音量',
-    callSoundboardSearchHint: '完璧な音を見つけよう',
+    callSoundboardSearchHint: '検索',
     callSoundboardUploadTitle: 'サウンドをアップロード',
     callSoundboardEditTitle: 'サウンドを編集',
     callSoundboardFile: 'ファイル',
@@ -5101,17 +5092,14 @@ class Strings {
     callBgmPlaylistsNone: 'No playlists yet. Use “Create a playlist”',
     callBgmAddToPlaylist: 'Add to playlist',
     callBgmRemoveFromPlaylist: 'Remove from playlist',
-    callSoundboardTitle: 'Soundboard',
     callSoundboardAdd: 'Add a sound',
     callSoundboardEmpty:
         'No sound effects yet. Add one and everyone in this conversation can use it',
-    callSoundboardEdit: 'Edit',
-    callSoundboardDone: 'Done',
     callSoundboardAddFailed: 'Couldn’t add the sound effect',
     callSoundboardTooLarge: 'Sound effects can be up to 2 MB',
     callSoundboardFull: 'You can add up to 30 sound effects',
     callSoundboardVolume: 'Volume',
-    callSoundboardSearchHint: 'Find the perfect sound',
+    callSoundboardSearchHint: 'Search',
     callSoundboardUploadTitle: 'Upload a sound',
     callSoundboardEditTitle: 'Edit sound',
     callSoundboardFile: 'File',

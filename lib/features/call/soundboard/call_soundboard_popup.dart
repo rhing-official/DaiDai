@@ -104,8 +104,6 @@ class _SoundboardPopup extends ConsumerStatefulWidget {
 
 class _SoundboardPopupState extends ConsumerState<_SoundboardPopup> {
   final _search = TextEditingController();
-  bool _editing = false;
-  bool _volumeOpen = false;
 
   CallSoundboardBinding get _binding => widget.binding;
 
@@ -189,44 +187,24 @@ class _SoundboardPopupState extends ConsumerState<_SoundboardPopup> {
                   onChanged: (_) => setState(() {}),
                 ),
               ),
-              IconButton(
-                tooltip: strings.callSoundboardVolume,
-                icon: Icon(
-                  volume <= 0 ? Icons.volume_off : Icons.volume_up,
-                  color: _volumeOpen ? scheme.primary : null,
-                ),
-                onPressed: () => setState(() => _volumeOpen = !_volumeOpen),
-              ),
             ],
           ),
-          if (_volumeOpen)
-            Slider(
-              value: volume,
-              onChanged: (v) {
-                ref.read(soundboardVolumeProvider.notifier).set(v);
-                _binding.bgm.setEffectVolume(v);
-              },
-            ),
-          const SizedBox(height: 8),
           Row(
             children: [
+              Icon(
+                volume <= 0 ? Icons.volume_off : Icons.volume_up,
+                size: 20,
+                color: scheme.onSurfaceVariant,
+              ),
               Expanded(
-                child: Text(
-                  strings.callSoundboardTitle,
-                  style: theme.textTheme.labelLarge?.copyWith(
-                    color: scheme.onSurfaceVariant,
-                  ),
+                child: Slider(
+                  value: volume,
+                  onChanged: (v) {
+                    ref.read(soundboardVolumeProvider.notifier).set(v);
+                    _binding.bgm.setEffectVolume(v);
+                  },
                 ),
               ),
-              if (all.isNotEmpty)
-                TextButton(
-                  onPressed: () => setState(() => _editing = !_editing),
-                  child: Text(
-                    _editing
-                        ? strings.callSoundboardDone
-                        : strings.callSoundboardEdit,
-                  ),
-                ),
             ],
           ),
           Flexible(
@@ -244,7 +222,7 @@ class _SoundboardPopupState extends ConsumerState<_SoundboardPopup> {
                           width: tileWidth,
                           child: _SoundTile(
                             sound: sound,
-                            editing: _editing && canManage(sound),
+                            canManage: canManage(sound),
                             onPlay: () => _play(sound),
                             onEdit: () => showSoundboardSoundDialog(
                               context,
@@ -301,14 +279,14 @@ class _SoundboardPopupState extends ConsumerState<_SoundboardPopup> {
 class _SoundTile extends StatelessWidget {
   const _SoundTile({
     required this.sound,
-    required this.editing,
+    required this.canManage,
     required this.onPlay,
     required this.onEdit,
     required this.onDelete,
   });
 
   final SoundboardSound sound;
-  final bool editing;
+  final bool canManage;
   final VoidCallback onPlay;
   final VoidCallback onEdit;
   final VoidCallback onDelete;
@@ -321,7 +299,7 @@ class _SoundTile extends StatelessWidget {
       borderRadius: BorderRadius.circular(8),
       child: InkWell(
         borderRadius: BorderRadius.circular(8),
-        onTap: editing ? onEdit : onPlay,
+        onTap: onPlay,
         child: SizedBox(
           height: 40,
           child: Row(
@@ -335,8 +313,20 @@ class _SoundTile extends StatelessWidget {
                   style: TextStyle(color: scheme.onSurface),
                 ),
               ),
-              if (editing) ...[
-                Icon(Icons.edit_outlined, size: 16, color: scheme.onSurface),
+              if (canManage) ...[
+                IconButton(
+                  padding: EdgeInsets.zero,
+                  constraints: const BoxConstraints.tightFor(
+                    width: 32,
+                    height: 32,
+                  ),
+                  icon: Icon(
+                    Icons.edit_outlined,
+                    size: 16,
+                    color: scheme.onSurface,
+                  ),
+                  onPressed: onEdit,
+                ),
                 IconButton(
                   padding: EdgeInsets.zero,
                   constraints: const BoxConstraints.tightFor(
