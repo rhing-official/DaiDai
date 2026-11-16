@@ -619,6 +619,8 @@ class Strings {
     required this.callScreenShareStop,
     required this.callScreenDeliveryFailed,
     required this.callScreenShareAndroidAudioNote,
+    required this.callScreenShareLinuxNote,
+    required this.callScreenShareLinuxNoMonitor,
     required this.callScreenDeliveryRetry,
     required this.callScreenShareChange,
     required this.callScreenShareQuality,
@@ -2029,6 +2031,8 @@ class Strings {
   final String callScreenShareStop;
   final String callScreenDeliveryFailed;
   final String callScreenShareAndroidAudioNote;
+  final String callScreenShareLinuxNote;
+  final String callScreenShareLinuxNoMonitor;
   final String callScreenDeliveryRetry;
   final String callScreenShareChange;
   final String callScreenShareQuality;
@@ -3576,6 +3580,10 @@ class Strings {
     callScreenShare: '画面を共有',
     callScreenShareStop: '画面共有を中止',
     callScreenDeliveryFailed: '相手に画面共有が届いていません',
+    callScreenShareLinuxNote:
+        'Linuxでは、スピーカーから鳴っている音を全部送ります（アプリは選べません）。通話の相手の声も含まれるので、ヘッドホンの使用をおすすめします。',
+    callScreenShareLinuxNoMonitor:
+        '音の取り込み元（「Monitor of …」の入力）が見つかりません。pavucontrolの入力デバイスで確認してください。',
     callScreenShareAndroidAudioNote:
         '端末の音は、あなたの声に混ざって届きます。Spotifyなど、音の取り込みを許可していないアプリの音は送れません。',
     callScreenDeliveryRetry: 'やり直す',
@@ -5016,6 +5024,10 @@ class Strings {
     callScreenShare: 'Share your screen',
     callScreenShareStop: 'Stop sharing',
     callScreenDeliveryFailed: 'Your screen is not reaching the other person',
+    callScreenShareLinuxNote:
+        'On Linux, everything playing through your speakers is sent (you cannot choose an app). It includes the other people’s voices, so headphones are recommended.',
+    callScreenShareLinuxNoMonitor:
+        'No audio source found (an input called “Monitor of …”). Check the input devices in pavucontrol.',
     callScreenShareAndroidAudioNote:
         'Your device’s sound is mixed into your voice. Apps that do not allow audio capture, such as Spotify, cannot be shared.',
     callScreenDeliveryRetry: 'Try again',

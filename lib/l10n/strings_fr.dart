@@ -748,6 +748,10 @@ final Strings _stringsFr = Strings._(
   callScreenShare: "Partager l’écran",
   callScreenShareStop: "Arrêter le partage",
   callScreenDeliveryFailed: "Votre écran n’arrive pas chez l’autre personne",
+  callScreenShareLinuxNote:
+      "Sous Linux, tout ce qui sort des haut-parleurs est envoyé (impossible de choisir une appli). La voix des autres y est incluse : un casque est recommandé.",
+  callScreenShareLinuxNoMonitor:
+      "Aucune source audio trouvée (entrée « Monitor of … »). Vérifiez les entrées dans pavucontrol.",
   callScreenShareAndroidAudioNote:
       "Le son de l’appareil est mélangé à votre voix. Les applis qui n’autorisent pas la capture audio, comme Spotify, ne peuvent pas être partagées.",
   callScreenDeliveryRetry: "Réessayer",

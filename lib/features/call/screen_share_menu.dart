@@ -450,6 +450,12 @@ class _ScreenShareMenu extends ConsumerWidget {
                         ),
                       ),
                     ),
+                  if (ScreenShareCapture.isLinuxBrowser && settings.shareAudio)
+                    _LinuxMonitorPicker(
+                      strings: strings,
+                      selectedId: settings.linuxMonitorId,
+                      onSelected: notifier.setLinuxMonitorId,
+                    ),
                   if (!ScreenShareCapture.isNativeAndroid)
                     checkRow(
                       strings.callScreenShareAudioOnly,
@@ -499,6 +505,78 @@ class _ScreenShareMenu extends ConsumerWidget {
                 ],
               ),
             ),
+          ),
+        );
+      },
+    );
+  }
+}
+
+/// Linuxのブラウザで、共有の音として取る「Monitor of …」入力の選択と案内（2026-11-17）。
+class _LinuxMonitorPicker extends StatefulWidget {
+  const _LinuxMonitorPicker({
+    required this.strings,
+    required this.selectedId,
+    required this.onSelected,
+  });
+
+  final Strings strings;
+  final String? selectedId;
+  final ValueChanged<String> onSelected;
+
+  @override
+  State<_LinuxMonitorPicker> createState() => _LinuxMonitorPickerState();
+}
+
+class _LinuxMonitorPickerState extends State<_LinuxMonitorPicker> {
+  late final Future<List<({String id, String label})>> _monitors =
+      ScreenShareCapture.listLinuxMonitors();
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final strings = widget.strings;
+    final note = theme.textTheme.bodySmall?.copyWith(
+      color: theme.colorScheme.onSurfaceVariant,
+    );
+    return FutureBuilder<List<({String id, String label})>>(
+      future: _monitors,
+      builder: (context, snapshot) {
+        final monitors = snapshot.data;
+        if (monitors == null) return const SizedBox.shrink();
+        return Padding(
+          padding: const EdgeInsets.only(bottom: 8),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              if (monitors.isEmpty)
+                Text(strings.callScreenShareLinuxNoMonitor, style: note)
+              else ...[
+                if (monitors.length > 1)
+                  DropdownButton<String>(
+                    isExpanded: true,
+                    value: ScreenShareCapture.pickMonitor(
+                      monitors,
+                      widget.selectedId,
+                    )?.id,
+                    items: [
+                      for (final m in monitors)
+                        DropdownMenuItem(
+                          value: m.id,
+                          child: Text(
+                            m.label,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                    ],
+                    onChanged: (id) {
+                      if (id != null) widget.onSelected(id);
+                    },
+                  ),
+                Text(strings.callScreenShareLinuxNote, style: note),
+              ],
+            ],
           ),
         );
       },

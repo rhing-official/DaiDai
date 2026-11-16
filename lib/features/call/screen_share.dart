@@ -87,6 +87,79 @@ class ScreenShareCapture {
     };
   }
 
+  /// Linuxのブラウザか（2026-11-17）。Chromeの画面共有はタブの音しか取れず、端末全体の音
+  /// （他のアプリ）は届かない為、共有の音は「Monitor of …」の入力デバイスで取る。
+  static bool get isLinuxBrowser =>
+      kIsWeb && defaultTargetPlatform == TargetPlatform.linux;
+
+  /// 設定で選んだMonitorのdeviceId（`ScreenShareSettingsNotifier`が反映する）。
+  static String? preferredLinuxMonitorId;
+
+  /// 入力デバイスのうち「Monitor of …」（出力している音のコピー）だけを残す。
+  static List<({String id, String label})> filterMonitors(
+    Iterable<({String id, String label, String kind})> devices,
+  ) => [
+    for (final d in devices)
+      if (d.kind == 'audioinput' &&
+          (d.label.toLowerCase().startsWith('monitor of') ||
+              d.label.toLowerCase().contains('.monitor')))
+        (id: d.id, label: d.label),
+  ];
+
+  /// 使うMonitor。保存した選択が今も有れば、それ。無ければ先頭。
+  static ({String id, String label})? pickMonitor(
+    List<({String id, String label})> monitors,
+    String? preferredId,
+  ) {
+    if (monitors.isEmpty) return null;
+    return monitors.firstWhere(
+      (m) => m.id == preferredId,
+      orElse: () => monitors.first,
+    );
+  }
+
+  /// このブラウザで開けるMonitor入力の一覧（ラベルはマイクの許可済みなら読める）。
+  static Future<List<({String id, String label})>> listLinuxMonitors() async {
+    try {
+      final devices = await navigator.mediaDevices.enumerateDevices();
+      return filterMonitors([
+        for (final d in devices)
+          (id: d.deviceId, label: d.label, kind: d.kind ?? ''),
+      ]);
+    } catch (_) {
+      return const [];
+    }
+  }
+
+  /// 共有のストリームへ、Monitor入力の音声トラックを足す。足せたら`true`。
+  static Future<bool> _addLinuxMonitor(MediaStream stream) async {
+    try {
+      final monitor = pickMonitor(
+        await listLinuxMonitors(),
+        preferredLinuxMonitorId,
+      );
+      if (monitor == null) return false;
+      final audio = await navigator.mediaDevices.getUserMedia({
+        'audio': {
+          'deviceId': {'exact': monitor.id},
+          // 音楽・動画の音なので、マイク向けの加工は掛けない。
+          'echoCancellation': false,
+          'noiseSuppression': false,
+          'autoGainControl': false,
+        },
+        'video': false,
+      });
+      var added = false;
+      for (final track in audio.getAudioTracks()) {
+        await stream.addTrack(track);
+        added = true;
+      }
+      return added;
+    } catch (_) {
+      return false;
+    }
+  }
+
   /// ネイティブのAndroidか（映像は`getDisplayMedia`、端末の再生音は[setNativeAudio]でマイクの音声へ
   /// 混ぜて送る。音声だけ共有・タブの案内は出さない）。
   static bool get isNativeAndroid =>
@@ -152,7 +225,8 @@ class ScreenShareCapture {
             'frameRate': {'ideal': quality.captureFps},
           },
           // 音声は、マイク向けの加工（エコー除去・ノイズ抑制・自動音量）を掛けずに取る。
-          'audio': shareAudio
+          // Linuxのブラウザは、ここでは音を取らない（Monitor入力で別に取る、[start]）。
+          'audio': (shareAudio && !isLinuxBrowser)
               ? {
                   'echoCancellation': false,
                   'noiseSuppression': false,
@@ -161,7 +235,7 @@ class ScreenShareCapture {
               : false,
           // Chromeの選択画面で、システム音声の共有を出す。自分のタブは選択肢から外す（映像が自分を
           // 映し続ける無限鏡になる為）。非対応のブラウザは、知らない項目を無視する。
-          if (shareAudio) 'systemAudio': 'include',
+          if (shareAudio && !isLinuxBrowser) 'systemAudio': 'include',
           'selfBrowserSurface': 'exclude',
           'surfaceSwitching': 'include',
         };
@@ -194,6 +268,10 @@ class ScreenShareCapture {
         constraints(quality, shareAudio: shareAudio),
       );
       applyAudioOnly(stream, quality);
+      if (isLinuxBrowser && shareAudio) {
+        // 取れなくても共有は続ける（音が取れなかった案内が出る）。
+        await _addLinuxMonitor(stream);
+      }
       return stream;
     } catch (_) {
       return null;
