@@ -2361,10 +2361,37 @@ export const createStickerPackReport = onCall(
   },
 );
 
-/** Firebase Storageのダウンロード URL から `/o/` 以降のオブジェクトパスを取り出す。 */
-function storagePathFromDownloadUrl(url: string): string | null {
-  const match = url.match(/\/o\/([^?]+)/);
-  return match ? decodeURIComponent(match[1]) : null;
+/**
+ * Firebase Storageのダウンロード URL から、[creatorId]自身の`stickerPackAssets/`配下の
+ * オブジェクトパスだけを取り出す（それ以外は null）。`imageUrl`はクライアントが自由に
+ * 設定できる為、ホスト・バケット・パスを検証しないと、Admin SDKでバケット内の任意の
+ * オブジェクト（他人のアイコン・添付）を削除できてしまう（2026-11-16、Strixの指摘）。
+ */
+function storagePathFromDownloadUrl(url: string, creatorId: string): string | null {
+  let parsed: URL;
+  try {
+    parsed = new URL(url);
+  } catch {
+    return null;
+  }
+  if (parsed.protocol !== "https:" || parsed.hostname !== "firebasestorage.googleapis.com") {
+    return null;
+  }
+  const match = parsed.pathname.match(/^\/v0\/b\/([^/]+)\/o\/(.+)$/);
+  if (!match || match[1] !== getStorage().bucket().name) return null;
+  let objectPath: string;
+  try {
+    objectPath = decodeURIComponent(match[2]);
+  } catch {
+    return null;
+  }
+  if (
+    !objectPath.startsWith(`stickerPackAssets/${creatorId}/`) ||
+    objectPath.split("/").includes("..")
+  ) {
+    return null;
+  }
+  return objectPath;
 }
 
 /**
@@ -2440,7 +2467,7 @@ export const deleteStickerPack = onCall(
     const bucket = getStorage().bucket();
     await Promise.all(
       stickers.map(async (s) => {
-        const path = storagePathFromDownloadUrl(s.imageUrl);
+        const path = storagePathFromDownloadUrl(s.imageUrl, uid);
         if (!path) return;
         try {
           await bucket.file(path).delete({ ignoreNotFound: true });
@@ -4161,8 +4188,16 @@ async function dispatchScheduledMessage(
 
   const batch = db.batch();
   // 同じメッセージIDで`create`する為、再実行しても二重には送られない。
+  // 予約の中身はクライアントが自由に書けるマップなので、Admin SDKで写す時に、人間のメッセージ
+  // では作れない項目（BOT・Webhookの表示名とアイコン）を除き、AIエージェントの投稿を示す
+  // `assistantOwnerId`は予約した本人のものだけ残す（他人・BOTの名義の偽装を防ぐ、
+  // 2026-11-16、Strixの指摘）。
+  const safeMessage: Record<string, unknown> = { ...message };
+  delete safeMessage.botName;
+  delete safeMessage.botIconUrl;
+  if (safeMessage.assistantOwnerId !== senderId) delete safeMessage.assistantOwnerId;
   batch.create(roomRef.collection("messages").doc(messageId), {
-    ...message,
+    ...safeMessage,
     // 送信者は、予約した本人に固定する（保存された中身の`senderId`は信用しない）。
     senderId,
     sentAt: FieldValue.serverTimestamp(),
@@ -5379,15 +5414,15 @@ export const sendFriendRequest = onCall(
     // rhingId→rhingSeedへの改名に伴う移行期間シム（2026-09-23追加）。
     // クライアントの動作確認が済んだら`request.data?.fromRhingId`/
     // `request.data?.toRhingId`のフォールバックを削除すること。
-    const fromRhingSeed = request.data?.fromRhingSeed ?? request.data?.fromRhingId;
+    const claimedFromRhingSeed = request.data?.fromRhingSeed ?? request.data?.fromRhingId;
     const toUserId = request.data?.toUserId;
-    const toRhingSeed = request.data?.toRhingSeed ?? request.data?.toRhingId;
+    const claimedToRhingSeed = request.data?.toRhingSeed ?? request.data?.toRhingId;
     const rawMessage = request.data?.message;
     if (
       typeof fromUserId !== "string" ||
-      typeof fromRhingSeed !== "string" ||
+      typeof claimedFromRhingSeed !== "string" ||
       typeof toUserId !== "string" ||
-      typeof toRhingSeed !== "string"
+      typeof claimedToRhingSeed !== "string"
     ) {
       throw new HttpsError("invalid-argument", "パラメータが不正です");
     }
@@ -5396,6 +5431,17 @@ export const sendFriendRequest = onCall(
     }
     if (toUserId === fromUserId) {
       throw new HttpsError("invalid-argument", "自分自身には送信できません");
+    }
+    // Rhing Seedは、クライアントから渡された値を信用せず、両者の`users`の値を使う
+    // （他人の・予約語のSeedを名乗る友達申請・友達・一対の記録を防ぐ、2026-11-16）。
+    const [fromSeedUser, toSeedUser] = await Promise.all([
+      db.collection("users").doc(fromUserId).get(),
+      db.collection("users").doc(toUserId).get(),
+    ]);
+    const fromRhingSeed: unknown = fromSeedUser.data()?.rhingSeed;
+    const toRhingSeed: unknown = toSeedUser.data()?.rhingSeed;
+    if (typeof fromRhingSeed !== "string" || typeof toRhingSeed !== "string") {
+      throw new HttpsError("not-found", "ユーザーが見つかりません");
     }
     const message: string | null =
       typeof rawMessage === "string" && rawMessage.trim() ? rawMessage.trim() : null;
