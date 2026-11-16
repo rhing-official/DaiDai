@@ -634,6 +634,11 @@ class Strings {
     required this.callScreenShareHint,
     required this.callScreenShareYourScreen,
     required this.callScreenSharingNow,
+    required this.callScreenPreviewLiveTooltip,
+    required this.callScreenPreviewStillTooltip,
+    required this.callMicUnavailableLabel,
+    required this.callMicUnavailableBanner,
+    required this.callMicBusyAtJoinBanner,
     required this.callVolume,
     required this.callScreenShareReceiving,
     required this.callScreenShareReceiveFailed,
@@ -648,6 +653,9 @@ class Strings {
     required this.callBgmFavoriteSelected,
     required this.callBgmUnfavoriteSelected,
     required this.callBgmUnknownArtist,
+    required this.callBgmArtistPhotoSet,
+    required this.callBgmArtistPhotoChange,
+    required this.callBgmArtistPhotoRemove,
     required this.callBgmAddFolder,
     required this.callBgmImporting,
     required this.callBgmNoAudioInFolder,
@@ -660,12 +668,15 @@ class Strings {
     required this.callBgmAllTracks,
     required this.callBgmNewAlbum,
     required this.callBgmAlbumNameHint,
+    required this.callBgmSearchHint,
+    required this.callBgmSearchNoResults,
+    required this.callBgmSearchClear,
     required this.callBgmRename,
     required this.callBgmDeleteAlbum,
-    required this.callBgmMoveToAlbum,
     required this.callBgmNoAlbum,
     required this.callBgmPlayAll,
     required this.callBgmOrderInOrder,
+    required this.callBgmOrderNextAlbum,
     required this.callBgmOrderShuffle,
     required this.callBgmOrderRepeatOne,
     required this.callBgmHeadphones,
@@ -2006,6 +2017,19 @@ class Strings {
   final String callScreenShareHint;
   final String callScreenShareYourScreen;
   final String callScreenSharingNow;
+
+  /// 自分の共有のプレビューの切り替え（Android、2026-11-16）。
+  final String callScreenPreviewLiveTooltip;
+  final String callScreenPreviewStillTooltip;
+
+  /// 他のアプリにマイクを奪われている人のウィンドウに出す表示（2026-11-16）。
+  final String callMicUnavailableLabel;
+
+  /// 自分のマイクが他のアプリに奪われている間、通話画面に出す案内。
+  final String callMicUnavailableBanner;
+
+  /// 通話に入る時に、他のアプリがマイクを使っていた場合の注意。
+  final String callMicBusyAtJoinBanner;
   final String callVolume;
   final String callScreenShareReceiving;
   final String callScreenShareReceiveFailed;
@@ -2020,6 +2044,9 @@ class Strings {
   final String callBgmFavoriteSelected;
   final String callBgmUnfavoriteSelected;
   final String callBgmUnknownArtist;
+  final String callBgmArtistPhotoSet;
+  final String callBgmArtistPhotoChange;
+  final String callBgmArtistPhotoRemove;
   final String callBgmAddFolder;
   final String Function(int done, int total) callBgmImporting;
   final String callBgmNoAudioInFolder;
@@ -2032,12 +2059,17 @@ class Strings {
   final String callBgmAllTracks;
   final String callBgmNewAlbum;
   final String callBgmAlbumNameHint;
+
+  /// 曲の検索ボックス（2026-11-16）。
+  final String callBgmSearchHint;
+  final String callBgmSearchNoResults;
+  final String callBgmSearchClear;
   final String callBgmRename;
   final String callBgmDeleteAlbum;
-  final String callBgmMoveToAlbum;
   final String callBgmNoAlbum;
   final String callBgmPlayAll;
   final String callBgmOrderInOrder;
+  final String callBgmOrderNextAlbum;
   final String callBgmOrderShuffle;
   final String callBgmOrderRepeatOne;
   final String callBgmHeadphones;
@@ -3507,6 +3539,13 @@ class Strings {
     callScreenShareHint: '人数が多い時は、画質を下げると安定します。',
     callScreenShareYourScreen: 'あなたの画面',
     callScreenSharingNow: '画面を共有しています',
+    callScreenPreviewLiveTooltip: 'リアルタイムで表示（画面全体を共有中は重くなります）',
+    callScreenPreviewStillTooltip: '静止画に戻す（1秒ごとに更新）',
+    callMicUnavailableLabel: 'マイクを使えません',
+    callMicUnavailableBanner:
+        'ほかのアプリがマイクを使っているため、声が相手に届いていません。そのアプリの通話を終了してください',
+    callMicBusyAtJoinBanner:
+        'ほかのアプリがマイクを使っている可能性があります。声が届かない時は、そのアプリの通話を終了してください',
     callVolume: '音量',
     callScreenShareReceiving: '画面共有を受信しています…',
     callScreenShareReceiveFailed: '画面共有を受信できません。相手に共有をやり直してもらってください。',
@@ -3522,6 +3561,9 @@ class Strings {
     callBgmFavoriteSelected: '選んだ曲をお気に入りに入れる',
     callBgmUnfavoriteSelected: '選んだ曲をお気に入りから外す',
     callBgmUnknownArtist: 'アーティスト不明',
+    callBgmArtistPhotoSet: 'アーティスト写真を設定',
+    callBgmArtistPhotoChange: '写真を変更',
+    callBgmArtistPhotoRemove: '写真を削除',
     callBgmAddFolder: 'ディレクトリを追加',
     callBgmImporting: (done, total) => '追加中 $done / $total',
     callBgmNoAudioInFolder: 'そのディレクトリに、音声ファイルが見つかりませんでした',
@@ -3534,12 +3576,15 @@ class Strings {
     callBgmAllTracks: 'すべての曲',
     callBgmNewAlbum: 'アルバムを作成',
     callBgmAlbumNameHint: 'アルバム名',
+    callBgmSearchHint: '曲名・アーティストで検索',
+    callBgmSearchNoResults: '該当する曲がありません',
+    callBgmSearchClear: '検索を消す',
     callBgmRename: '名前を変更',
     callBgmDeleteAlbum: 'アルバムを削除（曲は残ります）',
-    callBgmMoveToAlbum: 'アルバムへ移動',
     callBgmNoAlbum: 'アルバムなし',
     callBgmPlayAll: '全て再生',
-    callBgmOrderInOrder: '順番に再生',
+    callBgmOrderInOrder: '順番に再生（アルバム内をくり返す）',
+    callBgmOrderNextAlbum: '順番に再生（終わったら次のアルバムへ）',
     callBgmOrderShuffle: 'シャッフル',
     callBgmOrderRepeatOne: '1曲をくり返す',
     callBgmHeadphones: '相手に聞こえるBGMは、あなたにも聞こえます。スピーカーだとマイクが拾って響くので、イヤホンをおすすめします',
@@ -4909,6 +4954,15 @@ class Strings {
     callScreenShareHint: 'With many people, a lower quality is more stable.',
     callScreenShareYourScreen: 'Your screen',
     callScreenSharingNow: 'You are sharing your screen',
+    callScreenPreviewLiveTooltip:
+        'Show live (heavy when sharing the whole screen)',
+    callScreenPreviewStillTooltip:
+        'Back to a still image (updates every second)',
+    callMicUnavailableLabel: 'Microphone unavailable',
+    callMicUnavailableBanner:
+        'Another app is using the microphone, so others cannot hear you. End the call in that app',
+    callMicBusyAtJoinBanner:
+        'Another app may be using the microphone. If others cannot hear you, end the call in that app',
     callVolume: 'Volume',
     callScreenShareReceiving: 'Receiving the shared screen…',
     callScreenShareReceiveFailed:
@@ -4926,6 +4980,9 @@ class Strings {
     callBgmFavoriteSelected: 'Add the selected tracks to favourites',
     callBgmUnfavoriteSelected: 'Remove the selected tracks from favourites',
     callBgmUnknownArtist: 'Unknown artist',
+    callBgmArtistPhotoSet: 'Set an artist photo',
+    callBgmArtistPhotoChange: 'Change photo',
+    callBgmArtistPhotoRemove: 'Remove photo',
     callBgmAddFolder: 'Add a directory',
     callBgmImporting: (done, total) => 'Adding $done / $total',
     callBgmNoAudioInFolder: 'No audio files were found in that directory',
@@ -4938,12 +4995,15 @@ class Strings {
     callBgmAllTracks: 'All tracks',
     callBgmNewAlbum: 'Create an album',
     callBgmAlbumNameHint: 'Album name',
+    callBgmSearchHint: 'Search by title or artist',
+    callBgmSearchNoResults: 'No matching tracks',
+    callBgmSearchClear: 'Clear search',
     callBgmRename: 'Rename',
     callBgmDeleteAlbum: 'Delete the album (tracks are kept)',
-    callBgmMoveToAlbum: 'Move to an album',
     callBgmNoAlbum: 'No album',
     callBgmPlayAll: 'Play all',
-    callBgmOrderInOrder: 'In order',
+    callBgmOrderInOrder: 'In order (repeat the album)',
+    callBgmOrderNextAlbum: 'In order (then the next album)',
     callBgmOrderShuffle: 'Shuffle',
     callBgmOrderRepeatOne: 'Repeat one',
     callBgmHeadphones:

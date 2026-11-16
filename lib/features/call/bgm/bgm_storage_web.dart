@@ -21,6 +21,9 @@ const _dataStore = 'trackData';
 const _coverStore = 'trackCovers';
 const _albumStoreName = 'albums';
 
+/// アーティスト写真（キー`id`＝アーティスト名、`photo`＝画像、v4、2026-11-16）。
+const _artistPhotoStore = 'artistPhotos';
+
 /// v1・v2の曲の保存先（音源入り）。起動後に、1曲ずつ新しい保存先へ移して、空にする。
 const _legacyStore = 'tracks';
 
@@ -47,7 +50,7 @@ class _IndexedDbBgmStorage implements BgmStorage {
 
   Future<web.IDBDatabase> _open() => _db ??= () {
     final completer = Completer<web.IDBDatabase>();
-    final request = web.window.indexedDB.open(_dbName, 3);
+    final request = web.window.indexedDB.open(_dbName, 4);
     request.onupgradeneeded = ((web.Event _) {
       final db = request.result as web.IDBDatabase;
       // 古い版の曲（_legacyStore）は残し、新しい置き場を足すだけにする（中身の移行は、起動後に
@@ -58,6 +61,7 @@ class _IndexedDbBgmStorage implements BgmStorage {
         _dataStore,
         _coverStore,
         _albumStoreName,
+        _artistPhotoStore,
       ]) {
         if (!db.objectStoreNames.contains(name)) {
           db.createObjectStore(
@@ -449,6 +453,42 @@ class _IndexedDbBgmStorage implements BgmStorage {
             ..setProperty('id'.toJS, id.toJS)
             ..setProperty('cover'.toJS, cover.buffer.toJS),
         );
+    await _transactionDone(tx);
+  }
+
+  @override
+  Future<Map<String, Uint8List>> listArtistPhotos() async {
+    final store = await _store('readonly', _artistPhotoStore);
+    final result = await _request(store.getAll());
+    final out = <String, Uint8List>{};
+    if (result == null) return out;
+    for (final item in (result as JSArray<JSAny?>).toDart) {
+      final record = item as JSObject;
+      final name = record.getProperty<JSAny?>('id'.toJS);
+      final photo = record.getProperty<JSAny?>('photo'.toJS);
+      if (name.isA<JSString>() && photo.isA<JSArrayBuffer>()) {
+        out[(name as JSString).toDart] = (photo as JSArrayBuffer).toDart
+            .asUint8List();
+      }
+    }
+    return out;
+  }
+
+  @override
+  Future<void> setArtistPhoto(String artist, Uint8List? photo) async {
+    await _prepare();
+    final db = await _open();
+    final tx = db.transaction(_artistPhotoStore.toJS, 'readwrite');
+    final store = tx.objectStore(_artistPhotoStore);
+    if (photo == null) {
+      store.delete(artist.toJS);
+    } else {
+      store.put(
+        JSObject()
+          ..setProperty('id'.toJS, artist.toJS)
+          ..setProperty('photo'.toJS, photo.buffer.toJS),
+      );
+    }
     await _transactionDone(tx);
   }
 

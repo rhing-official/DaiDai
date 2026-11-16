@@ -6,6 +6,7 @@ import '../../l10n/strings.dart';
 
 import 'bgm/bgm_now_playing.dart';
 import 'bgm/call_bgm.dart';
+import 'call_tile_layout.dart';
 import 'bgm/bgm_player_widgets.dart';
 import 'bgm/call_bgm_sheet.dart';
 import 'call_controls.dart';
@@ -39,10 +40,16 @@ class CallControlBar extends ConsumerWidget {
     this.screenShare,
     this.remoteBgm,
     this.videoFailed = false,
+    this.micUnavailable = false,
+    this.micBusyAtJoin = false,
     super.key,
   });
 
   final bool isGekiga;
+
+  /// 自分のマイクが他のアプリに奪われているか／入室時に他のアプリが使っていたか（案内を出す、2026-11-16）。
+  final bool micUnavailable;
+  final bool micBusyAtJoin;
   final bool isGlass;
 
   /// 通話が接続済み（active）かどうか。マイク・スピーカー・切替系ボタンは
@@ -203,10 +210,18 @@ class CallControlBar extends ConsumerWidget {
     final remotePlayer = !ownPlaying && remote != null
         ? BgmRemoteMiniPlayer(nowPlaying: remote)
         : null;
-    if (!videoFailed && miniPlayer == null && remotePlayer == null) return bar;
+    final micNotice = micUnavailable || micBusyAtJoin;
+    if (!videoFailed &&
+        !micNotice &&
+        miniPlayer == null &&
+        remotePlayer == null) {
+      return bar;
+    }
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
+        if (micNotice)
+          CallMicBanner(unavailable: micUnavailable, busyAtJoin: micBusyAtJoin),
         ?miniPlayer,
         ?remotePlayer,
         if (videoFailed)

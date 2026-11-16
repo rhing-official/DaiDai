@@ -1,14 +1,118 @@
+import 'dart:async';
 import 'dart:math' as math;
+import 'dart:typed_data';
 
+import 'package:flutter/gestures.dart' show PointerScrollEvent;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:flutter_webrtc/flutter_webrtc.dart' show RTCVideoViewObjectFit;
+import 'package:flutter_webrtc/flutter_webrtc.dart'
+    show
+        MediaStreamTrack,
+        RTCVideoRenderer,
+        RTCVideoValue,
+        RTCVideoView,
+        RTCVideoViewObjectFit;
 import 'package:pointer_interceptor/pointer_interceptor.dart';
 
 import '../../l10n/strings.dart';
 import 'call_pin_provider.dart';
 
 /// 自分の画面共有のウィンドウの中身に出す「画面を共有しています」（2026-11-16）。Androidの
+/// ウィンドウの名前ラベルに添える、マイクの状態の表示（2026-11-16）。ミュート中はマイクオフのアイコン、
+/// 他のアプリにマイクを奪われて声が届かない時は「マイクを使えません」（ミュートとは別の表示）。
+class CallMicStatus extends ConsumerWidget {
+  const CallMicStatus({
+    required this.muted,
+    required this.unavailable,
+    super.key,
+  });
+
+  final bool muted;
+  final bool unavailable;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    if (!muted && !unavailable) return const SizedBox.shrink();
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        if (muted)
+          const Padding(
+            padding: EdgeInsets.only(left: 4),
+            child: Icon(Icons.mic_off, size: 14, color: Colors.white),
+          ),
+        if (unavailable)
+          Padding(
+            padding: const EdgeInsets.only(left: 6),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Icon(
+                  Icons.warning_amber_rounded,
+                  size: 14,
+                  color: Colors.amber,
+                ),
+                const SizedBox(width: 2),
+                Text(
+                  ref.watch(appStringsProvider).callMicUnavailableLabel,
+                  style: const TextStyle(color: Colors.white, fontSize: 12),
+                ),
+              ],
+            ),
+          ),
+      ],
+    );
+  }
+}
+
+/// 自分のマイクの案内（バナー）。他のアプリにマイクを奪われている間（[unavailable]）と、
+/// 通話に入る時に他のアプリが使っていた間（[busyAtJoin]）だけ出す。
+class CallMicBanner extends ConsumerWidget {
+  const CallMicBanner({
+    required this.unavailable,
+    required this.busyAtJoin,
+    super.key,
+  });
+
+  final bool unavailable;
+  final bool busyAtJoin;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    if (!unavailable && !busyAtJoin) return const SizedBox.shrink();
+    final strings = ref.watch(appStringsProvider);
+    return IgnorePointer(
+      child: Container(
+        margin: const EdgeInsets.all(8),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        decoration: BoxDecoration(
+          color: Colors.black87,
+          borderRadius: BorderRadius.circular(8),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(
+              Icons.warning_amber_rounded,
+              size: 18,
+              color: Colors.amber,
+            ),
+            const SizedBox(width: 8),
+            Flexible(
+              child: Text(
+                unavailable
+                    ? strings.callMicUnavailableBanner
+                    : strings.callMicBusyAtJoinBanner,
+                style: const TextStyle(color: Colors.white, fontSize: 13),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
 /// アプリは端末の画面全体を撮る為、自分の共有の映像をこの画面に出すと、撮られた画面の中に
 /// 同じ映像がまた映り続ける（無限鏡で、描画の負荷も上がる）。映像の代わりにこれを出す。
 class ScreenSharingNowView extends ConsumerWidget {
@@ -29,6 +133,115 @@ class ScreenSharingNowView extends ConsumerWidget {
           ),
         ],
       ),
+    );
+  }
+}
+
+/// Androidで、自分が共有している画面のプレビュー（2026-11-16）。画面全体を共有している時、ライブの映像を
+/// この画面に出すと無限に入れ子になって重くなる為、既定は**1秒に1回だけ取る静止画**にする。1つのアプリを
+/// 共有している人は、右下のボタンでライブ表示にできる（画面全体か1つのアプリかは、アプリから判定できない）。
+/// 最初の静止画が取れるまでは、[ScreenSharingNowView]のカードを出す。
+class ScreenSharePreview extends ConsumerStatefulWidget {
+  const ScreenSharePreview({
+    required this.trackOf,
+    required this.liveRenderer,
+    super.key,
+  });
+
+  /// 共有している映像のトラック（共有していなければnull）。
+  final MediaStreamTrack? Function() trackOf;
+
+  /// ライブ表示に使う、自分の共有の描画の部品。
+  final RTCVideoRenderer liveRenderer;
+
+  @override
+  ConsumerState<ScreenSharePreview> createState() => _ScreenSharePreviewState();
+}
+
+class _ScreenSharePreviewState extends ConsumerState<ScreenSharePreview> {
+  Uint8List? _still;
+  bool _live = false;
+  bool _busy = false;
+  Timer? _timer;
+
+  @override
+  void initState() {
+    super.initState();
+    _capture();
+    _timer = Timer.periodic(const Duration(seconds: 1), (_) => _capture());
+  }
+
+  @override
+  void dispose() {
+    _timer?.cancel();
+    super.dispose();
+  }
+
+  /// 静止画を1枚取る。前回が終わっていなければ取らない（画面が静止してフレームが来ない間は
+  /// 完了しないことがある為、完了を待ち、取得が溜まらないようにする）。失敗しても前の画像のまま。
+  Future<void> _capture() async {
+    if (_live || _busy) return;
+    final track = widget.trackOf();
+    if (track == null) return;
+    _busy = true;
+    try {
+      final buffer = await track.captureFrame();
+      if (!mounted) return;
+      setState(() => _still = buffer.asUint8List());
+    } catch (_) {
+      // 前の画像のまま。
+    } finally {
+      _busy = false;
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final strings = ref.watch(appStringsProvider);
+    final still = _still;
+    final Widget picture = _live
+        ? RTCVideoView(
+            widget.liveRenderer,
+            objectFit: RTCVideoViewObjectFit.RTCVideoViewObjectFitContain,
+          )
+        : still != null
+        ? Image.memory(
+            still,
+            fit: BoxFit.contain,
+            gaplessPlayback: true,
+            width: double.infinity,
+            height: double.infinity,
+          )
+        : const ScreenSharingNowView();
+    return Stack(
+      fit: StackFit.expand,
+      children: [
+        picture,
+        Align(
+          alignment: Alignment.bottomCenter,
+          child: Padding(
+            padding: const EdgeInsets.only(bottom: 8),
+            child: DecoratedBox(
+              decoration: const BoxDecoration(
+                color: Colors.black54,
+                shape: BoxShape.circle,
+              ),
+              child: IconButton(
+                key: const ValueKey('screen-preview-live'),
+                tooltip: _live
+                    ? strings.callScreenPreviewStillTooltip
+                    : strings.callScreenPreviewLiveTooltip,
+                icon: Icon(
+                  _live ? Icons.videocam : Icons.videocam_off,
+                  color: Colors.white,
+                  size: 18,
+                ),
+                onPressed: () => setState(() => _live = !_live),
+              ),
+            ),
+          ),
+        ),
+      ],
     );
   }
 }
@@ -106,21 +319,13 @@ List<int>? callTileRowSizes(int count, {required bool portrait}) {
 /// 通話の1枚のウィンドウ（参加者・画面共有）の指定。[key]は、参加者は`userId`、画面共有は
 /// `<userId>#screen`（一対は`self`・`remote`・`self#screen`・`remote#screen`）。
 class CallTileSpec {
-  const CallTileSpec({
-    required this.key,
-    required this.build,
-    this.onTap,
-    this.volume,
-  });
+  const CallTileSpec({required this.key, required this.build, this.volume});
 
   final String key;
 
   /// ウィンドウの中身。[pinned]は、ピン留めされて大きく出している時（アイコンの大きさ・
   /// 映像の収め方を変える）。
   final Widget Function(bool pinned) build;
-
-  /// タップ（映像の拡大ビューアを開く）。映像が無いウィンドウは`null`。
-  final VoidCallback? onTap;
 
   /// このウィンドウの音量（2026-11-16）。指定があるウィンドウにだけ、右下に音量のボタンを出す
   /// （押すとスライダーが開く）。相手の声・相手の共有音声は聞こえる音量、自分・自分の共有は
@@ -164,60 +369,56 @@ class _CallTileStageState extends ConsumerState<CallTileStage> {
     final strings = ref.watch(appStringsProvider);
     return KeyedSubtree(
       key: _keyFor(spec.key),
-      child: Stack(
-        fit: StackFit.expand,
-        children: [
-          spec.build(pinned),
-          if (spec.onTap != null)
-            Positioned.fill(
+      child: LayoutBuilder(
+        builder: (context, constraints) => Stack(
+          fit: StackFit.expand,
+          children: [
+            // ピンチ・ホイールで拡縮できる（最大化のビューアの代わり、2026-11-16）。ピン留めを
+            // 切り替えたら等倍に戻る。
+            CallZoomable(resetKey: isPinned, child: spec.build(pinned)),
+            if (spec.volume != null)
+              ..._volumeControls(spec, constraints.maxHeight),
+            Positioned(
+              top: 6,
+              left: 6,
               child: PointerInterceptor(
-                child: GestureDetector(
-                  behavior: HitTestBehavior.opaque,
-                  onTap: spec.onTap,
-                  child: const SizedBox.expand(),
-                ),
-              ),
-            ),
-          if (spec.volume != null) ..._volumeControls(spec),
-          Positioned(
-            top: 6,
-            left: 6,
-            child: PointerInterceptor(
-              child: Tooltip(
-                message: isPinned
-                    ? strings.callUnpinWindow
-                    : strings.callPinWindow,
-                child: GestureDetector(
-                  key: ValueKey('pin-${spec.key}'),
-                  behavior: HitTestBehavior.opaque,
-                  onTap: () => ref
-                      .read(callPinnedTilesProvider.notifier)
-                      .toggle(spec.key),
-                  child: DecoratedBox(
-                    decoration: const BoxDecoration(
-                      color: Colors.black54,
-                      shape: BoxShape.circle,
-                    ),
-                    child: Padding(
-                      padding: const EdgeInsets.all(5),
-                      child: Icon(
-                        isPinned ? Icons.push_pin : Icons.push_pin_outlined,
-                        size: 16,
-                        color: Colors.white,
+                child: Tooltip(
+                  message: isPinned
+                      ? strings.callUnpinWindow
+                      : strings.callPinWindow,
+                  child: GestureDetector(
+                    key: ValueKey('pin-${spec.key}'),
+                    behavior: HitTestBehavior.opaque,
+                    onTap: () => ref
+                        .read(callPinnedTilesProvider.notifier)
+                        .toggle(spec.key),
+                    child: DecoratedBox(
+                      decoration: const BoxDecoration(
+                        color: Colors.black54,
+                        shape: BoxShape.circle,
+                      ),
+                      child: Padding(
+                        padding: const EdgeInsets.all(7),
+                        child: Icon(
+                          isPinned ? Icons.push_pin : Icons.push_pin_outlined,
+                          size: 22,
+                          color: Colors.white,
+                        ),
                       ),
                     ),
                   ),
                 ),
               ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
 
   /// 右下の音量ボタンと、開いている時のスライダー（2026-11-16）。
-  List<Widget> _volumeControls(CallTileSpec spec) {
+  List<Widget> _volumeControls(CallTileSpec spec, double tileHeight) {
+    final sliderHeight = (tileHeight - 64).clamp(80.0, 150.0);
     final volume = spec.volume!;
     final strings = ref.watch(appStringsProvider);
     final open = _volumeOpen.contains(spec.key);
@@ -225,7 +426,8 @@ class _CallTileStageState extends ConsumerState<CallTileStage> {
       if (open)
         Positioned(
           right: 6,
-          bottom: 44,
+          bottom: 48,
+          // 小さいウィンドウ（ピン留め時の下の帯）では、収まる高さに縮める。
           child: PointerInterceptor(
             child: DecoratedBox(
               decoration: BoxDecoration(
@@ -233,14 +435,19 @@ class _CallTileStageState extends ConsumerState<CallTileStage> {
                 borderRadius: BorderRadius.circular(8),
               ),
               // `Slider`はMaterialの祖先が要る（PCの通話画面はScaffoldの外に出る）。
+              // 縦にする（下が最小・上が最大）。
               child: Material(
                 type: MaterialType.transparency,
                 child: SizedBox(
-                  width: 170,
-                  child: Slider(
-                    key: ValueKey('volume-slider-${spec.key}'),
-                    value: volume.value.clamp(0.0, 1.0),
-                    onChanged: volume.onChanged,
+                  width: 40,
+                  height: sliderHeight,
+                  child: RotatedBox(
+                    quarterTurns: 3,
+                    child: Slider(
+                      key: ValueKey('volume-slider-${spec.key}'),
+                      value: volume.value.clamp(0.0, 1.0),
+                      onChanged: volume.onChanged,
+                    ),
                   ),
                 ),
               ),
@@ -265,10 +472,10 @@ class _CallTileStageState extends ConsumerState<CallTileStage> {
                   shape: BoxShape.circle,
                 ),
                 child: Padding(
-                  padding: const EdgeInsets.all(5),
+                  padding: const EdgeInsets.all(7),
                   child: Icon(
                     volume.value <= 0 ? Icons.volume_off : Icons.volume_up,
-                    size: 16,
+                    size: 22,
                     color: Colors.white,
                   ),
                 ),
@@ -538,6 +745,170 @@ class ScreenShareFrame extends StatelessWidget {
           ),
         ],
       ),
+    );
+  }
+}
+
+/// 参加者の映像（2026-11-16）。映像が縦長（高さ>幅）なら、ウィンドウが横長でも切り抜かず、
+/// 左右に黒帯を付けて縦のまま全体を見せる。横長・正方形は、[fullFit]（ピン留め中）なら全体、
+/// そうでなければ枠いっぱいに切り抜く。余白は黒。向きが変わったら（端末を回した時など）
+/// 自動で切り替わる。
+class CallPersonVideo extends StatelessWidget {
+  const CallPersonVideo({
+    required this.renderer,
+    required this.fullFit,
+    this.mirror = false,
+    super.key,
+  });
+
+  final RTCVideoRenderer renderer;
+  final bool fullFit;
+  final bool mirror;
+
+  @override
+  Widget build(BuildContext context) {
+    return ValueListenableBuilder<RTCVideoValue>(
+      valueListenable: renderer,
+      builder: (context, value, _) {
+        final portrait = isPortraitVideo(value);
+        return ColoredBox(
+          color: Colors.black,
+          child: RTCVideoView(
+            // Web版のRTCVideoViewは実描画の要素をinitStateでしか取得しないため、
+            // レンダラー自体をキーにする。
+            key: ValueKey(renderer),
+            renderer,
+            mirror: mirror,
+            objectFit: (fullFit || portrait)
+                ? RTCVideoViewObjectFit.RTCVideoViewObjectFitContain
+                : RTCVideoViewObjectFit.RTCVideoViewObjectFitCover,
+          ),
+        );
+      },
+    );
+  }
+}
+
+/// 映像が縦長か。大きさがまだ分からない間（0）は`false`。回転（90・270度）は反映済み。
+bool isPortraitVideo(RTCVideoValue value) =>
+    value.width > 0 && value.height > 0 && value.aspectRatio < 1.0;
+
+/// ウィンドウの中身をピンチ・マウスホイールで拡縮する（2026-11-16）。1〜[maxScale]倍。
+/// 拡大中はドラッグで動かせ、ダブルタップ（ダブルクリック）で等倍に戻る。[resetKey]が変わると
+/// 等倍に戻る（ピン留めを切り替えた時）。通話画面にスクロールは無く、等倍のドラッグは何もしない。
+/// Webの映像は描画要素がポインターを奪うため、`PointerInterceptor`で覆って受け取る。
+class CallZoomable extends StatefulWidget {
+  const CallZoomable({
+    required this.child,
+    this.resetKey,
+    this.maxScale = 5.0,
+    super.key,
+  });
+
+  final Widget child;
+  final Object? resetKey;
+  final double maxScale;
+
+  @override
+  State<CallZoomable> createState() => _CallZoomableState();
+}
+
+class _CallZoomableState extends State<CallZoomable> {
+  double _scale = 1.0;
+  Offset _offset = Offset.zero;
+  Size _size = Size.zero;
+
+  double _startScale = 1.0;
+  Offset _startOffset = Offset.zero;
+  Offset _startFocal = Offset.zero;
+
+  @override
+  void didUpdateWidget(CallZoomable oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.resetKey != widget.resetKey) _reset();
+  }
+
+  void _reset() {
+    if (_scale == 1.0 && _offset == Offset.zero) return;
+    setState(() {
+      _scale = 1.0;
+      _offset = Offset.zero;
+    });
+  }
+
+  /// [focal]（ウィンドウ内の座標）の下にある点を動かさずに、倍率を[scale]へ変える。
+  void _zoomAt(
+    Offset focal,
+    double scale, {
+    required double fromScale,
+    required Offset fromOffset,
+    required Offset toFocal,
+  }) {
+    final next = scale.clamp(1.0, widget.maxScale);
+    final scenePoint = (focal - fromOffset) / fromScale;
+    var offset = toFocal - scenePoint * next;
+    // 映像が枠の外へ出きらないように抑える。
+    final minX = _size.width - _size.width * next;
+    final minY = _size.height - _size.height * next;
+    offset = Offset(offset.dx.clamp(minX, 0.0), offset.dy.clamp(minY, 0.0));
+    setState(() {
+      _scale = next;
+      _offset = next <= 1.0 ? Offset.zero : offset;
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        _size = constraints.biggest;
+        return ClipRect(
+          child: Stack(
+            fit: StackFit.expand,
+            children: [
+              Transform(
+                transform: Matrix4.identity()
+                  ..translateByDouble(_offset.dx, _offset.dy, 0, 1)
+                  ..scaleByDouble(_scale, _scale, 1, 1),
+                child: widget.child,
+              ),
+              Positioned.fill(
+                child: PointerInterceptor(
+                  child: Listener(
+                    onPointerSignal: (event) {
+                      if (event is! PointerScrollEvent) return;
+                      _zoomAt(
+                        event.localPosition,
+                        _scale * math.exp(-event.scrollDelta.dy / 300),
+                        fromScale: _scale,
+                        fromOffset: _offset,
+                        toFocal: event.localPosition,
+                      );
+                    },
+                    child: GestureDetector(
+                      behavior: HitTestBehavior.opaque,
+                      onDoubleTap: _reset,
+                      onScaleStart: (d) {
+                        _startScale = _scale;
+                        _startOffset = _offset;
+                        _startFocal = d.localFocalPoint;
+                      },
+                      onScaleUpdate: (d) => _zoomAt(
+                        _startFocal,
+                        _startScale * d.scale,
+                        fromScale: _startScale,
+                        fromOffset: _startOffset,
+                        toFocal: d.localFocalPoint,
+                      ),
+                      child: const SizedBox.expand(),
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        );
+      },
     );
   }
 }

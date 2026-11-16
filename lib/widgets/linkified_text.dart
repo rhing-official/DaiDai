@@ -21,6 +21,8 @@ List<InlineSpan> buildLinkifiedSpans({
   Color? mentionColor,
   Color? mentionBackground,
   Map<String, Color?> mentionLabelColors = const {},
+  Map<String, (Color background, Color color)> mentionLabelHighlights =
+      const {},
 }) {
   final matches = urlPattern.allMatches(text);
   List<InlineSpan> plain(String segment) => _splitMentions(
@@ -30,6 +32,7 @@ List<InlineSpan> buildLinkifiedSpans({
     color: mentionColor,
     background: mentionBackground,
     labelColors: mentionLabelColors,
+    highlights: mentionLabelHighlights,
   );
   if (matches.isEmpty) {
     return plain(text);
@@ -69,6 +72,7 @@ List<InlineSpan> _splitMentions(
   required Color? color,
   required Color? background,
   required Map<String, Color?> labelColors,
+  required Map<String, (Color background, Color color)> highlights,
 }) {
   if (labels.isEmpty) return [TextSpan(text: segment, style: style)];
   // 「@新」と「@新田」のように前方が重なる場合に長い方を優先する。
@@ -98,6 +102,12 @@ List<InlineSpan> _splitMentions(
                 fontWeight: FontWeight.w700,
                 color: labelColors[text],
               )
+            : highlights.containsKey(text)
+            // 宛先のロールの色のハイライト（2026-11-16）。
+            ? mentionStyle.copyWith(
+                color: highlights[text]!.$2,
+                backgroundColor: highlights[text]!.$1,
+              )
             : mentionStyle,
       ),
     );
@@ -124,6 +134,7 @@ class LinkifiedText extends StatefulWidget {
     this.mentionColor,
     this.mentionBackground,
     this.mentionLabelColors = const {},
+    this.mentionLabelHighlights = const {},
     super.key,
   });
 
@@ -140,6 +151,10 @@ class LinkifiedText extends StatefulWidget {
 
   /// ロール宛メンション（ハイライト無し・ロール色の文字）の`@…`→色。
   final Map<String, Color?> mentionLabelColors;
+
+  /// 宛先ごとのハイライト（`@…`→背景色・文字色、2026-11-16）。ここに無いメンションは
+  /// [mentionBackground]・[mentionColor]（見る人のアクセント）。
+  final Map<String, (Color background, Color color)> mentionLabelHighlights;
 
   @override
   State<LinkifiedText> createState() => _LinkifiedTextState();
@@ -193,6 +208,7 @@ class _LinkifiedTextState extends State<LinkifiedText> {
       mentionColor: widget.mentionColor,
       mentionBackground: widget.mentionBackground,
       mentionLabelColors: widget.mentionLabelColors,
+      mentionLabelHighlights: widget.mentionLabelHighlights,
     );
 
     return Text.rich(TextSpan(style: widget.style, children: spans));

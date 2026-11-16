@@ -161,6 +161,10 @@ class BgmTransportControls extends StatelessWidget {
     final iconSize = full ? 32.0 : 24.0;
     final (orderIcon, orderLabel) = switch (bgm.playOrder) {
       BgmPlayOrder.inOrder => (Icons.repeat, strings.callBgmOrderInOrder),
+      BgmPlayOrder.inOrderNextAlbum => (
+        Icons.queue_music,
+        strings.callBgmOrderNextAlbum,
+      ),
       BgmPlayOrder.shuffle => (Icons.shuffle, strings.callBgmOrderShuffle),
       BgmPlayOrder.repeatOne => (
         Icons.repeat_one,

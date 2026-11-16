@@ -135,6 +135,14 @@ class ScreenShareCapture {
           'surfaceSwitching': 'include',
         };
 
+  /// 共有元（共有しているタブ・ウィンドウ・アプリ）が閉じられて、映像・音声のトラックが終わった時に
+  /// [onEnded]を呼ぶ（2026-11-16）。映像だけでなく音声のトラックにも付ける（音声だけの共有でも終わらせる）。
+  static void watchEnded(MediaStream display, void Function() onEnded) {
+    for (final track in display.getTracks()) {
+      track.onEnded = onEnded;
+    }
+  }
+
   /// 取得した画面の種類（`browser`＝タブ、`window`、`monitor`。分からなければ`unknown`）。
   static String surfaceOf(MediaStream stream) {
     try {

@@ -3,6 +3,9 @@ import 'package:daidai/features/call/call_pin_provider.dart';
 import 'package:daidai/l10n/app_locale.dart';
 import 'package:daidai/providers/app_locale_provider.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_webrtc/flutter_webrtc.dart'
+    show RTCVideoRenderer, RTCVideoValue;
+import 'package:flutter/gestures.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -209,12 +212,178 @@ void main() {
       await tester.pump();
       expect(find.byKey(const ValueKey('volume-slider-a')), findsOneWidget);
       final slider = find.byKey(const ValueKey('volume-slider-a'));
+      // 縦のスライダー（回転した枠に入り、枠は幅より高さが大きい）。
+      final box = find.ancestor(of: slider, matching: find.byType(RotatedBox));
+      expect(box, findsOneWidget);
+      final size = tester.getSize(
+        find.ancestor(of: box, matching: find.byType(SizedBox)).first,
+      );
+      expect(size.height, greaterThan(size.width));
       await tester.tap(slider);
       await tester.pump();
       expect(changed, isNotNull);
       await tester.tap(find.byKey(const ValueKey('volume-a')));
       await tester.pump();
       expect(find.byKey(const ValueKey('volume-slider-a')), findsNothing);
+    });
+  });
+
+  group('CallMicStatus / CallMicBanner', () {
+    Widget host(Widget child) => ProviderScope(
+      overrides: [
+        initialAppLocaleProvider.overrideWithValue(AppLocale.japanese),
+      ],
+      child: MaterialApp(home: Scaffold(body: child)),
+    );
+
+    testWidgets('マイクを使えない人にだけ「マイクを使えません」が出る', (tester) async {
+      await tester.pumpWidget(
+        host(const CallMicStatus(muted: false, unavailable: true)),
+      );
+      expect(find.text('マイクを使えません'), findsOneWidget);
+      await tester.pumpWidget(
+        host(const CallMicStatus(muted: true, unavailable: false)),
+      );
+      expect(find.text('マイクを使えません'), findsNothing);
+      expect(find.byIcon(Icons.mic_off), findsOneWidget);
+    });
+
+    testWidgets('案内は、使えない間と入室時の注意の時だけ出る', (tester) async {
+      await tester.pumpWidget(
+        host(const CallMicBanner(unavailable: false, busyAtJoin: false)),
+      );
+      expect(find.byIcon(Icons.warning_amber_rounded), findsNothing);
+      await tester.pumpWidget(
+        host(const CallMicBanner(unavailable: true, busyAtJoin: false)),
+      );
+      expect(find.textContaining('声が相手に届いていません'), findsOneWidget);
+      await tester.pumpWidget(
+        host(const CallMicBanner(unavailable: false, busyAtJoin: true)),
+      );
+      expect(find.textContaining('可能性があります'), findsOneWidget);
+    });
+  });
+
+  group('ScreenSharePreview', () {
+    testWidgets('静止画が取れるまでは、共有中のカードとライブ切り替えのボタンが出る', (tester) async {
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            initialAppLocaleProvider.overrideWithValue(AppLocale.japanese),
+          ],
+          child: MaterialApp(
+            home: Scaffold(
+              body: ScreenSharePreview(
+                trackOf: () => null,
+                liveRenderer: RTCVideoRenderer(),
+              ),
+            ),
+          ),
+        ),
+      );
+      expect(find.text('画面を共有しています'), findsOneWidget);
+      expect(find.byKey(const ValueKey('screen-preview-live')), findsOneWidget);
+      expect(find.byIcon(Icons.videocam_off), findsOneWidget);
+    });
+  });
+
+  group('isPortraitVideo', () {
+    test('縦長だけtrue、大きさ未確定・横長・正方形はfalse', () {
+      expect(isPortraitVideo(const RTCVideoValue()), isFalse);
+      expect(
+        isPortraitVideo(const RTCVideoValue(width: 480, height: 640)),
+        isTrue,
+      );
+      expect(
+        isPortraitVideo(const RTCVideoValue(width: 640, height: 480)),
+        isFalse,
+      );
+      expect(
+        isPortraitVideo(const RTCVideoValue(width: 500, height: 500)),
+        isFalse,
+      );
+      // 横向きの映像が90度回転して届く時は縦長として扱う。
+      expect(
+        isPortraitVideo(
+          const RTCVideoValue(width: 640, height: 480, rotation: 90),
+        ),
+        isTrue,
+      );
+    });
+  });
+
+  group('CallZoomable', () {
+    Widget host({Object? resetKey}) => MaterialApp(
+      home: Center(
+        child: SizedBox(
+          width: 200,
+          height: 100,
+          child: CallZoomable(
+            resetKey: resetKey,
+            child: const ColoredBox(
+              key: ValueKey('zoom-child'),
+              color: Colors.red,
+            ),
+          ),
+        ),
+      ),
+    );
+
+    double scaleOf(WidgetTester t) => t
+        .widget<Transform>(
+          find.descendant(
+            of: find.byType(CallZoomable),
+            matching: find.byType(Transform),
+          ),
+        )
+        .transform
+        .getMaxScaleOnAxis();
+
+    testWidgets('ホイールで拡大でき、ダブルタップで等倍に戻る', (tester) async {
+      await tester.pumpWidget(host());
+      expect(scaleOf(tester), 1.0);
+
+      final center = tester.getCenter(find.byType(CallZoomable));
+      final pointer = TestPointer(1, PointerDeviceKind.mouse);
+      pointer.hover(center);
+      await tester.sendEventToBinding(pointer.scroll(const Offset(0, -300)));
+      await tester.pump();
+      expect(scaleOf(tester), greaterThan(1.5));
+
+      await tester.tap(find.byType(CallZoomable));
+      await tester.pump(const Duration(milliseconds: 50));
+      await tester.tap(find.byType(CallZoomable));
+      await tester.pump();
+      await tester.pump(const Duration(seconds: 1));
+      expect(scaleOf(tester), 1.0);
+    });
+
+    testWidgets('倍率は上限（5倍）と下限（等倍）に収まる', (tester) async {
+      await tester.pumpWidget(host());
+      final center = tester.getCenter(find.byType(CallZoomable));
+      final pointer = TestPointer(1, PointerDeviceKind.mouse);
+      pointer.hover(center);
+      for (var i = 0; i < 10; i++) {
+        await tester.sendEventToBinding(pointer.scroll(const Offset(0, -500)));
+      }
+      await tester.pump();
+      expect(scaleOf(tester), 5.0);
+      for (var i = 0; i < 20; i++) {
+        await tester.sendEventToBinding(pointer.scroll(const Offset(0, 500)));
+      }
+      await tester.pump();
+      expect(scaleOf(tester), 1.0);
+    });
+
+    testWidgets('resetKeyが変わると等倍に戻る', (tester) async {
+      await tester.pumpWidget(host(resetKey: false));
+      final pointer = TestPointer(1, PointerDeviceKind.mouse);
+      pointer.hover(tester.getCenter(find.byType(CallZoomable)));
+      await tester.sendEventToBinding(pointer.scroll(const Offset(0, -300)));
+      await tester.pump();
+      expect(scaleOf(tester), greaterThan(1.0));
+      await tester.pumpWidget(host(resetKey: true));
+      expect(scaleOf(tester), 1.0);
     });
   });
 }

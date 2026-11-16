@@ -49,6 +49,32 @@ Future<List<BgmImportFile>> pickBgmFolder() {
   return completer.future;
 }
 
+/// 画像を1枚選ばせて、中身を返す（アーティスト写真用、2026-11-16）。何も選ばなければnull。
+Future<Uint8List?> pickBgmImage() {
+  final completer = Completer<Uint8List?>();
+  final input = web.HTMLInputElement()
+    ..type = 'file'
+    ..accept = 'image/*';
+  input.onchange = ((web.Event _) async {
+    final file = input.files?.item(0);
+    if (file == null) {
+      completer.complete(null);
+      return;
+    }
+    try {
+      final buffer = await file.arrayBuffer().toDart;
+      completer.complete(buffer.toDart.asUint8List());
+    } catch (_) {
+      completer.complete(null);
+    }
+  }).toJS;
+  input.oncancel = ((web.Event _) {
+    if (!completer.isCompleted) completer.complete(null);
+  }).toJS;
+  input.click();
+  return completer.future;
+}
+
 /// 曲の長さを、`<audio>`のメタデータから調べる（読めなければnull）。
 Future<Duration?> probeBgmDuration(Uint8List data, String mimeType) async {
   final blob = web.Blob([data.toJS].toJS, web.BlobPropertyBag(type: mimeType));

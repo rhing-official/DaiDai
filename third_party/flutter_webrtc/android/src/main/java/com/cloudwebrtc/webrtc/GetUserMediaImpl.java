@@ -128,6 +128,12 @@ public class GetUserMediaImpl {
      */
     public static Runnable beforeScreenCapture = null;
 
+    /**
+     * 画面共有の元（共有していたアプリ・画面）が終わった（MediaProjectionが止まった）時に呼ぶ。
+     * アプリ側が、共有を終えるための処理をここで行う（メインスレッド以外から呼ばれうる）。
+     */
+    public static Runnable onScreenCaptureStopped = null;
+
 
     public void screenRequestPermissions(ResultReceiver resultReceiver) {
         screenRequestPermissions(resultReceiver, false);
@@ -554,6 +560,13 @@ public class GetUserMediaImpl {
                             @Override
                             public void onStop() {
                                 super.onStop();
+                                if (onScreenCaptureStopped != null) {
+                                    try {
+                                        onScreenCaptureStopped.run();
+                                    } catch (Throwable t) {
+                                        Log.w(TAG, "onScreenCaptureStopped failed: " + t);
+                                    }
+                                }
                                 // After Huawei P30 and Android 10 version test, the onstop method is called, which will not affect the next process,
                                 // and there is no need to call the resulterror method
                                 //resultError("MediaProjection.Callback()", "User revoked permission to capture the screen.", result);

@@ -12,12 +12,12 @@ class BgmMixer {
     String mimeType, {
     void Function()? onEnded,
   }) async {}
-  void stop() {}
+  Future<void> stop({bool fade = true}) async {}
   Duration get position => Duration.zero;
   Duration? get duration => null;
   void seek(Duration to) {}
   bool get paused => true;
-  void pause() {}
+  Future<void> pause() async {}
   Future<void> resume() async {}
   set volume(double value) {}
   void dispose() {}

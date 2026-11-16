@@ -8,7 +8,6 @@ import '../../providers/app_ui_style_provider.dart';
 import '../../providers/camera_availability_provider.dart';
 import '../../providers/repository_providers.dart';
 import '../../utils/platform_info.dart';
-import '../../widgets/swipe_gestures.dart' show kSwipeGestureVelocityThreshold;
 import 'active_call_session.dart';
 import 'call_audio_sinks.dart';
 import 'call_avatar.dart';
@@ -20,7 +19,6 @@ import 'screen_share_menu.dart';
 import 'swipe_down_dock.dart';
 import 'call_control_bar.dart';
 import 'call_tile_layout.dart';
-import 'call_video_viewer.dart';
 import 'camera_availability.dart';
 import 'webrtc_group_call_controller.dart';
 import '../../l10n/strings.dart';
@@ -57,21 +55,6 @@ class GroupCallScreen extends ConsumerStatefulWidget {
 
 class _GroupCallScreenState extends ConsumerState<GroupCallScreen> {
   late final GroupCallSession _session;
-
-  /// 拡大表示（映像のビューア）を閉じるたびに増やし、映像の部品を作り直す
-  /// （Webの描画要素は拡大側へ移る為）。
-  int _viewerGeneration = 0;
-
-  void _openViewer(RTCVideoRenderer renderer, {required bool mirror}) {
-    showCallVideoViewer(
-      context,
-      renderer: renderer,
-      mirror: mirror,
-      onClosed: () {
-        if (mounted) setState(() => _viewerGeneration++);
-      },
-    );
-  }
 
   /// このウィジェット自身の意図したpop（下スワイプでのドック・通話終了後の
   /// 自動クローズ）かどうか。詳細は[CallScreen]の同名フィールドのコメント
@@ -355,6 +338,7 @@ class _GroupCallScreenState extends ConsumerState<GroupCallScreen> {
                       : null,
                   mirror: _controller.isFrontCamera,
                   micMuted: _controller.muted,
+                  micUnavailable: _controller.micUnavailable,
                   videoEnabled: _controller.isVideo,
                   connectionIssue: false,
                   placeholderColor: placeholderColor,
@@ -403,19 +387,16 @@ class _GroupCallScreenState extends ConsumerState<GroupCallScreen> {
       // Androidのアプリの自分の共有は、映像ではなく「共有しています」を出す
       // （端末の画面全体を撮る為、プレビューを出すと無限鏡になる）。
       // 相手の共有は、映像のストリームが届くまでは受信中の表示。
-      onTap:
-          (isSelf && ScreenShareCapture.isNativeAndroid) ||
-              renderer == null ||
-              renderer.srcObject == null
-          ? null
-          : () => _openViewer(renderer, mirror: false),
       build: (_) => ScreenShareFrame(
         video: isSelf && ScreenShareCapture.isNativeAndroid
-            ? const ScreenSharingNowView()
+            ? ScreenSharePreview(
+                trackOf: () => _controller.screenVideoTrack,
+                liveRenderer: _controller.localScreenRenderer,
+              )
             : (renderer == null || renderer.srcObject == null)
             ? ScreenReceivingView(failed: timedOut)
             : RTCVideoView(
-                key: ValueKey((renderer, _viewerGeneration)),
+                key: ValueKey(renderer),
                 renderer,
                 objectFit: RTCVideoViewObjectFit.RTCVideoViewObjectFitContain,
               ),
@@ -439,6 +420,7 @@ class _GroupCallScreenState extends ConsumerState<GroupCallScreen> {
       required RTCVideoRenderer? renderer,
       required bool mirror,
       required bool micMuted,
+      bool micUnavailable = false,
       required bool videoEnabled,
       required bool connectionIssue,
       bool connecting = false,
@@ -446,15 +428,13 @@ class _GroupCallScreenState extends ConsumerState<GroupCallScreen> {
     }) => CallTileSpec(
       key: userId,
       volume: volume,
-      onTap: videoEnabled && renderer != null
-          ? () => _openViewer(renderer, mirror: mirror)
-          : null,
       build: (_) => _videoTile(
         userId: userId,
         rhingSeed: rhingSeed,
         renderer: renderer,
         mirror: mirror,
         micMuted: micMuted,
+        micUnavailable: micUnavailable,
         videoEnabled: videoEnabled,
         connectionIssue: connectionIssue,
         connecting: connecting,
@@ -491,6 +471,7 @@ class _GroupCallScreenState extends ConsumerState<GroupCallScreen> {
         renderer: _controller.isVideo ? _controller.localRenderer : null,
         mirror: _controller.isFrontCamera,
         micMuted: _controller.muted,
+        micUnavailable: _controller.micUnavailable,
         videoEnabled: _controller.isVideo,
         connectionIssue: false,
       ),
@@ -501,6 +482,7 @@ class _GroupCallScreenState extends ConsumerState<GroupCallScreen> {
           renderer: _controller.remoteRenderers[participant.userId],
           mirror: false,
           micMuted: participant.micMuted,
+          micUnavailable: participant.micUnavailable,
           videoEnabled: _controller.remoteVideoShown(participant),
           volume: CallTileVolume(
             value: _controller.voiceVolumeOf(participant.userId),
@@ -536,6 +518,7 @@ class _GroupCallScreenState extends ConsumerState<GroupCallScreen> {
     required RTCVideoRenderer? renderer,
     required bool mirror,
     required bool micMuted,
+    bool micUnavailable = false,
     required bool videoEnabled,
     required bool connectionIssue,
     bool connecting = false,
@@ -549,17 +532,10 @@ class _GroupCallScreenState extends ConsumerState<GroupCallScreen> {
           fit: StackFit.expand,
           children: [
             if (videoEnabled && renderer != null)
-              RTCVideoView(
-                // Web版のRTCVideoViewはStatefulWidgetで、実描画に使う
-                // videoElementをinitState時にしか取得しない。2人通話の
-                // メイン/コーナー入れ替え時、keyが無いとFlutterが同じ
-                // Stateを使い回してしまい映像が入れ替わらない不具合になって
-                // いた。レンダラーの実体が変わったら必ず作り直されるよう、
-                // レンダラー自体をキーにする。
-                key: ValueKey((renderer, _viewerGeneration)),
-                renderer,
+              CallPersonVideo(
+                renderer: renderer,
                 mirror: mirror,
-                objectFit: RTCVideoViewObjectFit.RTCVideoViewObjectFitCover,
+                fullFit: false,
               )
             else
               Center(
@@ -586,10 +562,7 @@ class _GroupCallScreenState extends ConsumerState<GroupCallScreen> {
                         shadows: [Shadow(blurRadius: 6)],
                       ),
                     ),
-                    if (micMuted) ...[
-                      const SizedBox(width: 4),
-                      const Icon(Icons.mic_off, size: 14, color: Colors.white),
-                    ],
+                    CallMicStatus(muted: micMuted, unavailable: micUnavailable),
                   ],
                 ),
               ),
@@ -650,6 +623,8 @@ class _GroupCallScreenState extends ConsumerState<GroupCallScreen> {
       onSwitchCamera: _controller.switchCamera,
       onHangUp: () => _controller.leave(),
       videoFailed: _controller.videoFailed,
+      micUnavailable: _controller.micUnavailable,
+      micBusyAtJoin: _controller.micBusyAtJoin,
       remoteBgm: _controller.remoteBgm,
       screenShare: groupScreenShare(_controller),
       bgmBinding: groupBgmBinding(

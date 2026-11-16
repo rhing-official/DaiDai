@@ -9,7 +9,6 @@ import '../../providers/app_ui_style_provider.dart';
 import '../../providers/camera_availability_provider.dart';
 import '../../providers/repository_providers.dart';
 import '../../utils/platform_info.dart';
-import '../../widgets/swipe_gestures.dart' show kSwipeGestureVelocityThreshold;
 import 'active_call_session.dart';
 import 'call_audio_sinks.dart';
 import 'call_avatar.dart';
@@ -20,7 +19,6 @@ import 'screen_share.dart' show ScreenShareCapture;
 import 'screen_share_menu.dart';
 import 'swipe_down_dock.dart';
 import 'call_control_bar.dart';
-import 'call_video_viewer.dart';
 import 'camera_availability.dart';
 import 'webrtc_call_controller.dart';
 import '../../l10n/strings.dart';
@@ -59,9 +57,6 @@ class CallScreen extends ConsumerStatefulWidget {
 
 class _CallScreenState extends ConsumerState<CallScreen> {
   late final OneToOneCallSession _session;
-
-  /// 拡大表示を閉じるたびに増やし、映像の部品を作り直す（`call_overlay.dart`と同じ）。
-  int _viewerGeneration = 0;
 
   /// 映像のある通話だったか（一度でも映像側のレイアウトになったか）。終了の瞬間に映像が破棄されて
   /// 音声通話の画面へ切り替わるのを防ぐための印（2026-11-15）。
@@ -281,18 +276,6 @@ class _CallScreenState extends ConsumerState<CallScreen> {
     if (mounted) _dockCall();
   }
 
-  /// 拡大表示（映像のビューア）を開く。閉じたら映像の部品を作り直す。
-  void _openViewer(RTCVideoRenderer renderer, {required bool mirror}) {
-    showCallVideoViewer(
-      context,
-      renderer: renderer,
-      mirror: mirror,
-      onClosed: () {
-        if (mounted) setState(() => _viewerGeneration++);
-      },
-    );
-  }
-
   /// 1人ぶんのウィンドウ（映像、無ければアイコン。呼び名・ミュート表示つき）。
   Widget _personTile({required bool remote, required bool pinned}) {
     final me = widget.currentUserId;
@@ -308,13 +291,10 @@ class _CallScreenState extends ConsumerState<CallScreen> {
           fit: StackFit.expand,
           children: [
             hasVideo
-                ? RTCVideoView(
-                    key: ValueKey((renderer, _viewerGeneration)),
-                    renderer,
+                ? CallPersonVideo(
+                    renderer: renderer,
                     mirror: !remote && _controller.isFrontCamera,
-                    objectFit: pinned
-                        ? RTCVideoViewObjectFit.RTCVideoViewObjectFitContain
-                        : RTCVideoViewObjectFit.RTCVideoViewObjectFitCover,
+                    fullFit: pinned,
                   )
                 : Center(
                     child: _placeholderAvatar(
@@ -341,15 +321,14 @@ class _CallScreenState extends ConsumerState<CallScreen> {
                           fontSize: 13,
                         ),
                       ),
-                      if (remote ? _controller.remoteMuted : _controller.muted)
-                        const Padding(
-                          padding: EdgeInsets.only(left: 6),
-                          child: Icon(
-                            Icons.mic_off,
-                            size: 14,
-                            color: Colors.white,
-                          ),
-                        ),
+                      CallMicStatus(
+                        muted: remote
+                            ? _controller.remoteMuted
+                            : _controller.muted,
+                        unavailable: remote
+                            ? _controller.remoteMicUnavailable
+                            : _controller.micUnavailable,
+                      ),
                     ],
                   ),
                 ),
@@ -370,11 +349,14 @@ class _CallScreenState extends ConsumerState<CallScreen> {
         : _controller.localScreenRenderer;
     return ScreenShareFrame(
       video: (!remote && ScreenShareCapture.isNativeAndroid)
-          ? const ScreenSharingNowView()
+          ? ScreenSharePreview(
+              trackOf: () => _controller.screenVideoTrack,
+              liveRenderer: _controller.localScreenRenderer,
+            )
           : (remote && !_controller.remoteScreenReady)
           ? ScreenReceivingView(failed: _controller.remoteScreenTimedOut)
           : RTCVideoView(
-              key: ValueKey((renderer, _viewerGeneration)),
+              key: ValueKey(renderer),
               renderer,
               objectFit: RTCVideoViewObjectFit.RTCVideoViewObjectFitContain,
             ),
@@ -417,10 +399,6 @@ class _CallScreenState extends ConsumerState<CallScreen> {
       if (_controller.remoteScreenShown)
         CallTileSpec(
           key: 'remote#screen',
-          onTap: _controller.remoteScreenReady
-              ? () =>
-                    _openViewer(_controller.remoteScreenRenderer, mirror: false)
-              : null,
           volume: CallTileVolume(
             value: _controller.remoteScreenVolume,
             onChanged: _controller.setRemoteScreenVolume,
@@ -430,27 +408,14 @@ class _CallScreenState extends ConsumerState<CallScreen> {
       if (_controller.isScreenSharing)
         CallTileSpec(
           key: 'self#screen',
-          onTap: ScreenShareCapture.isNativeAndroid
-              ? null
-              : () =>
-                    _openViewer(_controller.localScreenRenderer, mirror: false),
           build: (_) => _screenTile(remote: false),
         ),
       CallTileSpec(
         key: 'self',
-        onTap: _myIsVideo
-            ? () => _openViewer(
-                _controller.localRenderer,
-                mirror: _controller.isFrontCamera,
-              )
-            : null,
         build: (pinned) => _personTile(remote: false, pinned: pinned),
       ),
       CallTileSpec(
         key: 'remote',
-        onTap: _remoteIsVideo
-            ? () => _openViewer(_controller.remoteRenderer, mirror: false)
-            : null,
         volume: CallTileVolume(
           value: _controller.remoteVoiceVolume,
           onChanged: _controller.setRemoteVoiceVolume,
@@ -540,6 +505,8 @@ class _CallScreenState extends ConsumerState<CallScreen> {
       screenShare: oneToOneScreenShare(_controller, widget.currentUserId),
       remoteBgm: _controller.remoteBgm,
       videoFailed: _controller.videoFailed,
+      micUnavailable: _controller.micUnavailable,
+      micBusyAtJoin: _controller.micBusyAtJoin,
     );
   }
 }

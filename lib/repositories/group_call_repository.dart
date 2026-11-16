@@ -77,8 +77,9 @@ abstract class GroupCallRepository {
   ///
   /// [sessionId]を渡した時は、参加者ドキュメントの`sessionId`が別の端末のもの
   /// なら何もしない（別の端末が入り直した後も、元の端末が新しい端末の在室を
-  /// 更新し続けてしまわないように、2026-10-31）。
-  Future<void> touchPresence({
+  /// 更新し続けてしまわないように、2026-10-31）。別の端末のものだった時は`false`を返す
+  /// （自分の参加のままなら`true`。呼び出し側は、`false`なら乗っ取られたとして通話を抜ける、2026-11-16）。
+  Future<bool> touchPresence({
     required String groupCallId,
     required String userId,
     String? sessionId,
@@ -88,6 +89,7 @@ abstract class GroupCallRepository {
     required String groupCallId,
     required String userId,
     bool? micMuted,
+    bool? micUnavailable,
     bool? isVideo,
 
     /// 流しているBGMの曲名・一時停止か・小さなジャケット（base64）。[clearBgm]がtrueなら消す（流していない状態）。
@@ -354,7 +356,7 @@ class FirestoreGroupCallRepository implements GroupCallRepository {
   }
 
   @override
-  Future<void> touchPresence({
+  Future<bool> touchPresence({
     required String groupCallId,
     required String userId,
     String? sessionId,
@@ -362,9 +364,10 @@ class FirestoreGroupCallRepository implements GroupCallRepository {
     final ref = _participantsOf(groupCallId).doc(userId);
     if (sessionId != null) {
       final current = (await ref.get()).data()?['sessionId'];
-      if (current is String && current != sessionId) return;
+      if (current is String && current != sessionId) return false;
     }
     await ref.update({'lastSeenAt': FieldValue.serverTimestamp()});
+    return true;
   }
 
   @override
@@ -372,6 +375,7 @@ class FirestoreGroupCallRepository implements GroupCallRepository {
     required String groupCallId,
     required String userId,
     bool? micMuted,
+    bool? micUnavailable,
     bool? isVideo,
     String? bgmTitle,
     bool? bgmPaused,
@@ -382,6 +386,7 @@ class FirestoreGroupCallRepository implements GroupCallRepository {
   }) async {
     final data = <String, dynamic>{};
     if (micMuted != null) data['micMuted'] = micMuted;
+    if (micUnavailable != null) data['micUnavailable'] = micUnavailable;
     if (isVideo != null) data['isVideo'] = isVideo;
     if (bgmTitle != null) {
       data['bgmTitle'] = bgmTitle;

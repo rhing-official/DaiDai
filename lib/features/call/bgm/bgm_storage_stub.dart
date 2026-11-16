@@ -67,4 +67,10 @@ class _UnsupportedBgmStorage implements BgmStorage {
 
   @override
   Future<void> reorder(List<String> orderedTrackIds) async {}
+
+  @override
+  Future<Map<String, Uint8List>> listArtistPhotos() async => const {};
+
+  @override
+  Future<void> setArtistPhoto(String artist, Uint8List? photo) async {}
 }

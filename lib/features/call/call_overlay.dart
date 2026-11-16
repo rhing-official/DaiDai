@@ -1,3 +1,4 @@
+import 'dart:math' as math;
 import 'dart:ui' show ImageFilter;
 
 import 'package:flutter/material.dart';
@@ -18,8 +19,9 @@ import '../../providers/call_bgm_provider.dart';
 import 'bgm/call_bgm_bindings.dart';
 import 'screen_share_menu.dart';
 import 'call_control_bar.dart';
-import 'call_video_viewer.dart';
 import 'call_pin_provider.dart';
+import 'pinned_call_position.dart';
+import '../../theme/motion.dart';
 import 'send_gain.dart';
 import 'call_tile_layout.dart';
 import 'camera_availability.dart';
@@ -36,14 +38,75 @@ import '../../l10n/strings.dart';
 /// 重ねる前の画面（スクロール位置・入力途中の内容を含む）がそのまま見える。
 /// スマホアプリは全画面ルート（`/call`・`/group-call`）を重ねる従来の方式で、
 /// この層は出さない。
-class CallOverlay extends ConsumerWidget {
+///
+/// ミニ表示との行き来は、プロフィールカードの編集画面（`_openCardZoom`）と同じ「枠が
+/// 飛んでいく」動き（2026-11-16）。開く時はミニ表示の位置から通話画面の位置へ広がり、
+/// 閉じる時はミニ表示の位置へ縮む。通話画面の中身（映像など）は、広がりきる頃に現れ、
+/// 縮み始めに消える（映像の描画要素は二重に出せないので、飛ぶのは枠だけ）。
+/// 開く450ms・閉じる350ms（カード編集と同じ）。
+class CallOverlay extends ConsumerStatefulWidget {
   const CallOverlay({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<CallOverlay> createState() => _CallOverlayState();
+}
+
+class _CallOverlayState extends ConsumerState<CallOverlay>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _controller = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 450),
+    reverseDuration: const Duration(milliseconds: 350),
+  );
+  late final Animation<double> _curved = CurvedAnimation(
+    parent: _controller,
+    curve: popSlideCurve,
+    reverseCurve: popSlideCurve,
+  );
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _sync();
+    });
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  bool get _target =>
+      !isMobileCallPlatform &&
+      ref.read(activeCallSessionProvider) != null &&
+      ref.read(callOverlayOpenProvider);
+
+  /// 開閉の状態に合わせて動かす。通話が終わった時は動かさず、すぐ閉じる。
+  void _sync() {
+    if (_target) {
+      _controller.forward();
+    } else if (ref.read(activeCallSessionProvider) == null) {
+      _controller.value = 0;
+    } else {
+      _controller.reverse();
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    ref.listen<bool>(callOverlayOpenProvider, (_, _) => _sync());
+    ref.listen<ActiveCallSession?>(
+      activeCallSessionProvider,
+      (_, _) => _sync(),
+    );
     final session = ref.watch(activeCallSessionProvider);
     final open = ref.watch(callOverlayOpenProvider);
-    if (isMobileCallPlatform || session == null || !open) {
+    final target = !isMobileCallPlatform && session != null && open;
+    if (isMobileCallPlatform ||
+        session == null ||
+        (!target && _controller.isDismissed)) {
       return const SizedBox.shrink();
     }
     // `MaterialApp.builder`の位置にはNavigator・Overlayが無く、`Tooltip`等が
@@ -51,7 +114,10 @@ class CallOverlay extends ConsumerWidget {
     return Positioned.fill(
       child: Overlay(
         initialEntries: [
-          OverlayEntry(builder: (context) => const _CallOverlayBody()),
+          OverlayEntry(
+            // 初期エントリは作り直されない為、開閉の状態は本体が自分で購読する。
+            builder: (context) => _CallOverlayBody(animation: _curved),
+          ),
         ],
       ),
     );
@@ -80,13 +146,34 @@ class CallOverlayFocusGuard extends ConsumerWidget {
 }
 
 class _CallOverlayBody extends ConsumerWidget {
-  const _CallOverlayBody();
+  const _CallOverlayBody({required this.animation});
+
+  /// 0（ミニ表示）→1（通話画面）。
+  final Animation<double> animation;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final session = ref.watch(activeCallSessionProvider);
     if (session == null) return const SizedBox.shrink();
+    // 開いている（開く途中を含む）間true。閉じる途中はfalse。
+    final opening = ref.watch(callOverlayOpenProvider);
     void close() => ref.read(callOverlayOpenProvider.notifier).close();
+    final screen = MediaQuery.sizeOf(context);
+    final topInset = MediaQuery.paddingOf(context).top;
+    // 飛ぶ枠の両端: ミニ表示（`PinnedCallOverlay`と同じ位置）と、通話画面（中央、
+    // 幅88%・高さ94%・最大幅960）。
+    final bubble =
+        clampPinnedCallOffset(
+          offset: ref.watch(pinnedCallOffsetProvider),
+          screen: screen,
+          topInset: topInset,
+        ) &
+        kPinnedCallSize;
+    final full = Rect.fromCenter(
+      center: Offset(screen.width / 2, screen.height / 2),
+      width: math.min(screen.width * 0.88, 960),
+      height: screen.height * 0.94,
+    );
     // Webでは映像（プラットフォームビュー）がクリックを奪うため、重ねた面が
     // 受け取れるようにする。ブラウザの戻る・Escで閉じられる。
     // 通話画面は、少し狭い角丸のポップアップにする（2026-11-03）。周りの余白は、画像の
@@ -95,39 +182,79 @@ class _CallOverlayBody extends ConsumerWidget {
     return PointerInterceptor(
       child: BackEntry(
         scope: null,
-        active: true,
+        active: opening,
         layer: true,
         onBack: close,
-        child: Stack(
-          fit: StackFit.expand,
-          children: [
-            GestureDetector(
-              behavior: HitTestBehavior.opaque,
-              // ピン留めしたウィンドウがあれば、外（余白）のクリックでまずピンを外す。
-              onTap: () {
-                final pins = ref.read(callPinnedTilesProvider.notifier);
-                if (ref.read(callPinnedTilesProvider).isNotEmpty) {
-                  pins.clear();
-                } else {
-                  close();
-                }
-              },
-              child: BackdropFilter(
-                filter: ImageFilter.blur(sigmaX: 18, sigmaY: 18),
-                child: ColoredBox(color: Colors.black.withValues(alpha: 0.45)),
-              ),
-            ),
-            Center(
-              child: FractionallySizedBox(
-                widthFactor: 0.88,
-                heightFactor: 0.94,
-                child: ConstrainedBox(
-                  constraints: const BoxConstraints(maxWidth: 960),
-                  child: CallOverlayView(session: session, onClose: close),
+        child: AnimatedBuilder(
+          animation: animation,
+          builder: (context, _) {
+            final t = animation.value;
+            // 中身は、広がりきる頃（0.6〜1）に現れ、縮み始めに先に消える。
+            final content = ((t - 0.6) / 0.4).clamp(0.0, 1.0);
+            final rect = Rect.lerp(bubble, full, t)!;
+            return Stack(
+              fit: StackFit.expand,
+              children: [
+                GestureDetector(
+                  behavior: HitTestBehavior.opaque,
+                  // ピン留めしたウィンドウがあれば、外（余白）のクリックでまずピンを外す。
+                  onTap: () {
+                    if (!opening) return;
+                    final pins = ref.read(callPinnedTilesProvider.notifier);
+                    if (ref.read(callPinnedTilesProvider).isNotEmpty) {
+                      pins.clear();
+                    } else {
+                      close();
+                    }
+                  },
+                  child: t <= 0
+                      ? const SizedBox.expand()
+                      : BackdropFilter(
+                          filter: ImageFilter.blur(
+                            sigmaX: 18 * t,
+                            sigmaY: 18 * t,
+                          ),
+                          child: ColoredBox(
+                            color: Colors.black.withValues(alpha: 0.45 * t),
+                          ),
+                        ),
                 ),
-              ),
-            ),
-          ],
+                Positioned.fromRect(
+                  rect: rect,
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(
+                      12 + 4 * t.clamp(0.0, 1.0),
+                    ),
+                    child: Stack(
+                      children: [
+                        Positioned.fill(
+                          child: ColoredBox(
+                            color: Colors.grey.shade900.withValues(
+                              alpha: 1 - content,
+                            ),
+                          ),
+                        ),
+                        if (content > 0)
+                          Positioned(
+                            left: 0,
+                            top: 0,
+                            width: full.width,
+                            height: full.height,
+                            child: Opacity(
+                              opacity: content,
+                              child: CallOverlayView(
+                                session: session,
+                                onClose: close,
+                              ),
+                            ),
+                          ),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
+            );
+          },
         ),
       ),
     );
@@ -236,22 +363,6 @@ class _OneToOneStage extends ConsumerStatefulWidget {
 }
 
 class _OneToOneStageState extends ConsumerState<_OneToOneStage> {
-  /// 拡大表示（画像・動画・PDFと同じぼかしの拡大、2026-11-03）を閉じるたびに増やし、
-  /// 映像の部品を作り直す（Webの描画要素は拡大側へ移る為、元の映像が空になる）。
-  int _viewerGeneration = 0;
-
-  /// ウィンドウの映像を拡大表示する（ウィンドウのタップ）。
-  void _openViewer(RTCVideoRenderer renderer, {required bool mirror}) {
-    showCallVideoViewer(
-      context,
-      renderer: renderer,
-      mirror: mirror,
-      onClosed: () {
-        if (mounted) setState(() => _viewerGeneration++);
-      },
-    );
-  }
-
   /// 映像が無い側の枠に出す、その人のプロフィールアイコン（2026-10-21追加）。
   /// [remote]が相手、falseなら自分。
   Widget _avatar({required bool remote, required double radius}) {
@@ -286,13 +397,10 @@ class _OneToOneStageState extends ConsumerState<_OneToOneStage> {
           fit: StackFit.expand,
           children: [
             hasVideo
-                ? RTCVideoView(
-                    key: ValueKey((renderer, _viewerGeneration)),
-                    renderer,
+                ? CallPersonVideo(
+                    renderer: renderer,
                     mirror: !remote && controller.isFrontCamera,
-                    objectFit: pinned
-                        ? RTCVideoViewObjectFit.RTCVideoViewObjectFitContain
-                        : RTCVideoViewObjectFit.RTCVideoViewObjectFitCover,
+                    fullFit: pinned,
                   )
                 : Center(
                     child: _avatar(remote: remote, radius: pinned ? 56 : 28),
@@ -316,15 +424,14 @@ class _OneToOneStageState extends ConsumerState<_OneToOneStage> {
                           shadows: [Shadow(blurRadius: 6)],
                         ),
                       ),
-                      if (remote ? controller.remoteMuted : controller.muted)
-                        const Padding(
-                          padding: EdgeInsets.only(left: 4),
-                          child: Icon(
-                            Icons.mic_off,
-                            size: 14,
-                            color: Colors.white,
-                          ),
-                        ),
+                      CallMicStatus(
+                        muted: remote
+                            ? controller.remoteMuted
+                            : controller.muted,
+                        unavailable: remote
+                            ? controller.remoteMicUnavailable
+                            : controller.micUnavailable,
+                      ),
                     ],
                   ),
                 ),
@@ -350,7 +457,7 @@ class _OneToOneStageState extends ConsumerState<_OneToOneStage> {
       video: (remote && !controller.remoteScreenReady)
           ? ScreenReceivingView(failed: controller.remoteScreenTimedOut)
           : RTCVideoView(
-              key: ValueKey((renderer, _viewerGeneration)),
+              key: ValueKey(renderer),
               renderer,
               objectFit: RTCVideoViewObjectFit.RTCVideoViewObjectFitContain,
             ),
@@ -375,10 +482,6 @@ class _OneToOneStageState extends ConsumerState<_OneToOneStage> {
       if (controller.remoteScreenShown)
         CallTileSpec(
           key: 'remote#screen',
-          onTap: controller.remoteScreenReady
-              ? () =>
-                    _openViewer(controller.remoteScreenRenderer, mirror: false)
-              : null,
           volume: CallTileVolume(
             value: controller.remoteScreenVolume,
             onChanged: controller.setRemoteScreenVolume,
@@ -388,8 +491,6 @@ class _OneToOneStageState extends ConsumerState<_OneToOneStage> {
       if (controller.isScreenSharing)
         CallTileSpec(
           key: 'self#screen',
-          onTap: () =>
-              _openViewer(controller.localScreenRenderer, mirror: false),
           // 共有する音の音量（相手へ送る音。Webのみ）。
           volume: SendGain.isSupported
               ? CallTileVolume(
@@ -401,12 +502,6 @@ class _OneToOneStageState extends ConsumerState<_OneToOneStage> {
         ),
       CallTileSpec(
         key: 'self',
-        onTap: controller.isVideo
-            ? () => _openViewer(
-                controller.localRenderer,
-                mirror: controller.isFrontCamera,
-              )
-            : null,
         // 自分のマイクの音量（相手へ送る音。Webのみ）。
         volume: SendGain.isSupported
             ? CallTileVolume(
@@ -418,9 +513,6 @@ class _OneToOneStageState extends ConsumerState<_OneToOneStage> {
       ),
       CallTileSpec(
         key: 'remote',
-        onTap: controller.remoteVideoShown
-            ? () => _openViewer(controller.remoteRenderer, mirror: false)
-            : null,
         volume: CallTileVolume(
           value: controller.remoteVoiceVolume,
           onChanged: controller.setRemoteVoiceVolume,
@@ -452,21 +544,7 @@ class _GroupStage extends ConsumerStatefulWidget {
 }
 
 class _GroupStageState extends ConsumerState<_GroupStage> {
-  /// 拡大表示を閉じるたびに増やし、映像の部品を作り直す（Webの描画要素は拡大側へ移る為）。
-  int _viewerGeneration = 0;
-
   GroupCallSession get session => widget.session;
-
-  void _openViewer(RTCVideoRenderer renderer, {required bool mirror}) {
-    showCallVideoViewer(
-      context,
-      renderer: renderer,
-      mirror: mirror,
-      onClosed: () {
-        if (mounted) setState(() => _viewerGeneration++);
-      },
-    );
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -487,13 +565,12 @@ class _GroupStageState extends ConsumerState<_GroupStage> {
       final ready = renderer != null && renderer.srcObject != null;
       return CallTileSpec(
         key: '$userId#screen',
-        onTap: ready ? () => _openViewer(renderer, mirror: false) : null,
         volume: volume,
         build: (_) => ScreenShareFrame(
           video: !ready
               ? ScreenReceivingView(failed: timedOut)
               : RTCVideoView(
-                  key: ValueKey((renderer, _viewerGeneration)),
+                  key: ValueKey(renderer),
                   renderer,
                   objectFit: RTCVideoViewObjectFit.RTCVideoViewObjectFitContain,
                 ),
@@ -519,14 +596,12 @@ class _GroupStageState extends ConsumerState<_GroupStage> {
       required bool mirror,
       required bool videoEnabled,
       required bool micMuted,
+      bool micUnavailable = false,
       CallTileVolume? volume,
     }) {
       return CallTileSpec(
         key: userId,
         volume: volume,
-        onTap: videoEnabled && renderer != null
-            ? () => _openViewer(renderer, mirror: mirror)
-            : null,
         build: (pinned) => _tile(
           userId: userId,
           rhingSeed: rhingSeed,
@@ -534,6 +609,7 @@ class _GroupStageState extends ConsumerState<_GroupStage> {
           mirror: mirror,
           videoEnabled: videoEnabled,
           micMuted: micMuted,
+          micUnavailable: micUnavailable,
           focused: pinned,
         ),
       );
@@ -575,6 +651,7 @@ class _GroupStageState extends ConsumerState<_GroupStage> {
         mirror: controller.isFrontCamera,
         videoEnabled: controller.isVideo,
         micMuted: controller.muted,
+        micUnavailable: controller.micUnavailable,
         // 自分のマイクの音量（相手へ送る音。Webのみ）。
         volume: SendGain.isSupported
             ? CallTileVolume(
@@ -591,6 +668,7 @@ class _GroupStageState extends ConsumerState<_GroupStage> {
           mirror: false,
           videoEnabled: controller.remoteVideoShown(p),
           micMuted: p.micMuted,
+          micUnavailable: p.micUnavailable,
           volume: CallTileVolume(
             value: controller.voiceVolumeOf(p.userId),
             onChanged: (v) => controller.setVoiceVolumeOf(p.userId, v),
@@ -632,6 +710,7 @@ class _GroupStageState extends ConsumerState<_GroupStage> {
     required bool mirror,
     required bool videoEnabled,
     required bool micMuted,
+    bool micUnavailable = false,
     required bool focused,
   }) {
     return ClipRRect(
@@ -642,14 +721,10 @@ class _GroupStageState extends ConsumerState<_GroupStage> {
           fit: StackFit.expand,
           children: [
             videoEnabled && renderer != null
-                ? RTCVideoView(
-                    key: ValueKey((renderer, _viewerGeneration)),
-                    renderer,
+                ? CallPersonVideo(
+                    renderer: renderer,
                     mirror: mirror,
-                    // ピン留め中は映像全体を見せる（余白は灰色）、グリッドは枠いっぱい。
-                    objectFit: focused
-                        ? RTCVideoViewObjectFit.RTCVideoViewObjectFitContain
-                        : RTCVideoViewObjectFit.RTCVideoViewObjectFitCover,
+                    fullFit: focused,
                   )
                 : Center(
                     child: CallParticipantAvatar(
@@ -679,10 +754,7 @@ class _GroupStageState extends ConsumerState<_GroupStage> {
                         shadows: [Shadow(blurRadius: 6)],
                       ),
                     ),
-                    if (micMuted) ...[
-                      const SizedBox(width: 4),
-                      const Icon(Icons.mic_off, size: 14, color: Colors.white),
-                    ],
+                    CallMicStatus(muted: micMuted, unavailable: micUnavailable),
                   ],
                 ),
               ),
@@ -733,6 +805,8 @@ class _EmbeddedControls extends ConsumerWidget {
           screenShare: oneToOneScreenShare(controller, currentUserId),
           remoteBgm: controller.remoteBgm,
           videoFailed: controller.videoFailed,
+          micUnavailable: controller.micUnavailable,
+          micBusyAtJoin: controller.micBusyAtJoin,
         ),
       GroupCallSession(:final controller, :final groupId) => CallControlBar(
         isGekiga: isGekiga,
@@ -753,6 +827,8 @@ class _EmbeddedControls extends ConsumerWidget {
         onSwitchCamera: controller.switchCamera,
         onHangUp: () => controller.leave(),
         videoFailed: controller.videoFailed,
+        micUnavailable: controller.micUnavailable,
+        micBusyAtJoin: controller.micBusyAtJoin,
         remoteBgm: controller.remoteBgm,
         screenShare: groupScreenShare(controller),
         bgmBinding: groupBgmBinding(

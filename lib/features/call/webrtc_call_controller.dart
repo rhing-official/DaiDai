@@ -17,6 +17,7 @@ import 'rtc_config.dart';
 import 'audio_route.dart';
 import 'bgm/bgm_storage.dart';
 import 'bgm/bgm_now_playing.dart';
+import 'mic_busy.dart';
 import 'mic_denoiser.dart';
 import 'send_gain.dart';
 import 'screen_share.dart';
@@ -103,6 +104,8 @@ class WebrtcCallController extends ChangeNotifier {
   static const _byeMessage = 'bye';
   static const _muteOnMessage = 'mute:1';
   static const _muteOffMessage = 'mute:0';
+  static const _micBusyOnMessage = 'micbusy:1';
+  static const _micBusyOffMessage = 'micbusy:0';
   late final DisconnectGrace _disconnectGrace = DisconnectGrace(
     onExpired: _endFromConnectionLoss,
   );
@@ -154,6 +157,52 @@ class WebrtcCallController extends ChangeNotifier {
   /// 書き込みを増やさない）。
   bool _remoteMuted = false;
   bool get remoteMuted => _remoteMuted;
+
+  /// 他のアプリ（別の通話など）にマイクを奪われ、声が相手に届かない状態か（2026-11-16）。
+  /// ミュートとは別。OSが自分のマイクを無音にした（Android）／ブラウザがマイクを止めた（Web）時。
+  bool _micUnavailable = false;
+  bool get micUnavailable => _micUnavailable;
+
+  /// 相手のマイクが、他のアプリに奪われているか。
+  bool _remoteMicUnavailable = false;
+  bool get remoteMicUnavailable => _remoteMicUnavailable;
+
+  /// 通話に入る時に、他のアプリがマイクを使っていた（注意を出す。数秒で消える）。
+  bool _micBusyAtJoin = false;
+  bool get micBusyAtJoin => _micBusyAtJoin;
+  Timer? _micBusyAtJoinTimer;
+
+  void setMicUnavailable(bool value) {
+    if (_micUnavailable == value) return;
+    _micUnavailable = value;
+    callLog('1:1 mic unavailable: $value');
+    _sendMicState();
+    notifyListeners();
+  }
+
+  void _sendMicState() {
+    final channel = _controlChannel;
+    if (channel == null ||
+        channel.state != RTCDataChannelState.RTCDataChannelOpen) {
+      return;
+    }
+    try {
+      channel.send(
+        RTCDataChannelMessage(
+          _micUnavailable ? _micBusyOnMessage : _micBusyOffMessage,
+        ),
+      );
+    } catch (_) {}
+  }
+
+  /// 生のマイクのトラックが、ブラウザに止められた（他のアプリがマイクを使っている）か（Web）。
+  void _watchMicTrack(MediaStream? stream) {
+    if (!kIsWeb) return;
+    final track = stream?.getAudioTracks().firstOrNull;
+    if (track == null) return;
+    track.onMute = () => setMicUnavailable(true);
+    track.onUnMute = () => setMicUnavailable(false);
+  }
 
   /// 映像をオンにできなかった（カメラが他で使用中・許可が無い等、2026-11-03）。
   /// 数秒後、又は次に切り替えた時に消える。画面が注意書きを出す。
@@ -208,6 +257,10 @@ class WebrtcCallController extends ChangeNotifier {
   /// 自分の配信のプレビュー用（音は出さない）。
   final RTCVideoRenderer localScreenRenderer = RTCVideoRenderer();
   bool _localScreenRendererInitialized = false;
+
+  /// 共有している画面の映像のトラック（共有していなければnull。自分のプレビューの静止画の取得に使う）。
+  MediaStreamTrack? get screenVideoTrack =>
+      _screenDisplay?.getVideoTracks().firstOrNull;
 
   /// 相手の配信（画面）。カメラとは別のストリームで届く。
   final RTCVideoRenderer remoteScreenRenderer = RTCVideoRenderer();
@@ -687,6 +740,17 @@ class WebrtcCallController extends ChangeNotifier {
     bool cameraOn = true,
   }) async {
     var video = call.isVideo && videoNow && cameraOn;
+    // 他のアプリがマイクを使っていたら、数秒だけ注意を出す（自分の録音を始める前に調べる）。
+    if (await isMicBusyNow()) {
+      _micBusyAtJoin = true;
+      callLog('1:1 mic is busy by another app at join');
+      _micBusyAtJoinTimer?.cancel();
+      _micBusyAtJoinTimer = Timer(const Duration(seconds: 8), () {
+        _micBusyAtJoin = false;
+        notifyListeners();
+      });
+      notifyListeners();
+    }
     final denoise = await shouldDenoiseMic();
     try {
       _localStream = await navigator.mediaDevices.getUserMedia({
@@ -713,6 +777,7 @@ class WebrtcCallController extends ChangeNotifier {
       );
     }
     await ensureEchoCancellation(_localStream);
+    _watchMicTrack(_localStream);
     _micDenoiser = await applyMicDenoise(_localStream, denoise);
     // 設定（ビデオ通話に参加する時のカメラ）でオフにして入った時は、カメラの失敗時と
     // 同じく、相手には自分が音声のみであることを伝える（通話中にオンに出来る）。
@@ -1106,6 +1171,9 @@ class WebrtcCallController extends ChangeNotifier {
       } else if (text == _muteOnMessage || text == _muteOffMessage) {
         _remoteMuted = text == _muteOnMessage;
         notifyListeners();
+      } else if (text == _micBusyOnMessage || text == _micBusyOffMessage) {
+        _remoteMicUnavailable = text == _micBusyOnMessage;
+        notifyListeners();
       } else if (text.startsWith(_bgmOnPrefix)) {
         final state = BgmNowPlaying.decode(text.substring(_bgmOnPrefix.length));
         if (state == null) return;
@@ -1154,6 +1222,7 @@ class WebrtcCallController extends ChangeNotifier {
     channel.onDataChannelState = (state) {
       if (state == RTCDataChannelState.RTCDataChannelOpen) {
         if (_muted) _sendMuteState();
+        if (_micUnavailable) _sendMicState();
         final playing = bgm.nowPlaying;
         if (playing != null) _sendBgmState(playing);
         if (_screenDisplay != null) _sendScreenState(_screenQuality.label);
@@ -1407,6 +1476,8 @@ class WebrtcCallController extends ChangeNotifier {
     );
     if (display == null) return false;
     _screenDisplay = display;
+    // 共有元が閉じられたら、共有も終える（`await`の前に付けて、取りこぼさない）。
+    ScreenShareCapture.watchEnded(display, () => stopScreenShare());
     _screenQuality = quality;
     _screenAudio = shareAudio;
     // 音楽だけを届けたい時は、共有している間だけ自分のマイクをミュートにする。
@@ -1415,7 +1486,6 @@ class WebrtcCallController extends ChangeNotifier {
       _mutedByScreenShare = true;
     }
     _screenContainer ??= await createLocalMediaStream('screen');
-    display.getVideoTracks().firstOrNull?.onEnded = () => stopScreenShare();
     screenAudioMissing = shareAudio && display.getAudioTracks().isEmpty;
     if (screenAudioMissing) {
       callLog('1:1 screen audio was not available');
@@ -1481,7 +1551,7 @@ class WebrtcCallController extends ChangeNotifier {
     );
     if (next == null) return;
     _screenDisplay = next;
-    next.getVideoTracks().firstOrNull?.onEnded = () => stopScreenShare();
+    ScreenShareCapture.watchEnded(next, () => stopScreenShare());
     localScreenRenderer.srcObject = next;
     // 共有する音の音量は、新しいトラックに掛け直す。
     final oldGain = _screenGain;
@@ -1732,6 +1802,7 @@ class WebrtcCallController extends ChangeNotifier {
     _candidatesSub?.cancel();
     _videoFailedTimer?.cancel();
     _remoteScreenTimeout?.cancel();
+    _micBusyAtJoinTimer?.cancel();
     unawaited(_micGain?.dispose());
     unawaited(_screenGain?.dispose());
     soundPlayer.dispose();

@@ -2002,6 +2002,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
           roomId: widget.roomId,
           senderNameColorResolver: widget.senderNameColorResolver,
           mentionRoleColors: widget.mentionRoleColors,
+          mentionCandidates: widget.mentionCandidates,
           blurSenderInfo: blurSenderInfo,
           messagesById: messagesById,
           timeFormat: timeFormat,
@@ -3538,6 +3539,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                             senderNameColorResolver:
                                 widget.senderNameColorResolver,
                             mentionRoleColors: widget.mentionRoleColors,
+                            mentionCandidates: widget.mentionCandidates,
                             selecting: _selecting || _screenshotSelecting,
                             selected: _selecting
                                 ? _selectedMessageIds.contains(
@@ -4886,6 +4888,7 @@ class _MessageRow extends ConsumerWidget {
     this.onSenderTap,
     this.senderNameColorResolver,
     this.mentionRoleColors = const {},
+    this.mentionCandidates = const [],
     this.blurSenderInfo = false,
     this.selecting = false,
     this.selected = false,
@@ -4955,6 +4958,10 @@ class _MessageRow extends ConsumerWidget {
   final void Function(String userId)? onSenderTap;
   final Color? Function(String userId)? senderNameColorResolver;
   final Map<String, Color?> mentionRoleColors;
+
+  /// 宛先（メンバー）のラベル→ユーザーIDの対応。宛先のロールの色のハイライトに使う
+  /// （2026-11-16）。
+  final List<MentionCandidate> mentionCandidates;
 
   /// trueなら送信者のアイコン・呼び名をぼかして表示する（2026-08-09追加）。
   /// スクリーンショット機能でオフスクリーンに組み立てる複製行専用のオプション
@@ -5391,6 +5398,9 @@ class _MessageRow extends ConsumerWidget {
     // 入れず、ロール自身の色を文字色にするだけ。
     Color? mentionBackground;
     Color? mentionColor;
+    // 宛先ごとのハイライト（2026-11-16）。宛先のロールの色がある時だけ、そのメンションを
+    // ロールの色で塗る（無ければ、下の見る人のアクセント）。劇画はモノクロのまま。
+    final mentionLabelHighlights = <String, (Color, Color)>{};
     if (message.mentionLabels.isNotEmpty) {
       if (isGekiga) {
         mentionColor = isMe ? Colors.black : Colors.white;
@@ -5418,13 +5428,33 @@ class _MessageRow extends ConsumerWidget {
         // ブロックはアクセント本来の色（`primary`そのまま、既定は約80%の
         // 半透明）を塗っているので、それぞれに合わせる（2026-10-11、フラット
         // にもガラスの45%を使っていて暗く見えた誤りを修正）。
-        mentionBackground = Color.alphaBlend(
-          _isGlassStyle
-              ? colorScheme.primary.withValues(alpha: 0.45)
-              : colorScheme.primary,
-          listBase,
-        );
-        mentionColor = _readableTextColorOn(mentionBackground, listBase);
+        (Color, Color) highlightOf(Color base) {
+          final background = Color.alphaBlend(
+            _isGlassStyle ? base.withValues(alpha: 0.45) : base,
+            listBase,
+          );
+          return (background, _readableTextColorOn(background, listBase));
+        }
+
+        final accent = highlightOf(colorScheme.primary);
+        mentionBackground = accent.$1;
+        mentionColor = accent.$2;
+        final resolveColor = senderNameColorResolver;
+        if (resolveColor != null && message.mentionedUserIds.isNotEmpty) {
+          for (final candidate in mentionCandidates) {
+            final label = candidate.insertText;
+            if (candidate.kind != MentionKind.user ||
+                !message.mentionLabels.contains(label) ||
+                !message.mentionedUserIds.contains(candidate.id) ||
+                mentionLabelHighlights.containsKey(label)) {
+              continue;
+            }
+            final roleColor = resolveColor(candidate.id);
+            if (roleColor != null) {
+              mentionLabelHighlights[label] = highlightOf(roleColor);
+            }
+          }
+        }
       }
     }
     final mentionLabelColors = {
@@ -5865,6 +5895,7 @@ class _MessageRow extends ConsumerWidget {
                         mentionColor: mentionColor,
                         mentionBackground: mentionBackground,
                         mentionLabelColors: mentionLabelColors,
+                        mentionLabelHighlights: mentionLabelHighlights,
                       ),
               ),
               if (message.silent) ...[

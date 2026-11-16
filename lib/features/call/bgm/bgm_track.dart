@@ -1,5 +1,7 @@
 import 'dart:typed_data';
 
+import '../../../utils/text_normalize.dart';
+
 /// 端末内に登録したBGMの曲（2026-11-03）。バイト列は[BgmStorage]が持ち、ここはメタ情報だけ。
 class BgmTrack {
   const BgmTrack({
@@ -126,4 +128,31 @@ abstract class BgmStorage {
 
   /// 渡した曲の並びを、先頭から0,1,2…の並び順として保存する。
   Future<void> reorder(List<String> orderedTrackIds);
+
+  /// 登録したアーティスト写真（アーティスト名→画像、2026-11-16）。
+  Future<Map<String, Uint8List>> listArtistPhotos();
+
+  /// [artist]の写真を保存する（nullで削除）。
+  Future<void> setArtistPhoto(String artist, Uint8List? photo);
 }
+
+/// [tracks]から、[query]に合う曲だけを、元の並びのまま取り出す（2026-11-16、BGMの検索）。
+/// 曲名に加えて、アーティスト・タグのアルバム名にも一致する。大文字小文字・ひらがな/カタカナの
+/// ゆれは[normalizeForMatch]で吸収し、空白で区切った語は全て含む曲だけ（AND）。空の入力は全曲。
+List<BgmTrack> searchBgmTracks(List<BgmTrack> tracks, String query) {
+  final words = normalizeForMatch(
+    query,
+  ).split(RegExp(r'[\s\u3000]+')).where((w) => w.isNotEmpty).toList();
+  if (words.isEmpty) return tracks;
+  return [
+    for (final t in tracks)
+      if (_matchesAll(
+        normalizeForMatch('${t.name} ${t.artist ?? ''} ${t.tagAlbum ?? ''}'),
+        words,
+      ))
+        t,
+  ];
+}
+
+bool _matchesAll(String haystack, List<String> words) =>
+    words.every(haystack.contains);

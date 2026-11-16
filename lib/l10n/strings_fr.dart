@@ -768,6 +768,15 @@ final Strings _stringsFr = Strings._(
   callScreenShareHint: "À plusieurs, une qualité plus basse est plus stable.",
   callScreenShareYourScreen: "Votre écran",
   callScreenSharingNow: "Vous partagez votre écran",
+  callScreenPreviewLiveTooltip:
+      "Afficher en direct (lourd si tout l’écran est partagé)",
+  callScreenPreviewStillTooltip:
+      "Revenir à une image fixe (mise à jour chaque seconde)",
+  callMicUnavailableLabel: "Micro indisponible",
+  callMicUnavailableBanner:
+      "Une autre application utilise le micro : les autres ne vous entendent pas. Terminez l'appel dans cette application",
+  callMicBusyAtJoinBanner:
+      "Une autre application utilise peut-être le micro. Si les autres ne vous entendent pas, terminez l'appel dans cette application",
   callVolume: "Volume",
   callScreenShareReceiving: "Réception de l'écran partagé…",
   callScreenShareReceiveFailed:
@@ -785,6 +794,9 @@ final Strings _stringsFr = Strings._(
   callBgmFavoriteSelected: "Ajouter les morceaux sélectionnés aux favoris",
   callBgmUnfavoriteSelected: "Retirer les morceaux sélectionnés des favoris",
   callBgmUnknownArtist: 'Artiste inconnu',
+  callBgmArtistPhotoSet: 'Définir une photo de l\'artiste',
+  callBgmArtistPhotoChange: 'Changer la photo',
+  callBgmArtistPhotoRemove: 'Supprimer la photo',
   callBgmAddFolder: 'Ajouter un répertoire',
   callBgmImporting: (done, total) => 'Ajout $done / $total',
   callBgmNoAudioInFolder: 'Aucun fichier audio dans ce répertoire',
@@ -797,12 +809,15 @@ final Strings _stringsFr = Strings._(
   callBgmAllTracks: 'Tous les morceaux',
   callBgmNewAlbum: 'Créer un album',
   callBgmAlbumNameHint: 'Nom de l’album',
+  callBgmSearchHint: 'Rechercher par titre ou artiste',
+  callBgmSearchNoResults: 'Aucun titre correspondant',
+  callBgmSearchClear: 'Effacer la recherche',
   callBgmRename: 'Renommer',
   callBgmDeleteAlbum: 'Supprimer l’album (les morceaux sont conservés)',
-  callBgmMoveToAlbum: 'Déplacer vers un album',
   callBgmNoAlbum: 'Aucun album',
   callBgmPlayAll: 'Tout lire',
-  callBgmOrderInOrder: 'Dans l’ordre',
+  callBgmOrderInOrder: 'Dans l’ordre (répéter l’album)',
+  callBgmOrderNextAlbum: 'Dans l’ordre (puis l’album suivant)',
   callBgmOrderShuffle: 'Aléatoire',
   callBgmOrderRepeatOne: 'Répéter un morceau',
   callBgmHeadphones:

@@ -86,6 +86,29 @@ class _PipHostState extends ConsumerState<PipHost> {
       if (call.method == 'pipChanged' && mounted) {
         callLog('PiP: changed to ${call.arguments}');
         ref.read(pipActiveProvider.notifier).set(call.arguments == true);
+      } else if (call.method == 'micSilenced' && mounted) {
+        // 他のアプリ（別の通話など）にマイクを奪われ、OSが自分のマイクを無音にした／戻った。
+        final silenced = call.arguments == true;
+        callLog('mic unavailable (native): $silenced');
+        switch (ref.read(activeCallSessionProvider)) {
+          case OneToOneCallSession(:final controller):
+            controller.setMicUnavailable(silenced);
+          case GroupCallSession(:final controller):
+            controller.setMicUnavailable(silenced);
+          default:
+            break;
+        }
+      } else if (call.method == 'screenShareStopped' && mounted) {
+        // 共有していたアプリが閉じられた等で、画面共有の元が終わった。共有も終える。
+        callLog('screen share source ended natively; stopping the share');
+        switch (ref.read(activeCallSessionProvider)) {
+          case OneToOneCallSession(:final controller):
+            await controller.stopScreenShare();
+          case GroupCallSession(:final controller):
+            await controller.stopScreenShare();
+          default:
+            break;
+        }
       } else if (call.method == 'pipDismissed' && mounted) {
         // PiPの小窓を×で閉じた。通話を続けると落ちるため、終了する。
         callLog('PiP window dismissed; ending the call');

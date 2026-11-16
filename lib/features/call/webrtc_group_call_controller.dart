@@ -22,6 +22,7 @@ import '../../utils/page_exit/page_exit.dart';
 import 'audio_route.dart';
 import 'bgm/bgm_storage.dart';
 import 'bgm/bgm_now_playing.dart';
+import 'mic_busy.dart';
 import 'mic_denoiser.dart';
 import '../../providers/bgm_preferences_provider.dart';
 import 'bgm/bgm_queue.dart';
@@ -129,6 +130,10 @@ class WebrtcGroupCallController extends ChangeNotifier {
   /// 自分の配信のプレビュー用（音は出さない）。
   final RTCVideoRenderer localScreenRenderer = RTCVideoRenderer();
   bool _localScreenRendererInitialized = false;
+
+  /// 共有している画面の映像のトラック（共有していなければnull。自分のプレビューの静止画の取得に使う）。
+  MediaStreamTrack? get screenVideoTrack =>
+      _screenDisplay?.getVideoTracks().firstOrNull;
 
   /// 他の参加者の配信（画面）の映像・音声。カメラとは別のストリームで届く。
   final Map<String, RTCVideoRenderer> screenRenderers = {};
@@ -461,12 +466,56 @@ class WebrtcGroupCallController extends ChangeNotifier {
   String? _error;
   String? get error => _error;
 
+  /// 他のアプリ（別の通話など）にマイクを奪われ、声が届かない状態か（2026-11-16）。
+  /// ミュートとは別。OSが自分のマイクを無音にした（Android）／ブラウザがマイクを止めた（Web）時。
+  bool _micUnavailable = false;
+  bool get micUnavailable => _micUnavailable;
+
+  /// 通話に入る時に、他のアプリがマイクを使っていた（注意を出す。数秒で消える）。
+  bool _micBusyAtJoin = false;
+  bool get micBusyAtJoin => _micBusyAtJoin;
+  Timer? _micBusyAtJoinTimer;
+
+  void setMicUnavailable(bool value) {
+    if (_micUnavailable == value) return;
+    _micUnavailable = value;
+    callLog('group: mic unavailable: $value');
+    _repository
+        .updateParticipantState(
+          groupCallId: groupCallId,
+          userId: currentUser.userId,
+          micUnavailable: value,
+        )
+        .catchError((_) {});
+    notifyListeners();
+  }
+
+  /// 生のマイクのトラックが、ブラウザに止められた（他のアプリがマイクを使っている）か（Web）。
+  void _watchMicTrack(MediaStream? stream) {
+    if (!kIsWeb) return;
+    final track = stream?.getAudioTracks().firstOrNull;
+    if (track == null) return;
+    track.onMute = () => setMicUnavailable(true);
+    track.onUnMute = () => setMicUnavailable(false);
+  }
+
   Future<void> initialize() async {
     try {
       // 音声制約はプラットフォーム毎の既知の問題を踏まえて
       // webrtc_media_constraints.dartに集約している（本格的なRNNoise統合は
       // フェーズ3の別プロジェクト。詳細は会話参照）。
       // 映像を求められてもカメラが使えなければ、音声のみで参加する（2026-10-23）。
+      // 他のアプリがマイクを使っていたら、数秒だけ注意を出す（自分の録音を始める前に調べる）。
+      if (await isMicBusyNow()) {
+        _micBusyAtJoin = true;
+        callLog('group: mic is busy by another app at join');
+        _micBusyAtJoinTimer?.cancel();
+        _micBusyAtJoinTimer = Timer(const Duration(seconds: 8), () {
+          _micBusyAtJoin = false;
+          notifyListeners();
+        });
+        notifyListeners();
+      }
       final denoise = await shouldDenoiseMic();
       final acquired = await acquireWithVideoFallback(
         wantVideo: _isVideo,
@@ -483,6 +532,7 @@ class WebrtcGroupCallController extends ChangeNotifier {
       _localStream = acquired.stream;
       _isVideo = acquired.usedVideo;
       await ensureEchoCancellation(_localStream);
+      _watchMicTrack(_localStream);
       _micDenoiser = await applyMicDenoise(_localStream, denoise);
 
       if (_isVideo) {
@@ -514,11 +564,19 @@ class WebrtcGroupCallController extends ChangeNotifier {
       _removePageExitListener = onPageExit(() => unawaited(leave()));
 
       _presenceTimer = Timer.periodic(_presenceHeartbeatInterval, (_) {
-        _repository.touchPresence(
-          groupCallId: groupCallId,
-          userId: currentUser.userId,
-          sessionId: _sessionId,
-        );
+        // 別の端末が同じ通話に入り直していたら（購読が届かなかった時の保険）、この端末は抜ける。
+        _repository
+            .touchPresence(
+              groupCallId: groupCallId,
+              userId: currentUser.userId,
+              sessionId: _sessionId,
+            )
+            .then((stillMine) {
+              if (!stillMine) _endByTakeover('heartbeat');
+            })
+            .catchError((Object e) {
+              callLog('group: presence heartbeat failed: $e');
+            });
         // ハートビート失効による離脱反映は新しいFirestoreスナップショットが
         // 来ないと再評価されない為、定期的にUIへ再描画を促す。
         notifyListeners();
@@ -527,14 +585,41 @@ class WebrtcGroupCallController extends ChangeNotifier {
       // 自分以外の参加者の音声⇔ビデオ状態はCallParticipant.isVideo
       // （このStream経由で届く）を見るだけで、こちらの映像トラックには
       // 一切触れない（切替は本人側にのみ適用される。setVideoEnabled参照）。
-      _participantsSub = _repository
-          .watchParticipants(groupCallId)
-          .listen(_onParticipants);
+      _subscribeParticipants();
     } catch (e) {
       _error = '通話を開始出来ませんでした（マイク・カメラの利用を許可して下さい）: $e';
       _state = GroupCallConnectionState.ended;
       notifyListeners();
     }
+  }
+
+  void _subscribeParticipants() {
+    _participantsSub?.cancel();
+    _participantsSub = _repository
+        .watchParticipants(groupCallId)
+        .listen(
+          _onParticipants,
+          onError: (Object e) {
+            // 購読がエラーで終わると、別端末への乗っ取りなどを検知できなくなる為、再購読する。
+            callLog('group: participants watch error: $e');
+            Future<void>.delayed(const Duration(seconds: 3), () {
+              if (_state != GroupCallConnectionState.ended) {
+                _subscribeParticipants();
+              }
+            });
+          },
+        );
+  }
+
+  /// 同じアカウントの別の端末が、同じ通話に入り直した。参加者ドキュメントは新しい端末のものなので
+  /// 消さず、この端末だけ通話から抜ける（[via]は検知した経路のログ用）。
+  void _endByTakeover(String via) {
+    if (_state == GroupCallConnectionState.ended) return;
+    callLog('group: session taken over by another device (via $via)');
+    _presenceTimer?.cancel();
+    _participantsSub?.cancel();
+    _state = GroupCallConnectionState.ended;
+    notifyListeners();
   }
 
   void _onParticipants(List<CallParticipant> participants) {
@@ -550,10 +635,7 @@ class WebrtcGroupCallController extends ChangeNotifier {
       mySessionId: _sessionId,
       participantSessionId: mine?.sessionId,
     )) {
-      _presenceTimer?.cancel();
-      _participantsSub?.cancel();
-      _state = GroupCallConnectionState.ended;
-      notifyListeners();
+      _endByTakeover('snapshot');
       return;
     }
 
@@ -1401,6 +1483,8 @@ class WebrtcGroupCallController extends ChangeNotifier {
     );
     if (display == null) return false;
     _screenDisplay = display;
+    // 共有元が閉じられたら、共有も終える（`await`の前に付けて、取りこぼさない）。
+    ScreenShareCapture.watchEnded(display, () => stopScreenShare());
     unawaited(_applyScreenGain());
     _screenQuality = quality;
     _screenAudio = shareAudio;
@@ -1410,7 +1494,6 @@ class WebrtcGroupCallController extends ChangeNotifier {
       _mutedByScreenShare = true;
     }
     _screenContainer ??= await createLocalMediaStream('screen');
-    display.getVideoTracks().firstOrNull?.onEnded = () => stopScreenShare();
     screenAudioMissing = shareAudio && display.getAudioTracks().isEmpty;
     if (screenAudioMissing) {
       callLog('group: screen audio was not available');
@@ -1484,7 +1567,7 @@ class WebrtcGroupCallController extends ChangeNotifier {
     );
     if (next == null) return;
     _screenDisplay = next;
-    next.getVideoTracks().firstOrNull?.onEnded = () => stopScreenShare();
+    ScreenShareCapture.watchEnded(next, () => stopScreenShare());
     localScreenRenderer.srcObject = next;
     // 共有する音の音量は、新しいトラックに掛け直す。
     final oldGain = _screenGain;
@@ -1811,6 +1894,7 @@ class WebrtcGroupCallController extends ChangeNotifier {
       track.stop();
     }
     _localStream?.dispose();
+    _micBusyAtJoinTimer?.cancel();
     unawaited(_micDenoiser?.dispose());
     localRenderer.dispose();
     super.dispose();

@@ -2,7 +2,11 @@ package jp.rhing.daidai
 
 import android.app.PictureInPictureParams
 import android.content.res.Configuration
+import android.media.AudioManager
+import android.media.AudioRecordingConfiguration
 import android.os.Build
+import android.os.Handler
+import android.os.Looper
 import android.os.PowerManager
 import android.util.Rational
 import androidx.core.content.FileProvider
@@ -27,6 +31,8 @@ class MainActivity : FlutterFragmentActivity() {
     private val pipChannelName = "jp.rhing.daidai/pip"
     private var pipChannel: MethodChannel? = null
     private var callActive = false
+    private var recordingCallback: AudioManager.AudioRecordingCallback? = null
+    private var lastMicSilenced = false
     private val callActionChannelName = "jp.rhing.daidai/call_action"
     private var callActionChannel: MethodChannel? = null
 
@@ -89,6 +95,11 @@ class MainActivity : FlutterFragmentActivity() {
             CallForegroundService.setProjection(true)
         }
         pipChannel = MethodChannel(flutterEngine.dartExecutor.binaryMessenger, pipChannelName)
+        // 共有していたアプリを閉じる・システムの「共有を停止」などで画面共有の元が終わった時、
+        // Dart側にも共有を終えさせる（2026-11-16）。
+        com.cloudwebrtc.webrtc.GetUserMediaImpl.onScreenCaptureStopped = Runnable {
+            runOnUiThread { pipChannel?.invokeMethod("screenShareStopped", null) }
+        }
         pipChannel?.setMethodCallHandler { call, result ->
             if (call.method == "setCallActive") {
                 callActive = call.argument<Boolean>("active") ?: false
@@ -97,6 +108,8 @@ class MainActivity : FlutterFragmentActivity() {
                 // 消えない為、PiPの処理（例外になりうる）より先に、確実に止める（2026-11-16）。
                 if (callActive) CallForegroundService.start(applicationContext)
                 else CallForegroundService.stop(applicationContext)
+                // 通話中だけ、自分のマイクが他のアプリに奪われて無音にされていないか監視する。
+                if (callActive) registerMicCallback() else unregisterMicCallback()
                 try {
                     updatePipParams()
                     // 通話が終わった時、既にPiPの小窓に入っていたら閉じる（残ると、終わった通話の
@@ -106,6 +119,16 @@ class MainActivity : FlutterFragmentActivity() {
                     // PiPの更新に失敗しても、通話の開始・終了の処理は済んでいる。
                 }
                 result.success(null)
+            } else if (call.method == "isMicBusy") {
+                // 今、他のアプリがマイクを使っているか（通話に入る前の注意用。Android 7以降）。
+                var busy = false
+                try {
+                    val am = getSystemService(AUDIO_SERVICE) as AudioManager
+                    busy = am.activeRecordingConfigurations.isNotEmpty()
+                } catch (e: Exception) {
+                    busy = false
+                }
+                result.success(busy)
             } else if (call.method == "enterPip") {
                 // 通話画面の戻るボタンで、OS標準のPiPに入る（2026-11-16）。入れたかを返す。
                 var entered = false
@@ -194,7 +217,45 @@ class MainActivity : FlutterFragmentActivity() {
 
     // 画面（アクティビティ）が無くなると、Flutterのエンジンも無くなり、通話（Dart側のWebRTC）は続けられない。
     // 通話の終了をサービスへ伝える相手が居なくなる為、ここで前面サービスを止める（2026-11-16）。
+    /**
+     * 自分の録音（詳細が見える設定＝他のアプリの匿名化された設定ではない）が、OSに無音にされたかを
+     * Dartへ伝える（`micSilenced`）。他のアプリが通話でマイクを使っている間などに起きる（Android 10以降）。
+     */
+    private fun registerMicCallback() {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q || recordingCallback != null) return
+        try {
+            val am = getSystemService(AUDIO_SERVICE) as AudioManager
+            val cb = object : AudioManager.AudioRecordingCallback() {
+                override fun onRecordingConfigChanged(configs: MutableList<AudioRecordingConfiguration>) {
+                    val silenced = configs.any { it.clientAudioSource >= 0 && it.isClientSilenced }
+                    if (silenced != lastMicSilenced) {
+                        lastMicSilenced = silenced
+                        pipChannel?.invokeMethod("micSilenced", silenced)
+                    }
+                }
+            }
+            am.registerAudioRecordingCallback(cb, Handler(Looper.getMainLooper()))
+            recordingCallback = cb
+        } catch (e: Exception) {
+            recordingCallback = null
+        }
+    }
+
+    private fun unregisterMicCallback() {
+        val cb = recordingCallback ?: return
+        try {
+            (getSystemService(AUDIO_SERVICE) as AudioManager).unregisterAudioRecordingCallback(cb)
+        } catch (e: Exception) {
+        }
+        recordingCallback = null
+        if (lastMicSilenced) {
+            lastMicSilenced = false
+            pipChannel?.invokeMethod("micSilenced", false)
+        }
+    }
+
     override fun onDestroy() {
+        unregisterMicCallback()
         callActive = false
         CallForegroundService.stop(applicationContext)
         super.onDestroy()

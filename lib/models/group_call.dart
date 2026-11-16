@@ -83,6 +83,7 @@ class CallParticipant {
     required this.userId,
     required this.rhingSeed,
     this.micMuted = false,
+    this.micUnavailable = false,
     this.isVideo = false,
     this.joinedAt,
     this.lastSeenAt,
@@ -96,6 +97,9 @@ class CallParticipant {
   final String userId;
   final String rhingSeed;
   final bool micMuted;
+
+  /// 他のアプリにマイクを奪われて、声が届かない状態か（2026-11-16追加。ミュートとは別の表示）。
+  final bool micUnavailable;
 
   /// この参加者が今流しているBGMの曲名（流していなければnull、2026-11-03追加）。
   /// 曲そのものは再生者の端末内にあり、音は再生者の送信音声に混ざって届く。
@@ -130,6 +134,7 @@ class CallParticipant {
       userId: userId,
       rhingSeed: json['rhingSeed'] as String,
       micMuted: json['micMuted'] as bool? ?? false,
+      micUnavailable: json['micUnavailable'] as bool? ?? false,
       isVideo: json['isVideo'] as bool? ?? false,
       joinedAt: json['joinedAt'] as Timestamp?,
       lastSeenAt: json['lastSeenAt'] as Timestamp?,

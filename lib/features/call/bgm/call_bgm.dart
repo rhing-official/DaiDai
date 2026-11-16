@@ -209,16 +209,44 @@ class CallBgm extends ChangeNotifier {
     } else {
       _paused = true;
       _reportLastPlayed();
-      _mixer.pause();
+      unawaited(_mixer.pause());
       notifyListeners();
       onPlayingChanged(nowPlaying);
     }
+  }
+
+  /// 再生順が「終わったら次のアルバムへ」で、今の曲がアルバムの最後なら、次のアルバムの先頭
+  /// （2026-11-16）。それ以外はnull。
+  ({String scope, BgmTrack track})? _nextAlbumStart(BgmTrack current) {
+    final scope = _queueAlbumId;
+    if (_order != BgmPlayOrder.inOrderNextAlbum ||
+        _queueFavorites ||
+        scope == null) {
+      return null;
+    }
+    final queue = _queueTracks();
+    if (queue.isEmpty || queue.last.id != current.id) return null;
+    return firstTrackOfNextAlbum(
+      scopes: [for (final a in _albums) a.id, kBgmUnclassifiedScope],
+      currentScope: scope,
+      tracksOf: tracksOf,
+    );
   }
 
   /// 「次へ」。今の再生の範囲（アルバム）の隣の曲へ。
   Future<void> playNext() async {
     final current = _current;
     if (current == null) return;
+    final nextAlbum = _nextAlbumStart(current);
+    if (nextAlbum != null) {
+      await play(
+        nextAlbum.track,
+        albumId: nextAlbum.scope,
+        inAlbum: true,
+        favorites: false,
+      );
+      return;
+    }
     final next = adjacentBgmTrack(
       queue: _queueTracks(),
       current: current,
@@ -305,12 +333,39 @@ class CallBgm extends ChangeNotifier {
   Future<void> loadTracks() async {
     _tracks = await storage.list();
     _albums = await storage.listAlbums();
+    _artistPhotos = await storage.listArtistPhotos();
     if (!_disposed) notifyListeners();
+  }
+
+  Map<String, Uint8List> _artistPhotos = const {};
+
+  /// [artist]の写真（登録が無い・アーティスト不明はnull、2026-11-16）。
+  Uint8List? artistPhotoOf(String? artist) =>
+      artist == null ? null : _artistPhotos[artist];
+
+  /// [artist]の写真を、画像を選ばせて登録する（256pxに縮めて保存。選ばなかった・縮められなかった
+  /// 時は変えない）。登録できたらtrue。
+  Future<bool> pickArtistPhoto(String artist) async {
+    final picked = await pickBgmImage();
+    if (picked == null) return false;
+    final small = await shrinkBgmCover(picked, size: 256);
+    if (small == null) return false;
+    await setArtistPhoto(artist, small);
+    return true;
+  }
+
+  /// [artist]の写真を保存する（nullで削除）。
+  Future<void> setArtistPhoto(String artist, Uint8List? photo) async {
+    await storage.setArtistPhoto(artist, photo);
+    await loadTracks();
   }
 
   /// [albumId]のアルバムの曲を、並び順に。nullなら、すべての曲（追加順）。
   List<BgmTrack> tracksOf(String? albumId) {
     if (albumId == null) return sortBgmTracks(_tracks);
+    if (albumId == kBgmUnclassifiedScope) {
+      return sortBgmTracks(_tracks.where((t) => t.albumId == null));
+    }
     final list = sortBgmTracks(_tracks.where((t) => t.albumId == albumId));
     // アルバムの中は、ディスク番号の順（同じディスクの中は並び順のまま。安定ソート）。
     final indexed = [for (var i = 0; i < list.length; i++) (i, list[i])];
@@ -495,14 +550,6 @@ class CallBgm extends ChangeNotifier {
     await loadTracks();
   }
 
-  /// 選んだ曲をまとめて別のアルバムへ移す（nullで、アルバムなし）。
-  Future<void> moveTracks(Iterable<BgmTrack> tracks, String? albumId) async {
-    for (final t in tracks) {
-      await storage.setTrackAlbum(t.id, albumId);
-    }
-    await loadTracks();
-  }
-
   /// 選んだ曲をまとめて消す（流している曲が含まれていれば、先に止める）。
   Future<void> removeTracks(Iterable<BgmTrack> tracks) async {
     final list = tracks.toList();
@@ -526,11 +573,6 @@ class CallBgm extends ChangeNotifier {
       await storage.removeAlbum(id);
       if (_queueAlbumId == id) _queueAlbumId = null;
     }
-  }
-
-  Future<void> moveTrack(BgmTrack track, String? albumId) async {
-    await storage.setTrackAlbum(track.id, albumId);
-    await loadTracks();
   }
 
   /// アルバム内の曲の並べ替え（[ordered]は新しい並び）。
@@ -621,6 +663,16 @@ class CallBgm extends ChangeNotifier {
   void _playNext() {
     final current = _current;
     if (current == null || _tracks.isEmpty) return;
+    final nextAlbum = _nextAlbumStart(current);
+    if (nextAlbum != null) {
+      play(
+        nextAlbum.track,
+        albumId: nextAlbum.scope,
+        inAlbum: true,
+        favorites: false,
+      );
+      return;
+    }
     final next = nextBgmTrack(
       queue: _queueTracks(),
       current: current,
@@ -647,13 +699,15 @@ class CallBgm extends ChangeNotifier {
   Future<void> stop() async {
     if (_current == null && _mixed == null) return;
     _reportLastPlayed();
-    _mixer.stop();
+    final fadeOut = _mixer.stop();
     _stopProgress();
     final hadMixed = _mixed != null;
     _mixed = null;
     _current = null;
     _paused = false;
     if (!_disposed) notifyListeners();
+    // 消え入りが終わってから、送信を元のマイクへ戻す（音が尻切れにならない）。
+    await fadeOut;
     final mic = micTrack();
     if (hadMixed && mic != null) {
       try {

@@ -1,6 +1,7 @@
 import '../../../utils/auto_dismiss_banner.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
+import '../../../widgets/transitioned_overlay.dart';
 import 'package:flutter/foundation.dart'
     show TargetPlatform, defaultTargetPlatform;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -17,6 +18,7 @@ import '../../../widgets/media_preview_frame.dart';
 import '../../../widgets/style_choice_chip.dart';
 import '../../../widgets/toggles/app_checkbox.dart';
 import 'bgm_import_source.dart';
+import 'bgm_queue.dart' show kBgmUnclassifiedScope;
 import 'bgm_track.dart';
 import 'bgm_player_widgets.dart';
 import 'call_bgm.dart';
@@ -68,13 +70,9 @@ Future<void> showCallBgmSheet(BuildContext context, CallBgmBinding binding) {
   if (Navigator.maybeOf(context) == null) {
     final overlay = Overlay.maybeOf(context);
     if (overlay == null) return Future.value();
-    late final OverlayEntry entry;
-    void close() {
-      if (entry.mounted) entry.remove();
-    }
-
-    entry = OverlayEntry(
-      builder: (context) => PointerInterceptor(
+    showTransitionedOverlay(
+      overlay,
+      builder: (context, close) => PointerInterceptor(
         child: BackEntry(
           scope: null,
           active: true,
@@ -102,7 +100,6 @@ Future<void> showCallBgmSheet(BuildContext context, CallBgmBinding binding) {
         ),
       ),
     );
-    overlay.insert(entry);
     return Future.value();
   }
   return showModalBottomSheet<void>(
@@ -223,6 +220,9 @@ class _CallBgmSheetState extends ConsumerState<_CallBgmSheet> {
   /// アルバムのジャケットの帯（横スクロール）のスクロールバー用。
   final ScrollController _albumStripScroll = ScrollController();
 
+  /// 曲の検索語（シートを開いている間だけ。空でなければ、タブの一覧の代わりに検索結果を出す）。
+  final TextEditingController _searchController = TextEditingController();
+
   late ScrollController _scroll = ScrollController(
     initialScrollOffset: _memory.scroll,
   );
@@ -241,23 +241,15 @@ class _CallBgmSheetState extends ConsumerState<_CallBgmSheet> {
   bool _renaming = false;
   final _nameController = TextEditingController();
 
-  /// 「アルバムへ移動」の候補を出している曲。
-  String? _movingTrackId;
-
   /// チェックで選んでいる曲（複数選択）。
   final Set<String> _selected = {};
 
-  /// 選んだ曲の移動先の候補を出しているか。
-  bool _bulkMoving = false;
-
   void _toggleSelect(String id) => setState(() {
     if (!_selected.remove(id)) _selected.add(id);
-    if (_selected.isEmpty) _bulkMoving = false;
   });
 
   void _clearSelection() => setState(() {
     _selected.clear();
-    _bulkMoving = false;
   });
 
   /// 開いているアーティスト（アーティスト不明は空文字）。
@@ -295,6 +287,7 @@ class _CallBgmSheetState extends ConsumerState<_CallBgmSheet> {
     _scroll.dispose();
     _albumStripScroll.dispose();
     _nameController.dispose();
+    _searchController.dispose();
     super.dispose();
   }
 
@@ -740,20 +733,69 @@ class _CallBgmSheetState extends ConsumerState<_CallBgmSheet> {
         if (_creating) _nameField(strings),
         if (_selected.isNotEmpty) _selectionBar(strings, bgm),
         const SizedBox(height: 8),
+        _searchField(strings),
+        const SizedBox(height: 8),
         Expanded(
-          child: switch (_tab) {
-            _tabAlbums => _albumsTab(strings, bgm),
-            _tabFavorites => _favoritesTab(strings, bgm),
-            _ => _artistsTab(strings, bgm),
-          },
+          child: _searchController.text.trim().isNotEmpty
+              ? _searchResults(strings, bgm)
+              : switch (_tab) {
+                  _tabAlbums => _albumsTab(strings, bgm),
+                  _tabFavorites => _favoritesTab(strings, bgm),
+                  _ => _artistsTab(strings, bgm),
+                },
         ),
       ],
     );
   }
 
-  /// 選んでいる曲の操作（件数・全て選択・アルバムへ移動・削除・選択解除）。
+  /// 曲の検索ボックス（曲名・アーティスト・タグのアルバム名。入力がある間は検索結果を出す）。
+  Widget _searchField(Strings strings) => TextField(
+    controller: _searchController,
+    decoration: InputDecoration(
+      hintText: strings.callBgmSearchHint,
+      isDense: true,
+      prefixIcon: const Icon(Icons.search, size: 20),
+      suffixIcon: _searchController.text.isEmpty
+          ? null
+          : IconButton(
+              tooltip: strings.callBgmSearchClear,
+              icon: const Icon(Icons.close, size: 18),
+              onPressed: () => setState(_searchController.clear),
+            ),
+    ),
+    onChanged: (_) => setState(() {}),
+  );
+
+  /// 全曲からの検索結果（元の並びのまま。行は他のタブと同じで、再生・選択・お気に入り・移動・削除ができる）。
+  Widget _searchResults(Strings strings, CallBgm bgm) {
+    final results = searchBgmTracks(bgm.tracks, _searchController.text);
+    if (results.isEmpty) {
+      return Padding(
+        padding: const EdgeInsets.symmetric(vertical: 16),
+        child: Text(
+          bgm.tracks.isEmpty
+              ? strings.callBgmEmpty
+              : strings.callBgmSearchNoResults,
+        ),
+      );
+    }
+    return ListView(
+      controller: _scroll,
+      children: [
+        Padding(
+          padding: const EdgeInsets.only(bottom: 4),
+          child: Text(
+            strings.callBgmTrackCount(results.length),
+            style: Theme.of(context).textTheme.bodySmall,
+          ),
+        ),
+        for (final t in results) _trackRow(strings, bgm, t, t.albumId),
+      ],
+    );
+  }
+
+  /// 選んでいる曲の操作（件数・全て選択・お気に入り・削除・選択解除）。
   Widget _selectionBar(Strings strings, CallBgm bgm) {
-    final uiStyle = ref.watch(appUiStyleProvider);
     // 消えた曲が選択に残らないようにする。
     final existing = {for (final t in bgm.tracks) t.id: t};
     _selected.removeWhere((id) => !existing.containsKey(id));
@@ -797,11 +839,6 @@ class _CallBgmSheetState extends ConsumerState<_CallBgmSheet> {
                 onPressed: () => bgm.setFavorites(chosen, !allFavorite),
               ),
               IconButton(
-                tooltip: strings.callBgmMoveToAlbum,
-                icon: const Icon(Icons.drive_file_move_outline),
-                onPressed: () => setState(() => _bulkMoving = !_bulkMoving),
-              ),
-              IconButton(
                 tooltip: strings.callBgmDeleteSelected,
                 icon: const Icon(Icons.delete_outline),
                 onPressed: () async {
@@ -816,34 +853,6 @@ class _CallBgmSheetState extends ConsumerState<_CallBgmSheet> {
               ),
             ],
           ),
-          if (_bulkMoving)
-            Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              children: [
-                StyleChoiceChip(
-                  uiStyle: uiStyle,
-                  selected: false,
-                  labelBuilder: (fg) =>
-                      Text(strings.callBgmNoAlbum, style: TextStyle(color: fg)),
-                  onTap: () async {
-                    await bgm.moveTracks(chosen, null);
-                    if (mounted) _clearSelection();
-                  },
-                ),
-                for (final album in bgm.albums)
-                  StyleChoiceChip(
-                    uiStyle: uiStyle,
-                    selected: false,
-                    labelBuilder: (fg) =>
-                        Text(album.name, style: TextStyle(color: fg)),
-                    onTap: () async {
-                      await bgm.moveTracks(chosen, album.id);
-                      if (mounted) _clearSelection();
-                    },
-                  ),
-              ],
-            ),
         ],
       ),
     );
@@ -1099,17 +1108,23 @@ class _CallBgmSheetState extends ConsumerState<_CallBgmSheet> {
           ListTile(
             dense: true,
             contentPadding: EdgeInsets.zero,
-            leading: const Icon(Icons.person_outline),
+            leading: _artistAvatar(bgm, g.artist),
             title: Text(
               g.artist ?? strings.callBgmUnknownArtist,
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
             ),
             subtitle: Text(strings.callBgmTrackCount(g.tracks.length)),
-            trailing: Icon(
-              _openArtists.contains(g.artist ?? '')
-                  ? Icons.expand_less
-                  : Icons.expand_more,
+            trailing: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                if (g.artist != null) _artistPhotoMenu(strings, bgm, g.artist!),
+                Icon(
+                  _openArtists.contains(g.artist ?? '')
+                      ? Icons.expand_less
+                      : Icons.expand_more,
+                ),
+              ],
             ),
             onTap: () => setState(() {
               final key = g.artist ?? '';
@@ -1119,6 +1134,48 @@ class _CallBgmSheetState extends ConsumerState<_CallBgmSheet> {
           if (_openArtists.contains(g.artist ?? ''))
             ..._artistAlbumRows(strings, bgm, g.artist, g.tracks),
         ],
+      ],
+    );
+  }
+
+  /// アーティストの左端。登録した写真があれば丸い写真、無ければ人型のアイコン。
+  Widget _artistAvatar(CallBgm bgm, String? artist) {
+    final photo = bgm.artistPhotoOf(artist);
+    if (photo == null) return const Icon(Icons.person_outline);
+    return CircleAvatar(radius: 18, backgroundImage: MemoryImage(photo));
+  }
+
+  /// アーティスト写真の登録・変更・削除のメニュー（写真が無ければ、押すとすぐ選べる）。
+  Widget _artistPhotoMenu(Strings strings, CallBgm bgm, String artist) {
+    final hasPhoto = bgm.artistPhotoOf(artist) != null;
+    if (!hasPhoto) {
+      return IconButton(
+        key: ValueKey('artist-photo-$artist'),
+        tooltip: strings.callBgmArtistPhotoSet,
+        icon: const Icon(Icons.add_a_photo_outlined),
+        onPressed: () => bgm.pickArtistPhoto(artist),
+      );
+    }
+    return PopupMenuButton<bool>(
+      key: ValueKey('artist-photo-$artist'),
+      tooltip: strings.callBgmArtistPhotoSet,
+      icon: const Icon(Icons.add_a_photo_outlined),
+      onSelected: (change) {
+        if (change) {
+          bgm.pickArtistPhoto(artist);
+        } else {
+          bgm.setArtistPhoto(artist, null);
+        }
+      },
+      itemBuilder: (_) => [
+        PopupMenuItem(
+          value: true,
+          child: Text(strings.callBgmArtistPhotoChange),
+        ),
+        PopupMenuItem(
+          value: false,
+          child: Text(strings.callBgmArtistPhotoRemove),
+        ),
       ],
     );
   }
@@ -1164,7 +1221,8 @@ class _CallBgmSheetState extends ConsumerState<_CallBgmSheet> {
       );
       if (open) {
         for (final t in list) {
-          widgets.add(_trackRow(strings, bgm, t, null));
+          // そのアルバムの全曲が再生の範囲（アルバムなしの行は、アルバムに入っていない曲）。
+          widgets.add(_trackRow(strings, bgm, t, id ?? kBgmUnclassifiedScope));
         }
       }
     }
@@ -1180,7 +1238,6 @@ class _CallBgmSheetState extends ConsumerState<_CallBgmSheet> {
     bool favorites = false,
   }) {
     final playing = bgm.current?.id == track.id;
-    final moving = _movingTrackId == track.id;
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
@@ -1199,41 +1256,8 @@ class _CallBgmSheetState extends ConsumerState<_CallBgmSheet> {
             favorites: favorites,
           ),
           onStop: bgm.stop,
-          onMove: () =>
-              setState(() => _movingTrackId = moving ? null : track.id),
           onRemove: () => bgm.removeTrack(track),
         ),
-        if (moving)
-          Align(
-            alignment: Alignment.centerLeft,
-            child: Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              children: [
-                StyleChoiceChip(
-                  uiStyle: ref.watch(appUiStyleProvider),
-                  selected: track.albumId == null,
-                  labelBuilder: (fg) =>
-                      Text(strings.callBgmNoAlbum, style: TextStyle(color: fg)),
-                  onTap: () async {
-                    await bgm.moveTrack(track, null);
-                    if (mounted) setState(() => _movingTrackId = null);
-                  },
-                ),
-                for (final album in bgm.albums)
-                  StyleChoiceChip(
-                    uiStyle: ref.watch(appUiStyleProvider),
-                    selected: track.albumId == album.id,
-                    labelBuilder: (fg) =>
-                        Text(album.name, style: TextStyle(color: fg)),
-                    onTap: () async {
-                      await bgm.moveTrack(track, album.id);
-                      if (mounted) setState(() => _movingTrackId = null);
-                    },
-                  ),
-              ],
-            ),
-          ),
       ],
     );
   }
@@ -1329,7 +1353,6 @@ class _TrackTile extends StatelessWidget {
     required this.strings,
     required this.onPlay,
     required this.onStop,
-    required this.onMove,
     required this.onRemove,
   });
 
@@ -1346,7 +1369,6 @@ class _TrackTile extends StatelessWidget {
   final Strings strings;
   final VoidCallback onPlay;
   final VoidCallback onStop;
-  final VoidCallback onMove;
   final VoidCallback onRemove;
 
   @override
@@ -1400,11 +1422,6 @@ class _TrackTile extends StatelessWidget {
               style: Theme.of(context).textTheme.bodySmall,
             ),
           BgmFavoriteButton(bgm: bgm, track: track, strings: strings),
-          IconButton(
-            tooltip: strings.callBgmMoveToAlbum,
-            icon: const Icon(Icons.drive_file_move_outline),
-            onPressed: onMove,
-          ),
           IconButton(
             tooltip: strings.callBgmRemove,
             icon: const Icon(Icons.delete_outline),

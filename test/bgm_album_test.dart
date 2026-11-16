@@ -134,6 +134,21 @@ class _FakeStorage implements BgmStorage {
   Future<void> setTrackAlbum(String trackId, String? albumId) async =>
       tracks[trackId] = tracks[trackId]!.copyWith(albumId: () => albumId);
 
+  final artistPhotos = <String, Uint8List>{};
+
+  @override
+  Future<Map<String, Uint8List>> listArtistPhotos() async =>
+      Map.of(artistPhotos);
+
+  @override
+  Future<void> setArtistPhoto(String artist, Uint8List? photo) async {
+    if (photo == null) {
+      artistPhotos.remove(artist);
+    } else {
+      artistPhotos[artist] = photo;
+    }
+  }
+
   @override
   Future<void> reorder(List<String> orderedTrackIds) async {
     for (var i = 0; i < orderedTrackIds.length; i++) {
@@ -274,7 +289,8 @@ void main() {
 
       // アルバムへ移動
       final free = bgm.tracksOf(null).firstWhere((t) => t.name == 'free');
-      await bgm.moveTrack(free, album.id);
+      await storage.setTrackAlbum(free.id, album.id);
+      await bgm.loadTracks();
       expect(bgm.tracksOf(album.id).length, 3);
       expect(bgm.unclassifiedCount, 0);
 
@@ -285,14 +301,80 @@ void main() {
       expect(bgm.unclassifiedCount, 3);
     });
 
-    test('再生順は 順番→シャッフル→1曲リピート→順番 と切り替わる', () {
+    test('再生順は 順番→次のアルバムへ→シャッフル→1曲リピート→順番 と切り替わる', () {
       expect(bgm.playOrder, BgmPlayOrder.inOrder);
+      bgm.cyclePlayOrder();
+      expect(bgm.playOrder, BgmPlayOrder.inOrderNextAlbum);
       bgm.cyclePlayOrder();
       expect(bgm.playOrder, BgmPlayOrder.shuffle);
       bgm.cyclePlayOrder();
       expect(bgm.playOrder, BgmPlayOrder.repeatOne);
       bgm.cyclePlayOrder();
       expect(bgm.playOrder, BgmPlayOrder.inOrder);
+    });
+
+    test('アルバムなしの印で、アルバムに入っていない曲だけが範囲になる', () async {
+      final album = await storage.addAlbum('A');
+      await bgm.addAlbum('B');
+      await storage.add(
+        name: 'in',
+        mimeType: 'audio/mpeg',
+        bytes: Uint8List(1),
+        albumId: album.id,
+      );
+      await storage.add(
+        name: 'free',
+        mimeType: 'audio/mpeg',
+        bytes: Uint8List(1),
+      );
+      await bgm.loadTracks();
+      expect(
+        [for (final t in bgm.tracksOf(kBgmUnclassifiedScope)) t.name],
+        ['free'],
+      );
+      expect([for (final t in bgm.tracksOf(album.id)) t.name], ['in']);
+    });
+  });
+
+  group('firstTrackOfNextAlbum', () {
+    final byScope = {
+      'a1': [_t('x1'), _t('x2')],
+      'a2': <BgmTrack>[],
+      'a3': [_t('y1')],
+      kBgmUnclassifiedScope: [_t('z1')],
+    };
+    final scopes = ['a1', 'a2', 'a3', kBgmUnclassifiedScope];
+    List<BgmTrack> tracksOf(String s) => byScope[s] ?? const [];
+
+    test('次のアルバムの先頭へ。曲が無いアルバムは飛ばす', () {
+      final next = firstTrackOfNextAlbum(
+        scopes: scopes,
+        currentScope: 'a1',
+        tracksOf: tracksOf,
+      )!;
+      expect(next.scope, 'a3');
+      expect(next.track.id, 'y1');
+    });
+
+    test('最後（アルバムなし）の次は最初のアルバムへ戻る', () {
+      final next = firstTrackOfNextAlbum(
+        scopes: scopes,
+        currentScope: kBgmUnclassifiedScope,
+        tracksOf: tracksOf,
+      )!;
+      expect(next.scope, 'a1');
+      expect(next.track.id, 'x1');
+    });
+
+    test('他に曲のあるアルバムが無ければnull', () {
+      expect(
+        firstTrackOfNextAlbum(
+          scopes: ['a1', 'a2'],
+          currentScope: 'a1',
+          tracksOf: tracksOf,
+        ),
+        isNull,
+      );
     });
   });
 
@@ -818,15 +900,15 @@ void main() {
       }
     }
 
-    test('moveTracks: 選んだ曲だけをまとめて移す（nullでアルバムなし）', () async {
+    test('アーティスト写真: 登録・取得・削除（アーティスト不明は対象外）', () async {
       await seed();
-      final id = bgm.albums.single.id;
-      final picked = bgm.tracks.where((t) => t.name != 'three').toList();
-      await bgm.moveTracks(picked, id);
-      expect({for (final t in bgm.tracksOf(id)) t.name}, {'one', 'two'});
-      expect(bgm.unclassifiedCount, 1);
-      await bgm.moveTracks(bgm.tracksOf(id), null);
-      expect(bgm.unclassifiedCount, 3);
+      expect(bgm.artistPhotoOf('A'), isNull);
+      await bgm.setArtistPhoto('A', Uint8List.fromList([1, 2, 3]));
+      expect(bgm.artistPhotoOf('A'), Uint8List.fromList([1, 2, 3]));
+      expect(bgm.artistPhotoOf('B'), isNull);
+      expect(bgm.artistPhotoOf(null), isNull);
+      await bgm.setArtistPhoto('A', null);
+      expect(bgm.artistPhotoOf('A'), isNull);
     });
 
     test('removeTracks: 選んだ曲だけを消す', () async {
@@ -851,7 +933,10 @@ void main() {
     test('曲を全て消すと、空になったアルバムも消える', () async {
       await seed();
       final id = bgm.albums.single.id;
-      await bgm.moveTracks(bgm.tracks.take(2).toList(), id);
+      for (final t in bgm.tracks.take(2)) {
+        await storage.setTrackAlbum(t.id, id);
+      }
+      await bgm.loadTracks();
       await bgm.removeTrack(bgm.tracksOf(id).first);
       expect(bgm.albums, hasLength(1));
       await bgm.removeTracks(bgm.tracksOf(id));

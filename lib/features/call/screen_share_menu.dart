@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../widgets/transitioned_overlay.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:pointer_interceptor/pointer_interceptor.dart';
 
@@ -216,13 +217,9 @@ Future<void> _start(
 void showScreenShareMenu(BuildContext context, CallScreenShareBinding binding) {
   final overlay = Overlay.maybeOf(context);
   if (overlay == null) return;
-  late final OverlayEntry entry;
-  void close() {
-    if (entry.mounted) entry.remove();
-  }
-
-  entry = OverlayEntry(
-    builder: (context) => PointerInterceptor(
+  showTransitionedOverlay(
+    overlay,
+    builder: (context, close) => PointerInterceptor(
       child: BackEntry(
         scope: null,
         active: true,
@@ -254,7 +251,6 @@ void showScreenShareMenu(BuildContext context, CallScreenShareBinding binding) {
       ),
     ),
   );
-  overlay.insert(entry);
 }
 
 class _ScreenShareMenu extends ConsumerWidget {
