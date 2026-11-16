@@ -275,7 +275,7 @@ class _CallScreenState extends ConsumerState<CallScreen> {
   /// タイルと同じグリッド（縦長なので縦に積む）の1つとして出す。タップで拡大・もう一度で戻る。
   Widget _screenBody(ColorScheme colorScheme) {
     final strings = ref.watch(appStringsProvider);
-    final keys = ['screen', 'remote', 'self'];
+    final keys = ['screen', 'self', 'remote'];
     final focused = keys.contains(_focusedScreenKey) ? _focusedScreenKey : null;
 
     Widget person({required bool remote}) {
@@ -364,7 +364,7 @@ class _CallScreenState extends ConsumerState<CallScreen> {
               padding: const EdgeInsets.all(8),
               child: focused != null
                   ? tileFor(focused)
-                  : CallTileGrid(tiles: [for (final k in keys) tileFor(k)]),
+                  : CallTileColumn(tiles: [for (final k in keys) tileFor(k)]),
             ),
           ),
           Padding(

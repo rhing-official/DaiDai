@@ -628,6 +628,9 @@ class Strings {
     required this.callScreenShareKiwamiOnly,
     required this.callScreenShareNoAudio,
     required this.callScreenShareAudioHint,
+    required this.callScreenShareAudioOnly,
+    required this.callScreenShareMuteMic,
+    required this.callScreenShareVolume,
     required this.callScreenShareHint,
     required this.callScreenShareYourScreen,
     required this.settingsMicDenoiseTitle,
@@ -1986,6 +1989,9 @@ class Strings {
   final String callScreenShareKiwamiOnly;
   final String callScreenShareNoAudio;
   final String callScreenShareAudioHint;
+  final String callScreenShareAudioOnly;
+  final String callScreenShareMuteMic;
+  final String callScreenShareVolume;
   final String callScreenShareHint;
   final String callScreenShareYourScreen;
   final String settingsMicDenoiseTitle;
@@ -3473,6 +3479,9 @@ class Strings {
     callScreenShareNoAudio:
         '音声を取得できませんでした。共有の選択画面で「タブ」を選び、「タブの音声も共有」にチェックしてください（Linuxはタブのみ対応です）。映像だけを共有します。',
     callScreenShareAudioHint: '音声は、タブの共有（Windowsは画面全体も）で取れます。',
+    callScreenShareAudioOnly: '音声だけ共有（映像を送らない）',
+    callScreenShareMuteMic: '共有中は自分のマイクをミュートにする',
+    callScreenShareVolume: '共有された音声の音量',
     callScreenShareHint: '人数が多い時は、画質を下げると安定します。',
     callScreenShareYourScreen: 'あなたの画面',
     settingsMicDenoiseTitle: '通話のノイズ除去（高性能）',
@@ -4861,6 +4870,9 @@ class Strings {
         'Couldn’t capture audio. In the share picker, choose a tab and tick “Also share tab audio” (on Linux only tabs support audio). Only the video is shared.',
     callScreenShareAudioHint:
         'Audio can be shared from a tab (and from the entire screen on Windows).',
+    callScreenShareAudioOnly: 'Share audio only (no video)',
+    callScreenShareMuteMic: 'Mute my microphone while sharing',
+    callScreenShareVolume: 'Shared audio volume',
     callScreenShareHint: 'With many people, a lower quality is more stable.',
     callScreenShareYourScreen: 'Your screen',
     settingsMicDenoiseTitle: 'Call noise suppression (advanced)',

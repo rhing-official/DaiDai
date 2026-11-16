@@ -25,6 +25,33 @@ import androidx.core.content.ContextCompat
 class CallForegroundService : Service() {
     override fun onBind(intent: Intent?): IBinder? = null
 
+    // 画面共有（MediaProjection）の間だけ、前面サービスの型に`mediaProjection`を足す。
+    private var projection = false
+    private var notification: android.app.Notification? = null
+
+    /** 現在の型で`startForeground`を呼び直して、型を切り替える（サービスが動いている間だけ）。 */
+    private fun applyForegroundType() {
+        val n = notification ?: return
+        try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                var type = ServiceInfo.FOREGROUND_SERVICE_TYPE_MICROPHONE
+                // カメラの許可が無いままカメラ型で起動すると、Android 14以降は例外になる。
+                if (ContextCompat.checkSelfPermission(this, Manifest.permission.CAMERA) ==
+                    PackageManager.PERMISSION_GRANTED
+                ) {
+                    type = type or ServiceInfo.FOREGROUND_SERVICE_TYPE_CAMERA
+                }
+                if (projection) type = type or ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PROJECTION
+                startForeground(NOTIFICATION_ID, n, type)
+            } else {
+                startForeground(NOTIFICATION_ID, n)
+            }
+        } catch (e: Exception) {
+            // 前面サービスを始められなくても（型を切り替えられなくても）、通話自体は続ける。
+            if (n === notification && !projection) stopSelf()
+        }
+    }
+
     // 画面が消えてもCPUとWi-Fiを止めさせない。前面サービスだけでは、端末がスリープに入ると
     // CPUが止まって音声の処理が途切れ、Wi-Fiも省電力になって送受信が不安定になる（2026-11-15）。
     private var wakeLock: PowerManager.WakeLock? = null
@@ -68,6 +95,7 @@ class CallForegroundService : Service() {
     }
 
     override fun onDestroy() {
+        if (instance === this) instance = null
         releaseLocks()
         super.onDestroy()
     }
@@ -83,7 +111,8 @@ class CallForegroundService : Service() {
             },
             PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
         )
-        val notification = NotificationCompat.Builder(this, CHANNEL_ID)
+        instance = this
+        notification = NotificationCompat.Builder(this, CHANNEL_ID)
             .setSmallIcon(R.drawable.ic_notification)
             .setContentTitle("DaiDai")
             .setContentText("通話中")
@@ -92,27 +121,22 @@ class CallForegroundService : Service() {
             .setSilent(true)
             .setContentIntent(open)
             .build()
-        try {
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-                var type = ServiceInfo.FOREGROUND_SERVICE_TYPE_MICROPHONE
-                // カメラの許可が無いままカメラ型で起動すると、Android 14以降は例外になる。
-                if (ContextCompat.checkSelfPermission(this, Manifest.permission.CAMERA) ==
-                    PackageManager.PERMISSION_GRANTED
-                ) {
-                    type = type or ServiceInfo.FOREGROUND_SERVICE_TYPE_CAMERA
-                }
-                startForeground(NOTIFICATION_ID, notification, type)
-            } else {
-                startForeground(NOTIFICATION_ID, notification)
-            }
-        } catch (e: Exception) {
-            // 前面サービスを始められなくても、通話自体は続ける。
-            stopSelf()
-        }
+        applyForegroundType()
         return START_NOT_STICKY
     }
 
     companion object {
+        /** 動いている間のサービス（画面共有の型の切り替えを、同期的に行うため）。 */
+        @Volatile
+        var instance: CallForegroundService? = null
+
+        /** 画面共有の間だけ`mediaProjection`型にする／戻す。サービスが動いていなければ何もしない。 */
+        fun setProjection(active: Boolean) {
+            val service = instance ?: return
+            service.projection = active
+            service.applyForegroundType()
+        }
+
         private const val CHANNEL_ID = "ongoing_call"
         private const val NOTIFICATION_ID = 7421
 

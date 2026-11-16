@@ -16,6 +16,29 @@ List<int>? callTileRowSizes(int count, {required bool portrait}) {
   return sizes;
 }
 
+/// タイルを縦1列で、高さを等分して並べる（一対の画面共有: 上から共有・自分・相手）。
+class CallTileColumn extends StatelessWidget {
+  const CallTileColumn({required this.tiles, this.spacing = 4.0, super.key});
+
+  final List<Widget> tiles;
+  final double spacing;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: EdgeInsets.all(spacing),
+      child: Column(
+        children: [
+          for (var i = 0; i < tiles.length; i++) ...[
+            if (i > 0) SizedBox(height: spacing),
+            Expanded(child: tiles[i]),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
 /// 通話の参加者タイルの配置。与えられた領域に**スクロール無しで常に収まる**。
 /// 縦長（高さ>幅）なら[callTileRowSizes]の行構成、横長なら従来のグリッド。
 class CallTileGrid extends StatelessWidget {

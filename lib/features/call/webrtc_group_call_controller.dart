@@ -100,6 +100,13 @@ class WebrtcGroupCallController extends ChangeNotifier {
   MediaStream? _screenDisplay;
   MediaStream? _screenContainer;
   ScreenShareQuality _screenQuality = ScreenShareQuality.standard;
+
+  /// 画面共有を始める時に、自動でマイクをミュートにしたか（やめる時に戻す）。
+  bool _mutedByScreenShare = false;
+
+  /// 相手の画面共有の音声の音量（0〜1）。
+  double _remoteScreenVolume = 1;
+  double get remoteScreenVolume => _remoteScreenVolume;
   ScreenShareQuality get screenQuality => _screenQuality;
   bool _screenAudio = false;
   bool get isScreenSharing => _screenDisplay != null;
@@ -1078,6 +1085,7 @@ class WebrtcGroupCallController extends ChangeNotifier {
     // 音声のトラックを取り込むのに必要）。
     renderer.srcObject = stream;
     renderer.muted = false;
+    unawaited(renderer.setVolume(_remoteScreenVolume).catchError((_) {}));
     callLog(
       'group: $userId screen stream attached video='
       '${stream.getVideoTracks().length} audio=${stream.getAudioTracks().length}',
@@ -1141,10 +1149,25 @@ class WebrtcGroupCallController extends ChangeNotifier {
         .catchError((_) {});
   }
 
+  /// 相手の画面共有の音声の音量を変える（0〜1、全員分に掛かる）。
+  Future<void> setRemoteScreenVolume(double volume) async {
+    _remoteScreenVolume = volume.clamp(0.0, 1.0);
+    for (final renderer in screenRenderers.values) {
+      try {
+        await renderer.setVolume(_remoteScreenVolume);
+      } catch (_) {}
+    }
+    notifyListeners();
+  }
+
+  /// 誰かの画面共有が見えているか（音量の調整を出す条件）。
+  bool get anyRemoteScreenShown => remoteParticipants.any(remoteScreenShown);
+
   /// 画面の共有を始める。配信元の選択はブラウザが出す。やめた（キャンセル）時は`false`。
   Future<bool> startScreenShare({
     required ScreenShareQuality quality,
     required bool shareAudio,
+    bool muteMic = false,
   }) async {
     if (_screenDisplay != null) return true;
     final display = await ScreenShareCapture.start(
@@ -1155,6 +1178,11 @@ class WebrtcGroupCallController extends ChangeNotifier {
     _screenDisplay = display;
     _screenQuality = quality;
     _screenAudio = shareAudio;
+    // 音楽だけを届けたい時は、共有している間だけ自分のマイクをミュートにする。
+    if (muteMic && !_muted) {
+      toggleMute();
+      _mutedByScreenShare = true;
+    }
     _screenContainer ??= await createLocalMediaStream('screen');
     display.getVideoTracks().firstOrNull?.onEnded = () => stopScreenShare();
     screenAudioMissing = shareAudio && display.getAudioTracks().isEmpty;
@@ -1193,6 +1221,11 @@ class WebrtcGroupCallController extends ChangeNotifier {
     final display = _screenDisplay;
     if (display == null) return;
     _screenDisplay = null;
+    unawaited(ScreenShareCapture.notifyNativeStopped());
+    if (_mutedByScreenShare) {
+      _mutedByScreenShare = false;
+      if (_muted) toggleMute();
+    }
     for (final sender in [
       ..._screenVideoSenders.values,
       ..._screenAudioSenders.values,
@@ -1271,6 +1304,7 @@ class WebrtcGroupCallController extends ChangeNotifier {
     _screenQuality = quality;
     final track = _screenDisplay?.getVideoTracks().firstOrNull;
     if (track != null) {
+      track.enabled = !quality.audioOnly;
       try {
         await track.applyConstraints(
           ScreenShareCapture.constraints(quality, shareAudio: false)['video']

@@ -79,6 +79,11 @@ class MainActivity : FlutterFragmentActivity() {
         super.configureFlutterEngine(flutterEngine)
         // 通話中にアプリを離れた時、OS標準のピクチャーインピクチャーへ入る
         // （2026-10-12追加、lib/features/call/pip_controller.dart から呼ぶ）。
+        // 画面共有の許可を得た直後（MediaProjectionを作る前）に、前面サービスへ`mediaProjection`型を
+        // 足す（Android 14以降の必須条件。third_party/flutter_webrtcのパッチのフック）。
+        com.cloudwebrtc.webrtc.GetUserMediaImpl.beforeScreenCapture = Runnable {
+            CallForegroundService.setProjection(true)
+        }
         pipChannel = MethodChannel(flutterEngine.dartExecutor.binaryMessenger, pipChannelName)
         pipChannel?.setMethodCallHandler { call, result ->
             if (call.method == "setCallActive") {
@@ -90,6 +95,11 @@ class MainActivity : FlutterFragmentActivity() {
                 // 通話中は前面サービスで、アプリを離れても画面が消えてもOSに止められないようにする。
                 if (callActive) CallForegroundService.start(applicationContext)
                 else CallForegroundService.stop(applicationContext)
+                result.success(null)
+            } else if (call.method == "setScreenShareActive") {
+                // 画面共有の終了で、前面サービスの型から`mediaProjection`を外す（開始側は、
+                // flutter_webrtcの許可直後のフックで行う）。
+                if (call.argument<Boolean>("active") != true) CallForegroundService.setProjection(false)
                 result.success(null)
             } else if (call.method == "setKeepScreenOn") {
                 // 映像通話中に、OSの自動消灯で通話が止まらないようにする。

@@ -29,6 +29,9 @@ class CallScreenShareBinding {
     required this.change,
     required this.setQuality,
     required this.setAudio,
+    required this.remoteSharing,
+    required this.remoteVolume,
+    required this.setRemoteVolume,
   });
 
   /// 通話コントローラー（共有の状態が変わったら描き直す）。
@@ -40,12 +43,21 @@ class CallScreenShareBinding {
 
   /// 音声の共有を求めたのに、音が取れなかったか（始めた直後に確認する）。
   final bool Function() audioMissing;
-  final Future<bool> Function(ScreenShareQuality quality, bool shareAudio)
+  final Future<bool> Function(
+    ScreenShareQuality quality,
+    bool shareAudio,
+    bool muteMic,
+  )
   start;
   final Future<void> Function() stop;
   final Future<void> Function() change;
   final Future<void> Function(ScreenShareQuality quality) setQuality;
   final Future<void> Function(bool shareAudio) setAudio;
+
+  /// 相手の画面共有が見えているか／その音声の音量（0〜1）／音量を変える。
+  final bool Function() remoteSharing;
+  final double Function() remoteVolume;
+  final Future<void> Function(double volume) setRemoteVolume;
 }
 
 /// 1対1の通話の画面共有（対応しない環境はnull）。
@@ -58,13 +70,20 @@ CallScreenShareBinding? oneToOneScreenShare(
     controller: controller,
     userId: userId,
     isSharing: () => controller.isScreenSharing,
-    audioMissing: () => controller.screenAudioMissing,
-    start: (q, audio) =>
-        controller.startScreenShare(quality: q, shareAudio: audio),
+    audioMissing: () =>
+        !ScreenShareCapture.isNativeAndroid && controller.screenAudioMissing,
+    start: (q, audio, muteMic) => controller.startScreenShare(
+      quality: q,
+      shareAudio: audio,
+      muteMic: muteMic,
+    ),
     stop: controller.stopScreenShare,
     change: controller.changeScreenSource,
     setQuality: controller.setScreenQuality,
     setAudio: controller.setScreenAudio,
+    remoteSharing: () => controller.remoteScreenShown,
+    remoteVolume: () => controller.remoteScreenVolume,
+    setRemoteVolume: controller.setRemoteScreenVolume,
   );
 }
 
@@ -75,13 +94,20 @@ CallScreenShareBinding? groupScreenShare(WebrtcGroupCallController controller) {
     controller: controller,
     userId: controller.currentUser.userId,
     isSharing: () => controller.isScreenSharing,
-    audioMissing: () => controller.screenAudioMissing,
-    start: (q, audio) =>
-        controller.startScreenShare(quality: q, shareAudio: audio),
+    audioMissing: () =>
+        !ScreenShareCapture.isNativeAndroid && controller.screenAudioMissing,
+    start: (q, audio, muteMic) => controller.startScreenShare(
+      quality: q,
+      shareAudio: audio,
+      muteMic: muteMic,
+    ),
     stop: controller.stopScreenShare,
     change: controller.changeScreenSource,
     setQuality: controller.setScreenQuality,
     setAudio: controller.setScreenAudio,
+    remoteSharing: () => controller.anyRemoteScreenShown,
+    remoteVolume: () => controller.remoteScreenVolume,
+    setRemoteVolume: controller.setRemoteScreenVolume,
   );
 }
 
@@ -132,17 +158,21 @@ class ScreenShareControl extends ConsumerWidget {
             Expanded(
               child: Align(
                 alignment: Alignment.centerLeft,
-                child: IconButton(
-                  iconSize: 20,
-                  padding: EdgeInsets.zero,
-                  constraints: const BoxConstraints.tightFor(
-                    width: 28,
-                    height: 40,
+                // 枠が狭くても溢れないよう、収まる大きさまで縮める。
+                child: FittedBox(
+                  fit: BoxFit.scaleDown,
+                  child: IconButton(
+                    iconSize: 20,
+                    padding: EdgeInsets.zero,
+                    constraints: const BoxConstraints.tightFor(
+                      width: 28,
+                      height: 40,
+                    ),
+                    icon: const Icon(Icons.keyboard_arrow_up),
+                    onPressed: enabled
+                        ? () => showScreenShareMenu(context, binding)
+                        : null,
                   ),
-                  icon: const Icon(Icons.keyboard_arrow_up),
-                  onPressed: enabled
-                      ? () => showScreenShareMenu(context, binding)
-                      : null,
                 ),
               ),
             ),
@@ -165,8 +195,14 @@ Future<void> _start(
   final kiwami = ref.read(isKiwamiProvider(binding.userId));
   final quality = settings.quality.allowedFor(kiwami: kiwami)
       ? settings.quality
-      : ScreenShareQuality.standard;
-  final started = await binding.start(quality, settings.shareAudio);
+      : ScreenShareQuality.standard.copyWith(
+          audioOnly: settings.quality.audioOnly,
+        );
+  final started = await binding.start(
+    quality,
+    settings.shareAudio,
+    settings.muteMic,
+  );
   if (started && overlay != null && binding.audioMissing()) {
     showAutoDismissBannerIn(
       overlay,
@@ -256,6 +292,23 @@ class _ScreenShareMenu extends ConsumerWidget {
       notifier.setShareAudio(value);
       if (binding.isSharing()) binding.setAudio(value);
     }
+
+    Widget checkRow(String label, bool value, void Function(bool) onChanged) =>
+        InkWell(
+          onTap: () => onChanged(!value),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(vertical: 8),
+            child: Row(
+              children: [
+                Expanded(child: Text(label)),
+                AppCheckbox(
+                  value: value,
+                  onChanged: (v) => onChanged(v ?? false),
+                ),
+              ],
+            ),
+          ),
+        );
 
     Widget chip(String label, bool selected, bool locked, VoidCallback tap) =>
         StyleChoiceChip(
@@ -361,27 +414,62 @@ class _ScreenShareMenu extends ConsumerWidget {
                     ],
                   ),
                   const SizedBox(height: 8),
-                  InkWell(
-                    onTap: () => toggleAudio(!settings.shareAudio),
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(vertical: 8),
-                      child: Row(
-                        children: [
-                          Expanded(child: Text(strings.callScreenShareAudio)),
-                          AppCheckbox(
-                            value: settings.shareAudio,
-                            onChanged: (v) => toggleAudio(v ?? false),
-                          ),
-                        ],
+                  // Androidの画面共有は映像のみ（音声は取れない）ので、音声まわりの項目は出さない。
+                  if (!ScreenShareCapture.isNativeAndroid) ...[
+                    InkWell(
+                      onTap: () => toggleAudio(!settings.shareAudio),
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 8),
+                        child: Row(
+                          children: [
+                            Expanded(child: Text(strings.callScreenShareAudio)),
+                            AppCheckbox(
+                              value: settings.shareAudio,
+                              onChanged: (v) => toggleAudio(v ?? false),
+                            ),
+                          ],
+                        ),
                       ),
                     ),
-                  ),
-                  Text(
-                    strings.callScreenShareAudioHint,
-                    style: theme.textTheme.bodySmall?.copyWith(
-                      color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
+                    checkRow(
+                      strings.callScreenShareAudioOnly,
+                      settings.quality.audioOnly,
+                      (v) => choose(settings.quality.copyWith(audioOnly: v)),
                     ),
-                  ),
+                    checkRow(
+                      strings.callScreenShareMuteMic,
+                      settings.muteMic,
+                      notifier.setMuteMic,
+                    ),
+                  ],
+                  if (binding.remoteSharing()) ...[
+                    const SizedBox(height: 4),
+                    Text(
+                      strings.callScreenShareVolume,
+                      style: theme.textTheme.bodySmall,
+                    ),
+                    Row(
+                      children: [
+                        const Icon(Icons.volume_down, size: 18),
+                        Expanded(
+                          child: Slider(
+                            value: binding.remoteVolume(),
+                            onChanged: binding.setRemoteVolume,
+                          ),
+                        ),
+                        const Icon(Icons.volume_up, size: 18),
+                      ],
+                    ),
+                  ],
+                  if (!ScreenShareCapture.isNativeAndroid)
+                    Text(
+                      strings.callScreenShareAudioHint,
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        color: theme.colorScheme.onSurface.withValues(
+                          alpha: 0.6,
+                        ),
+                      ),
+                    ),
                   const SizedBox(height: 4),
                   Text(
                     strings.callScreenShareHint,

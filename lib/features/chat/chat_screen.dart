@@ -4250,13 +4250,21 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                 _confirmDeleteSelected,
           },
         },
-        child: PopScope(
-          // 戻る操作は、ぺったんドックが開いていれば先にそれを閉じる。
-          canPop: _stickerDockStage == StickerDockStage.closed,
-          onPopInvokedWithResult: (didPop, _) {
-            if (!didPop) _setStickerDockStage(StickerDockStage.closed);
-          },
-          child: Focus(autofocus: true, child: scaffold),
+        // ぺったんドックが開いている間は、戻る操作でまずそれを閉じる（層として登録し、画面の
+        // 「戻る」の処理が上の層として先に閉じる）。
+        child: BackEntry(
+          active: _stickerDockStage != StickerDockStage.closed,
+          layer: true,
+          scope: BackScope.talks,
+          onBack: () => _setStickerDockStage(StickerDockStage.closed),
+          child: PopScope(
+            // 戻る操作は、ぺったんドックが開いていれば先にそれを閉じる。
+            canPop: _stickerDockStage == StickerDockStage.closed,
+            onPopInvokedWithResult: (didPop, _) {
+              if (!didPop) _setStickerDockStage(StickerDockStage.closed);
+            },
+            child: Focus(autofocus: true, child: scaffold),
+          ),
         ),
       ),
     );

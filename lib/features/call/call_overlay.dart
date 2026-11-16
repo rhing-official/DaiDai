@@ -415,8 +415,8 @@ class _OneToOneStageState extends ConsumerState<_OneToOneStage> {
     final keys = <String>[
       if (controller.remoteScreenShown) 'screen-remote',
       if (controller.isScreenSharing) 'screen-self',
-      'remote',
       'self',
+      'remote',
     ];
     final focused = keys.contains(_focusedKey) ? _focusedKey : null;
 
@@ -489,7 +489,8 @@ class _OneToOneStageState extends ConsumerState<_OneToOneStage> {
         ),
       );
     } else {
-      stage = CallTileGrid(tiles: [for (final k in keys) tileFor(k, false)]);
+      // 縦に、共有・自分・相手の順（共有が2つなら共有2枚が先）。
+      stage = CallTileColumn(tiles: [for (final k in keys) tileFor(k, false)]);
     }
     return Stack(
       fit: StackFit.expand,

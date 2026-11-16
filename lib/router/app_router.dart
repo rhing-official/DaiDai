@@ -1,4 +1,4 @@
-import 'package:flutter/foundation.dart' show debugPrint, kDebugMode;
+import 'package:flutter/foundation.dart' show debugPrint, kDebugMode, kIsWeb;
 import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -225,7 +225,22 @@ final goRouterProvider = Provider<GoRouter>((ref) {
       // 先に閉じてpopを止める。止められた後に画面が右へ消えたまま固まらないよう、指を
       // 離した時に先に層を閉じて、画面を元の位置へ戻す（2026-11-15）。
       consumeBack: consumeBack,
-      child: child,
+      // Androidのシステムの戻る（戻るボタン・戻るジェスチャー）は、右スワイプと同じく、上の層を
+      // 先に閉じ、無ければこの画面を閉じて一覧へ戻す。ルーター任せだと何も起きないことがあった為、
+      // 画面側で確実に受ける（Webはブラウザの履歴で処理するため対象外）。
+      child: consumeBack == null || kIsWeb
+          ? child
+          : BackButtonListener(
+              onBackButtonPressed: () async {
+                if (consumeBack()) return true;
+                if (router.canPop()) {
+                  router.pop();
+                  return true;
+                }
+                return false;
+              },
+              child: child,
+            ),
     ),
     transition: transition,
   );

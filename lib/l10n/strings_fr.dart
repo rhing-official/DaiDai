@@ -762,6 +762,9 @@ final Strings _stringsFr = Strings._(
       "Le son n’a pas pu être capturé. Dans le sélecteur, choisissez un onglet et cochez « Partager aussi l’audio de l’onglet » (sous Linux, seuls les onglets prennent en charge le son). Seule la vidéo est partagée.",
   callScreenShareAudioHint:
       "Le son se partage depuis un onglet (et depuis l’écran entier sous Windows).",
+  callScreenShareAudioOnly: "Partager l’audio seulement (sans vidéo)",
+  callScreenShareMuteMic: "Couper mon micro pendant le partage",
+  callScreenShareVolume: "Volume de l’audio partagé",
   callScreenShareHint: "À plusieurs, une qualité plus basse est plus stable.",
   callScreenShareYourScreen: "Votre écran",
   settingsMicDenoiseTitle: "Suppression du bruit en appel (avancée)",

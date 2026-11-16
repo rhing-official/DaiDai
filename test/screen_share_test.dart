@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -6,6 +7,23 @@ import 'package:daidai/models/group_call.dart';
 import 'package:daidai/providers/screen_share_settings_provider.dart';
 
 void main() {
+  audioOnlyTests();
+  // テストの既定の端末はAndroid（ネイティブ）。Webの制約・非対応の確認はLinuxとして行う。
+  setUp(() => debugDefaultTargetPlatformOverride = TargetPlatform.linux);
+  tearDown(() => debugDefaultTargetPlatformOverride = null);
+
+  test('ネイティブのAndroidは画面共有に対応し、映像のみの制約になる', () {
+    debugDefaultTargetPlatformOverride = TargetPlatform.android;
+    expect(ScreenShareCapture.isSupported, isTrue);
+    expect(ScreenShareCapture.isNativeAndroid, isTrue);
+    final c = ScreenShareCapture.constraints(
+      ScreenShareQuality.standard,
+      shareAudio: true,
+    );
+    expect(c['audio'], isFalse);
+    expect(c['video'], isA<Map>());
+  });
+
   group('画面共有の画質', () {
     test('表示・幅（16:9）・高画質の判定', () {
       const q = ScreenShareQuality(height: 720, fps: 30);
@@ -93,5 +111,18 @@ void main() {
       CallParticipant.fromJson('u2', {'rhingSeed': 'x'}).screenLabel,
       isNull,
     );
+  });
+}
+
+void audioOnlyTests() {
+  test('音声だけの共有は、映像を最小限にし、無料でも使える', () {
+    const q = ScreenShareQuality(height: 1440, fps: 60, audioOnly: true);
+    expect(q.captureHeight, 360);
+    expect(q.captureFps, 5);
+    expect(q.label, 'AUDIO ONLY');
+    expect(q.isHigh, isFalse);
+    expect(q.maxBitrate, 100000);
+    expect(q.copyWith(audioOnly: false).captureHeight, 1440);
+    expect(q == ScreenShareQuality.standard, isFalse);
   });
 }
