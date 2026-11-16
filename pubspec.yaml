@@ -115,6 +115,9 @@ dependency_overrides:
   # getRedirectResultが2段階認証の要求を正しく返さない不具合の修正（third_party/firebase_auth_web）。
   firebase_auth_web:
     path: third_party/firebase_auth_web
+  # getRedirectResultが2段階認証の要求をアプリ側の例外へ変換しない不具合の修正（third_party/firebase_auth）。
+  firebase_auth:
+    path: third_party/firebase_auth
 
 dev_dependencies:
   flutter_test:
