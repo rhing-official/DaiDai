@@ -69,6 +69,22 @@ class _UnsupportedBgmStorage implements BgmStorage {
   Future<void> reorder(List<String> orderedTrackIds) async {}
 
   @override
+  Future<List<BgmPlaylist>> listPlaylists() async => const [];
+
+  @override
+  Future<BgmPlaylist> addPlaylist(String name) =>
+      throw UnsupportedError('BGMはWebのみ対応です');
+
+  @override
+  Future<void> renamePlaylist(String id, String name) async {}
+
+  @override
+  Future<void> removePlaylist(String id) async {}
+
+  @override
+  Future<void> setPlaylistTracks(String id, List<String> trackIds) async {}
+
+  @override
   Future<Map<String, Uint8List>> listArtistPhotos() async => const {};
 
   @override

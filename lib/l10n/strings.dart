@@ -665,7 +665,6 @@ class Strings {
     required this.callBgmPause,
     required this.callBgmResume,
     required this.callBgmAllTracks,
-    required this.callBgmNewAlbum,
     required this.callBgmAlbumNameHint,
     required this.callBgmSearchHint,
     required this.callBgmSearchNoResults,
@@ -684,6 +683,14 @@ class Strings {
     required this.callBgmBack,
     required this.callBgmAlbumEmpty,
     required this.callBgmCreate,
+    required this.callBgmTabPlaylists,
+    required this.callBgmNewPlaylist,
+    required this.callBgmPlaylistNameHint,
+    required this.callBgmDeletePlaylist,
+    required this.callBgmPlaylistEmpty,
+    required this.callBgmPlaylistsNone,
+    required this.callBgmAddToPlaylist,
+    required this.callBgmRemoveFromPlaylist,
     required this.callSoundboardTitle,
     required this.callSoundboardAdd,
     required this.callSoundboardEmpty,
@@ -2064,7 +2071,6 @@ class Strings {
   final String callBgmPause;
   final String callBgmResume;
   final String callBgmAllTracks;
-  final String callBgmNewAlbum;
   final String callBgmAlbumNameHint;
 
   /// 曲の検索ボックス（2026-11-16）。
@@ -2085,6 +2091,14 @@ class Strings {
   final String callBgmBack;
   final String callBgmAlbumEmpty;
   final String callBgmCreate;
+  final String callBgmTabPlaylists;
+  final String callBgmNewPlaylist;
+  final String callBgmPlaylistNameHint;
+  final String callBgmDeletePlaylist;
+  final String callBgmPlaylistEmpty;
+  final String callBgmPlaylistsNone;
+  final String callBgmAddToPlaylist;
+  final String callBgmRemoveFromPlaylist;
   final String callSoundboardTitle;
   final String callSoundboardAdd;
   final String callSoundboardEmpty;
@@ -3589,7 +3603,6 @@ class Strings {
     callBgmPause: '一時停止',
     callBgmResume: '再生',
     callBgmAllTracks: 'すべての曲',
-    callBgmNewAlbum: 'アルバムを作成',
     callBgmAlbumNameHint: 'アルバム名',
     callBgmSearchHint: '曲名・アーティストで検索',
     callBgmSearchNoResults: '該当する曲がありません',
@@ -3608,6 +3621,14 @@ class Strings {
     callBgmBack: '戻る',
     callBgmAlbumEmpty: '曲が有りません。「曲を追加」で、このアルバムに登録出来ます',
     callBgmCreate: '作成',
+    callBgmTabPlaylists: 'プレイリスト',
+    callBgmNewPlaylist: 'プレイリストを作成',
+    callBgmPlaylistNameHint: 'プレイリスト名',
+    callBgmDeletePlaylist: 'プレイリストを削除（曲は残ります）',
+    callBgmPlaylistEmpty: '曲が有りません。曲を選んで「プレイリストへ追加」で登録出来ます',
+    callBgmPlaylistsNone: 'プレイリストが有りません。「プレイリストを作成」で作れます',
+    callBgmAddToPlaylist: 'プレイリストへ追加',
+    callBgmRemoveFromPlaylist: 'プレイリストから外す',
     callSoundboardTitle: 'サウンドボード',
     callSoundboardAdd: '効果音を追加',
     callSoundboardEmpty: '効果音がありません。「効果音を追加」で登録すると、この語らいの全員が使えます',
@@ -5015,7 +5036,6 @@ class Strings {
     callBgmPause: 'Pause',
     callBgmResume: 'Play',
     callBgmAllTracks: 'All tracks',
-    callBgmNewAlbum: 'Create an album',
     callBgmAlbumNameHint: 'Album name',
     callBgmSearchHint: 'Search by title or artist',
     callBgmSearchNoResults: 'No matching tracks',
@@ -5037,6 +5057,14 @@ class Strings {
     callBgmAlbumEmpty:
         'No tracks yet. Use “Add a track” to add one to this album',
     callBgmCreate: 'Create',
+    callBgmTabPlaylists: 'Playlists',
+    callBgmNewPlaylist: 'Create a playlist',
+    callBgmPlaylistNameHint: 'Playlist name',
+    callBgmDeletePlaylist: 'Delete playlist (tracks are kept)',
+    callBgmPlaylistEmpty: 'No tracks. Select tracks and use “Add to playlist”',
+    callBgmPlaylistsNone: 'No playlists yet. Use “Create a playlist”',
+    callBgmAddToPlaylist: 'Add to playlist',
+    callBgmRemoveFromPlaylist: 'Remove from playlist',
     callSoundboardTitle: 'Soundboard',
     callSoundboardAdd: 'Add a sound effect',
     callSoundboardEmpty:

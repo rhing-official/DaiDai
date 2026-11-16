@@ -24,6 +24,9 @@ const _albumStoreName = 'albums';
 /// アーティスト写真（キー`id`＝アーティスト名、`photo`＝画像、v4、2026-11-16）。
 const _artistPhotoStore = 'artistPhotos';
 
+/// プレイリスト（キー`id`、`name`、`trackIds`＝曲idの配列、v5、2026-11-17）。
+const _playlistStore = 'playlists';
+
 /// v1・v2の曲の保存先（音源入り）。起動後に、1曲ずつ新しい保存先へ移して、空にする。
 const _legacyStore = 'tracks';
 
@@ -50,7 +53,7 @@ class _IndexedDbBgmStorage implements BgmStorage {
 
   Future<web.IDBDatabase> _open() => _db ??= () {
     final completer = Completer<web.IDBDatabase>();
-    final request = web.window.indexedDB.open(_dbName, 4);
+    final request = web.window.indexedDB.open(_dbName, 5);
     request.onupgradeneeded = ((web.Event _) {
       final db = request.result as web.IDBDatabase;
       // 古い版の曲（_legacyStore）は残し、新しい置き場を足すだけにする（中身の移行は、起動後に
@@ -62,6 +65,7 @@ class _IndexedDbBgmStorage implements BgmStorage {
         _coverStore,
         _albumStoreName,
         _artistPhotoStore,
+        _playlistStore,
       ]) {
         if (!db.objectStoreNames.contains(name)) {
           db.createObjectStore(
@@ -367,6 +371,67 @@ class _IndexedDbBgmStorage implements BgmStorage {
     }
     final store = await _store('readwrite', _albumStoreName);
     await _request(store.delete(id.toJS));
+  }
+
+  JSObject _playlistRecord(String id, String name, List<String> trackIds) =>
+      JSObject()
+        ..setProperty('id'.toJS, id.toJS)
+        ..setProperty('name'.toJS, name.toJS)
+        ..setProperty('trackIds'.toJS, [for (final t in trackIds) t.toJS].toJS);
+
+  @override
+  Future<List<BgmPlaylist>> listPlaylists() async {
+    final store = await _store('readonly', _playlistStore);
+    final result = await _request(store.getAll());
+    final records = (result as JSArray<JSObject>).toDart;
+    return [
+      for (final r in records)
+        BgmPlaylist(
+          id: (r.getProperty('id'.toJS) as JSString).toDart,
+          name: (r.getProperty('name'.toJS) as JSString).toDart,
+          trackIds: [
+            for (final t
+                in (r.getProperty<JSAny?>('trackIds'.toJS) as JSArray<JSAny?>?)
+                        ?.toDart ??
+                    const <JSAny?>[])
+              if (t.isA<JSString>()) (t as JSString).toDart,
+          ],
+        ),
+    ];
+  }
+
+  @override
+  Future<BgmPlaylist> addPlaylist(String name) async {
+    final id = _newId();
+    final store = await _store('readwrite', _playlistStore);
+    await _request(store.put(_playlistRecord(id, name, const [])));
+    return BgmPlaylist(id: id, name: name);
+  }
+
+  @override
+  Future<void> renamePlaylist(String id, String name) async {
+    final current = (await listPlaylists()).where((p) => p.id == id);
+    if (current.isEmpty) return;
+    final store = await _store('readwrite', _playlistStore);
+    await _request(
+      store.put(_playlistRecord(id, name, current.first.trackIds)),
+    );
+  }
+
+  @override
+  Future<void> removePlaylist(String id) async {
+    final store = await _store('readwrite', _playlistStore);
+    await _request(store.delete(id.toJS));
+  }
+
+  @override
+  Future<void> setPlaylistTracks(String id, List<String> trackIds) async {
+    final current = (await listPlaylists()).where((p) => p.id == id);
+    if (current.isEmpty) return;
+    final store = await _store('readwrite', _playlistStore);
+    await _request(
+      store.put(_playlistRecord(id, current.first.name, trackIds)),
+    );
   }
 
   @override

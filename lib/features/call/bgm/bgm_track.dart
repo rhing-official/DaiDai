@@ -79,6 +79,21 @@ class BgmAlbum {
   final String name;
 }
 
+/// 手動で作る曲のまとめ（プレイリスト、2026-11-17追加）。曲への参照（[trackIds]）の並びが
+/// そのまま再生順で、1曲を複数のプレイリストへ入れられる（アルバムは曲が1つにだけ属する）。
+/// 端末内だけにあり、サーバーには送らない（曲のidが端末固有の為）。
+class BgmPlaylist {
+  const BgmPlaylist({
+    required this.id,
+    required this.name,
+    this.trackIds = const [],
+  });
+
+  final String id;
+  final String name;
+  final List<String> trackIds;
+}
+
 /// 曲の保存先（端末内）。Webは`IndexedDB`、それ以外は未対応で何も保存しない。
 abstract class BgmStorage {
   Future<List<BgmTrack>> list();
@@ -128,6 +143,14 @@ abstract class BgmStorage {
 
   /// 渡した曲の並びを、先頭から0,1,2…の並び順として保存する。
   Future<void> reorder(List<String> orderedTrackIds);
+
+  Future<List<BgmPlaylist>> listPlaylists();
+  Future<BgmPlaylist> addPlaylist(String name);
+  Future<void> renamePlaylist(String id, String name);
+  Future<void> removePlaylist(String id);
+
+  /// プレイリストの曲を、渡した並びで丸ごと保存する（追加・削除・並べ替えを兼ねる）。
+  Future<void> setPlaylistTracks(String id, List<String> trackIds);
 
   /// 登録したアーティスト写真（アーティスト名→画像、2026-11-16）。
   Future<Map<String, Uint8List>> listArtistPhotos();

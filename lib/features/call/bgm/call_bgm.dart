@@ -72,6 +72,7 @@ class CallBgm extends ChangeNotifier {
         positionMs: _mixer.position.inMilliseconds,
         queueAlbumId: _queueAlbumId,
         queueFavorites: _queueFavorites,
+        queuePlaylistId: _queuePlaylistId,
       ),
     );
   }
@@ -86,6 +87,7 @@ class CallBgm extends ChangeNotifier {
       albumId: last.queueAlbumId,
       inAlbum: true,
       favorites: last.queueFavorites,
+      playlistId: last.queuePlaylistId,
     );
     if (_disposed || _current?.id != track.id) return;
     final position = Duration(milliseconds: last.positionMs);
@@ -221,6 +223,7 @@ class CallBgm extends ChangeNotifier {
     final scope = _queueAlbumId;
     if (_order != BgmPlayOrder.inOrderNextAlbum ||
         _queueFavorites ||
+        _queuePlaylistId != null ||
         scope == null) {
       return null;
     }
@@ -259,6 +262,7 @@ class CallBgm extends ChangeNotifier {
         albumId: _queueAlbumId,
         inAlbum: true,
         favorites: _queueFavorites,
+        playlistId: _queuePlaylistId,
       );
   }
 
@@ -282,6 +286,7 @@ class CallBgm extends ChangeNotifier {
         albumId: _queueAlbumId,
         inAlbum: true,
         favorites: _queueFavorites,
+        playlistId: _queuePlaylistId,
       );
   }
 
@@ -306,8 +311,86 @@ class CallBgm extends ChangeNotifier {
   /// 今の再生の対象が、お気に入りの曲か（trueなら[_queueAlbumId]は使わない）。
   bool _queueFavorites = false;
 
-  List<BgmTrack> _queueTracks() =>
-      _queueFavorites ? favorites : tracksOf(_queueAlbumId);
+  /// 今の再生の対象が、プレイリストなら、そのid（2026-11-17。設定時は[_queueAlbumId]・
+  /// [_queueFavorites]は使わない）。
+  String? _queuePlaylistId;
+
+  List<BgmTrack> _queueTracks() {
+    final playlistId = _queuePlaylistId;
+    if (playlistId != null) return tracksOfPlaylist(playlistId);
+    return _queueFavorites ? favorites : tracksOf(_queueAlbumId);
+  }
+
+  List<BgmPlaylist> _playlists = const [];
+  List<BgmPlaylist> get playlists => _playlists;
+
+  /// [playlistId]のプレイリストの曲を、プレイリストの並びで。端末に無くなった曲は飛ばす。
+  List<BgmTrack> tracksOfPlaylist(String playlistId) {
+    final playlist = _playlists.where((p) => p.id == playlistId).firstOrNull;
+    if (playlist == null) return const [];
+    final byId = {for (final t in _tracks) t.id: t};
+    return [
+      for (final id in playlist.trackIds)
+        if (byId[id] != null) byId[id]!,
+    ];
+  }
+
+  Future<void> addPlaylist(String name) async {
+    await storage.addPlaylist(name);
+    await loadTracks();
+  }
+
+  Future<void> renamePlaylist(String id, String name) async {
+    await storage.renamePlaylist(id, name);
+    await loadTracks();
+  }
+
+  Future<void> removePlaylist(String id) async {
+    await storage.removePlaylist(id);
+    if (_queuePlaylistId == id) _queuePlaylistId = null;
+    await loadTracks();
+  }
+
+  /// 選んだ曲をプレイリストの最後へ足す（既に入っている曲は足さない。1曲は1回だけ）。
+  Future<void> addToPlaylist(String id, Iterable<BgmTrack> tracks) async {
+    final playlist = _playlists.where((p) => p.id == id).firstOrNull;
+    if (playlist == null) return;
+    final ids = [...playlist.trackIds];
+    for (final t in tracks) {
+      if (!ids.contains(t.id)) ids.add(t.id);
+    }
+    await storage.setPlaylistTracks(id, ids);
+    await loadTracks();
+  }
+
+  /// 選んだ曲を、プレイリストから外す（曲そのものは消さない）。
+  Future<void> removeFromPlaylist(String id, Iterable<BgmTrack> tracks) async {
+    final playlist = _playlists.where((p) => p.id == id).firstOrNull;
+    if (playlist == null) return;
+    final remove = {for (final t in tracks) t.id};
+    await storage.setPlaylistTracks(id, [
+      for (final t in playlist.trackIds)
+        if (!remove.contains(t)) t,
+    ]);
+    await loadTracks();
+  }
+
+  /// プレイリストの曲の並べ替え（[ordered]は新しい並び）。
+  Future<void> reorderPlaylist(String id, List<BgmTrack> ordered) async {
+    await storage.setPlaylistTracks(id, [for (final t in ordered) t.id]);
+    await loadTracks();
+  }
+
+  /// 曲を消した時に、全プレイリストからその曲を外す。
+  Future<void> _dropFromPlaylists(Set<String> trackIds) async {
+    for (final p in await storage.listPlaylists()) {
+      if (!p.trackIds.any(trackIds.contains)) continue;
+      await storage.setPlaylistTracks(p.id, [
+        for (final t in p.trackIds)
+          if (!trackIds.contains(t)) t,
+      ]);
+    }
+  }
 
   /// お気に入りの曲（一覧と同じ並び）。
   List<BgmTrack> get favorites =>
@@ -333,6 +416,7 @@ class CallBgm extends ChangeNotifier {
   Future<void> loadTracks() async {
     _tracks = await storage.list();
     _albums = await storage.listAlbums();
+    _playlists = await storage.listPlaylists();
     _artistPhotos = await storage.listArtistPhotos();
     if (!_disposed) notifyListeners();
   }
@@ -560,6 +644,7 @@ class CallBgm extends ChangeNotifier {
       await storage.remove(t.id);
     }
     await _pruneEmptyAlbums({for (final t in list) t.albumId});
+    await _dropFromPlaylists({for (final t in list) t.id});
     await loadTracks();
   }
 
@@ -593,6 +678,7 @@ class CallBgm extends ChangeNotifier {
     if (_current?.id == track.id) await stop();
     await storage.remove(track.id);
     await _pruneEmptyAlbums({track.albumId});
+    await _dropFromPlaylists({track.id});
     await loadTracks();
   }
 
@@ -603,14 +689,17 @@ class CallBgm extends ChangeNotifier {
     String? albumId,
     bool inAlbum = false,
     bool favorites = false,
+    String? playlistId,
   }) async {
     // 一覧のどこから流したかで、次に流す曲の範囲が決まる（アルバムの中から流せば、そのアルバム）。
     if (inAlbum) {
       _queueAlbumId = albumId;
       _queueFavorites = favorites;
+      _queuePlaylistId = playlistId;
     } else if (_current == null) {
       _queueAlbumId = track.albumId;
       _queueFavorites = false;
+      _queuePlaylistId = null;
     }
     final mic = micTrack();
     if (mic == null) return;
@@ -630,6 +719,7 @@ class CallBgm extends ChangeNotifier {
         positionMs: 0,
         queueAlbumId: _queueAlbumId,
         queueFavorites: _queueFavorites,
+        queuePlaylistId: _queuePlaylistId,
       ),
     );
     notifyListeners();
@@ -684,6 +774,7 @@ class CallBgm extends ChangeNotifier {
         albumId: _queueAlbumId,
         inAlbum: true,
         favorites: _queueFavorites,
+        playlistId: _queuePlaylistId,
       );
     }
   }

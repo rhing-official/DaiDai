@@ -3,7 +3,6 @@ import 'dart:typed_data';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:pointer_interceptor/pointer_interceptor.dart';
 
 import '../../../l10n/strings.dart';
 import '../../../models/soundboard_sound.dart';
@@ -11,12 +10,11 @@ import '../../../providers/group_providers.dart';
 import '../../../providers/repository_providers.dart';
 import '../../../providers/soundboard_providers.dart';
 import '../../../repositories/soundboard_repository.dart';
-import '../../../router/back_stack.dart';
 import '../../../utils/auto_dismiss_banner.dart';
 import '../../../utils/sound_upload.dart';
-import '../../../widgets/transitioned_overlay.dart';
 import '../bgm/call_bgm.dart';
-import '../bgm/call_bgm_sheet.dart' show CallPanelSurface, bgmDisplayName;
+import '../bgm/call_bgm_sheet.dart' show bgmDisplayName;
+import '../call_bottom_sheet.dart';
 
 /// 通話のサウンドボードの操作に必要なものをまとめた束（2026-11-16）。BGMと同じミキサーで
 /// 効果音を重ねる為、[bgm]を使う。広場・一対とも、会話の全員が使える。
@@ -43,46 +41,9 @@ Future<void> showCallSoundboardSheet(
   BuildContext context,
   CallSoundboardBinding binding,
 ) {
-  // PC・Webの通話画面はNavigatorが無い位置にある為、BGMのシートと同じく`Overlay`へ直接出す。
-  if (Navigator.maybeOf(context) == null) {
-    final overlay = Overlay.maybeOf(context);
-    if (overlay == null) return Future.value();
-    showTransitionedOverlay(
-      overlay,
-      builder: (context, close) => PointerInterceptor(
-        child: BackEntry(
-          scope: null,
-          active: true,
-          layer: true,
-          onBack: close,
-          child: Stack(
-            fit: StackFit.expand,
-            children: [
-              GestureDetector(
-                behavior: HitTestBehavior.opaque,
-                onTap: close,
-                child: ColoredBox(color: Colors.black.withValues(alpha: 0.4)),
-              ),
-              Align(
-                alignment: Alignment.bottomCenter,
-                child: CallPanelSurface(
-                  child: _CallSoundboardSheet(binding: binding),
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-    return Future.value();
-  }
-  return showModalBottomSheet<void>(
-    context: context,
-    isScrollControlled: true,
-    backgroundColor: Colors.transparent,
-    elevation: 0,
-    builder: (context) =>
-        CallPanelSurface(child: _CallSoundboardSheet(binding: binding)),
+  return showCallBottomSheet(
+    context,
+    builder: (context) => _CallSoundboardSheet(binding: binding),
   );
 }
 

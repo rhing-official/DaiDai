@@ -12,6 +12,10 @@ const _lastTrackKey = 'bgmLastTrackId';
 const _lastPositionKey = 'bgmLastPositionMs';
 const _lastQueueAlbumKey = 'bgmLastQueueAlbumId';
 const _lastQueueFavoritesKey = 'bgmLastQueueFavorites';
+const _lastQueuePlaylistKey = 'bgmLastQueuePlaylistId';
+
+/// タブの数（アーティスト・アルバム・お気に入り・プレイリスト）。保存値は0〜この数-1。
+const kBgmTabCount = 4;
 
 /// 最後に再生していた曲（2026-11-16）。曲・アルバムのidは、その端末のIndexedDBで採番した値で、
 /// 別の端末には無い為、**端末にだけ保存し、アカウントへは書かない**（曲名も保存しない）。
@@ -21,6 +25,7 @@ class BgmLastPlayed {
     required this.positionMs,
     this.queueAlbumId,
     this.queueFavorites = false,
+    this.queuePlaylistId,
   });
 
   final String trackId;
@@ -30,17 +35,26 @@ class BgmLastPlayed {
   final String? queueAlbumId;
   final bool queueFavorites;
 
+  /// プレイリストから流していた時の、そのid（2026-11-17。端末にだけ保存）。
+  final String? queuePlaylistId;
+
   @override
   bool operator ==(Object other) =>
       other is BgmLastPlayed &&
       other.trackId == trackId &&
       other.positionMs == positionMs &&
       other.queueAlbumId == queueAlbumId &&
-      other.queueFavorites == queueFavorites;
+      other.queueFavorites == queueFavorites &&
+      other.queuePlaylistId == queuePlaylistId;
 
   @override
-  int get hashCode =>
-      Object.hash(trackId, positionMs, queueAlbumId, queueFavorites);
+  int get hashCode => Object.hash(
+    trackId,
+    positionMs,
+    queueAlbumId,
+    queueFavorites,
+    queuePlaylistId,
+  );
 }
 
 /// 通話のBGMの前回の状態。
@@ -108,7 +122,7 @@ class BgmPreferencesNotifier extends Notifier<BgmPreferences> {
         order:
             bgmPlayOrderFromName(prefs.getString(_orderKey)) ??
             BgmPlayOrder.inOrder,
-        tab: (prefs.getInt(_tabKey) ?? 0).clamp(0, 2),
+        tab: (prefs.getInt(_tabKey) ?? 0).clamp(0, kBgmTabCount - 1),
         albumId: prefs.getString(_albumKey),
         lastPlayed: trackId == null
             ? null
@@ -117,6 +131,7 @@ class BgmPreferencesNotifier extends Notifier<BgmPreferences> {
                 positionMs: prefs.getInt(_lastPositionKey) ?? 0,
                 queueAlbumId: prefs.getString(_lastQueueAlbumKey),
                 queueFavorites: prefs.getBool(_lastQueueFavoritesKey) ?? false,
+                queuePlaylistId: prefs.getString(_lastQueuePlaylistKey),
               ),
       );
     } catch (_) {
@@ -142,7 +157,7 @@ class BgmPreferencesNotifier extends Notifier<BgmPreferences> {
 
   /// シートのタブを、端末とアカウントへ保存する。
   Future<void> saveTab(int tab) async {
-    final value = tab.clamp(0, 2);
+    final value = tab.clamp(0, kBgmTabCount - 1);
     if (value == state.tab) return;
     state = state.copyWith(tab: value);
     final prefs = await SharedPreferences.getInstance();
@@ -176,6 +191,7 @@ class BgmPreferencesNotifier extends Notifier<BgmPreferences> {
       await prefs.remove(_lastPositionKey);
       await prefs.remove(_lastQueueAlbumKey);
       await prefs.remove(_lastQueueFavoritesKey);
+      await prefs.remove(_lastQueuePlaylistKey);
       return;
     }
     await prefs.setString(_lastTrackKey, value.trackId);
@@ -186,6 +202,11 @@ class BgmPreferencesNotifier extends Notifier<BgmPreferences> {
       await prefs.setString(_lastQueueAlbumKey, value.queueAlbumId!);
     }
     await prefs.setBool(_lastQueueFavoritesKey, value.queueFavorites);
+    if (value.queuePlaylistId == null) {
+      await prefs.remove(_lastQueuePlaylistKey);
+    } else {
+      await prefs.setString(_lastQueuePlaylistKey, value.queuePlaylistId!);
+    }
   }
 
   Future<void> _writeRemote(Map<String, Object?> fields) async {
@@ -206,7 +227,7 @@ class BgmPreferencesNotifier extends Notifier<BgmPreferences> {
     final next = state.copyWith(
       volume: volume?.clamp(0.0, 1.0),
       order: bgmPlayOrderFromName(order),
-      tab: tab?.clamp(0, 2),
+      tab: tab?.clamp(0, kBgmTabCount - 1),
     );
     state = next;
     final prefs = await SharedPreferences.getInstance();

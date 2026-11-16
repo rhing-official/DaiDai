@@ -805,7 +805,6 @@ final Strings _stringsFr = Strings._(
   callBgmPause: 'Pause',
   callBgmResume: 'Lecture',
   callBgmAllTracks: 'Tous les morceaux',
-  callBgmNewAlbum: 'Créer un album',
   callBgmAlbumNameHint: 'Nom de l’album',
   callBgmSearchHint: 'Rechercher par titre ou artiste',
   callBgmSearchNoResults: 'Aucun titre correspondant',
@@ -827,6 +826,15 @@ final Strings _stringsFr = Strings._(
   callBgmAlbumEmpty:
       'Aucun morceau. « Ajouter un morceau » l’ajoute à cet album',
   callBgmCreate: 'Créer',
+  callBgmTabPlaylists: 'Listes de lecture',
+  callBgmNewPlaylist: 'Créer une liste de lecture',
+  callBgmPlaylistNameHint: 'Nom de la liste',
+  callBgmDeletePlaylist: 'Supprimer la liste (les morceaux restent)',
+  callBgmPlaylistEmpty:
+      'Aucun morceau. Sélectionnez des morceaux puis « Ajouter à la liste »',
+  callBgmPlaylistsNone: 'Aucune liste. Utilisez « Créer une liste de lecture »',
+  callBgmAddToPlaylist: 'Ajouter à la liste',
+  callBgmRemoveFromPlaylist: 'Retirer de la liste',
   callSoundboardTitle: 'Tableau de sons',
   callSoundboardAdd: 'Ajouter un effet sonore',
   callSoundboardEmpty:

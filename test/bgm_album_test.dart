@@ -22,6 +22,35 @@ class _FakeStorage implements BgmStorage {
   @override
   Future<List<BgmAlbum>> listAlbums() async => albums.values.toList();
 
+  final playlists = <String, BgmPlaylist>{};
+
+  @override
+  Future<List<BgmPlaylist>> listPlaylists() async => playlists.values.toList();
+
+  @override
+  Future<BgmPlaylist> addPlaylist(String name) async {
+    final p = BgmPlaylist(id: 'p${_n++}', name: name);
+    playlists[p.id] = p;
+    return p;
+  }
+
+  @override
+  Future<void> renamePlaylist(String id, String name) async {
+    final current = playlists[id];
+    if (current == null) return;
+    playlists[id] = BgmPlaylist(id: id, name: name, trackIds: current.trackIds);
+  }
+
+  @override
+  Future<void> removePlaylist(String id) async => playlists.remove(id);
+
+  @override
+  Future<void> setPlaylistTracks(String id, List<String> trackIds) async {
+    final current = playlists[id];
+    if (current == null) return;
+    playlists[id] = BgmPlaylist(id: id, name: current.name, trackIds: trackIds);
+  }
+
   @override
   Future<BgmTrack> add({
     required String name,
@@ -959,6 +988,76 @@ void _nowPlayingTests() {
     expect(back.paused, isTrue);
     expect(back.thumb, [1, 2, 3]);
     expect(BgmNowPlaying.decode('not json'), isNull);
+  });
+
+  group('CallBgm（プレイリスト）', () {
+    late _FakeStorage storage;
+    late CallBgm bgm;
+
+    Future<void> add(String name) =>
+        bgm.addTrack(name: name, mimeType: 'audio/mpeg', bytes: Uint8List(1));
+
+    setUp(() async {
+      storage = _FakeStorage();
+      bgm = CallBgm(
+        storage: storage,
+        micTrack: () => null,
+        replaceOutgoingAudio: (_) async {},
+        onPlayingChanged: (_) {},
+      );
+      await add('a');
+      await add('b');
+      await add('c');
+    });
+
+    BgmTrack track(String name) => bgm.tracks.firstWhere((t) => t.name == name);
+    List<String> names(String id) => [
+      for (final t in bgm.tracksOfPlaylist(id)) t.name,
+    ];
+
+    test('作成・曲の追加（重複は無視）・並べ替え・外す・改名・削除', () async {
+      await bgm.addPlaylist('作業用');
+      final id = bgm.playlists.single.id;
+      await bgm.addToPlaylist(id, [track('c'), track('a')]);
+      await bgm.addToPlaylist(id, [track('a'), track('b')]);
+      expect(names(id), ['c', 'a', 'b']);
+
+      await bgm.reorderPlaylist(id, bgm.tracksOfPlaylist(id).reversed.toList());
+      expect(names(id), ['b', 'a', 'c']);
+
+      await bgm.removeFromPlaylist(id, [track('a')]);
+      expect(names(id), ['b', 'c']);
+      expect(bgm.tracks.length, 3);
+
+      await bgm.renamePlaylist(id, '休憩');
+      expect(bgm.playlists.single.name, '休憩');
+
+      await bgm.removePlaylist(id);
+      expect(bgm.playlists, isEmpty);
+      expect(bgm.tracks.length, 3);
+    });
+
+    test('1曲を複数のプレイリストへ入れられ、曲を消すとどこからも外れる', () async {
+      await bgm.addPlaylist('1');
+      await bgm.addPlaylist('2');
+      final p1 = bgm.playlists[0];
+      final p2 = bgm.playlists[1];
+      await bgm.addToPlaylist(p1.id, [track('a'), track('b')]);
+      await bgm.addToPlaylist(p2.id, [track('a')]);
+      await bgm.removeTrack(track('a'));
+      expect(names(p1.id), ['b']);
+      expect(names(p2.id), isEmpty);
+      // 空になったプレイリストは自動では消えない。
+      expect(bgm.playlists.length, 2);
+    });
+
+    test('端末に無い曲の参照は飛ばす', () async {
+      await bgm.addPlaylist('x');
+      final id = bgm.playlists.single.id;
+      await storage.setPlaylistTracks(id, ['gone', track('b').id]);
+      await bgm.loadTracks();
+      expect(names(id), ['b']);
+    });
   });
 }
 
