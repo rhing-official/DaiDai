@@ -355,10 +355,14 @@ class _CallScreenState extends ConsumerState<CallScreen> {
             )
           : (remote && !_controller.remoteScreenReady)
           ? ScreenReceivingView(failed: _controller.remoteScreenTimedOut)
-          : RTCVideoView(
-              key: ValueKey(renderer),
-              renderer,
-              objectFit: RTCVideoViewObjectFit.RTCVideoViewObjectFitContain,
+          : CallZoomRegion(
+              renderer: renderer,
+              contain: true,
+              child: RTCVideoView(
+                key: ValueKey(renderer),
+                renderer,
+                objectFit: RTCVideoViewObjectFit.RTCVideoViewObjectFitContain,
+              ),
             ),
       name: CallParticipantNameLabel(
         userId: remote ? _otherUserId : me,
@@ -370,6 +374,9 @@ class _CallScreenState extends ConsumerState<CallScreen> {
           ? (_controller.remoteScreenLabel ?? '')
           : _controller.screenQuality.label,
       liveText: strings.callScreenShareLive,
+      notice: (!remote && _controller.screenDeliveryFailed)
+          ? ScreenDeliveryNotice(onRetry: _controller.resendScreenShare)
+          : null,
     );
   }
 

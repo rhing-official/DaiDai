@@ -282,6 +282,11 @@ class WebrtcCallController extends ChangeNotifier {
   /// `screen:on`から20秒経っても、ストリームが届かなかったか（案内を出す）。
   bool get remoteScreenTimedOut => _remoteScreenTimedOut;
   bool _remoteScreenTimedOut = false;
+
+  /// 自分の画面共有が、相手に届いていないと相手から知らされたか（2026-11-17）。共有を終える・
+  /// やり直すと下りる。
+  bool get screenDeliveryFailed => _screenDeliveryFailed;
+  bool _screenDeliveryFailed = false;
   Timer? _remoteScreenTimeout;
   final Stopwatch _remoteScreenWatch = Stopwatch();
 
@@ -1202,6 +1207,13 @@ class WebrtcCallController extends ChangeNotifier {
         }
         _armRemoteScreenTimeout();
         notifyListeners();
+      } else if (text == _screenFailMessage) {
+        // 相手に画面が届いていない。共有している間だけ、お知らせを出す。
+        if (_screenDisplay != null && !_screenDeliveryFailed) {
+          _screenDeliveryFailed = true;
+          callLog('1:1 screen: the other side could not receive it');
+          notifyListeners();
+        }
       } else if (text == _screenOffMessage) {
         _remoteScreenLabel = null;
         _remoteScreenTimeout?.cancel();
@@ -1342,6 +1354,9 @@ class WebrtcCallController extends ChangeNotifier {
   static const _screenOnPrefix = 'screen:on:';
   static const _screenOffMessage = 'screen:off';
 
+  /// 受信側から送信側へ。画面が20秒届かなかった（2026-11-17）。
+  static const _screenFailMessage = 'screen:fail';
+
   /// 相手へ、配信の画質の表示（配信をやめたらnull）を知らせる。
   void _sendScreenState(String? label) {
     final channel = _controlChannel;
@@ -1360,14 +1375,28 @@ class WebrtcCallController extends ChangeNotifier {
     }
   }
 
+  void _sendControl(String text) {
+    final channel = _controlChannel;
+    if (channel == null ||
+        channel.state != RTCDataChannelState.RTCDataChannelOpen) {
+      return;
+    }
+    try {
+      channel.send(RTCDataChannelMessage(text));
+    } catch (_) {}
+  }
+
   /// `screen:on`から20秒、映像が届かなければ、案内を出す（[remoteScreenTimedOut]）。
   void _armRemoteScreenTimeout() {
     _remoteScreenTimeout?.cancel();
     if (_remoteScreenAttached || _remoteScreenLabel == null) return;
+    // 送信側のやり直し（`screen:on`の再送）では、数え直す。
+    _remoteScreenTimedOut = false;
     _remoteScreenTimeout = Timer(const Duration(seconds: 20), () {
       if (_remoteScreenLabel != null && !_remoteScreenAttached) {
         _remoteScreenTimedOut = true;
         callLog('1:1 screen: stream did not arrive within 20s');
+        _sendControl(_screenFailMessage);
         notifyListeners();
       }
     });
@@ -1476,6 +1505,7 @@ class WebrtcCallController extends ChangeNotifier {
     );
     if (display == null) return false;
     _screenDisplay = display;
+    _screenDeliveryFailed = false;
     // 共有元が閉じられたら、共有も終える（`await`の前に付けて、取りこぼさない）。
     ScreenShareCapture.watchEnded(display, () => stopScreenShare());
     _screenQuality = quality;
@@ -1517,16 +1547,24 @@ class WebrtcCallController extends ChangeNotifier {
     final display = _screenDisplay;
     if (display == null) return;
     _screenDisplay = null;
+    _screenDeliveryFailed = false;
     unawaited(ScreenShareCapture.notifyNativeStopped());
     if (_mutedByScreenShare) {
       _mutedByScreenShare = false;
       if (_muted) toggleMute();
     }
+    // 送信の枠は外す（2026-11-17）。以前は枠を残して中身だけ外し、再開は差し替えだけで済ませていたが、
+    // Androidではその再開が相手へ届かなかった（ログ: 再開で再ネゴシエーションが走らない）。
+    // 外しておけば、再開は初回と同じ「枠の追加＋再ネゴシエーション」になる。
+    final pc = _peerConnection;
     for (final sender in [_screenVideoSender, _screenAudioSender]) {
+      if (sender == null) continue;
       try {
-        await sender?.replaceTrack(null);
+        await pc?.removeTrack(sender);
       } catch (_) {}
     }
+    _screenVideoSender = null;
+    _screenAudioSender = null;
     for (final track in display.getTracks()) {
       try {
         await track.stop();
@@ -1539,6 +1577,34 @@ class WebrtcCallController extends ChangeNotifier {
     _sendScreenState(null);
     callLog('1:1 screen share stopped');
     notifyListeners();
+  }
+
+  /// 相手に届いていない時の「やり直す」（2026-11-17）。画面は選び直さず、今のキャプチャのまま、
+  /// 送信の枠を付け直して再ネゴシエーションし、`screen:on`を送り直す。
+  Future<void> resendScreenShare() async {
+    final display = _screenDisplay;
+    final pc = _peerConnection;
+    if (display == null || pc == null) return;
+    _screenDeliveryFailed = false;
+    notifyListeners();
+    callLog('1:1 screen: resend requested');
+    for (final sender in [_screenVideoSender, _screenAudioSender]) {
+      if (sender == null) continue;
+      try {
+        await pc.removeTrack(sender);
+      } catch (e) {
+        callLog('1:1 screen: removeTrack failed: $e');
+      }
+    }
+    _screenVideoSender = null;
+    _screenAudioSender = null;
+    try {
+      await _attachScreenTracks();
+      _sendScreenState(_screenQuality.label);
+      await _sendRenegotiationOffer();
+    } catch (e) {
+      callLog('1:1 screen resend failed: $e');
+    }
   }
 
   /// 配信元を選び直す（送信は止めず、トラックを差し替える）。

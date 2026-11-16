@@ -465,10 +465,14 @@ class _OneToOneStageState extends ConsumerState<_OneToOneStage> {
     return ScreenShareFrame(
       video: (remote && !controller.remoteScreenReady)
           ? ScreenReceivingView(failed: controller.remoteScreenTimedOut)
-          : RTCVideoView(
-              key: ValueKey(renderer),
-              renderer,
-              objectFit: RTCVideoViewObjectFit.RTCVideoViewObjectFitContain,
+          : CallZoomRegion(
+              renderer: renderer,
+              contain: true,
+              child: RTCVideoView(
+                key: ValueKey(renderer),
+                renderer,
+                objectFit: RTCVideoViewObjectFit.RTCVideoViewObjectFitContain,
+              ),
             ),
       name: CallParticipantNameLabel(
         userId: remote ? call.otherUserId(me) : me,
@@ -480,6 +484,9 @@ class _OneToOneStageState extends ConsumerState<_OneToOneStage> {
           ? (controller.remoteScreenLabel ?? '')
           : controller.screenQuality.label,
       liveText: strings.callScreenShareLive,
+      notice: (!remote && controller.screenDeliveryFailed)
+          ? ScreenDeliveryNotice(onRetry: controller.resendScreenShare)
+          : null,
     );
   }
 
@@ -578,10 +585,15 @@ class _GroupStageState extends ConsumerState<_GroupStage> {
         build: (_) => ScreenShareFrame(
           video: !ready
               ? ScreenReceivingView(failed: timedOut)
-              : RTCVideoView(
-                  key: ValueKey(renderer),
-                  renderer,
-                  objectFit: RTCVideoViewObjectFit.RTCVideoViewObjectFitContain,
+              : CallZoomRegion(
+                  renderer: renderer,
+                  contain: true,
+                  child: RTCVideoView(
+                    key: ValueKey(renderer),
+                    renderer,
+                    objectFit:
+                        RTCVideoViewObjectFit.RTCVideoViewObjectFitContain,
+                  ),
                 ),
           name: CallParticipantNameLabel(
             userId: userId,
@@ -594,6 +606,11 @@ class _GroupStageState extends ConsumerState<_GroupStage> {
           ),
           qualityLabel: label,
           liveText: strings.callScreenShareLive,
+          notice:
+              (userId == selfId &&
+                  controller.screenDeliveryFailedPeers.isNotEmpty)
+              ? ScreenDeliveryNotice(onRetry: controller.resendScreenShare)
+              : null,
         ),
       );
     }

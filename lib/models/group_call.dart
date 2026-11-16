@@ -92,6 +92,7 @@ class CallParticipant {
     this.bgmPaused = false,
     this.bgmCover,
     this.screenLabel,
+    this.screenFailedFor = const [],
   });
 
   final String userId;
@@ -111,6 +112,10 @@ class CallParticipant {
 
   /// 画面共有（配信）中の画質の表示（`720P 30FPS`）。配信していなければnull（2026-11-15追加）。
   final String? screenLabel;
+
+  /// この参加者が、画面が届かなかった（20秒待っても映像が来なかった）配信者のuserId（2026-11-17）。
+  /// 配信者は自分のidがここにあれば、「相手に届いていない」とお知らせする。
+  final List<String> screenFailedFor;
 
   /// この参加（端末1台ぶん）を区別するランダムな文字列（2026-10-21追加）。
   /// 参加者ドキュメントのIDはuserIdで端末の区別が無い為、同じ人が別の端末から
@@ -143,6 +148,10 @@ class CallParticipant {
       bgmPaused: json['bgmPaused'] as bool? ?? false,
       bgmCover: json['bgmCover'] as String?,
       screenLabel: json['screenLabel'] as String?,
+      screenFailedFor: [
+        for (final v in (json['screenFailedFor'] as List? ?? const []))
+          v as String,
+      ],
     );
   }
 

@@ -158,6 +158,25 @@ class WebrtcGroupCallController extends ChangeNotifier {
       !remoteScreenReady(p) &&
       _screenTimedOut.contains(p.userId);
   final Set<String> _screenTimedOut = {};
+
+  /// 自分の画面共有が届いていないと申告した相手（共有している間だけ。2026-11-17）。
+  List<CallParticipant> get screenDeliveryFailedPeers => _screenDisplay == null
+      ? const []
+      : remoteParticipants
+            .where((p) => p.screenFailedFor.contains(currentUser.userId))
+            .toList();
+
+  void _setScreenFailed(String senderId, {required bool failed}) {
+    _repository
+        .updateParticipantState(
+          groupCallId: groupCallId,
+          userId: currentUser.userId,
+          screenFailedAdd: failed ? senderId : null,
+          screenFailedRemove: failed ? null : senderId,
+        )
+        .catchError((_) {});
+  }
+
   final Map<String, Timer> _screenTimeouts = {};
   final Map<String, Stopwatch> _screenOnWatch = {};
 
@@ -693,7 +712,9 @@ class WebrtcGroupCallController extends ChangeNotifier {
         final screen = screenRenderers[p.userId];
         if (screen != null) screen.srcObject = null;
         _screenTimeouts.remove(p.userId)?.cancel();
-        _screenTimedOut.remove(p.userId);
+        if (_screenTimedOut.remove(p.userId)) {
+          _setScreenFailed(p.userId, failed: false);
+        }
         _screenOnWatch.remove(p.userId)?.stop();
         continue;
       }
@@ -706,9 +727,16 @@ class WebrtcGroupCallController extends ChangeNotifier {
           if (!still) {
             _screenTimedOut.add(p.userId);
             callLog('group: ${p.userId} screen: stream did not arrive in 20s');
+            // 配信者へ知らせる（配信者の画面にお知らせと「やり直す」が出る）。
+            _setScreenFailed(p.userId, failed: true);
             notifyListeners();
           }
         });
+      }
+      // 遅れて届いた時は、届かなかったという申告を取り下げる。
+      if (_screenTimedOut.contains(p.userId) && remoteScreenReady(p)) {
+        _screenTimedOut.remove(p.userId);
+        _setScreenFailed(p.userId, failed: false);
       }
       // 2回目以降の共有（`onTrack`が来ない）は、前のストリームを入れ直す。
       final screen = screenRenderers[p.userId];
@@ -1535,13 +1563,15 @@ class WebrtcGroupCallController extends ChangeNotifier {
       _mutedByScreenShare = false;
       if (_muted) toggleMute();
     }
-    for (final sender in [
-      ..._screenVideoSenders.values,
-      ..._screenAudioSenders.values,
-    ]) {
-      try {
-        await sender.replaceTrack(null);
-      } catch (_) {}
+    // 送信の枠は外す（2026-11-17）。枠を残して差し替えるだけの再開は、Androidで相手へ届かなかった
+    // （再ネゴシエーションが走らない）。外しておけば、再開は初回と同じ追加＋再ネゴシエーションになる。
+    for (final map in [_screenVideoSenders, _screenAudioSenders]) {
+      for (final entry in [...map.entries]) {
+        try {
+          await _peerConnections[entry.key]?.removeTrack(entry.value);
+        } catch (_) {}
+      }
+      map.clear();
     }
     for (final track in display.getTracks()) {
       try {
@@ -1554,6 +1584,37 @@ class WebrtcGroupCallController extends ChangeNotifier {
     if (gain != null) unawaited(gain.dispose());
     _setScreenLabelOnServer(null);
     callLog('group: screen share stopped');
+    notifyListeners();
+  }
+
+  /// 相手に届いていない時の「やり直す」（2026-11-17）。画面は選び直さず、今のキャプチャのまま、
+  /// 全員への送信の枠を付け直して再ネゴシエーションし、共有の申告も出し直す（受け取る側が
+  /// 20秒の待ちを数え直す）。
+  Future<void> resendScreenShare() async {
+    if (_screenDisplay == null) return;
+    callLog('group: screen: resend requested');
+    _setScreenLabelOnServer(null);
+    final changed = <String>[];
+    for (final entry in [..._peerConnections.entries]) {
+      for (final map in [_screenVideoSenders, _screenAudioSenders]) {
+        final sender = map.remove(entry.key);
+        if (sender == null) continue;
+        try {
+          await entry.value.removeTrack(sender);
+        } catch (e) {
+          callLog('group: ${entry.key} removeTrack failed: $e');
+        }
+      }
+      try {
+        if (await _attachScreenTracks(entry.key, entry.value)) {
+          changed.add(entry.key);
+        }
+      } catch (e) {
+        callLog('group: ${entry.key} re-attach screen failed: $e');
+      }
+    }
+    await _renegotiateAll(changed);
+    _setScreenLabelOnServer(_screenQuality.label);
     notifyListeners();
   }
 

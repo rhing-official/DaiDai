@@ -747,6 +747,8 @@ final Strings _stringsFr = Strings._(
   callBgmVolumeUp: "Augmenter le volume",
   callScreenShare: "Partager l’écran",
   callScreenShareStop: "Arrêter le partage",
+  callScreenDeliveryFailed: "Votre écran n’arrive pas chez l’autre personne",
+  callScreenDeliveryRetry: "Réessayer",
   callScreenShareChange: "Changer le partage",
   callScreenShareQuality: "Qualité du partage",
   callScreenShareFps: "Fréquence d’images",

@@ -617,6 +617,8 @@ class Strings {
     required this.callBgmVolumeUp,
     required this.callScreenShare,
     required this.callScreenShareStop,
+    required this.callScreenDeliveryFailed,
+    required this.callScreenDeliveryRetry,
     required this.callScreenShareChange,
     required this.callScreenShareQuality,
     required this.callScreenShareFps,
@@ -2024,6 +2026,8 @@ class Strings {
   final String callBgmVolumeUp;
   final String callScreenShare;
   final String callScreenShareStop;
+  final String callScreenDeliveryFailed;
+  final String callScreenDeliveryRetry;
   final String callScreenShareChange;
   final String callScreenShareQuality;
   final String callScreenShareFps;
@@ -3569,6 +3573,8 @@ class Strings {
     callBgmVolumeUp: '音量を上げる',
     callScreenShare: '画面を共有',
     callScreenShareStop: '画面共有を中止',
+    callScreenDeliveryFailed: '相手に画面共有が届いていません',
+    callScreenDeliveryRetry: 'やり直す',
     callScreenShareChange: '画面共有を変更',
     callScreenShareQuality: '画面共有の画質',
     callScreenShareFps: 'フレームレート',
@@ -5005,6 +5011,8 @@ class Strings {
     callBgmVolumeUp: 'Volume up',
     callScreenShare: 'Share your screen',
     callScreenShareStop: 'Stop sharing',
+    callScreenDeliveryFailed: 'Your screen is not reaching the other person',
+    callScreenDeliveryRetry: 'Try again',
     callScreenShareChange: 'Change what you share',
     callScreenShareQuality: 'Stream quality',
     callScreenShareFps: 'Frame rate',

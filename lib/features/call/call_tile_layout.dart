@@ -17,6 +17,8 @@ import 'package:pointer_interceptor/pointer_interceptor.dart';
 
 import '../../l10n/strings.dart';
 import 'call_pin_provider.dart';
+import 'call_zoom_provider.dart';
+import 'swipe_down_dock.dart';
 
 /// 自分の画面共有のウィンドウの中身に出す「画面を共有しています」（2026-11-16）。Androidの
 /// ウィンドウの名前ラベルに添える、マイクの状態の表示（2026-11-16）。ミュート中はマイクオフのアイコン、
@@ -201,9 +203,13 @@ class _ScreenSharePreviewState extends ConsumerState<ScreenSharePreview> {
     final strings = ref.watch(appStringsProvider);
     final still = _still;
     final Widget picture = _live
-        ? RTCVideoView(
-            widget.liveRenderer,
-            objectFit: RTCVideoViewObjectFit.RTCVideoViewObjectFitContain,
+        ? CallZoomRegion(
+            renderer: widget.liveRenderer,
+            contain: true,
+            child: RTCVideoView(
+              widget.liveRenderer,
+              objectFit: RTCVideoViewObjectFit.RTCVideoViewObjectFitContain,
+            ),
           )
         : still != null
         ? Image.memory(
@@ -423,7 +429,14 @@ class _CallTileStageState extends ConsumerState<CallTileStage> {
           children: [
             // ピンチ・ホイールで拡縮できる（最大化のビューアの代わり、2026-11-16）。ピン留めを
             // 切り替えたら等倍に戻る。
-            CallZoomable(resetKey: isPinned, child: spec.build(pinned)),
+            CallZoomable(
+              resetKey: isPinned,
+              // ミニ表示から戻した時に、拡縮を残す（通話が終わるまで、2026-11-17）。
+              initial: ref.read(callZoomProvider)[spec.key],
+              onChanged: (entry) =>
+                  ref.read(callZoomProvider.notifier).put(spec.key, entry),
+              child: spec.build(pinned),
+            ),
             if (spec.volume != null)
               ..._volumeControls(spec, constraints.maxHeight),
             Positioned(
@@ -628,6 +641,12 @@ class _CallTileStageState extends ConsumerState<CallTileStage> {
         }
       });
     }
+    // 無くなったウィンドウの拡縮の保持も捨てる。
+    if (ref.read(callZoomProvider).keys.any((k) => !keys.contains(k))) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) ref.read(callZoomProvider.notifier).retain(keys);
+      });
+    }
     final pinned = [
       for (final s in specs)
         if (pinnedKeys.contains(s.key)) s,
@@ -710,6 +729,50 @@ class CallLabelSheet extends StatelessWidget {
   );
 }
 
+/// 自分の画面共有が相手に届いていないと知らされた時のお知らせと「やり直す」ボタン
+/// （2026-11-17）。濃い赤に白（明るい色に白文字は禁止）。
+class ScreenDeliveryNotice extends ConsumerWidget {
+  const ScreenDeliveryNotice({required this.onRetry, super.key});
+
+  final VoidCallback onRetry;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final strings = ref.watch(appStringsProvider);
+    return PointerInterceptor(
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          color: Colors.red.shade700,
+          borderRadius: BorderRadius.circular(8),
+        ),
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(10, 4, 4, 4),
+          child: Row(
+            children: [
+              const Icon(Icons.warning_amber, size: 18, color: Colors.white),
+              const SizedBox(width: 6),
+              Expanded(
+                child: Text(
+                  strings.callScreenDeliveryFailed,
+                  style: const TextStyle(color: Colors.white, fontSize: 12),
+                ),
+              ),
+              TextButton(
+                style: TextButton.styleFrom(
+                  foregroundColor: Colors.white,
+                  visualDensity: VisualDensity.compact,
+                ),
+                onPressed: onRetry,
+                child: Text(strings.callScreenDeliveryRetry),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 /// 画面共有（配信）のタイル（2026-11-15）。映像（切り抜かず全体を見せる）、左下に
 /// 「モニターのアイコン＋名前」、右上に赤い「ライブ」と画質の表示（Discordの配信と同じ配置）。
 class ScreenShareFrame extends StatelessWidget {
@@ -718,8 +781,12 @@ class ScreenShareFrame extends StatelessWidget {
     required this.name,
     required this.qualityLabel,
     required this.liveText,
+    this.notice,
     super.key,
   });
+
+  /// 映像の上（下側）に重ねるお知らせ（自分の共有が相手に届いていない時の[ScreenDeliveryNotice]）。
+  final Widget? notice;
 
   /// 映像（`RTCVideoView`。`objectFit`はContain）。
   final Widget video;
@@ -737,6 +804,8 @@ class ScreenShareFrame extends StatelessWidget {
         fit: StackFit.expand,
         children: [
           ColoredBox(color: Colors.black, child: video),
+          if (notice != null)
+            Positioned(left: 8, right: 8, bottom: 44, child: notice!),
           Positioned(
             left: 8,
             bottom: 8,
@@ -826,19 +895,104 @@ class CallPersonVideo extends StatelessWidget {
         final portrait = isPortraitVideo(value);
         return ColoredBox(
           color: Colors.black,
-          child: RTCVideoView(
-            // Web版のRTCVideoViewは実描画の要素をinitStateでしか取得しないため、
-            // レンダラー自体をキーにする。
-            key: ValueKey(renderer),
-            renderer,
-            mirror: mirror,
-            objectFit: (fullFit || portrait)
-                ? RTCVideoViewObjectFit.RTCVideoViewObjectFitContain
-                : RTCVideoViewObjectFit.RTCVideoViewObjectFitCover,
+          child: CallZoomRegion(
+            renderer: renderer,
+            contain: fullFit,
+            child: RTCVideoView(
+              // Web版のRTCVideoViewは実描画の要素をinitStateでしか取得しないため、
+              // レンダラー自体をキーにする。
+              key: ValueKey(renderer),
+              renderer,
+              mirror: mirror,
+              objectFit: (fullFit || portrait)
+                  ? RTCVideoViewObjectFit.RTCVideoViewObjectFitContain
+                  : RTCVideoViewObjectFit.RTCVideoViewObjectFitCover,
+            ),
           ),
         );
       },
     );
+  }
+}
+
+/// 映像が枠の中で実際に描かれる矩形（2026-11-17）。縦長・[contain]（全体表示）は、映像の
+/// 縦横比で中央に収めた矩形（外側は黒い帯）。横長・正方形の切り抜き表示、大きさが
+/// まだ分からない間は、枠いっぱい。
+Rect callVideoContentRect(
+  RTCVideoValue value,
+  Size size, {
+  required bool contain,
+}) {
+  final whole = Offset.zero & size;
+  if (value.width <= 0 || value.height <= 0 || size.isEmpty) return whole;
+  if (!contain && !isPortraitVideo(value)) return whole;
+  final ratio = value.aspectRatio;
+  var w = size.width;
+  var h = w / ratio;
+  if (h > size.height) {
+    h = size.height;
+    w = h * ratio;
+  }
+  return Rect.fromCenter(center: whole.center, width: w, height: h);
+}
+
+/// 拡縮の基準点を[rect]の内側へ寄せる（黒い帯の上で拡大しても、映像の方が拡大される）。
+Offset clampFocalToRect(Offset focal, Rect rect) => Offset(
+  focal.dx.clamp(rect.left, rect.right).toDouble(),
+  focal.dy.clamp(rect.top, rect.bottom).toDouble(),
+);
+
+/// 倍率[scale]で映像の矩形[content]を、枠[size]の中でどこまで動かせるか（移動量の範囲）を
+/// 軸ごとに求めて[offset]を収める。映像が枠より大きい軸は、映像の端が枠の端を越えない
+/// （黒い帯が見えない）範囲、まだ小さい軸は中央に固定する。
+Offset clampZoomOffset(Offset offset, double scale, Rect content, Size size) {
+  double axis(double v, double start, double end, double extent) {
+    final scaled = (end - start) * scale;
+    if (scaled <= extent) return (extent - scaled) / 2 - start * scale;
+    return v.clamp(extent - end * scale, -start * scale).toDouble();
+  }
+
+  return Offset(
+    axis(offset.dx, content.left, content.right, size.width),
+    axis(offset.dy, content.top, content.bottom, size.height),
+  );
+}
+
+/// [CallZoomable]が子孫へ渡す、映像の矩形の持ち主。映像のウィジェット（[CallZoomRegion]）が
+/// 自分の矩形の求め方を登録し、拡縮はその時の値で矩形を引く。
+class _CallZoomContent {
+  Rect Function(Size size)? contentRect;
+}
+
+class _CallZoomScope extends InheritedWidget {
+  const _CallZoomScope({required this.content, required super.child});
+
+  final _CallZoomContent content;
+
+  @override
+  bool updateShouldNotify(_CallZoomScope old) => false;
+}
+
+/// 拡縮する[CallZoomable]の中で、映像の矩形（[renderer]の映像が[contain]で収まる範囲）を
+/// 拡縮へ伝える。映像を表示する`RTCVideoView`をこれで包む（2026-11-17）。
+class CallZoomRegion extends StatelessWidget {
+  const CallZoomRegion({
+    required this.renderer,
+    required this.contain,
+    required this.child,
+    super.key,
+  });
+
+  final RTCVideoRenderer renderer;
+  final bool contain;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    final scope = context.getInheritedWidgetOfExactType<_CallZoomScope>();
+    scope?.content.contentRect = (size) =>
+        callVideoContentRect(renderer.value, size, contain: contain);
+    return child;
   }
 }
 
@@ -855,12 +1009,20 @@ class CallZoomable extends StatefulWidget {
     required this.child,
     this.resetKey,
     this.maxScale = 5.0,
+    this.initial,
+    this.onChanged,
     super.key,
   });
 
   final Widget child;
   final Object? resetKey;
   final double maxScale;
+
+  /// 最初に出す拡縮（ミニ表示から戻した時に、保持していた状態を復元する、2026-11-17）。
+  final CallZoomEntry? initial;
+
+  /// 拡縮が変わった・等倍に戻った時（等倍は`null`）。保持の書き戻し用。
+  final ValueChanged<CallZoomEntry?>? onChanged;
 
   @override
   State<CallZoomable> createState() => _CallZoomableState();
@@ -870,10 +1032,29 @@ class _CallZoomableState extends State<CallZoomable> {
   double _scale = 1.0;
   Offset _offset = Offset.zero;
   Size _size = Size.zero;
+  final _content = _CallZoomContent();
+
+  /// 映像が実際に描かれる矩形（黒い帯を除く）。登録が無ければ枠いっぱい。
+  Rect get _contentRect =>
+      _content.contentRect?.call(_size) ?? (Offset.zero & _size);
 
   double _startScale = 1.0;
   Offset _startOffset = Offset.zero;
   Offset _startFocal = Offset.zero;
+  bool _restored = false;
+
+  /// 保持していた拡縮を、最初に大きさが分かった時に戻す。映像の矩形は子の構築の後に
+  /// 分かるので、移動量の範囲への収め直しは次のフレームで行う。
+  void _restore(CallZoomEntry entry) {
+    _scale = entry.scale.clamp(1.0, widget.maxScale).toDouble();
+    _offset = entry.offsetFor(_size);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      setState(() {
+        _offset = clampZoomOffset(_offset, _scale, _contentRect, _size);
+      });
+    });
+  }
 
   @override
   void didUpdateWidget(CallZoomable oldWidget) {
@@ -887,6 +1068,7 @@ class _CallZoomableState extends State<CallZoomable> {
       _scale = 1.0;
       _offset = Offset.zero;
     });
+    widget.onChanged?.call(null);
   }
 
   /// [focal]（ウィンドウ内の座標）の下にある点を動かさずに、倍率を[scale]へ変える。
@@ -898,16 +1080,20 @@ class _CallZoomableState extends State<CallZoomable> {
     required Offset toFocal,
   }) {
     final next = scale.clamp(1.0, widget.maxScale);
-    final scenePoint = (focal - fromOffset) / fromScale;
+    final content = _contentRect;
+    // 黒い帯の上で拡大しても、映像の最寄りの点を中心にする（拡大が映像へ誘導される）。
+    final scenePoint =
+        (clampFocalToRect(focal, content) - fromOffset) / fromScale;
     var offset = toFocal - scenePoint * next;
-    // 映像が枠の外へ出きらないように抑える。
-    final minX = _size.width - _size.width * next;
-    final minY = _size.height - _size.height * next;
-    offset = Offset(offset.dx.clamp(minX, 0.0), offset.dy.clamp(minY, 0.0));
+    // 映像の端が枠の端を越えない（黒い帯が見えない）ように抑える。
+    offset = clampZoomOffset(offset, next, content, _size);
     setState(() {
       _scale = next;
       _offset = next <= 1.0 ? Offset.zero : offset;
     });
+    widget.onChanged?.call(
+      next <= 1.0 ? null : CallZoomEntry.of(next, _offset, _size),
+    );
   }
 
   @override
@@ -915,6 +1101,11 @@ class _CallZoomableState extends State<CallZoomable> {
     return LayoutBuilder(
       builder: (context, constraints) {
         _size = constraints.biggest;
+        final initial = widget.initial;
+        if (!_restored) {
+          _restored = true;
+          if (initial != null && !_size.isEmpty) _restore(initial);
+        }
         return ClipRect(
           child: Stack(
             fit: StackFit.expand,
@@ -923,11 +1114,18 @@ class _CallZoomableState extends State<CallZoomable> {
                 transform: Matrix4.identity()
                   ..translateByDouble(_offset.dx, _offset.dy, 0, 1)
                   ..scaleByDouble(_scale, _scale, 1, 1),
-                child: widget.child,
+                child: _CallZoomScope(content: _content, child: widget.child),
               ),
               Positioned.fill(
                 child: PointerInterceptor(
                   child: Listener(
+                    // 拡大中のウィンドウを触る操作は移動（ドラッグ）なので、通話画面の下スワイプ
+                    // （ミニ表示）として数えない。
+                    onPointerDown: (_) {
+                      if (_scale > 1.0) {
+                        SwipeDownDockGuard.maybeOf(context)?.cancel();
+                      }
+                    },
                     onPointerSignal: (event) {
                       if (event is! PointerScrollEvent) return;
                       _zoomAt(
@@ -946,13 +1144,21 @@ class _CallZoomableState extends State<CallZoomable> {
                         _startOffset = _offset;
                         _startFocal = d.localFocalPoint;
                       },
-                      onScaleUpdate: (d) => _zoomAt(
-                        _startFocal,
-                        _startScale * d.scale,
-                        fromScale: _startScale,
-                        fromOffset: _startOffset,
-                        toFocal: d.localFocalPoint,
-                      ),
+                      onScaleUpdate: (d) {
+                        // ピンチ・拡大中の移動の間と、その後に残った指の動きは、下スワイプに数えない。
+                        if (d.pointerCount > 1 ||
+                            d.scale != 1.0 ||
+                            _scale > 1.0) {
+                          SwipeDownDockGuard.maybeOf(context)?.cancel();
+                        }
+                        _zoomAt(
+                          _startFocal,
+                          _startScale * d.scale,
+                          fromScale: _startScale,
+                          fromOffset: _startOffset,
+                          toFocal: d.localFocalPoint,
+                        );
+                      },
                       child: const SizedBox.expand(),
                     ),
                   ),

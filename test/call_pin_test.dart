@@ -21,13 +21,13 @@ void main() {
     expect(container.read(callPinnedTilesProvider), isEmpty);
   });
 
-  test('通話画面が無くなる（購読が無くなる）とピンは外れる', () async {
+  test('通話画面が無くなっても、ピンは残る（通話の間は保持）', () async {
     final container = ProviderContainer();
     addTearDown(container.dispose);
     final sub = container.listen(callPinnedTilesProvider, (_, _) {});
     container.read(callPinnedTilesProvider.notifier).toggle('self');
     sub.close();
     await container.pump();
-    expect(container.read(callPinnedTilesProvider), isEmpty);
+    expect(container.read(callPinnedTilesProvider), {'self'});
   });
 }

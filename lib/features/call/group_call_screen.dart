@@ -395,10 +395,14 @@ class _GroupCallScreenState extends ConsumerState<GroupCallScreen> {
               )
             : (renderer == null || renderer.srcObject == null)
             ? ScreenReceivingView(failed: timedOut)
-            : RTCVideoView(
-                key: ValueKey(renderer),
-                renderer,
-                objectFit: RTCVideoViewObjectFit.RTCVideoViewObjectFitContain,
+            : CallZoomRegion(
+                renderer: renderer,
+                contain: true,
+                child: RTCVideoView(
+                  key: ValueKey(renderer),
+                  renderer,
+                  objectFit: RTCVideoViewObjectFit.RTCVideoViewObjectFitContain,
+                ),
               ),
         name: CallParticipantNameLabel(
           userId: userId,
@@ -411,6 +415,9 @@ class _GroupCallScreenState extends ConsumerState<GroupCallScreen> {
         ),
         qualityLabel: label,
         liveText: strings.callScreenShareLive,
+        notice: (isSelf && _controller.screenDeliveryFailedPeers.isNotEmpty)
+            ? ScreenDeliveryNotice(onRetry: _controller.resendScreenShare)
+            : null,
       ),
     );
 

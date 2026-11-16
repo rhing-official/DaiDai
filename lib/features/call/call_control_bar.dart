@@ -77,7 +77,7 @@ class CallControlBar extends ConsumerWidget {
   final bool isVideo;
 
   /// フロント/バックカメラ等、映像入力デバイスを2台以上持つ端末かどうか。
-  /// falseならカメラ前後切替ボタン自体を表示しない。
+  /// falseならカメラ前後切替ボタン自体を表示しない。ビデオがオフの間も、ボタンの枠ごと詰める。
   final bool hasMultipleCameras;
   final bool switchingCamera;
   final VoidCallback onSwitchCamera;
@@ -110,6 +110,8 @@ class CallControlBar extends ConsumerWidget {
     // 常に固定する。加えて、Row自体を幅固定のコンテナで包む（PC埋め込み
     // ペイン・全画面モバイルなど置かれる場所によってコンテナの幅が違っても
     // 常に同じ大きさで描画されるようにする為、2026-08-19追加）。
+    // 例外（2026-11-17、ユーザー指示）: カメラ前後切り替えのボタンだけは、ビデオがオフの間は
+    // スロットごと詰める（BGM・サウンドボードの非表示は、従来どおり空きスロットを残す）。
     // 画面共有のボタン（ボタン＋「^」）が付く分、幅を足す（2026-11-15）。
     final maxWidth =
         (CallBgm.isSupported ? 480.0 : 360.0) + (screenShare != null ? 100 : 0);
@@ -151,18 +153,16 @@ class CallControlBar extends ConsumerWidget {
                           ? onToggleVideoType
                           : null,
                     ),
-                  if (hasMultipleCameras)
-                    _maybeHidden(
-                      visible: isVideo,
-                      child: CallRoundButton(
-                        icon: Icons.cameraswitch,
-                        color: Colors.grey[700]!,
-                        isGekiga: isGekiga,
-                        isGlass: isGlass,
-                        onPressed: enabled && !switchingCamera
-                            ? onSwitchCamera
-                            : null,
-                      ),
+                  // ビデオがオフの間は、空きスロットを残さず詰める（2026-11-17、ユーザー指示）。
+                  if (hasMultipleCameras && isVideo)
+                    CallRoundButton(
+                      icon: Icons.cameraswitch,
+                      color: Colors.grey[700]!,
+                      isGekiga: isGekiga,
+                      isGlass: isGlass,
+                      onPressed: enabled && !switchingCamera
+                          ? onSwitchCamera
+                          : null,
                     ),
                   if (screenShare != null)
                     ScreenShareControl(

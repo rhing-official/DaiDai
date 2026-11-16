@@ -104,6 +104,10 @@ abstract class GroupCallRepository {
     /// 画面共有中の画質の表示。[clearScreen]がtrueなら消す（共有していない状態）。
     String? screenLabel,
     bool clearScreen = false,
+
+    /// 画面が届かなかった配信者の追加・解除（自分の参加者ドキュメントの`screenFailedFor`）。
+    String? screenFailedAdd,
+    String? screenFailedRemove,
   });
 
   /// 2人ぶんのペアリンクを作成する（offer/answerのやり取りを始める前に、
@@ -421,6 +425,8 @@ class FirestoreGroupCallRepository implements GroupCallRepository {
     bool clearBgm = false,
     String? screenLabel,
     bool clearScreen = false,
+    String? screenFailedAdd,
+    String? screenFailedRemove,
   }) async {
     final data = <String, dynamic>{};
     if (micMuted != null) data['micMuted'] = micMuted;
@@ -438,6 +444,12 @@ class FirestoreGroupCallRepository implements GroupCallRepository {
     }
     if (screenLabel != null) data['screenLabel'] = screenLabel;
     if (clearScreen) data['screenLabel'] = FieldValue.delete();
+    if (screenFailedAdd != null) {
+      data['screenFailedFor'] = FieldValue.arrayUnion([screenFailedAdd]);
+    }
+    if (screenFailedRemove != null) {
+      data['screenFailedFor'] = FieldValue.arrayRemove([screenFailedRemove]);
+    }
     if (data.isEmpty) return;
     await _participantsOf(groupCallId).doc(userId).update(data);
   }
