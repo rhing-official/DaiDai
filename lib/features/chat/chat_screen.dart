@@ -5329,9 +5329,15 @@ class _MessageRow extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final strings = ref.watch(appStringsProvider);
-    final readers = message.readBy
-        .where((r) => r.userId != message.senderId)
-        .toList();
+    // 同じ人が複数回記録されることがある（既読は時刻付きで追記する為、読み直す・複数の端末で
+    // 開くと別の要素になる）。人ごとに1件にして、最初の既読を残す（2026-11-16）。
+    final readers = <MessageReadReceipt>[
+      for (final entry in {
+        for (final r in message.readBy.reversed)
+          if (r.userId != message.senderId) r.userId: r,
+      }.values.toList().reversed)
+        entry,
+    ];
     // 一対（1対1）では、相手のメッセージに付く既読マークは「自分が相手の
     // メッセージを読んだか」を示すだけで意味が無いため非表示にする
     // （読み取り・記録自体はやめない。既読の記録をやめると、自分の
@@ -8691,16 +8697,14 @@ class _SenderName extends ConsumerWidget {
         ],
       );
     }
-    final nickname = ref
-        .watch(watchedUserProvider(userId))
-        .value
-        ?.effectiveNicknameFor(conversationId)
-        ?.text;
-    // 自分が指定した呼び名があれば優先する（2026-11-06）。
+    final watched = ref.watch(watchedUserProvider(userId)).value;
+    final nickname = watched?.effectiveNicknameFor(conversationId)?.text;
+    // 自分が指定した呼び名があれば優先する（2026-11-06）。Rhing Seedが渡されていない場合
+    // （既読の一覧など）は、住人の情報から補う（以前は「@?」になっていた、2026-11-16）。
     final label = resolveDisplayName(
       alias: aliasOf(ref.watch(myContactAliasesProvider).value, userId),
       nickname: nickname,
-      rhingSeed: rhingSeed ?? '?',
+      rhingSeed: rhingSeed ?? watched?.rhingSeed ?? '?',
     );
     return Text(
       label,
@@ -8848,7 +8852,9 @@ class _SenderAvatar extends ConsumerWidget {
     final iconFocal = (ownerId == null && botIconUrl != null)
         ? null
         : user?.effectiveIconFocalFor(conversationId);
-    final seed = ownerId != null ? user?.rhingSeed : rhingSeed;
+    final seed = ownerId != null
+        ? user?.rhingSeed
+        : (rhingSeed ?? user?.rhingSeed);
     final id = (seed == null || seed.isEmpty) ? '?' : seed;
     final palette = ref.watch(avatarPaletteProvider);
     final color = palette[id.hashCode.abs() % palette.length];

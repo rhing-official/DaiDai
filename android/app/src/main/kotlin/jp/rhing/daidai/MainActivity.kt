@@ -77,6 +77,10 @@ class MainActivity : FlutterFragmentActivity() {
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
+        // 新しいエンジンには通話が無い。前の画面（エンジン）が終わった後も前面サービスだけが
+        // 残っていた場合（通話の終了を伝える相手が居なくなった時）に、ここで止める（2026-11-16）。
+        callActive = false
+        CallForegroundService.stop(applicationContext)
         // 通話中にアプリを離れた時、OS標準のピクチャーインピクチャーへ入る
         // （2026-10-12追加、lib/features/call/pip_controller.dart から呼ぶ）。
         // 画面共有の許可を得た直後（MediaProjectionを作る前）に、前面サービスへ`mediaProjection`型を
@@ -88,13 +92,19 @@ class MainActivity : FlutterFragmentActivity() {
         pipChannel?.setMethodCallHandler { call, result ->
             if (call.method == "setCallActive") {
                 callActive = call.argument<Boolean>("active") ?: false
-                updatePipParams()
-                // 通話が終わった時、既にPiPの小窓に入っていたら閉じる（残ると、終わった通話の
-                // 最後の映像がホーム画面の上に出たままになる）。
-                if (!callActive) dismissPipIfNoCall()
                 // 通話中は前面サービスで、アプリを離れても画面が消えてもOSに止められないようにする。
+                // 通話が終わった時にサービスが残ると、「通話中」の通知と実行中のアプリの表示が
+                // 消えない為、PiPの処理（例外になりうる）より先に、確実に止める（2026-11-16）。
                 if (callActive) CallForegroundService.start(applicationContext)
                 else CallForegroundService.stop(applicationContext)
+                try {
+                    updatePipParams()
+                    // 通話が終わった時、既にPiPの小窓に入っていたら閉じる（残ると、終わった通話の
+                    // 最後の映像がホーム画面の上に出たままになる）。
+                    if (!callActive) dismissPipIfNoCall()
+                } catch (e: Exception) {
+                    // PiPの更新に失敗しても、通話の開始・終了の処理は済んでいる。
+                }
                 result.success(null)
             } else if (call.method == "setScreenShareActive") {
                 // 画面共有の終了で、前面サービスの型から`mediaProjection`を外す（開始側は、
@@ -166,6 +176,14 @@ class MainActivity : FlutterFragmentActivity() {
     private fun updatePipParams() {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return
         buildPipParams()?.let { setPictureInPictureParams(it) }
+    }
+
+    // 画面（アクティビティ）が無くなると、Flutterのエンジンも無くなり、通話（Dart側のWebRTC）は続けられない。
+    // 通話の終了をサービスへ伝える相手が居なくなる為、ここで前面サービスを止める（2026-11-16）。
+    override fun onDestroy() {
+        callActive = false
+        CallForegroundService.stop(applicationContext)
+        super.onDestroy()
     }
 
     override fun onUserLeaveHint() {

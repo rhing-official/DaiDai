@@ -122,6 +122,13 @@ class CallForegroundService : Service() {
             .setContentIntent(open)
             .build()
         applyForegroundType()
+        // 開始の直後に、通話が終わって停止が先に届いていた場合（startForegroundServiceとstopServiceの
+        // 競合）は、前面に出した後で、すぐに止める。そうしないと、通知が残り続ける（2026-11-16）。
+        if (!wanted) {
+            @Suppress("DEPRECATION")
+            stopForeground(true)
+            stopSelf()
+        }
         return START_NOT_STICKY
     }
 
@@ -129,6 +136,10 @@ class CallForegroundService : Service() {
         /** 動いている間のサービス（画面共有の型の切り替えを、同期的に行うため）。 */
         @Volatile
         var instance: CallForegroundService? = null
+
+        /** 通話中か（開始で立て、停止で下ろす）。開始の処理より先に停止が来た場合の判定に使う。 */
+        @Volatile
+        var wanted = false
 
         /** 画面共有の間だけ`mediaProjection`型にする／戻す。サービスが動いていなければ何もしない。 */
         fun setProjection(active: Boolean) {
@@ -154,6 +165,7 @@ class CallForegroundService : Service() {
         }
 
         fun start(context: Context) {
+            wanted = true
             try {
                 ContextCompat.startForegroundService(
                     context,
@@ -165,6 +177,7 @@ class CallForegroundService : Service() {
         }
 
         fun stop(context: Context) {
+            wanted = false
             context.stopService(Intent(context, CallForegroundService::class.java))
         }
     }

@@ -258,7 +258,13 @@ class WebrtcGroupCallController extends ChangeNotifier {
   /// 現在のカメラが前面（インカメラ）かどうか（2026-08-30追加、
   /// `webrtc_call_controller.dart`の同名フィールドと同じ考え方）。
   bool _isFrontCamera = true;
-  bool get isFrontCamera => _isFrontCamera;
+
+  /// 自分のプレビューを左右反転する（前面カメラ）かの、画面に出す値。カメラを切り替えた直後は、
+  /// 新しいカメラの最初の映像が出るまで少し間があり、その間に反転だけが先に切り替わって
+  /// 古い映像が一瞬反転して見えた為、反転の切り替えを遅らせる（2026-11-16）。
+  bool _mirrorFront = true;
+  Timer? _mirrorTimer;
+  bool get isFrontCamera => _mirrorFront;
 
   List<CallParticipant> _participants = [];
 
@@ -1528,6 +1534,7 @@ class WebrtcGroupCallController extends ChangeNotifier {
     final track = _localStream?.getVideoTracks().firstOrNull;
     if (track == null) return;
     _isFrontCamera = trackIsFrontFacing(track) ?? _isFrontCamera;
+    _mirrorFront = _isFrontCamera;
     _cameraDeviceId = trackDeviceId(track) ?? _cameraDeviceId;
   }
 
@@ -1563,6 +1570,12 @@ class WebrtcGroupCallController extends ChangeNotifier {
         previousFront: _isFrontCamera,
         nativeIsFront: nativeIsFront,
       );
+      // 反転は、新しいカメラの映像が出るころに切り替える。
+      _mirrorTimer?.cancel();
+      _mirrorTimer = Timer(const Duration(milliseconds: 450), () {
+        _mirrorFront = _isFrontCamera;
+        notifyListeners();
+      });
       if (switched != null) {
         _cameraDeviceId = trackDeviceId(switched) ?? _cameraDeviceId;
       }
@@ -1595,6 +1608,7 @@ class WebrtcGroupCallController extends ChangeNotifier {
 
   @override
   void dispose() {
+    _mirrorTimer?.cancel();
     if (_watchingAudioDevices) navigator.mediaDevices.ondevicechange = null;
     _removePageExitListener?.call();
     _connectGuard.cancelAll();
