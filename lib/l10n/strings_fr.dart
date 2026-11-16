@@ -779,7 +779,7 @@ final Strings _stringsFr = Strings._(
   callScreenShareReceiving: "Réception de l'écran partagé…",
   callScreenShareReceiveFailed:
       "Impossible de recevoir l'écran partagé. Demandez à la personne de relancer le partage.",
-  settingsMicDenoiseTitle: "Suppression du bruit en appel (avancée)",
+  settingsMicDenoiseTitle: "Suppression du bruit en appel",
   settingsMicDenoiseDescription:
       "Réduit les bruits de fond du micro (clavier, ventilateur, télévision) grâce à l’IA. Votre voix ne quitte jamais votre appareil. Effet dès le prochain appel. Version navigateur uniquement.",
   callIncomingVoice: 'Appel vocal entrant',

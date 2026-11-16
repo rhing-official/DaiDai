@@ -2564,13 +2564,12 @@ class _ApplicationPage extends ConsumerWidget {
           ),
         (weight: 300, child: _LanguageFolder(strings: strings)),
         (weight: 180, child: TimeFormatFolder(strings: strings)),
-        if (kIsWeb) (weight: 130, child: _MicDenoiseRow(strings: strings)),
       ],
     );
   }
 }
 
-/// 通話のマイクのノイズ除去（RNNoise）のオン/オフ（2026-11-15、Webのみ）。
+/// 通話のマイクのノイズ除去（RNNoise）のオン/オフ（2026-11-15、Webのみ）。2026-11-17に、設定>アプリケーションから設定>語らい>詳細設定へ移した。
 class _MicDenoiseRow extends ConsumerWidget {
   const _MicDenoiseRow({required this.strings});
 
@@ -4948,6 +4947,10 @@ class _TalkPage extends StatelessWidget {
               _DraftSyncFolder(strings: strings),
               const Divider(height: 24),
               _JoinVideoCameraFolder(strings: strings),
+              if (kIsWeb) ...[
+                const Divider(height: 24),
+                _MicDenoiseRow(strings: strings),
+              ],
             ],
           ),
         ),

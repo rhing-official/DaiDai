@@ -3596,7 +3596,7 @@ class Strings {
     callVolume: '音量',
     callScreenShareReceiving: '画面共有を受信しています…',
     callScreenShareReceiveFailed: '画面共有を受信できません。相手に共有をやり直してもらってください。',
-    settingsMicDenoiseTitle: '通話のノイズ除去（高性能）',
+    settingsMicDenoiseTitle: '通話のノイズ除去',
     settingsMicDenoiseDescription:
         'マイクの雑音（キーボード・扇風機・テレビなど）を、AIで減らします。音声は端末の外へ出しません。次の通話から反映されます。ブラウザ版のみ。',
     callIncomingVoice: '音声通話の着信',
@@ -5037,7 +5037,7 @@ class Strings {
     callScreenShareReceiving: 'Receiving the shared screen…',
     callScreenShareReceiveFailed:
         'Could not receive the shared screen. Ask them to start sharing again.',
-    settingsMicDenoiseTitle: 'Call noise suppression (advanced)',
+    settingsMicDenoiseTitle: 'Call noise suppression',
     settingsMicDenoiseDescription:
         'Reduces background noise from your microphone (keyboards, fans, TV) using AI. Your audio never leaves your device. Takes effect from your next call. Browser version only.',
     callIncomingVoice: 'Incoming voice call',
