@@ -2,7 +2,8 @@ import 'dart:async';
 import 'dart:math' as math;
 import 'dart:typed_data';
 
-import 'package:flutter/gestures.dart' show PointerScrollEvent;
+import 'package:flutter/gestures.dart'
+    show GestureBinding, PointerDownEvent, PointerEvent, PointerScrollEvent;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_webrtc/flutter_webrtc.dart'
@@ -363,6 +364,53 @@ class _CallTileStageState extends ConsumerState<CallTileStage> {
   /// 音量のスライダーを開いているウィンドウのキー。
   final Set<String> _volumeOpen = {};
 
+  /// 開いているスライダーの枠と音量ボタンの位置を調べる鍵（外のクリック判定用）。
+  final Map<String, GlobalKey> _volumeBoxKeys = {};
+  final Map<String, GlobalKey> _volumeButtonKeys = {};
+  bool _watchingPointers = false;
+
+  /// スライダーを開いている間だけ、画面のどこかのクリックを見張る（2026-11-16）。スライダーと
+  /// 音量ボタンの外を押したら閉じる。ポインターを横取りせず見るだけなので、押した先の操作
+  /// （ピン留め・拡縮など）もそのまま効く。
+  void _syncPointerWatch() {
+    final want = _volumeOpen.isNotEmpty;
+    if (want == _watchingPointers) return;
+    _watchingPointers = want;
+    final router = GestureBinding.instance.pointerRouter;
+    if (want) {
+      router.addGlobalRoute(_onGlobalPointer);
+    } else {
+      router.removeGlobalRoute(_onGlobalPointer);
+    }
+  }
+
+  bool _hits(GlobalKey? key, Offset position) {
+    final box = key?.currentContext?.findRenderObject();
+    if (box is! RenderBox || !box.attached) return false;
+    return (box.localToGlobal(Offset.zero) & box.size).contains(position);
+  }
+
+  void _onGlobalPointer(PointerEvent event) {
+    if (event is! PointerDownEvent || !mounted) return;
+    final outside = [
+      for (final key in _volumeOpen)
+        if (!_hits(_volumeBoxKeys[key], event.position) &&
+            !_hits(_volumeButtonKeys[key], event.position))
+          key,
+    ];
+    if (outside.isEmpty) return;
+    setState(() => _volumeOpen.removeAll(outside));
+    _syncPointerWatch();
+  }
+
+  @override
+  void dispose() {
+    if (_watchingPointers) {
+      GestureBinding.instance.pointerRouter.removeGlobalRoute(_onGlobalPointer);
+    }
+    super.dispose();
+  }
+
   GlobalKey _keyFor(String key) => _keys.putIfAbsent(key, GlobalKey.new);
 
   Widget _window(CallTileSpec spec, bool pinned, bool isPinned) {
@@ -430,6 +478,7 @@ class _CallTileStageState extends ConsumerState<CallTileStage> {
           // 小さいウィンドウ（ピン留め時の下の帯）では、収まる高さに縮める。
           child: PointerInterceptor(
             child: DecoratedBox(
+              key: _volumeBoxKeys.putIfAbsent(spec.key, GlobalKey.new),
               decoration: BoxDecoration(
                 color: Colors.black.withValues(alpha: 0.7),
                 borderRadius: BorderRadius.circular(8),
@@ -463,10 +512,14 @@ class _CallTileStageState extends ConsumerState<CallTileStage> {
             child: GestureDetector(
               key: ValueKey('volume-${spec.key}'),
               behavior: HitTestBehavior.opaque,
-              onTap: () => setState(() {
-                if (!_volumeOpen.remove(spec.key)) _volumeOpen.add(spec.key);
-              }),
+              onTap: () {
+                setState(() {
+                  if (!_volumeOpen.remove(spec.key)) _volumeOpen.add(spec.key);
+                });
+                _syncPointerWatch();
+              },
               child: DecoratedBox(
+                key: _volumeButtonKeys.putIfAbsent(spec.key, GlobalKey.new),
                 decoration: const BoxDecoration(
                   color: Colors.black54,
                   shape: BoxShape.circle,

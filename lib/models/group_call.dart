@@ -241,6 +241,15 @@ int liveParticipantCount(List<CallParticipant> participants, DateTime now) {
   }).length;
 }
 
+/// 広場の進行中の通話（`groupCalls/{id}`の中身[data]）。文書が無い・終了済みならnull
+/// （2026-11-16。ポインタ経由の購読で、古いポインタが終了済みの通話を指していても拾わない）。
+GroupCall? activeGroupCallFromData(String id, Map<String, dynamic>? data) {
+  if (data == null || data['status'] != GroupCallStatus.active.name) {
+    return null;
+  }
+  return GroupCall.fromJson(id, data);
+}
+
 /// 通話の作成直後、まだ誰も参加していない間（発起人が参加するまで）は放棄扱いに
 /// しない猶予（2026-10-22）。
 const kGroupCallAbandonedGrace = Duration(seconds: 60);

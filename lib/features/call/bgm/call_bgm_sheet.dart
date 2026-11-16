@@ -186,6 +186,9 @@ class _SheetMemory {
   int tab = 0;
   String? albumId;
   double scroll = 0;
+
+  /// アルバムの帯（横）のスクロール位置（2026-11-16）。
+  double albumStripScroll = 0;
   final Set<String> openArtists = {};
   final Set<String> openArtistAlbums = {};
 }
@@ -218,7 +221,9 @@ class _CallBgmSheetState extends ConsumerState<_CallBgmSheet> {
   String? _albumId = _memory.albumId;
 
   /// アルバムのジャケットの帯（横スクロール）のスクロールバー用。
-  final ScrollController _albumStripScroll = ScrollController();
+  final ScrollController _albumStripScroll = ScrollController(
+    initialScrollOffset: _memory.albumStripScroll,
+  );
 
   /// 曲の検索語（シートを開いている間だけ。空でなければ、タブの一覧の代わりに検索結果を出す）。
   final TextEditingController _searchController = TextEditingController();
@@ -284,6 +289,9 @@ class _CallBgmSheetState extends ConsumerState<_CallBgmSheet> {
     _memory.tab = _tab;
     _memory.albumId = _albumId;
     _memory.scroll = _scroll.hasClients ? _scroll.offset : 0;
+    _memory.albumStripScroll = _albumStripScroll.hasClients
+        ? _albumStripScroll.offset
+        : 0;
     _scroll.dispose();
     _albumStripScroll.dispose();
     _nameController.dispose();

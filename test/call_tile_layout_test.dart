@@ -226,6 +226,47 @@ void main() {
       await tester.pump();
       expect(find.byKey(const ValueKey('volume-slider-a')), findsNothing);
     });
+
+    testWidgets('スライダーの外（他のウィンドウ）を押すと閉じ、押した先の操作も効く', (tester) async {
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            initialAppLocaleProvider.overrideWithValue(AppLocale.japanese),
+          ],
+          child: MaterialApp(
+            home: SizedBox(
+              width: 600,
+              height: 400,
+              child: CallTileStage(
+                specs: [
+                  CallTileSpec(
+                    key: 'a',
+                    volume: CallTileVolume(value: 0.5, onChanged: (_) {}),
+                    build: (_) => const ColoredBox(color: Colors.grey),
+                  ),
+                  CallTileSpec(
+                    key: 'b',
+                    build: (_) => const ColoredBox(color: Colors.grey),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.tap(find.byKey(const ValueKey('volume-a')));
+      await tester.pump();
+      expect(find.byKey(const ValueKey('volume-slider-a')), findsOneWidget);
+      // スライダー自身を押しても閉じない。
+      await tester.tap(find.byKey(const ValueKey('volume-slider-a')));
+      await tester.pump();
+      expect(find.byKey(const ValueKey('volume-slider-a')), findsOneWidget);
+      // 別のウィンドウのピンを押すと、スライダーが閉じ、ピン留めも効く。
+      await tester.tap(find.byKey(const ValueKey('pin-b')));
+      await tester.pump();
+      expect(find.byKey(const ValueKey('volume-slider-a')), findsNothing);
+      expect(find.byIcon(Icons.push_pin), findsOneWidget);
+    });
   });
 
   group('CallMicStatus / CallMicBanner', () {

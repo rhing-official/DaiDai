@@ -1,5 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../features/call/call_log.dart';
 import '../models/group_call.dart';
 import 'repository_providers.dart';
 
@@ -39,8 +40,23 @@ final _rawActiveGroupCallProvider = StreamProvider.family<GroupCall?, String>((
   ref,
   groupId,
 ) {
-  return ref.watch(groupCallRepositoryProvider).watchActiveGroupCall(groupId);
+  return _resubscribing(
+    () => ref.read(groupCallRepositoryProvider).watchActiveGroupCall(groupId),
+  );
 });
+
+/// 購読がエラーで終わっても、少し待って張り直す（バナー・通話ボタンの状態が、一度の失敗で
+/// 固まらないように、2026-11-16）。
+Stream<GroupCall?> _resubscribing(Stream<GroupCall?> Function() open) async* {
+  while (true) {
+    try {
+      yield* open();
+    } catch (e) {
+      callLog('active group call watch failed: $e');
+    }
+    await Future<void>.delayed(const Duration(seconds: 5));
+  }
+}
 
 final _callParticipantsProvider =
     StreamProvider.family<List<CallParticipant>, String>((ref, groupCallId) {

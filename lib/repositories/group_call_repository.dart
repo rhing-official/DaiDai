@@ -1,7 +1,10 @@
+import 'dart:async';
+
 import 'package:cloud_firestore/cloud_firestore.dart';
 
 import '../models/app_user.dart';
 import '../models/group.dart';
+import '../features/call/call_log.dart';
 import '../models/group_call.dart';
 
 /// 広場（グループ）通話のシグナリングを扱うリポジトリ。メッシュ型P2Pの為、
@@ -203,6 +206,7 @@ class FirestoreGroupCallRepository implements GroupCallRepository {
     return _firestore.runTransaction<GroupCall>((transaction) async {
       final pointerSnap = await transaction.get(pointerRef);
       final existingCallId = pointerSnap.data()?['activeCallId'] as String?;
+      var reason = 'pointer=none';
       if (existingCallId != null) {
         final existingCallRef = _groupCalls.doc(existingCallId);
         final existingCallSnap = await transaction.get(existingCallRef);
@@ -210,9 +214,14 @@ class FirestoreGroupCallRepository implements GroupCallRepository {
         if (existingCallSnap.exists &&
             existingData != null &&
             existingData['status'] == GroupCallStatus.active.name) {
+          callLog('group call: reuse $existingCallId (group=${group.groupId})');
           return GroupCall.fromJson(existingCallSnap.id, existingData);
         }
+        reason =
+            'pointer=$existingCallId exists=${existingCallSnap.exists} '
+            'status=${existingData?['status']}';
       }
+      callLog('group call: create new (group=${group.groupId}) $reason');
 
       final newCallRef = _groupCalls.doc();
       final call = GroupCall(
@@ -229,18 +238,42 @@ class FirestoreGroupCallRepository implements GroupCallRepository {
     });
   }
 
+  /// ポインタ（`groupActiveCallPointers/{groupId}`）→通話の単一ドキュメント、の順に購読する
+  /// （2026-11-16）。以前は`groupCalls`を`groupId`・`status`だけで絞って購読しており、ルール
+  /// （`uid in resource.data.memberIds`）をクエリが証明できず`permission-denied`で拒否され、
+  /// キャッシュの最初の1回だけ返って以後は更新されなかった（読み込み後に始まった通話のバナーが、
+  /// 再読み込みするまで出ない不具合）。単一ドキュメントの購読ならルールを満たし、インデックスも要らない。
   @override
   Stream<GroupCall?> watchActiveGroupCall(String groupId) {
-    return _groupCalls
-        .where('groupId', isEqualTo: groupId)
-        .where('status', isEqualTo: GroupCallStatus.active.name)
-        .limit(1)
-        .snapshots()
-        .map((snapshot) {
-          if (snapshot.docs.isEmpty) return null;
-          final doc = snapshot.docs.first;
-          return GroupCall.fromJson(doc.id, doc.data());
-        });
+    late final StreamController<GroupCall?> controller;
+    StreamSubscription<DocumentSnapshot<Map<String, dynamic>>>? pointerSub;
+    StreamSubscription<DocumentSnapshot<Map<String, dynamic>>>? callSub;
+    controller = StreamController<GroupCall?>(
+      onListen: () {
+        pointerSub = _activeCallPointer(groupId).snapshots().listen((pointer) {
+          final id = pointer.data()?['activeCallId'] as String?;
+          callSub?.cancel();
+          callSub = null;
+          if (id == null) {
+            controller.add(null);
+            return;
+          }
+          callSub = _groupCalls
+              .doc(id)
+              .snapshots()
+              .listen(
+                (doc) =>
+                    controller.add(activeGroupCallFromData(doc.id, doc.data())),
+                onError: controller.addError,
+              );
+        }, onError: controller.addError);
+      },
+      onCancel: () async {
+        await callSub?.cancel();
+        await pointerSub?.cancel();
+      },
+    );
+    return controller.stream;
   }
 
   @override
@@ -270,6 +303,7 @@ class FirestoreGroupCallRepository implements GroupCallRepository {
     required bool isVideo,
     String? sessionId,
   }) async {
+    callLog('group call: join $groupCallId (user=${user.userId})');
     final participant = CallParticipant(
       userId: user.userId,
       rhingSeed: user.rhingSeed,
@@ -321,6 +355,10 @@ class FirestoreGroupCallRepository implements GroupCallRepository {
     )) {
       return;
     }
+    callLog(
+      'group call: ending abandoned $groupCallId '
+      'participants=${participants.length}',
+    );
     await _endCall(groupCallId);
   }
 
