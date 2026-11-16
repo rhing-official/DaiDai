@@ -87,11 +87,42 @@ class ScreenShareCapture {
     };
   }
 
-  /// ネイティブのAndroidか（画面共有は映像のみ。音声・音声だけ共有・タブの案内は出さない）。
+  /// ネイティブのAndroidか（映像は`getDisplayMedia`、端末の再生音は[setNativeAudio]でマイクの音声へ
+  /// 混ぜて送る。音声だけ共有・タブの案内は出さない）。
   static bool get isNativeAndroid =>
       !kIsWeb && defaultTargetPlatform == TargetPlatform.android;
 
   static const _channel = MethodChannel('jp.rhing.daidai/pip');
+
+  /// ネイティブAndroidで、端末の再生音を送っているか（2026-11-17）。送っている間は、マイクの
+  /// ミュートを、トラックの無効化ではなくネイティブ側のソフトミュートで行う（トラックごと
+  /// 無音にすると、混ぜた再生音まで止まる為）。
+  static bool nativeAudioOn = false;
+
+  /// 端末の再生音を相手へ送る／止める（Android 10以降、画面共有の最中だけ）。取り始められたら`true`。
+  static Future<bool> setNativeAudio(bool on) async {
+    if (!isNativeAndroid) return false;
+    try {
+      final ok =
+          await _channel.invokeMethod<bool>('setScreenAudio', {'active': on}) ??
+          false;
+      nativeAudioOn = on && ok;
+      return on ? ok : true;
+    } catch (_) {
+      nativeAudioOn = false;
+      return false;
+    }
+  }
+
+  /// 再生音を送っている間の、マイクだけのミュート。
+  static Future<void> setNativeMicMuted(bool muted) async {
+    if (!isNativeAndroid) return;
+    try {
+      await _channel.invokeMethod<void>('setScreenAudioMicMuted', {
+        'muted': muted,
+      });
+    } catch (_) {}
+  }
 
   /// Androidで、画面共有が終わったことを前面サービスへ伝える（`mediaProjection`型を外す）。
   /// 開始側は、許可の直後にネイティブ側のフックが行う。

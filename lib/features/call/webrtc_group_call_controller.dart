@@ -1279,12 +1279,22 @@ class WebrtcGroupCallController extends ChangeNotifier {
     );
   }
 
-  void toggleMute() {
-    _muted = !_muted;
+  /// マイクのミュートを送信へ反映する。Androidで端末の再生音を送っている間は、トラックは有効のまま
+  /// ネイティブ側で声だけを無音にする（トラックごと無音にすると再生音まで止まる、2026-11-17）。
+  void _applyMicMute() {
+    final soft = ScreenShareCapture.nativeAudioOn;
     for (final track
         in _localStream?.getAudioTracks() ?? <MediaStreamTrack>[]) {
-      track.enabled = !_muted;
+      track.enabled = soft ? true : !_muted;
     }
+    if (ScreenShareCapture.isNativeAndroid) {
+      unawaited(ScreenShareCapture.setNativeMicMuted(soft && _muted));
+    }
+  }
+
+  void toggleMute() {
+    _muted = !_muted;
+    _applyMicMute();
     _repository.updateParticipantState(
       groupCallId: groupCallId,
       userId: currentUser.userId,
@@ -1522,7 +1532,14 @@ class WebrtcGroupCallController extends ChangeNotifier {
       _mutedByScreenShare = true;
     }
     _screenContainer ??= await createLocalMediaStream('screen');
-    screenAudioMissing = shareAudio && display.getAudioTracks().isEmpty;
+    if (ScreenShareCapture.isNativeAndroid) {
+      // Androidは、端末の再生音をマイクの音声へ混ぜて送る（映像のトラックに音は付かない）。
+      screenAudioMissing =
+          shareAudio && !await ScreenShareCapture.setNativeAudio(true);
+      _applyMicMute();
+    } else {
+      screenAudioMissing = shareAudio && display.getAudioTracks().isEmpty;
+    }
     if (screenAudioMissing) {
       callLog('group: screen audio was not available');
     }
@@ -1562,6 +1579,10 @@ class WebrtcGroupCallController extends ChangeNotifier {
     if (_mutedByScreenShare) {
       _mutedByScreenShare = false;
       if (_muted) toggleMute();
+    }
+    if (ScreenShareCapture.isNativeAndroid) {
+      await ScreenShareCapture.setNativeAudio(false);
+      _applyMicMute();
     }
     // 送信の枠は外す（2026-11-17）。枠を残して差し替えるだけの再開は、Androidで相手へ届かなかった
     // （再ネゴシエーションが走らない）。外しておけば、再開は初回と同じ追加＋再ネゴシエーションになる。
@@ -1629,6 +1650,11 @@ class WebrtcGroupCallController extends ChangeNotifier {
     if (next == null) return;
     _screenDisplay = next;
     ScreenShareCapture.watchEnded(next, () => stopScreenShare());
+    if (ScreenShareCapture.isNativeAndroid && _screenAudio) {
+      // 新しいキャプチャ（新しいprojection）で、再生音の取得を取り直す。
+      await ScreenShareCapture.setNativeAudio(true);
+      _applyMicMute();
+    }
     localScreenRenderer.srcObject = next;
     // 共有する音の音量は、新しいトラックに掛け直す。
     final oldGain = _screenGain;
@@ -1660,6 +1686,13 @@ class WebrtcGroupCallController extends ChangeNotifier {
     _screenAudio = shareAudio;
     final display = _screenDisplay;
     if (display == null) return;
+    if (ScreenShareCapture.isNativeAndroid) {
+      screenAudioMissing =
+          shareAudio && !await ScreenShareCapture.setNativeAudio(shareAudio);
+      _applyMicMute();
+      notifyListeners();
+      return;
+    }
     if (shareAudio) {
       await changeScreenSource();
       return;

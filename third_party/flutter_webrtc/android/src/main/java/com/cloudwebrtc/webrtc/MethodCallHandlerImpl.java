@@ -300,6 +300,8 @@ public class MethodCallHandlerImpl implements MethodCallHandler, StateProvider {
       }
     }
 
+    // 画面共有の再生音をマイクの送信音声へ混ぜる（DaiDai独自のパッチ。混ぜる音が無い間は素通し）。
+    audioDeviceModuleBuilder.setAudioBufferCallback(new ScreenAudioMixerCallback());
     audioDeviceModuleBuilder.setSamplesReadyCallback(recordSamplesReadyCallbackAdapter);
     audioDeviceModuleBuilder.setPlaybackSamplesReadyCallback(playbackSamplesReadyCallbackAdapter);
 

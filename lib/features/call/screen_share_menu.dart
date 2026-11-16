@@ -71,8 +71,7 @@ CallScreenShareBinding? oneToOneScreenShare(
     controller: controller,
     userId: userId,
     isSharing: () => controller.isScreenSharing,
-    audioMissing: () =>
-        !ScreenShareCapture.isNativeAndroid && controller.screenAudioMissing,
+    audioMissing: () => controller.screenAudioMissing,
     start: (q, audio, muteMic) => controller.startScreenShare(
       quality: q,
       shareAudio: audio,
@@ -95,8 +94,7 @@ CallScreenShareBinding? groupScreenShare(WebrtcGroupCallController controller) {
     controller: controller,
     userId: controller.currentUser.userId,
     isSharing: () => controller.isScreenSharing,
-    audioMissing: () =>
-        !ScreenShareCapture.isNativeAndroid && controller.screenAudioMissing,
+    audioMissing: () => controller.screenAudioMissing,
     start: (q, audio, muteMic) => controller.startScreenShare(
       quality: q,
       shareAudio: audio,
@@ -134,50 +132,65 @@ class ScreenShareControl extends ConsumerWidget {
       builder: (context, _) {
         final sharing = binding.isSharing();
         final strings = ref.watch(appStringsProvider);
-        return Row(
-          mainAxisSize: MainAxisSize.max,
-          children: [
-            const Expanded(child: SizedBox.shrink()),
-            Semantics(
-              button: true,
-              label: sharing
-                  ? strings.callScreenShareStop
-                  : strings.callScreenShare,
-              child: CallRoundButton(
-                icon: sharing ? Icons.stop_screen_share : Icons.screen_share,
-                color: sharing ? Colors.green.shade700 : Colors.grey[700]!,
-                isGekiga: isGekiga,
-                isGlass: isGlass,
-                onPressed: enabled
-                    ? () => sharing
-                          ? binding.stop()
-                          : _start(context, ref, binding)
-                    : null,
-              ),
-            ),
-            // ボタンを枠の中央に保つため、左右の余白は同じ幅。「^」は右の余白に置く。
-            Expanded(
-              child: Align(
-                alignment: Alignment.centerLeft,
-                // 枠が狭くても溢れないよう、収まる大きさまで縮める。
-                child: FittedBox(
-                  fit: BoxFit.scaleDown,
-                  child: IconButton(
-                    iconSize: 28,
-                    padding: EdgeInsets.zero,
-                    constraints: const BoxConstraints.tightFor(
-                      width: 36,
-                      height: 40,
-                    ),
-                    icon: const Icon(Icons.keyboard_arrow_up),
+        // ボタンの右下に重ねる丸い「^」（2026-11-17）。以前は枠の余白（数px）に収めていた為、
+        // 縮められて見えなくなっていた。余白からはみ出して、はっきり見える大きさにする。
+        return Center(
+          child: SizedBox(
+            width: 56,
+            height: 56,
+            child: Stack(
+              clipBehavior: Clip.none,
+              children: [
+                Semantics(
+                  button: true,
+                  label: sharing
+                      ? strings.callScreenShareStop
+                      : strings.callScreenShare,
+                  child: CallRoundButton(
+                    icon: sharing
+                        ? Icons.stop_screen_share
+                        : Icons.screen_share,
+                    color: sharing ? Colors.green.shade700 : Colors.grey[700]!,
+                    isGekiga: isGekiga,
+                    isGlass: isGlass,
                     onPressed: enabled
-                        ? () => showScreenShareMenu(context, binding)
+                        ? () => sharing
+                              ? binding.stop()
+                              : _start(context, ref, binding)
                         : null,
                   ),
                 ),
-              ),
+                Positioned(
+                  right: -12,
+                  bottom: -10,
+                  child: Opacity(
+                    opacity: enabled ? 1 : 0.4,
+                    child: Material(
+                      color: Colors.grey[800],
+                      shape: const CircleBorder(
+                        side: BorderSide(color: Colors.white, width: 1.5),
+                      ),
+                      child: InkWell(
+                        customBorder: const CircleBorder(),
+                        onTap: enabled
+                            ? () => showScreenShareMenu(context, binding)
+                            : null,
+                        child: const SizedBox(
+                          width: 30,
+                          height: 30,
+                          child: Icon(
+                            Icons.keyboard_arrow_up,
+                            size: 24,
+                            color: Colors.white,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ],
             ),
-          ],
+          ),
         );
       },
     );
@@ -410,34 +423,44 @@ class _ScreenShareMenu extends ConsumerWidget {
                     ],
                   ),
                   const SizedBox(height: 8),
-                  // Androidの画面共有は映像のみ（音声は取れない）ので、音声まわりの項目は出さない。
-                  if (!ScreenShareCapture.isNativeAndroid) ...[
-                    InkWell(
-                      onTap: () => toggleAudio(!settings.shareAudio),
-                      child: Padding(
-                        padding: const EdgeInsets.symmetric(vertical: 8),
-                        child: Row(
-                          children: [
-                            Expanded(child: Text(strings.callScreenShareAudio)),
-                            AppCheckbox(
-                              value: settings.shareAudio,
-                              onChanged: (v) => toggleAudio(v ?? false),
-                            ),
-                          ],
+                  // Androidは、端末の再生音をマイクの音声に混ぜて送る（2026-11-17、Android 10以降）。
+                  // 「音声だけ共有」はAndroidでは出さない。
+                  InkWell(
+                    onTap: () => toggleAudio(!settings.shareAudio),
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 8),
+                      child: Row(
+                        children: [
+                          Expanded(child: Text(strings.callScreenShareAudio)),
+                          AppCheckbox(
+                            value: settings.shareAudio,
+                            onChanged: (v) => toggleAudio(v ?? false),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                  if (ScreenShareCapture.isNativeAndroid && settings.shareAudio)
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: 8),
+                      child: Text(
+                        strings.callScreenShareAndroidAudioNote,
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          color: theme.colorScheme.onSurfaceVariant,
                         ),
                       ),
                     ),
+                  if (!ScreenShareCapture.isNativeAndroid)
                     checkRow(
                       strings.callScreenShareAudioOnly,
                       settings.quality.audioOnly,
                       (v) => choose(settings.quality.copyWith(audioOnly: v)),
                     ),
-                    checkRow(
-                      strings.callScreenShareMuteMic,
-                      settings.muteMic,
-                      notifier.setMuteMic,
-                    ),
-                  ],
+                  checkRow(
+                    strings.callScreenShareMuteMic,
+                    settings.muteMic,
+                    notifier.setMuteMic,
+                  ),
                   if (binding.remoteSharing()) ...[
                     const SizedBox(height: 4),
                     Text(

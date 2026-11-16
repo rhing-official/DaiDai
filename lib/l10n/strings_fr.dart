@@ -748,6 +748,8 @@ final Strings _stringsFr = Strings._(
   callScreenShare: "Partager l’écran",
   callScreenShareStop: "Arrêter le partage",
   callScreenDeliveryFailed: "Votre écran n’arrive pas chez l’autre personne",
+  callScreenShareAndroidAudioNote:
+      "Le son de l’appareil est mélangé à votre voix. Les applis qui n’autorisent pas la capture audio, comme Spotify, ne peuvent pas être partagées.",
   callScreenDeliveryRetry: "Réessayer",
   callScreenShareChange: "Changer le partage",
   callScreenShareQuality: "Qualité du partage",

@@ -133,6 +133,8 @@ public class OrientationAwareScreenCapturer implements VideoCapturer, VideoSink 
 
         // Let MediaProjection callback use the SurfaceTextureHelper thread.
         mediaProjection.registerCallback(mediaProjectionCallback, surfaceTextureHelper.getHandler());
+        // 端末の再生音を送る{@link ScreenAudioMixer}へ、同じprojectionを渡す（DaiDai独自のパッチ）。
+        ScreenAudioMixer.onProjectionReady(mediaProjection);
 
         createVirtualDisplay();
         capturerObserver.onCapturerStarted(true);
@@ -158,6 +160,7 @@ public class OrientationAwareScreenCapturer implements VideoCapturer, VideoSink 
                 }
                 releaseVirtualDisplaySurface();
                 if (mediaProjection != null) {
+                    ScreenAudioMixer.onProjectionStopped(mediaProjection);
                     // Unregister the callback before stopping, otherwise the callback recursively
                     // calls this method.
                     mediaProjection.unregisterCallback(mediaProjectionCallback);

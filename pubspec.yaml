@@ -109,6 +109,7 @@ dependencies:
 
 # flutter_webrtcのAndroidに、画面共有の許可の直後に前面サービスの型を切り替えるフックを足したコピー
 # （third_party/flutter_webrtc、本家は1.6.0+hotfix.1・MIT）。Android 14以降の画面共有に必要。
+# 2026-11-17: 画面共有の端末の再生音をマイクの送信音声へ混ぜる`ScreenAudioMixer`（Android 10以降）も追加。
 dependency_overrides:
   flutter_webrtc:
     path: third_party/flutter_webrtc

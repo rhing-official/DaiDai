@@ -148,6 +148,14 @@ class MainActivity : FlutterFragmentActivity() {
                 // flutter_webrtcの許可直後のフックで行う）。
                 if (call.argument<Boolean>("active") != true) CallForegroundService.setProjection(false)
                 result.success(null)
+            } else if (call.method == "setScreenAudio") {
+                // 画面共有の最中に、端末の再生音（動画・ゲームなど）を、マイクの音声へ混ぜて送る／止める
+                // （Android 10以降。third_party/flutter_webrtcの`ScreenAudioMixer`）。
+                val active = call.argument<Boolean>("active") ?: false
+                result.success(com.cloudwebrtc.webrtc.ScreenAudioMixer.setWanted(active))
+            } else if (call.method == "setScreenAudioMicMuted") {
+                com.cloudwebrtc.webrtc.ScreenAudioMixer.setMicMuted(call.argument<Boolean>("muted") ?: false)
+                result.success(null)
             } else if (call.method == "setKeepScreenOn") {
                 // 映像通話中に、OSの自動消灯で通話が止まらないようにする。
                 val keep = call.argument<Boolean>("keep") ?: false
