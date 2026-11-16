@@ -344,7 +344,9 @@ service cloud.firestore {
     // 開いた相手や、外部SNSのリンク展開（OGP）にも見せる必要があるため
     // 公開読み取り可能。書き込みは本人のみ（`userId`フィールドで判定）。
     match /userInvites/{rhingSeed} {
-      allow read: if true;
+      // 1件の取得（get）だけを公開する。一覧（list）を許すと、全住人のRhing Seedを列挙できて
+      // しまう（2026-11-16）。リンクのOGP（Worker）・アプリは、IDを指定して1件だけ読む。
+      allow get: if true;
       // 他人のRhing Seedのドキュメントを自分のuserIdで上書きして招待リンクを
       // 乗っ取れないよう、①新規作成か既存の持ち主本人であること、②ドキュメントID
       // （Rhing Seed）が自分のusersドキュメントのrhingSeedと一致することを要求する
@@ -1632,7 +1634,8 @@ service cloud.firestore {
     // 書き込みは対応する広場のメンバーのみ（プロフィールカード編集・広場作成時に
     // groups/{groupId}と同時に更新する）。
     match /groupInvites/{groupId} {
-      allow read: if true;
+      // 1件の取得（get）だけを公開する（全広場の一覧は許さない、2026-11-16）。
+      allow get: if true;
       allow write: if request.auth != null
         && request.auth.uid in get(/databases/$(database)/documents/groups/$(groupId)).data.memberIds;
     }
@@ -1645,7 +1648,10 @@ service cloud.firestore {
     // トークン発行は全てCloud Functions（Admin SDK、ルール適用外）経由で行うため、
     // クライアントからのupdate/deleteは一切許可しない。
     match /qrLoginSessions/{sessionId} {
-      allow read: if true;
+      // 1件の取得（get）だけを公開する。一覧（list）を許すと、他の端末の承認待ち・承認済みの
+      // sessionIdを列挙でき、`claimQrLoginSession`で承認済みのセッションを横取りされうる
+      // （2026-11-16）。sessionIdを知っている端末だけが読める、という前提を一覧が崩さないようにする。
+      allow get: if true;
       allow create: if request.resource.data.status == 'pending'
         && request.resource.data.keys().hasOnly(['status', 'createdAt'])
         && request.resource.data.createdAt == request.time;
