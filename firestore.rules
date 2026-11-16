@@ -512,6 +512,16 @@ service cloud.firestore {
         allow create: if request.auth != null
           && request.auth.uid in get(/databases/$(database)/documents/directMessages/$(dmId)).data.participants
           && request.resource.data.createdBy == request.auth.uid;
+        // 名前・音量の変更（2026-11-17）。参加者2人が対等。ほかのフィールドは変えられない。
+        allow update: if request.auth != null
+          && request.auth.uid in get(/databases/$(database)/documents/directMessages/$(dmId)).data.participants
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['name', 'volume'])
+          && request.resource.data.name is string
+          && request.resource.data.name.size() >= 1
+          && request.resource.data.name.size() <= 40
+          && request.resource.data.volume is number
+          && request.resource.data.volume >= 0
+          && request.resource.data.volume <= 1;
         allow delete: if request.auth != null
           && request.auth.uid in get(/databases/$(database)/documents/directMessages/$(dmId)).data.participants;
       }
@@ -1237,6 +1247,17 @@ service cloud.firestore {
         allow create: if request.auth != null
           && request.auth.uid in get(/databases/$(database)/documents/groups/$(groupId)).data.memberIds
           && request.resource.data.createdBy == request.auth.uid;
+        // 名前・音量の変更（2026-11-17）。追加した本人か長。ほかのフィールドは変えられない。
+        allow update: if request.auth != null
+          && (resource.data.createdBy == request.auth.uid
+              || get(/databases/$(database)/documents/groups/$(groupId)).data.ownerId == request.auth.uid)
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['name', 'volume'])
+          && request.resource.data.name is string
+          && request.resource.data.name.size() >= 1
+          && request.resource.data.name.size() <= 40
+          && request.resource.data.volume is number
+          && request.resource.data.volume >= 0
+          && request.resource.data.volume <= 1;
         allow delete: if request.auth != null
           && (resource.data.createdBy == request.auth.uid
               || get(/databases/$(database)/documents/groups/$(groupId)).data.ownerId == request.auth.uid);

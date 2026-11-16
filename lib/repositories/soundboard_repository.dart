@@ -24,6 +24,16 @@ abstract class SoundboardRepository {
     required String name,
     required String fileName,
     required Uint8List bytes,
+    double volume = 1.0,
+  });
+
+  /// 名前・音量を変更する（ファイルは変えない）。
+  Future<void> updateSound({
+    required bool isDm,
+    required String conversationId,
+    required String soundId,
+    String? name,
+    double? volume,
   });
 
   Future<void> deleteSound({
@@ -77,6 +87,10 @@ class FirestoreSoundboardRepository implements SoundboardRepository {
             mimeType: (doc.data()['mimeType'] as String?) ?? 'audio/mpeg',
             createdBy: (doc.data()['createdBy'] as String?) ?? '',
             createdAt: (doc.data()['createdAt'] as Timestamp?)?.toDate(),
+            volume: ((doc.data()['volume'] as num?)?.toDouble() ?? 1.0).clamp(
+              0.0,
+              1.0,
+            ),
           ),
       ];
     });
@@ -90,6 +104,7 @@ class FirestoreSoundboardRepository implements SoundboardRepository {
     required String name,
     required String fileName,
     required Uint8List bytes,
+    double volume = 1.0,
   }) async {
     if (bytes.lengthInBytes > kMaxSoundboardSoundBytes) {
       throw const SoundUploadTooLargeException();
@@ -116,7 +131,27 @@ class FirestoreSoundboardRepository implements SoundboardRepository {
       'mimeType': mimeType,
       'createdBy': userId,
       'createdAt': FieldValue.serverTimestamp(),
+      'volume': volume.clamp(0.0, 1.0),
     });
+  }
+
+  @override
+  Future<void> updateSound({
+    required bool isDm,
+    required String conversationId,
+    required String soundId,
+    String? name,
+    double? volume,
+  }) async {
+    final data = <String, dynamic>{};
+    if (name != null) {
+      data['name'] = String.fromCharCodes(
+        name.trim().runes.take(kMaxSoundboardNameLength),
+      );
+    }
+    if (volume != null) data['volume'] = volume.clamp(0.0, 1.0);
+    if (data.isEmpty) return;
+    await _collection(isDm, conversationId).doc(soundId).update(data);
   }
 
   @override

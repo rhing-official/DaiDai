@@ -207,15 +207,16 @@ class BgmMixer {
   }
 
   /// 効果音を1回鳴らす（BGMとは独立で、同時に何個でも重ねられる）。[key]はデコード結果の
-  /// キャッシュ用。鳴り終わったら[onEnded]。[attach]の後に呼ぶ。
+  /// キャッシュ用。[gain]はその効果音だけの音量（0〜1）。鳴り終わったら[onEnded]。[attach]の後に呼ぶ。
   Future<void> playEffect(
     String key,
     Uint8List bytes, {
+    double gain = 1.0,
     void Function()? onEnded,
   }) async {
     final context = _context;
-    final gain = _effectGain;
-    if (context == null || gain == null) return;
+    final master = _effectGain;
+    if (context == null || master == null) return;
     unawaited(context.resume().toDart);
     var buffer = _effectBuffers[key];
     if (buffer == null) {
@@ -225,7 +226,10 @@ class BgmMixer {
       _effectBuffers[key] = buffer;
     }
     final source = context.createBufferSource()..buffer = buffer;
-    source.connect(gain);
+    // 効果音ごとの音量（サウンドごとに保存した値）。全体の音量[_effectGain]の手前で掛ける。
+    final own = context.createGain()..gain.value = gain.clamp(0.0, 1.0);
+    source.connect(own);
+    own.connect(master);
     if (onEnded != null) {
       source.addEventListener('ended', ((web.Event _) => onEnded()).toJS);
     }

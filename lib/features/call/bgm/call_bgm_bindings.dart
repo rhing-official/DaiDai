@@ -1,7 +1,7 @@
 import '../webrtc_call_controller.dart';
 import '../webrtc_group_call_controller.dart';
 import 'call_bgm.dart';
-import '../soundboard/call_soundboard_sheet.dart';
+import '../soundboard/call_soundboard_popup.dart';
 import 'call_bgm_sheet.dart';
 
 /// 1対1の通話のBGM（Web以外はnull）。一対は2人とも流せる。

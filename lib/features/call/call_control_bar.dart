@@ -9,7 +9,7 @@ import 'bgm/call_bgm.dart';
 import 'call_tile_layout.dart';
 import 'bgm/bgm_player_widgets.dart';
 import 'bgm/call_bgm_sheet.dart';
-import 'soundboard/call_soundboard_sheet.dart';
+import 'soundboard/call_soundboard_popup.dart';
 import 'call_controls.dart';
 import 'screen_share_menu.dart';
 
@@ -189,17 +189,28 @@ class CallControlBar extends ConsumerWidget {
                   if (CallBgm.isSupported)
                     _maybeHidden(
                       visible: soundboardBinding != null,
-                      child: CallRoundButton(
-                        icon: Icons.graphic_eq,
-                        color: Colors.grey[700]!,
-                        isGekiga: isGekiga,
-                        isGlass: isGlass,
-                        onPressed: enabled && soundboardBinding != null
-                            ? () => showCallSoundboardSheet(
-                                context,
-                                soundboardBinding!,
-                              )
-                            : null,
+                      child: Builder(
+                        builder: (buttonContext) => CallRoundButton(
+                          icon: Icons.graphic_eq,
+                          color: Colors.grey[700]!,
+                          isGekiga: isGekiga,
+                          isGlass: isGlass,
+                          onPressed: enabled && soundboardBinding != null
+                              ? () {
+                                  // ポップアップは、このボタンの真上に出す。
+                                  final box =
+                                      buttonContext.findRenderObject()
+                                          as RenderBox;
+                                  final rect =
+                                      box.localToGlobal(Offset.zero) & box.size;
+                                  showCallSoundboardPopup(
+                                    buttonContext,
+                                    soundboardBinding!,
+                                    anchorRect: rect,
+                                  );
+                                }
+                              : null,
+                        ),
                       ),
                     ),
                   CallRoundButton(

@@ -700,6 +700,18 @@ class Strings {
     required this.callSoundboardTooLarge,
     required this.callSoundboardFull,
     required this.callSoundboardVolume,
+    required this.callSoundboardSearchHint,
+    required this.callSoundboardUploadTitle,
+    required this.callSoundboardEditTitle,
+    required this.callSoundboardFile,
+    required this.callSoundboardChooseFile,
+    required this.callSoundboardBrowse,
+    required this.callSoundboardName,
+    required this.callSoundboardNameHint,
+    required this.callSoundboardCancel,
+    required this.callSoundboardUpload,
+    required this.callSoundboardSave,
+    required this.callSoundboardNoResults,
     required this.groupRoleDeleteConfirmTitle,
     required this.groupRoleDeleteConfirmButton,
     required this.groupRoleNoneLabel,
@@ -2108,6 +2120,18 @@ class Strings {
   final String callSoundboardTooLarge;
   final String callSoundboardFull;
   final String callSoundboardVolume;
+  final String callSoundboardSearchHint;
+  final String callSoundboardUploadTitle;
+  final String callSoundboardEditTitle;
+  final String callSoundboardFile;
+  final String callSoundboardChooseFile;
+  final String callSoundboardBrowse;
+  final String callSoundboardName;
+  final String callSoundboardNameHint;
+  final String callSoundboardCancel;
+  final String callSoundboardUpload;
+  final String callSoundboardSave;
+  final String callSoundboardNoResults;
   final String groupRoleDeleteConfirmTitle;
   final String groupRoleDeleteConfirmButton;
   final String groupRoleNoneLabel;
@@ -3630,7 +3654,7 @@ class Strings {
     callBgmAddToPlaylist: 'プレイリストへ追加',
     callBgmRemoveFromPlaylist: 'プレイリストから外す',
     callSoundboardTitle: 'サウンドボード',
-    callSoundboardAdd: '効果音を追加',
+    callSoundboardAdd: 'サウンドを追加',
     callSoundboardEmpty: '効果音がありません。「効果音を追加」で登録すると、この語らいの全員が使えます',
     callSoundboardEdit: '編集',
     callSoundboardDone: '完了',
@@ -3638,6 +3662,18 @@ class Strings {
     callSoundboardTooLarge: '効果音は2MBまでです',
     callSoundboardFull: '効果音は30個までです',
     callSoundboardVolume: '音量',
+    callSoundboardSearchHint: '完璧な音を見つけよう',
+    callSoundboardUploadTitle: 'サウンドをアップロード',
+    callSoundboardEditTitle: 'サウンドを編集',
+    callSoundboardFile: 'ファイル',
+    callSoundboardChooseFile: 'ファイルを選択',
+    callSoundboardBrowse: '閲覧',
+    callSoundboardName: 'サウンド名',
+    callSoundboardNameHint: 'サウンド名',
+    callSoundboardCancel: 'キャンセル',
+    callSoundboardUpload: 'アップロード',
+    callSoundboardSave: '保存',
+    callSoundboardNoResults: '見つかりませんでした',
     groupRoleDeleteConfirmTitle: 'このロールを削除しますか？',
     groupRoleDeleteConfirmButton: '削除する',
     groupRoleNoneLabel: 'ロール未設定',
@@ -5066,7 +5102,7 @@ class Strings {
     callBgmAddToPlaylist: 'Add to playlist',
     callBgmRemoveFromPlaylist: 'Remove from playlist',
     callSoundboardTitle: 'Soundboard',
-    callSoundboardAdd: 'Add a sound effect',
+    callSoundboardAdd: 'Add a sound',
     callSoundboardEmpty:
         'No sound effects yet. Add one and everyone in this conversation can use it',
     callSoundboardEdit: 'Edit',
@@ -5075,6 +5111,18 @@ class Strings {
     callSoundboardTooLarge: 'Sound effects can be up to 2 MB',
     callSoundboardFull: 'You can add up to 30 sound effects',
     callSoundboardVolume: 'Volume',
+    callSoundboardSearchHint: 'Find the perfect sound',
+    callSoundboardUploadTitle: 'Upload a sound',
+    callSoundboardEditTitle: 'Edit sound',
+    callSoundboardFile: 'File',
+    callSoundboardChooseFile: 'Choose a file',
+    callSoundboardBrowse: 'Browse',
+    callSoundboardName: 'Sound name',
+    callSoundboardNameHint: 'Sound name',
+    callSoundboardCancel: 'Cancel',
+    callSoundboardUpload: 'Upload',
+    callSoundboardSave: 'Save',
+    callSoundboardNoResults: 'No sounds found',
     groupRoleDeleteConfirmTitle: 'Delete this role?',
     groupRoleDeleteConfirmButton: 'Delete',
     groupRoleNoneLabel: 'No role',

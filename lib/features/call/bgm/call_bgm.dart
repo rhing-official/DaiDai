@@ -789,7 +789,11 @@ class CallBgm extends ChangeNotifier {
 
   /// サウンドボードの効果音を鳴らす（相手にも聞こえる）。ユーザー操作の中で呼ぶこと。
   /// BGMが流れていれば同じ混合の経路へ重ねる。
-  Future<void> playEffect(String key, Uint8List bytes) async {
+  Future<void> playEffect(
+    String key,
+    Uint8List bytes, {
+    double gain = 1.0,
+  }) async {
     final mic = micTrack();
     if (mic == null || _disposed) return;
     if (_mixed == null) {
@@ -799,7 +803,7 @@ class CallBgm extends ChangeNotifier {
     }
     _activeEffects++;
     try {
-      await _mixer.playEffect(key, bytes, onEnded: _onEffectEnded);
+      await _mixer.playEffect(key, bytes, gain: gain, onEnded: _onEffectEnded);
     } catch (_) {
       _onEffectEnded();
     }

@@ -24,6 +24,7 @@ class BgmMixer {
   Future<void> playEffect(
     String key,
     Uint8List bytes, {
+    double gain = 1.0,
     void Function()? onEnded,
   }) async {}
   void dispose() {}
