@@ -164,10 +164,25 @@ class _CallScreenState extends ConsumerState<CallScreen> {
             ? strings.callStatusCalling
             : strings.callStatusConnecting;
       case CallConnectionState.active:
-        return strings.callStatusActive;
+        // 応答済みでも、音声・映像の通り道が確立するまでは届かない（2026-11-16）。
+        return _controller.mediaConnected
+            ? strings.callStatusActive
+            : strings.callStatusEstablishing;
       case CallConnectionState.ended:
         return strings.callStatusEnded;
     }
+  }
+
+  /// 通信の確立を待つ間の案内（確立済み・応答前はnull）。長引いたら、入り直しを促す。
+  String? get _establishingNotice {
+    if (_controller.state != CallConnectionState.active ||
+        _controller.mediaConnected) {
+      return null;
+    }
+    final strings = ref.read(appStringsProvider);
+    return _controller.establishingTooLong
+        ? strings.callEstablishingSlow
+        : strings.callEstablishing;
   }
 
   /// 自分が現在ビデオ通話として動作しているか。
@@ -416,6 +431,16 @@ class _CallScreenState extends ConsumerState<CallScreen> {
           ),
           const SizedBox(height: 8),
           Text(_statusLabel, style: const TextStyle(color: Colors.white70)),
+          if (_establishingNotice != null)
+            Padding(
+              key: const ValueKey('connection-establishing'),
+              padding: const EdgeInsets.only(top: 8, left: 24, right: 24),
+              child: Text(
+                _establishingNotice!,
+                textAlign: TextAlign.center,
+                style: const TextStyle(color: Colors.white54, fontSize: 12),
+              ),
+            ),
           const Spacer(),
           Padding(
             padding: const EdgeInsets.only(bottom: 48),
@@ -542,6 +567,33 @@ class _CallScreenState extends ConsumerState<CallScreen> {
                   ),
                 ),
               ],
+            ),
+          ),
+        if (_establishingNotice != null)
+          Positioned(
+            key: const ValueKey('connection-establishing'),
+            top: 0,
+            left: 0,
+            right: 0,
+            child: SafeArea(
+              child: Center(
+                child: Container(
+                  margin: const EdgeInsets.only(top: 8, left: 12, right: 12),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 6,
+                  ),
+                  decoration: BoxDecoration(
+                    color: Colors.black54,
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Text(
+                    _establishingNotice!,
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(color: Colors.white70, fontSize: 12),
+                  ),
+                ),
+              ),
             ),
           ),
         if (isConnected && _controller.connectionIssue)

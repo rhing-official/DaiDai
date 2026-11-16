@@ -4,6 +4,7 @@ import 'dart:js_interop_unsafe';
 import 'dart:math';
 import 'dart:typed_data';
 
+import 'package:flutter/foundation.dart' show debugPrint;
 import 'package:web/web.dart' as web;
 
 import 'bgm_track.dart';
@@ -11,30 +12,59 @@ import 'bgm_track.dart';
 BgmStorage createBgmStorage() => _IndexedDbBgmStorage();
 
 const _dbName = 'daidai_bgm';
-const _storeName = 'tracks';
+
+/// v3以降の保存先。曲のレコードを、一覧に要る小さなメタ情報（[_metaStore]）と、重い音源
+/// （[_dataStore]）・ジャケット（[_coverStore]）に分けて持つ（2026-11-16）。以前は1曲＝1レコードに
+/// 音源まで入っていた為、一覧を出すだけで全曲（数GB）をメモリに読み込んで、シートを開くのが遅かった。
+const _metaStore = 'trackMeta';
+const _dataStore = 'trackData';
+const _coverStore = 'trackCovers';
 const _albumStoreName = 'albums';
 
-/// `IndexedDB`に曲を保存する。1曲＝1レコード（メタ情報とバイト列）。
+/// v1・v2の曲の保存先（音源入り）。起動後に、1曲ずつ新しい保存先へ移して、空にする。
+const _legacyStore = 'tracks';
+
+/// 曲のメタ情報として持つ項目（音源・ジャケット以外）。
+const _metaKeys = [
+  'id',
+  'name',
+  'mimeType',
+  'size',
+  'order',
+  'albumId',
+  'artist',
+  'tagAlbum',
+  'trackNo',
+  'discNo',
+  'durationMs',
+  'favorite',
+];
+
+/// `IndexedDB`に曲を保存する。1曲＝メタ情報・音源・ジャケットの3レコード（同じid）。
 class _IndexedDbBgmStorage implements BgmStorage {
   Future<web.IDBDatabase>? _db;
+  Future<void>? _ready;
 
   Future<web.IDBDatabase> _open() => _db ??= () {
     final completer = Completer<web.IDBDatabase>();
-    final request = web.window.indexedDB.open(_dbName, 2);
+    final request = web.window.indexedDB.open(_dbName, 3);
     request.onupgradeneeded = ((web.Event _) {
       final db = request.result as web.IDBDatabase;
-      // v1（曲だけ）からの更新では、曲は残し、アルバムの置き場だけを足す（2026-11-15）。
-      if (!db.objectStoreNames.contains(_storeName)) {
-        db.createObjectStore(
-          _storeName,
-          web.IDBObjectStoreParameters(keyPath: 'id'.toJS),
-        );
-      }
-      if (!db.objectStoreNames.contains(_albumStoreName)) {
-        db.createObjectStore(
-          _albumStoreName,
-          web.IDBObjectStoreParameters(keyPath: 'id'.toJS),
-        );
+      // 古い版の曲（_legacyStore）は残し、新しい置き場を足すだけにする（中身の移行は、起動後に
+      // 1曲ずつ行う。この更新の中で全曲を書き換えると、容量が一時的に倍になり失敗しうる）。
+      for (final name in [
+        _legacyStore,
+        _metaStore,
+        _dataStore,
+        _coverStore,
+        _albumStoreName,
+      ]) {
+        if (!db.objectStoreNames.contains(name)) {
+          db.createObjectStore(
+            name,
+            web.IDBObjectStoreParameters(keyPath: 'id'.toJS),
+          );
+        }
       }
     }).toJS;
     request.onsuccess = ((web.Event _) {
@@ -45,6 +75,94 @@ class _IndexedDbBgmStorage implements BgmStorage {
     }).toJS;
     return completer.future;
   }();
+
+  /// 開いて、古い版の曲を新しい保存先へ移し終えるまで待つ（1回だけ）。
+  Future<void> _prepare() => _ready ??= () async {
+    final db = await _open();
+    await _migrateLegacy(db);
+  }();
+
+  /// 古い版の曲（音源入り）を、1曲ずつ新しい保存先へ移す。1曲ごとに、3つの保存先への書き込みと
+  /// 古いレコードの削除を、1つのトランザクションで行う（途中で止まっても、曲は失われない）。
+  Future<void> _migrateLegacy(web.IDBDatabase db) async {
+    final keysRequest = db
+        .transaction(_legacyStore.toJS, 'readonly')
+        .objectStore(_legacyStore)
+        .getAllKeys();
+    final keys = await _request(keysRequest);
+    if (keys == null) return;
+    for (final key in (keys as JSArray<JSAny?>).toDart) {
+      if (!key.isA<JSString>()) continue;
+      try {
+        await _migrateOne(db, key as JSString);
+      } catch (e) {
+        // 移せなかった曲は、古い場所に残す（次の起動で、もう一度試す）。
+        debugPrint('BGM: 曲の移行に失敗 $e');
+      }
+    }
+  }
+
+  Future<void> _migrateOne(web.IDBDatabase db, JSString id) async {
+    final tx = db.transaction(
+      [
+        _legacyStore.toJS,
+        _metaStore.toJS,
+        _dataStore.toJS,
+        _coverStore.toJS,
+      ].toJS,
+      'readwrite',
+    );
+    final legacy = tx.objectStore(_legacyStore);
+    final result = await _request(legacy.get(id));
+    if (result == null) return;
+    final record = result as JSObject;
+    final data = record.getProperty<JSAny?>('data'.toJS);
+    final cover = record.getProperty<JSAny?>('cover'.toJS);
+    final hasCover = cover.isA<JSArrayBuffer>();
+    final meta = JSObject();
+    for (final key in _metaKeys) {
+      final v = record.getProperty<JSAny?>(key.toJS);
+      if (v != null) meta.setProperty(key.toJS, v);
+    }
+    meta.setProperty('hasCover'.toJS, hasCover.toJS);
+    if (data != null) {
+      tx
+          .objectStore(_dataStore)
+          .put(
+            JSObject()
+              ..setProperty('id'.toJS, id)
+              ..setProperty('data'.toJS, data),
+          );
+    }
+    if (hasCover) {
+      tx
+          .objectStore(_coverStore)
+          .put(
+            JSObject()
+              ..setProperty('id'.toJS, id)
+              ..setProperty('cover'.toJS, cover),
+          );
+    }
+    tx.objectStore(_metaStore).put(meta);
+    legacy.delete(id);
+    await _transactionDone(tx);
+  }
+
+  Future<void> _transactionDone(web.IDBTransaction tx) {
+    final completer = Completer<void>();
+    tx.oncomplete = ((web.Event _) => completer.complete()).toJS;
+    tx.onerror = ((web.Event _) {
+      if (!completer.isCompleted) {
+        completer.completeError(StateError('IndexedDBの書き込みに失敗しました'));
+      }
+    }).toJS;
+    tx.onabort = ((web.Event _) {
+      if (!completer.isCompleted) {
+        completer.completeError(StateError('IndexedDBの書き込みが中止されました'));
+      }
+    }).toJS;
+    return completer.future;
+  }
 
   Future<JSAny?> _request(web.IDBRequest request) {
     final completer = Completer<JSAny?>();
@@ -59,8 +177,9 @@ class _IndexedDbBgmStorage implements BgmStorage {
 
   Future<web.IDBObjectStore> _store(
     String mode, [
-    String name = _storeName,
+    String name = _metaStore,
   ]) async {
+    await _prepare();
     final db = await _open();
     return db.transaction(name.toJS, mode).objectStore(name);
   }
@@ -88,7 +207,9 @@ class _IndexedDbBgmStorage implements BgmStorage {
       size: (record.getProperty('size'.toJS) as JSNumber).toDartInt,
       albumId: albumId.isA<JSString>() ? (albumId as JSString).toDart : null,
       order: order.isA<JSNumber>() ? (order as JSNumber).toDartInt : 0,
-      hasCover: record.getProperty<JSAny?>('cover'.toJS).isA<JSArrayBuffer>(),
+      hasCover:
+          record.getProperty<JSAny?>('hasCover'.toJS).isA<JSBoolean>() &&
+          (record.getProperty('hasCover'.toJS) as JSBoolean).toDart,
       artist: text('artist'),
       tagAlbum: text('tagAlbum'),
       trackNo: number('trackNo'),
@@ -144,9 +265,8 @@ class _IndexedDbBgmStorage implements BgmStorage {
       ..setProperty('mimeType'.toJS, mimeType.toJS)
       ..setProperty('size'.toJS, bytes.length.toJS)
       ..setProperty('order'.toJS, order.toJS)
-      ..setProperty('data'.toJS, bytes.buffer.toJS);
+      ..setProperty('hasCover'.toJS, (cover != null).toJS);
     if (albumId != null) record.setProperty('albumId'.toJS, albumId.toJS);
-    if (cover != null) record.setProperty('cover'.toJS, cover.buffer.toJS);
     if (artist != null) record.setProperty('artist'.toJS, artist.toJS);
     if (tagAlbum != null) record.setProperty('tagAlbum'.toJS, tagAlbum.toJS);
     if (trackNo != null) record.setProperty('trackNo'.toJS, trackNo.toJS);
@@ -154,8 +274,34 @@ class _IndexedDbBgmStorage implements BgmStorage {
     if (durationMs != null) {
       record.setProperty('durationMs'.toJS, durationMs.toJS);
     }
-    final store = await _store('readwrite');
-    await _request(store.put(record));
+    await _prepare();
+    final db = await _open();
+    final tx = db.transaction(
+      [
+        _metaStore.toJS,
+        _dataStore.toJS,
+        if (cover != null) _coverStore.toJS,
+      ].toJS,
+      'readwrite',
+    );
+    tx.objectStore(_metaStore).put(record);
+    tx
+        .objectStore(_dataStore)
+        .put(
+          JSObject()
+            ..setProperty('id'.toJS, id.toJS)
+            ..setProperty('data'.toJS, bytes.buffer.toJS),
+        );
+    if (cover != null) {
+      tx
+          .objectStore(_coverStore)
+          .put(
+            JSObject()
+              ..setProperty('id'.toJS, id.toJS)
+              ..setProperty('cover'.toJS, cover.buffer.toJS),
+          );
+    }
+    await _transactionDone(tx);
     return BgmTrack(
       id: id,
       name: name,
@@ -172,15 +318,16 @@ class _IndexedDbBgmStorage implements BgmStorage {
     );
   }
 
-  /// 曲のレコードのうち、バイト列以外を書き換える（取得→書き換え→保存）。
+  /// 曲のメタ情報のレコードを書き換える（取得→書き換え→保存。音源・ジャケットは別の保存先）。
   Future<void> _updateTrack(
     String id,
     void Function(JSObject record) edit,
   ) async {
+    await _prepare();
     final db = await _open();
     final store = db
-        .transaction(_storeName.toJS, 'readwrite')
-        .objectStore(_storeName);
+        .transaction(_metaStore.toJS, 'readwrite')
+        .objectStore(_metaStore);
     final result = await _request(store.get(id.toJS));
     if (result == null) return;
     final record = result as JSObject;
@@ -265,7 +412,7 @@ class _IndexedDbBgmStorage implements BgmStorage {
 
   @override
   Future<Uint8List?> bytes(String id) async {
-    final store = await _store('readonly');
+    final store = await _store('readonly', _dataStore);
     final result = await _request(store.get(id.toJS));
     if (result == null) return null;
     final data = (result as JSObject).getProperty('data'.toJS) as JSArrayBuffer;
@@ -274,7 +421,7 @@ class _IndexedDbBgmStorage implements BgmStorage {
 
   @override
   Future<Uint8List?> cover(String id) async {
-    final store = await _store('readonly');
+    final store = await _store('readonly', _coverStore);
     final result = await _request(store.get(id.toJS));
     if (result == null) return null;
     final data = (result as JSObject).getProperty<JSAny?>('cover'.toJS);
@@ -283,14 +430,39 @@ class _IndexedDbBgmStorage implements BgmStorage {
   }
 
   @override
-  Future<void> setCover(String id, Uint8List cover) => _updateTrack(
-    id,
-    (record) => record.setProperty('cover'.toJS, cover.buffer.toJS),
-  );
+  Future<void> setCover(String id, Uint8List cover) async {
+    await _prepare();
+    final db = await _open();
+    final tx = db.transaction(
+      [_metaStore.toJS, _coverStore.toJS].toJS,
+      'readwrite',
+    );
+    final metaStore = tx.objectStore(_metaStore);
+    final result = await _request(metaStore.get(id.toJS));
+    if (result == null) return;
+    final record = result as JSObject..setProperty('hasCover'.toJS, true.toJS);
+    metaStore.put(record);
+    tx
+        .objectStore(_coverStore)
+        .put(
+          JSObject()
+            ..setProperty('id'.toJS, id.toJS)
+            ..setProperty('cover'.toJS, cover.buffer.toJS),
+        );
+    await _transactionDone(tx);
+  }
 
   @override
   Future<void> remove(String id) async {
-    final store = await _store('readwrite');
-    await _request(store.delete(id.toJS));
+    await _prepare();
+    final db = await _open();
+    final tx = db.transaction(
+      [_metaStore.toJS, _dataStore.toJS, _coverStore.toJS].toJS,
+      'readwrite',
+    );
+    tx.objectStore(_metaStore).delete(id.toJS);
+    tx.objectStore(_dataStore).delete(id.toJS);
+    tx.objectStore(_coverStore).delete(id.toJS);
+    await _transactionDone(tx);
   }
 }

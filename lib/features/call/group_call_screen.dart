@@ -149,6 +149,7 @@ class _GroupCallScreenState extends ConsumerState<GroupCallScreen> {
             ? Stack(
                 children: [
                   Positioned.fill(child: _videoBody(displayAreaGrey)),
+                  if (_waitingForPeers) _establishingBanner(),
                   Positioned(
                     left: 0,
                     top: 0,
@@ -159,6 +160,41 @@ class _GroupCallScreenState extends ConsumerState<GroupCallScreen> {
                 ],
               )
             : _dockable(_audioBody()),
+      ),
+    );
+  }
+
+  /// 参加済みなのに、他の参加者の誰ともまだ通信が確立していない（確立まで数秒かかる、2026-11-16）。
+  bool get _waitingForPeers {
+    if (_controller.state != GroupCallConnectionState.active) return false;
+    final remotes = _controller.remoteParticipants;
+    return remotes.isNotEmpty &&
+        remotes.every((p) => !_controller.isPeerEstablished(p.userId));
+  }
+
+  /// 上部に出す、通信の確立待ちの案内。
+  Widget _establishingBanner() {
+    return Positioned(
+      key: const ValueKey('connection-establishing'),
+      top: 0,
+      left: 0,
+      right: 0,
+      child: SafeArea(
+        child: Center(
+          child: Container(
+            margin: const EdgeInsets.only(top: 8, left: 12, right: 12),
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+            decoration: BoxDecoration(
+              color: Colors.black54,
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Text(
+              ref.read(appStringsProvider).callEstablishingGroup,
+              textAlign: TextAlign.center,
+              style: const TextStyle(color: Colors.white70, fontSize: 12),
+            ),
+          ),
+        ),
       ),
     );
   }
@@ -226,6 +262,16 @@ class _GroupCallScreenState extends ConsumerState<GroupCallScreen> {
                 .groupCallParticipantCountTemplate(tiles.length),
             style: const TextStyle(color: Colors.white70),
           ),
+          if (_waitingForPeers)
+            Padding(
+              key: const ValueKey('connection-establishing'),
+              padding: const EdgeInsets.only(top: 8, left: 24, right: 24),
+              child: Text(
+                ref.read(appStringsProvider).callEstablishingGroup,
+                textAlign: TextAlign.center,
+                style: const TextStyle(color: Colors.white54, fontSize: 12),
+              ),
+            ),
           const Spacer(),
           Wrap(
             spacing: 24,
@@ -250,6 +296,16 @@ class _GroupCallScreenState extends ConsumerState<GroupCallScreen> {
                       conversationId: widget.groupId,
                       style: const TextStyle(color: Colors.white),
                     ),
+                    if (userId != widget.currentUser.userId &&
+                        _controller.state == GroupCallConnectionState.active &&
+                        !_controller.isPeerEstablished(userId))
+                      Text(
+                        ref.read(appStringsProvider).callPeerConnecting,
+                        style: const TextStyle(
+                          color: Colors.white54,
+                          fontSize: 11,
+                        ),
+                      ),
                   ],
                 ),
             ],
@@ -391,6 +447,9 @@ class _GroupCallScreenState extends ConsumerState<GroupCallScreen> {
             videoEnabled: _controller.remoteVideoShown(participant),
             connectionIssue:
                 _controller.peerConnectionIssues[participant.userId] ?? false,
+            connecting:
+                _controller.state == GroupCallConnectionState.active &&
+                !_controller.isPeerEstablished(participant.userId),
             placeholderColor: placeholderColor,
           ),
         ),
@@ -474,6 +533,7 @@ class _GroupCallScreenState extends ConsumerState<GroupCallScreen> {
     required bool micMuted,
     required bool videoEnabled,
     required bool connectionIssue,
+    bool connecting = false,
     required Color placeholderColor,
   }) {
     return ClipRRect(
@@ -531,7 +591,7 @@ class _GroupCallScreenState extends ConsumerState<GroupCallScreen> {
             ),
             if (_controller.speakingUserIds.contains(userId))
               Positioned.fill(child: SpeakingFrame()),
-            if (connectionIssue)
+            if (connectionIssue || connecting)
               Positioned(
                 top: 8,
                 right: 8,
@@ -545,7 +605,9 @@ class _GroupCallScreenState extends ConsumerState<GroupCallScreen> {
                     borderRadius: BorderRadius.circular(6),
                   ),
                   child: Text(
-                    ref.read(appStringsProvider).callConnectionUnstable,
+                    connectionIssue
+                        ? ref.read(appStringsProvider).callConnectionUnstable
+                        : ref.read(appStringsProvider).callPeerConnecting,
                     style: const TextStyle(color: Colors.white70, fontSize: 10),
                   ),
                 ),

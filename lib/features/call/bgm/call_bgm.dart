@@ -24,7 +24,22 @@ class CallBgm extends ChangeNotifier {
     required this.replaceOutgoingAudio,
     required this.onPlayingChanged,
     BgmMixer? mixer,
-  }) : _mixer = mixer ?? BgmMixer();
+    double initialVolume = 0.5,
+    BgmPlayOrder initialOrder = BgmPlayOrder.inOrder,
+    this.onPreferencesChanged,
+  }) : _mixer = mixer ?? BgmMixer(),
+       _volume = initialVolume.clamp(0.0, 1.0),
+       _order = initialOrder {
+    // 通話の接続の準備と重ならないよう少し待ってから、曲の一覧を裏で読み込んでおく
+    // （BGMのシートを開いた時に、すぐ出せるように。2026-11-16）。
+    if (isSupported) {
+      _preloadTimer = Timer(const Duration(seconds: 3), () {
+        loadTracks().catchError((Object _) {});
+      });
+    }
+  }
+
+  Timer? _preloadTimer;
 
   final BgmStorage storage;
 
@@ -38,6 +53,9 @@ class CallBgm extends ChangeNotifier {
   final void Function(BgmNowPlaying? nowPlaying) onPlayingChanged;
 
   final BgmMixer _mixer;
+
+  /// 音量・再生順が変わった時（前回の状態として、アカウントへ保存する）。
+  final void Function(double volume, BgmPlayOrder order)? onPreferencesChanged;
 
   static bool get isSupported => BgmMixer.isSupported;
 
@@ -75,7 +93,7 @@ class CallBgm extends ChangeNotifier {
     if (_thumbTrackId == track.id) _thumb = small;
   }
 
-  double _volume = 0.5;
+  double _volume;
   double get volume => _volume;
 
   MediaStreamTrack? _mixed;
@@ -208,7 +226,7 @@ class CallBgm extends ChangeNotifier {
   List<BgmAlbum> get albums => _albums;
 
   /// 再生順（順番・シャッフル・1曲リピート）。
-  BgmPlayOrder _order = BgmPlayOrder.inOrder;
+  BgmPlayOrder _order;
   BgmPlayOrder get playOrder => _order;
 
   /// 今の再生の対象（アルバムのid。nullは、すべての曲）。曲が終わったら、この中の次の曲へ。
@@ -482,6 +500,7 @@ class CallBgm extends ChangeNotifier {
   void cyclePlayOrder() {
     _order =
         BgmPlayOrder.values[(_order.index + 1) % BgmPlayOrder.values.length];
+    onPreferencesChanged?.call(_volume, _order);
     notifyListeners();
   }
 
@@ -569,6 +588,7 @@ class CallBgm extends ChangeNotifier {
   void setVolume(double value) {
     _volume = value.clamp(0.0, 1.0);
     _mixer.volume = _volume * kBgmMaxGain;
+    onPreferencesChanged?.call(_volume, _order);
     notifyListeners();
   }
 
@@ -596,6 +616,7 @@ class CallBgm extends ChangeNotifier {
   @override
   void dispose() {
     _disposed = true;
+    _preloadTimer?.cancel();
     _progressTimer?.cancel();
     progress.dispose();
     importProgress.dispose();

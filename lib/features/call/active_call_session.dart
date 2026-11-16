@@ -6,6 +6,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../models/app_user.dart';
 import '../../models/call.dart';
 import '../../models/sound_preset.dart';
+import '../../providers/bgm_preferences_provider.dart';
+import 'bgm/bgm_queue.dart';
 import '../../providers/join_video_camera_on_provider.dart';
 import '../../providers/calling_sound_provider.dart';
 import '../../providers/chat_navigation_providers.dart';
@@ -151,7 +153,16 @@ class ActiveCallSessionNotifier extends Notifier<ActiveCallSession?> {
   ActiveCallSession? build() {
     // 起動直後に呼ばれるのはここだけ（通話画面は後から`startOneToOne`/`startGroup`）。
     Future.microtask(_prefetchIceServers);
+    // BGMの前回の状態（音量・再生順）を、通話の前に読み込んでおく。
+    ref.read(bgmPreferencesProvider);
     return null;
+  }
+
+  /// BGMの音量・再生順の変更を、端末とアカウントへ保存する。
+  void _saveBgmPreferences(double volume, BgmPlayOrder order) {
+    ref
+        .read(bgmPreferencesProvider.notifier)
+        .save(volume: volume, order: order);
   }
 
   /// 1対1通話を開始/参加する。既に同じ通話にアタッチ済みならそのまま返す
@@ -178,6 +189,8 @@ class ActiveCallSessionNotifier extends Notifier<ActiveCallSession?> {
       directMessageRepository: directMessageRepository,
       iceServersLoader: _loader,
       joinWithCamera: ref.read(joinVideoCameraOnProvider),
+      bgmPreferences: ref.read(bgmPreferencesProvider),
+      onBgmPreferencesChanged: _saveBgmPreferences,
     );
     final session = OneToOneCallSession(
       controller: controller,
@@ -222,6 +235,8 @@ class ActiveCallSessionNotifier extends Notifier<ActiveCallSession?> {
       isVideo: isVideo && ref.read(joinVideoCameraOnProvider),
       groupCallRepository: groupCallRepository,
       iceServersLoader: _loader,
+      bgmPreferences: ref.read(bgmPreferencesProvider),
+      onBgmPreferencesChanged: _saveBgmPreferences,
     );
     final session = GroupCallSession(
       controller: controller,

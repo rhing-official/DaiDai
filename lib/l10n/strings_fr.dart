@@ -1397,6 +1397,14 @@ final Strings _stringsFr = Strings._(
   callStatusEnded: 'Appel terminé',
   callConnectionUnstableEllipsis: 'La connexion est instable…',
   callConnectionUnstable: 'La connexion est instable',
+  callEstablishing:
+      "Établissement de la connexion… patientez quelques secondes",
+  callEstablishingSlow:
+      "Si la connexion ne s’établit pas, quittez l’appel et rejoignez-le à nouveau",
+  callEstablishingGroup:
+      "Connexion aux autres participants… patientez quelques secondes",
+  callStatusEstablishing: "Connexion en cours…",
+  callPeerConnecting: "Connexion…",
   callFullMessageTemplate: (max) => 'Cet appel est complet (limite : $max)',
   callDeclineButton: 'Refuser',
   callAnswerButton: 'Répondre',

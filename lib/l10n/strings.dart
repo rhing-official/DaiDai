@@ -1171,6 +1171,11 @@ class Strings {
     required this.callStatusEnded,
     required this.callConnectionUnstableEllipsis,
     required this.callConnectionUnstable,
+    required this.callEstablishing,
+    required this.callEstablishingSlow,
+    required this.callEstablishingGroup,
+    required this.callStatusEstablishing,
+    required this.callPeerConnecting,
     required this.callFullMessageTemplate,
     required this.callDeclineButton,
     required this.callAnswerButton,
@@ -2737,6 +2742,11 @@ class Strings {
   final String callStatusEnded;
   final String callConnectionUnstableEllipsis;
   final String callConnectionUnstable;
+  final String callEstablishing;
+  final String callEstablishingSlow;
+  final String callEstablishingGroup;
+  final String callStatusEstablishing;
+  final String callPeerConnecting;
   final String Function(int max) callFullMessageTemplate;
 
   /// 通話の着信バナーの「拒否」「応答（広場は参加）」ボタンの説明（2026-11-12）。
@@ -4053,6 +4063,11 @@ class Strings {
     callStatusEnded: '通話終了',
     callConnectionUnstableEllipsis: '接続が不安定です…',
     callConnectionUnstable: '接続が不安定です',
+    callEstablishing: '通信を確立しています…数秒お待ちください',
+    callEstablishingSlow: 'つながりにくい場合は、一度退出して入り直してください',
+    callEstablishingGroup: '他の参加者との通信を確立しています…数秒お待ちください',
+    callStatusEstablishing: '通信を確立中…',
+    callPeerConnecting: '接続中…',
     callFullMessageTemplate: (max) => 'この通話は満員です（上限$max人）',
     callDeclineButton: '拒否',
     callAnswerButton: '応答',
@@ -5501,6 +5516,12 @@ class Strings {
     callStatusEnded: 'Call ended',
     callConnectionUnstableEllipsis: 'Connection is unstable…',
     callConnectionUnstable: 'Connection is unstable',
+    callEstablishing: 'Setting up the connection… please wait a few seconds',
+    callEstablishingSlow: 'If it still won’t connect, leave and join again',
+    callEstablishingGroup:
+        'Connecting to the other participants… please wait a few seconds',
+    callStatusEstablishing: 'Connecting…',
+    callPeerConnecting: 'Connecting…',
     callFullMessageTemplate: (max) => 'This call is full (limit: $max)',
     callDeclineButton: 'Decline',
     callAnswerButton: 'Answer',

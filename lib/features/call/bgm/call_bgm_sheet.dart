@@ -1,6 +1,8 @@
 import '../../../utils/auto_dismiss_banner.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart'
+    show TargetPlatform, defaultTargetPlatform;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:pointer_interceptor/pointer_interceptor.dart';
 
@@ -214,6 +216,9 @@ class _CallBgmSheetState extends ConsumerState<_CallBgmSheet> {
   /// 選んでいるアルバム（nullは、すべての曲）。
   String? _albumId = _memory.albumId;
 
+  /// アルバムのジャケットの帯（横スクロール）のスクロールバー用。
+  final ScrollController _albumStripScroll = ScrollController();
+
   late ScrollController _scroll = ScrollController(
     initialScrollOffset: _memory.scroll,
   );
@@ -264,6 +269,7 @@ class _CallBgmSheetState extends ConsumerState<_CallBgmSheet> {
     _memory.albumId = _albumId;
     _memory.scroll = _scroll.hasClients ? _scroll.offset : 0;
     _scroll.dispose();
+    _albumStripScroll.dispose();
     _nameController.dispose();
     super.dispose();
   }
@@ -791,6 +797,26 @@ class _CallBgmSheetState extends ConsumerState<_CallBgmSheet> {
     );
   }
 
+  /// スクロールバーを出すか。モバイル（スマホ・タブレットのアプリ、モバイルのブラウザ）では出さない。
+  bool get _showScrollbars =>
+      defaultTargetPlatform != TargetPlatform.android &&
+      defaultTargetPlatform != TargetPlatform.iOS;
+
+  /// アルバムの帯にスクロールバーを付ける（モバイルでは付けない）。
+  Widget _albumStripScrollbar(Widget list) {
+    // 既定のスクロールバーと二重にならないよう、既定は止めて自前で付ける。
+    final plain = ScrollConfiguration(
+      behavior: ScrollConfiguration.of(context).copyWith(scrollbars: false),
+      child: list,
+    );
+    if (!_showScrollbars) return plain;
+    return Scrollbar(
+      controller: _albumStripScroll,
+      thumbVisibility: true,
+      child: Padding(padding: const EdgeInsets.only(bottom: 12), child: plain),
+    );
+  }
+
   /// アルバムのジャケットの帯（先頭は「すべての曲」）と、選んだアルバムの曲の一覧。
   Widget _albumsTab(Strings strings, CallBgm bgm) {
     final album = bgm.albums.where((a) => a.id == _albumId).firstOrNull;
@@ -804,38 +830,41 @@ class _CallBgmSheetState extends ConsumerState<_CallBgmSheet> {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         SizedBox(
-          height: 124,
-          child: ListView(
-            scrollDirection: Axis.horizontal,
-            children: [
-              _AlbumCard(
-                bgm: bgm,
-                label: strings.callBgmAllTracks,
-                count: bgm.tracks.length,
-                coverTrack: bgm.coverTrackOfAlbum(null),
-                fallbackIcon: Icons.library_music_outlined,
-                selected: _albumId == null,
-                strings: strings,
-                onTap: () => setState(() {
-                  _albumId = null;
-                  _renaming = false;
-                }),
-              ),
-              for (final a in bgm.albums)
+          height: 124 + (_showScrollbars ? 12 : 0),
+          child: _albumStripScrollbar(
+            ListView(
+              scrollDirection: Axis.horizontal,
+              controller: _albumStripScroll,
+              children: [
                 _AlbumCard(
                   bgm: bgm,
-                  label: a.name,
-                  count: bgm.tracksOf(a.id).length,
-                  coverTrack: bgm.coverTrackOfAlbum(a.id),
-                  fallbackIcon: Icons.album_outlined,
-                  selected: _albumId == a.id,
+                  label: strings.callBgmAllTracks,
+                  count: bgm.tracks.length,
+                  coverTrack: bgm.coverTrackOfAlbum(null),
+                  fallbackIcon: Icons.library_music_outlined,
+                  selected: _albumId == null,
                   strings: strings,
                   onTap: () => setState(() {
-                    _albumId = a.id;
+                    _albumId = null;
                     _renaming = false;
                   }),
                 ),
-            ],
+                for (final a in bgm.albums)
+                  _AlbumCard(
+                    bgm: bgm,
+                    label: a.name,
+                    count: bgm.tracksOf(a.id).length,
+                    coverTrack: bgm.coverTrackOfAlbum(a.id),
+                    fallbackIcon: Icons.album_outlined,
+                    selected: _albumId == a.id,
+                    strings: strings,
+                    onTap: () => setState(() {
+                      _albumId = a.id;
+                      _renaming = false;
+                    }),
+                  ),
+              ],
+            ),
           ),
         ),
         const SizedBox(height: 8),

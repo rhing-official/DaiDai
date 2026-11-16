@@ -156,7 +156,8 @@ class MainActivity : FlutterFragmentActivity() {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return null
         val builder = PictureInPictureParams.Builder().setAspectRatio(Rational(9, 16))
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-            // Android 12以降は、通話中にホームへ戻る・他のアプリへ切り替えるだけで自動的に入る。
+            // Android 12以降は、通話中にホームへ戻ると自動的に入る。最近のアプリ画面からの切り替えは
+            // 自動では入らないため、onUserLeaveHintで手動で入る。
             builder.setAutoEnterEnabled(callActive)
         }
         return builder.build()
@@ -169,10 +170,12 @@ class MainActivity : FlutterFragmentActivity() {
 
     override fun onUserLeaveHint() {
         super.onUserLeaveHint()
-        // Android 8〜11は自動で入れないため、ホームボタン等で離れる時に手動で入る。
+        // Android 8〜11は自動で入れないため、離れる時に手動で入る。Android 12以降も、自動入室は
+        // 「ホームへ戻る」でしか働かず、最近のアプリ画面からの切り替えでは入らないため、手動で入る
+        // （既に入っている・入りかけの時は何もしない）。
         if (callActive &&
             Build.VERSION.SDK_INT >= Build.VERSION_CODES.O &&
-            Build.VERSION.SDK_INT < Build.VERSION_CODES.S
+            !isInPictureInPictureMode
         ) {
             buildPipParams()?.let { enterPictureInPictureMode(it) }
         }

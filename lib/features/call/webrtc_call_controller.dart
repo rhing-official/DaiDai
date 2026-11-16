@@ -19,6 +19,8 @@ import 'bgm/bgm_storage.dart';
 import 'bgm/bgm_now_playing.dart';
 import 'mic_denoiser.dart';
 import 'screen_share.dart';
+import '../../providers/bgm_preferences_provider.dart';
+import 'bgm/bgm_queue.dart';
 import 'bgm/call_bgm.dart';
 import 'webrtc_media_constraints.dart';
 
@@ -34,6 +36,8 @@ class WebrtcCallController extends ChangeNotifier {
     required DirectMessageRepository directMessageRepository,
     IceServersLoader? iceServersLoader,
     this.joinWithCamera = true,
+    this.bgmPreferences = const BgmPreferences(),
+    this.onBgmPreferencesChanged,
   }) : _callRepository = callRepository,
        _directMessageRepository = directMessageRepository,
        _iceServersLoader = iceServersLoader;
@@ -44,6 +48,11 @@ class WebrtcCallController extends ChangeNotifier {
   /// 応答時にカメラをオンで入るか（設定「ビデオ通話に参加する時カメラをオンにする」、
   /// 2026-11-01）。着信側の応答にだけ効き、発信側には影響しない。
   final bool joinWithCamera;
+
+  /// BGMの前回の状態（音量・再生順）と、変えた時の保存（2026-11-16）。
+  final BgmPreferences bgmPreferences;
+  final void Function(double volume, BgmPlayOrder order)?
+  onBgmPreferencesChanged;
   final CallRepository _callRepository;
   final DirectMessageRepository _directMessageRepository;
 
@@ -98,6 +107,36 @@ class WebrtcCallController extends ChangeNotifier {
   bool _connectionIssue = false;
   bool get connectionIssue => _connectionIssue;
 
+  /// 音声・映像の通り道（ICE）が確立したか。`active`（応答済み）になっても、確立するまでの
+  /// 5〜10秒は音声も映像も届かない為、画面は「通信を確立中」を出す（2026-11-16）。
+  /// 一度確立したら、以降の切断・不安定は[connectionIssue]で扱う。
+  bool _mediaConnected = false;
+  bool get mediaConnected => _mediaConnected;
+
+  /// 確立まで時間がかかっている（応答から15秒を超えた）。
+  bool _establishingTooLong = false;
+  bool get establishingTooLong => _establishingTooLong;
+  Timer? _establishingTimer;
+
+  void _startEstablishingTimer() {
+    if (_mediaConnected || _establishingTimer != null) return;
+    _establishingTimer = Timer(const Duration(seconds: 15), () {
+      _establishingTimer = null;
+      if (_mediaConnected || _state == CallConnectionState.ended) return;
+      _establishingTooLong = true;
+      notifyListeners();
+    });
+  }
+
+  void _markMediaConnected() {
+    _establishingTimer?.cancel();
+    _establishingTimer = null;
+    if (_mediaConnected) return;
+    _mediaConnected = true;
+    _establishingTooLong = false;
+    notifyListeners();
+  }
+
   /// 通話の効果音（着信音）再生。画面側が着信中にループ再生を開始/停止する。
   final soundPlayer = CallSoundPlayer();
 
@@ -136,6 +175,9 @@ class WebrtcCallController extends ChangeNotifier {
     micTrack: () => _localStream?.getAudioTracks().firstOrNull,
     replaceOutgoingAudio: _replaceOutgoingAudio,
     onPlayingChanged: _sendBgmState,
+    initialVolume: bgmPreferences.volume,
+    initialOrder: bgmPreferences.order,
+    onPreferencesChanged: onBgmPreferencesChanged,
   )..addListener(notifyListeners);
 
   // 画面共有（配信、2026-11-15）。広場の通話（`webrtc_group_call_controller.dart`）と同じ作り。
@@ -455,6 +497,7 @@ class WebrtcCallController extends ChangeNotifier {
                 RTCIceConnectionState.RTCIceConnectionStateConnected ||
             iceState == RTCIceConnectionState.RTCIceConnectionStateCompleted) {
           unawaited(logIceStats(_peerConnection, '1:1'));
+          _markMediaConnected();
         }
         final issue =
             iceState == RTCIceConnectionState.RTCIceConnectionStateFailed ||
@@ -748,6 +791,7 @@ class WebrtcCallController extends ChangeNotifier {
           _state = CallConnectionState.active;
           _cancelRingTimeout();
           _connectedAt ??= DateTime.now();
+          _startEstablishingTimer();
           unawaited(_applySpeakerphoneWithRetry());
           // 相手（着信側）が応答したことで届いたanswer。発信側が聞いていた
           // 呼出音をここで止める（2026-09-12追加、以前は通話終了まで
@@ -783,6 +827,7 @@ class WebrtcCallController extends ChangeNotifier {
       _state = CallConnectionState.active;
       _cancelRingTimeout();
       _connectedAt ??= DateTime.now();
+      _startEstablishingTimer();
       unawaited(_applySpeakerphoneWithRetry());
       // 着信側が応答したことでこのアンサーを送った瞬間。着信音をここで
       // 止める（2026-09-12追加、以前は通話終了まで止める箇所が無かった）。
@@ -1511,6 +1556,7 @@ class WebrtcCallController extends ChangeNotifier {
     if (_watchingAudioDevices) navigator.mediaDevices.ondevicechange = null;
     _cancelRingTimeout();
     _disconnectGrace.cancel();
+    _establishingTimer?.cancel();
     _callSub?.cancel();
     _candidatesSub?.cancel();
     _videoFailedTimer?.cancel();

@@ -17,6 +17,8 @@ class AppUserPreferences {
     this.stickerSendMode,
     this.draftSyncEnabled,
     this.joinVideoCameraOn,
+    this.bgmVolume,
+    this.bgmPlayOrder,
     this.iconSplitMirrored,
     this.slidePickEnabled,
     this.chatLayoutStyle,
@@ -61,6 +63,11 @@ class AppUserPreferences {
 
   /// ビデオ通話に応答・参加した時にカメラをオンで入るか（2026-11-01追加、null=標準のオン）。
   final bool? joinVideoCameraOn;
+
+  /// 通話のBGMの音量（スライダーの位置0〜1）と再生順（`BgmPlayOrder.name`）。前回の状態を
+  /// 引き継ぐ（2026-11-16追加、null=標準の50%・順番）。
+  final double? bgmVolume;
+  final String? bgmPlayOrder;
 
   /// 「アイコン＋寄合一覧」を左右反転するか（2026-11-01、nullは標準のオフ）。
   final bool? iconSplitMirrored;
@@ -154,6 +161,8 @@ class AppUserPreferences {
       stickerSendMode: json['stickerSendMode'] as String?,
       draftSyncEnabled: json['draftSyncEnabled'] as bool?,
       joinVideoCameraOn: json['joinVideoCameraOn'] as bool?,
+      bgmVolume: (json['bgmVolume'] as num?)?.toDouble(),
+      bgmPlayOrder: json['bgmPlayOrder'] as String?,
       iconSplitMirrored: json['iconSplitMirrored'] as bool?,
       slidePickEnabled: json['slidePickEnabled'] as bool?,
       chatLayoutStyle: json['chatLayoutStyle'] as String?,
@@ -202,6 +211,8 @@ class AppUserPreferences {
       if (stickerSendMode != null) 'stickerSendMode': stickerSendMode,
       if (draftSyncEnabled != null) 'draftSyncEnabled': draftSyncEnabled,
       if (joinVideoCameraOn != null) 'joinVideoCameraOn': joinVideoCameraOn,
+      if (bgmVolume != null) 'bgmVolume': bgmVolume,
+      if (bgmPlayOrder != null) 'bgmPlayOrder': bgmPlayOrder,
       if (iconSplitMirrored != null) 'iconSplitMirrored': iconSplitMirrored,
       if (slidePickEnabled != null) 'slidePickEnabled': slidePickEnabled,
       if (chatLayoutStyle != null) 'chatLayoutStyle': chatLayoutStyle,

@@ -22,6 +22,8 @@ import 'audio_route.dart';
 import 'bgm/bgm_storage.dart';
 import 'bgm/bgm_now_playing.dart';
 import 'mic_denoiser.dart';
+import '../../providers/bgm_preferences_provider.dart';
+import 'bgm/bgm_queue.dart';
 import 'bgm/call_bgm.dart';
 import 'webrtc_media_constraints.dart';
 
@@ -49,6 +51,8 @@ class WebrtcGroupCallController extends ChangeNotifier {
     required bool isVideo,
     required GroupCallRepository groupCallRepository,
     IceServersLoader? iceServersLoader,
+    this.bgmPreferences = const BgmPreferences(),
+    this.onBgmPreferencesChanged,
   }) : _isVideo = isVideo,
        _repository = groupCallRepository,
        _iceServersLoader = iceServersLoader;
@@ -56,6 +60,11 @@ class WebrtcGroupCallController extends ChangeNotifier {
   final String groupCallId;
   final AppUser currentUser;
   final GroupCallRepository _repository;
+
+  /// BGMの前回の状態（音量・再生順）と、変えた時の保存（2026-11-16）。
+  final BgmPreferences bgmPreferences;
+  final void Function(double volume, BgmPlayOrder order)?
+  onBgmPreferencesChanged;
 
   /// 中継（TURN）の認証情報の取得（nullならSTUNのみ、2026-10-21）。
   final IceServersLoader? _iceServersLoader;
@@ -167,6 +176,10 @@ class WebrtcGroupCallController extends ChangeNotifier {
   final Map<String, bool> _watchIceRestarted = {};
   final Set<String> _iceEstablished = {};
 
+  /// [userId]との音声・映像の通り道（ICE）が確立したか。確立するまでの数秒は、参加していても
+  /// 音声も映像も届かない為、画面は「接続中」を出す（2026-11-16）。
+  bool isPeerEstablished(String userId) => _iceEstablished.contains(userId);
+
   /// このペアで、固まって接続を作り直した回数（確立したら0に戻す）。作り直しをまたいで保つ。
   final Map<String, int> _watchRecreates = {};
 
@@ -255,6 +268,9 @@ class WebrtcGroupCallController extends ChangeNotifier {
     storage: createBgmStorage(),
     micTrack: () => _localStream?.getAudioTracks().firstOrNull,
     replaceOutgoingAudio: _replaceOutgoingAudio,
+    initialVolume: bgmPreferences.volume,
+    initialOrder: bgmPreferences.order,
+    onPreferencesChanged: onBgmPreferencesChanged,
     onPlayingChanged: (nowPlaying) => _repository
         .updateParticipantState(
           groupCallId: groupCallId,
@@ -698,7 +714,7 @@ class WebrtcGroupCallController extends ChangeNotifier {
       );
       if (iceState == RTCIceConnectionState.RTCIceConnectionStateConnected ||
           iceState == RTCIceConnectionState.RTCIceConnectionStateCompleted) {
-        _iceEstablished.add(otherUserId);
+        if (_iceEstablished.add(otherUserId)) notifyListeners();
         _watchRecreates.remove(otherUserId);
         final counts = _candidateCounts[otherUserId];
         if (counts != null) {
@@ -740,22 +756,20 @@ class WebrtcGroupCallController extends ChangeNotifier {
       );
     };
 
-    _peerCandidateSubs[otherUserId] = _repository
-        .watchPeerCandidates(
-          groupCallId: groupCallId,
-          pairId: pairId,
-          isUserA: isUserA,
-        )
-        .listen((candidates) {
-          for (final data in candidates) {
-            _applyOrBufferCandidate(otherUserId, peerConnection, data);
-          }
-        });
-
+    // peerLinkを先に作ってから、相手のICE candidateを購読する。candidateの読み取りルールは
+    // peerLinkのドキュメントを参照する為、先に購読するとpermission-deniedで購読が終わり
+    // （Firestoreは自動で再購読しない）、相手のcandidateが届かないまま、見張りが8秒×2回待って
+    // 接続を作り直すまで、通信が確立しなかった（2026-11-16、実機ログのremoteCandidates received=0）。
     await _repository.initiatePeerLink(
       groupCallId: groupCallId,
       userAId: currentUser.userId,
       userBId: otherUserId,
+    );
+    _subscribePeerCandidates(
+      otherUserId: otherUserId,
+      pairId: pairId,
+      isUserA: isUserA,
+      peerConnection: peerConnection,
     );
 
     // peerLinkのoffer/answerは初回接続時の1回だけでなく、通話中の音声⇔
@@ -834,6 +848,46 @@ class WebrtcGroupCallController extends ChangeNotifier {
     if (isUserA) {
       await _createAndSendPeerOffer(otherUserId, peerConnection);
     }
+  }
+
+  /// 相手のICE candidateを購読する。購読が失敗しても終わりにせず、少し待って張り直す
+  /// （Firestoreの購読はエラーで終了する）。接続を作り直した後の古い購読には何もしない。
+  void _subscribePeerCandidates({
+    required String otherUserId,
+    required String pairId,
+    required bool isUserA,
+    required RTCPeerConnection peerConnection,
+    int attempt = 0,
+  }) {
+    _peerCandidateSubs[otherUserId]?.cancel();
+    _peerCandidateSubs[otherUserId] = _repository
+        .watchPeerCandidates(
+          groupCallId: groupCallId,
+          pairId: pairId,
+          isUserA: isUserA,
+        )
+        .listen(
+          (candidates) {
+            for (final data in candidates) {
+              _applyOrBufferCandidate(otherUserId, peerConnection, data);
+            }
+          },
+          onError: (Object e) {
+            callLog('group: $otherUserId candidates watch failed: $e');
+            if (attempt >= 5) return;
+            Future.delayed(const Duration(seconds: 1), () {
+              if (!identical(_peerConnections[otherUserId], peerConnection))
+                return;
+              _subscribePeerCandidates(
+                otherUserId: otherUserId,
+                pairId: pairId,
+                isUserA: isUserA,
+                peerConnection: peerConnection,
+                attempt: attempt + 1,
+              );
+            });
+          },
+        );
   }
 
   Future<void> _applyRemotePeerOffer(
