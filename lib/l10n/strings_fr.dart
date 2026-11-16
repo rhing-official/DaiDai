@@ -767,6 +767,11 @@ final Strings _stringsFr = Strings._(
   callScreenShareVolume: "Volume de l’audio partagé",
   callScreenShareHint: "À plusieurs, une qualité plus basse est plus stable.",
   callScreenShareYourScreen: "Votre écran",
+  callScreenSharingNow: "Vous partagez votre écran",
+  callVolume: "Volume",
+  callScreenShareReceiving: "Réception de l'écran partagé…",
+  callScreenShareReceiveFailed:
+      "Impossible de recevoir l'écran partagé. Demandez à la personne de relancer le partage.",
   settingsMicDenoiseTitle: "Suppression du bruit en appel (avancée)",
   settingsMicDenoiseDescription:
       "Réduit les bruits de fond du micro (clavier, ventilateur, télévision) grâce à l’IA. Votre voix ne quitte jamais votre appareil. Effet dès le prochain appel. Version navigateur uniquement.",

@@ -633,6 +633,10 @@ class Strings {
     required this.callScreenShareVolume,
     required this.callScreenShareHint,
     required this.callScreenShareYourScreen,
+    required this.callScreenSharingNow,
+    required this.callVolume,
+    required this.callScreenShareReceiving,
+    required this.callScreenShareReceiveFailed,
     required this.settingsMicDenoiseTitle,
     required this.settingsMicDenoiseDescription,
     required this.callIncomingVoice,
@@ -2001,6 +2005,10 @@ class Strings {
   final String callScreenShareVolume;
   final String callScreenShareHint;
   final String callScreenShareYourScreen;
+  final String callScreenSharingNow;
+  final String callVolume;
+  final String callScreenShareReceiving;
+  final String callScreenShareReceiveFailed;
   final String settingsMicDenoiseTitle;
   final String settingsMicDenoiseDescription;
   final String callIncomingVoice;
@@ -3498,6 +3506,10 @@ class Strings {
     callScreenShareVolume: '共有された音声の音量',
     callScreenShareHint: '人数が多い時は、画質を下げると安定します。',
     callScreenShareYourScreen: 'あなたの画面',
+    callScreenSharingNow: '画面を共有しています',
+    callVolume: '音量',
+    callScreenShareReceiving: '画面共有を受信しています…',
+    callScreenShareReceiveFailed: '画面共有を受信できません。相手に共有をやり直してもらってください。',
     settingsMicDenoiseTitle: '通話のノイズ除去（高性能）',
     settingsMicDenoiseDescription:
         'マイクの雑音（キーボード・扇風機・テレビなど）を、AIで減らします。音声は端末の外へ出しません。次の通話から反映されます。ブラウザ版のみ。',
@@ -4896,6 +4908,11 @@ class Strings {
     callScreenShareVolume: 'Shared audio volume',
     callScreenShareHint: 'With many people, a lower quality is more stable.',
     callScreenShareYourScreen: 'Your screen',
+    callScreenSharingNow: 'You are sharing your screen',
+    callVolume: 'Volume',
+    callScreenShareReceiving: 'Receiving the shared screen…',
+    callScreenShareReceiveFailed:
+        'Could not receive the shared screen. Ask them to start sharing again.',
     settingsMicDenoiseTitle: 'Call noise suppression (advanced)',
     settingsMicDenoiseDescription:
         'Reduces background noise from your microphone (keyboards, fans, TV) using AI. Your audio never leaves your device. Takes effect from your next call. Browser version only.',

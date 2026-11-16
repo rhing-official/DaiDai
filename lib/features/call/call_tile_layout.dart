@@ -8,6 +8,73 @@ import 'package:pointer_interceptor/pointer_interceptor.dart';
 import '../../l10n/strings.dart';
 import 'call_pin_provider.dart';
 
+/// 自分の画面共有のウィンドウの中身に出す「画面を共有しています」（2026-11-16）。Androidの
+/// アプリは端末の画面全体を撮る為、自分の共有の映像をこの画面に出すと、撮られた画面の中に
+/// 同じ映像がまた映り続ける（無限鏡で、描画の負荷も上がる）。映像の代わりにこれを出す。
+class ScreenSharingNowView extends ConsumerWidget {
+  const ScreenSharingNowView({super.key});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    return Center(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const Icon(Icons.screen_share, color: Colors.white70, size: 40),
+          const SizedBox(height: 8),
+          Text(
+            ref.watch(appStringsProvider).callScreenSharingNow,
+            textAlign: TextAlign.center,
+            style: const TextStyle(color: Colors.white70, fontSize: 13),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// 相手の画面共有のウィンドウの、映像が届くまでの表示（2026-11-16）。配信が始まったことは先に
+/// 分かるが、映像のストリームは再ネゴシエーションを経て数秒遅れて届く。届かない時は[failed]で案内。
+class ScreenReceivingView extends ConsumerWidget {
+  const ScreenReceivingView({this.failed = false, super.key});
+
+  final bool failed;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final strings = ref.watch(appStringsProvider);
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            if (failed)
+              const Icon(Icons.error_outline, color: Colors.white70, size: 32)
+            else
+              const SizedBox(
+                width: 28,
+                height: 28,
+                child: CircularProgressIndicator(
+                  strokeWidth: 2.5,
+                  color: Colors.white70,
+                ),
+              ),
+            const SizedBox(height: 12),
+            Text(
+              failed
+                  ? strings.callScreenShareReceiveFailed
+                  : strings.callScreenShareReceiving,
+              textAlign: TextAlign.center,
+              style: const TextStyle(color: Colors.white70, fontSize: 13),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
 /// 通話のウィンドウ（参加者・画面共有）の1行あたりの枚数（上の行から、2026-11-16）。
 /// 一対・広場で共通の規則。画面共有も1枚と数える（2人が両方共有なら4枚）。
 ///
@@ -39,7 +106,12 @@ List<int>? callTileRowSizes(int count, {required bool portrait}) {
 /// 通話の1枚のウィンドウ（参加者・画面共有）の指定。[key]は、参加者は`userId`、画面共有は
 /// `<userId>#screen`（一対は`self`・`remote`・`self#screen`・`remote#screen`）。
 class CallTileSpec {
-  const CallTileSpec({required this.key, required this.build, this.onTap});
+  const CallTileSpec({
+    required this.key,
+    required this.build,
+    this.onTap,
+    this.volume,
+  });
 
   final String key;
 
@@ -49,6 +121,19 @@ class CallTileSpec {
 
   /// タップ（映像の拡大ビューアを開く）。映像が無いウィンドウは`null`。
   final VoidCallback? onTap;
+
+  /// このウィンドウの音量（2026-11-16）。指定があるウィンドウにだけ、右下に音量のボタンを出す
+  /// （押すとスライダーが開く）。相手の声・相手の共有音声は聞こえる音量、自分・自分の共有は
+  /// 相手へ送る音量（Webのみ）。
+  final CallTileVolume? volume;
+}
+
+/// ウィンドウの音量（0〜1）。
+class CallTileVolume {
+  const CallTileVolume({required this.value, required this.onChanged});
+
+  final double value;
+  final ValueChanged<double> onChanged;
 }
 
 /// 通話のウィンドウの配置（2026-11-16）。与えられた領域に**スクロール無しで常に収まる**。
@@ -70,6 +155,9 @@ class _CallTileStageState extends ConsumerState<CallTileStage> {
   /// 付け替えても同じ状態を保つ`GlobalKey`。
   final Map<String, GlobalKey> _keys = {};
 
+  /// 音量のスライダーを開いているウィンドウのキー。
+  final Set<String> _volumeOpen = {};
+
   GlobalKey _keyFor(String key) => _keys.putIfAbsent(key, GlobalKey.new);
 
   Widget _window(CallTileSpec spec, bool pinned, bool isPinned) {
@@ -90,6 +178,7 @@ class _CallTileStageState extends ConsumerState<CallTileStage> {
                 ),
               ),
             ),
+          if (spec.volume != null) ..._volumeControls(spec),
           Positioned(
             top: 6,
             left: 6,
@@ -125,6 +214,70 @@ class _CallTileStageState extends ConsumerState<CallTileStage> {
         ],
       ),
     );
+  }
+
+  /// 右下の音量ボタンと、開いている時のスライダー（2026-11-16）。
+  List<Widget> _volumeControls(CallTileSpec spec) {
+    final volume = spec.volume!;
+    final strings = ref.watch(appStringsProvider);
+    final open = _volumeOpen.contains(spec.key);
+    return [
+      if (open)
+        Positioned(
+          right: 6,
+          bottom: 44,
+          child: PointerInterceptor(
+            child: DecoratedBox(
+              decoration: BoxDecoration(
+                color: Colors.black.withValues(alpha: 0.7),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              // `Slider`はMaterialの祖先が要る（PCの通話画面はScaffoldの外に出る）。
+              child: Material(
+                type: MaterialType.transparency,
+                child: SizedBox(
+                  width: 170,
+                  child: Slider(
+                    key: ValueKey('volume-slider-${spec.key}'),
+                    value: volume.value.clamp(0.0, 1.0),
+                    onChanged: volume.onChanged,
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+      Positioned(
+        right: 6,
+        bottom: 6,
+        child: PointerInterceptor(
+          child: Tooltip(
+            message: strings.callVolume,
+            child: GestureDetector(
+              key: ValueKey('volume-${spec.key}'),
+              behavior: HitTestBehavior.opaque,
+              onTap: () => setState(() {
+                if (!_volumeOpen.remove(spec.key)) _volumeOpen.add(spec.key);
+              }),
+              child: DecoratedBox(
+                decoration: const BoxDecoration(
+                  color: Colors.black54,
+                  shape: BoxShape.circle,
+                ),
+                child: Padding(
+                  padding: const EdgeInsets.all(5),
+                  child: Icon(
+                    volume.value <= 0 ? Icons.volume_off : Icons.volume_up,
+                    size: 16,
+                    color: Colors.white,
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    ];
   }
 
   /// [windows]を[callTileRowSizes]の行構成で、与えられた領域いっぱいに並べる。

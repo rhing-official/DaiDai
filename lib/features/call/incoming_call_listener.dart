@@ -5,6 +5,7 @@ import '../../providers/block_providers.dart';
 import '../../providers/repository_providers.dart';
 import '../../models/call.dart';
 import 'active_call_session.dart';
+import 'call_log.dart';
 import 'call_ring_timeout.dart';
 
 /// アプリ全体で、自分宛の着信（呼び出し中の通話）を監視する。
@@ -34,14 +35,21 @@ class _IncomingCallListenerState extends ConsumerState<IncomingCallListener> {
   @override
   Widget build(BuildContext context) {
     ref.listen(_incomingCallProvider(widget.currentUserId), (previous, next) {
+      if (next.hasError) {
+        callLog('incoming: watch error ${next.error}');
+      }
       final call = next.asData?.value;
       if (call == null) return;
+      callLog('incoming: ringing call ${call.callId}');
       // ブロック中の相手からの着信は無視する（2026-10-11）。拒否は書き込先ず、
       // 発信側にはブロックが分からないまま呼び出し中として終わる。
       final blocked =
           ref.read(blockedUserIdsProvider(widget.currentUserId)).value ??
           const <String>{};
-      if (blocked.contains(call.callerId)) return;
+      if (blocked.contains(call.callerId)) {
+        callLog('incoming: ignored (blocked caller)');
+        return;
+      }
       // 終了が書かれずに`ringing`のまま残った古い通話は鳴らさず、不在着信として片付ける
       // （2026-11-03、URLを開くと終わった通話の着信音が鳴る不具合）。
       if (!isCallRingFresh(createdAt: call.createdAt, now: DateTime.now())) {
@@ -49,6 +57,7 @@ class _IncomingCallListenerState extends ConsumerState<IncomingCallListener> {
             .read(callRepositoryProvider)
             .updateStatus(call.callId, CallStatus.missed)
             .catchError((_) {});
+        callLog('incoming: stale ring, marked missed');
         return;
       }
       // 別の会話で通話中なら、その通話を切らずに着信は受けない（発信側は呼び出しの
@@ -56,12 +65,14 @@ class _IncomingCallListenerState extends ConsumerState<IncomingCallListener> {
       if (!ref
           .read(activeCallSessionProvider.notifier)
           .canAcceptIncomingOneToOne(call)) {
+        callLog('incoming: ignored (another call is active)');
         return;
       }
       // フルスクリーンを経由せず直接セッションを開始する（PC・Web・アプリ共通）。
       // 応答・拒否は`IncomingCallBannerOverlay`のバナーだけで行う（2026-11-03、
       // アプリも統一）。startOneToOne自体が同じ通話への重複アタッチを防ぐ
       // （active_call_session.dart参照）。
+      callLog('incoming: startOneToOne');
       ref
           .read(activeCallSessionProvider.notifier)
           .startOneToOne(

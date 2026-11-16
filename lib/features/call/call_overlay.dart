@@ -20,6 +20,7 @@ import 'screen_share_menu.dart';
 import 'call_control_bar.dart';
 import 'call_video_viewer.dart';
 import 'call_pin_provider.dart';
+import 'send_gain.dart';
 import 'call_tile_layout.dart';
 import 'camera_availability.dart';
 import 'webrtc_call_controller.dart';
@@ -346,11 +347,13 @@ class _OneToOneStageState extends ConsumerState<_OneToOneStage> {
         ? controller.remoteScreenRenderer
         : controller.localScreenRenderer;
     return ScreenShareFrame(
-      video: RTCVideoView(
-        key: ValueKey((renderer, _viewerGeneration)),
-        renderer,
-        objectFit: RTCVideoViewObjectFit.RTCVideoViewObjectFitContain,
-      ),
+      video: (remote && !controller.remoteScreenReady)
+          ? ScreenReceivingView(failed: controller.remoteScreenTimedOut)
+          : RTCVideoView(
+              key: ValueKey((renderer, _viewerGeneration)),
+              renderer,
+              objectFit: RTCVideoViewObjectFit.RTCVideoViewObjectFitContain,
+            ),
       name: CallParticipantNameLabel(
         userId: remote ? call.otherUserId(me) : me,
         rhingSeed: remote ? call.otherRhingSeed(me) : call.myRhingSeed(me),
@@ -372,8 +375,14 @@ class _OneToOneStageState extends ConsumerState<_OneToOneStage> {
       if (controller.remoteScreenShown)
         CallTileSpec(
           key: 'remote#screen',
-          onTap: () =>
-              _openViewer(controller.remoteScreenRenderer, mirror: false),
+          onTap: controller.remoteScreenReady
+              ? () =>
+                    _openViewer(controller.remoteScreenRenderer, mirror: false)
+              : null,
+          volume: CallTileVolume(
+            value: controller.remoteScreenVolume,
+            onChanged: controller.setRemoteScreenVolume,
+          ),
           build: (_) => _screenTile(remote: true),
         ),
       if (controller.isScreenSharing)
@@ -381,6 +390,13 @@ class _OneToOneStageState extends ConsumerState<_OneToOneStage> {
           key: 'self#screen',
           onTap: () =>
               _openViewer(controller.localScreenRenderer, mirror: false),
+          // 共有する音の音量（相手へ送る音。Webのみ）。
+          volume: SendGain.isSupported
+              ? CallTileVolume(
+                  value: controller.screenSendVolume,
+                  onChanged: controller.setScreenSendVolume,
+                )
+              : null,
           build: (_) => _screenTile(remote: false),
         ),
       CallTileSpec(
@@ -391,6 +407,13 @@ class _OneToOneStageState extends ConsumerState<_OneToOneStage> {
                 mirror: controller.isFrontCamera,
               )
             : null,
+        // 自分のマイクの音量（相手へ送る音。Webのみ）。
+        volume: SendGain.isSupported
+            ? CallTileVolume(
+                value: controller.micVolume,
+                onChanged: controller.setMicVolume,
+              )
+            : null,
         build: (pinned) => _participantTile(remote: false, pinned: pinned),
       ),
       CallTileSpec(
@@ -398,6 +421,10 @@ class _OneToOneStageState extends ConsumerState<_OneToOneStage> {
         onTap: controller.remoteVideoShown
             ? () => _openViewer(controller.remoteRenderer, mirror: false)
             : null,
+        volume: CallTileVolume(
+          value: controller.remoteVoiceVolume,
+          onChanged: controller.setRemoteVoiceVolume,
+        ),
         build: (pinned) => _participantTile(remote: true, pinned: pinned),
       ),
     ];
@@ -451,18 +478,25 @@ class _GroupStageState extends ConsumerState<_GroupStage> {
     CallTileSpec screenSpec({
       required String userId,
       required String rhingSeed,
-      required RTCVideoRenderer renderer,
+      required RTCVideoRenderer? renderer,
       required String label,
+      bool timedOut = false,
+      CallTileVolume? volume,
     }) {
+      // 映像のストリームが届くまでは、受信中の表示（`renderer`がnullか、まだ入っていない）。
+      final ready = renderer != null && renderer.srcObject != null;
       return CallTileSpec(
         key: '$userId#screen',
-        onTap: () => _openViewer(renderer, mirror: false),
+        onTap: ready ? () => _openViewer(renderer, mirror: false) : null,
+        volume: volume,
         build: (_) => ScreenShareFrame(
-          video: RTCVideoView(
-            key: ValueKey((renderer, _viewerGeneration)),
-            renderer,
-            objectFit: RTCVideoViewObjectFit.RTCVideoViewObjectFitContain,
-          ),
+          video: !ready
+              ? ScreenReceivingView(failed: timedOut)
+              : RTCVideoView(
+                  key: ValueKey((renderer, _viewerGeneration)),
+                  renderer,
+                  objectFit: RTCVideoViewObjectFit.RTCVideoViewObjectFitContain,
+                ),
           name: CallParticipantNameLabel(
             userId: userId,
             rhingSeed: rhingSeed,
@@ -485,9 +519,11 @@ class _GroupStageState extends ConsumerState<_GroupStage> {
       required bool mirror,
       required bool videoEnabled,
       required bool micMuted,
+      CallTileVolume? volume,
     }) {
       return CallTileSpec(
         key: userId,
+        volume: volume,
         onTap: videoEnabled && renderer != null
             ? () => _openViewer(renderer, mirror: mirror)
             : null,
@@ -511,14 +547,26 @@ class _GroupStageState extends ConsumerState<_GroupStage> {
           rhingSeed: controller.currentUser.rhingSeed,
           renderer: controller.localScreenRenderer,
           label: controller.screenQuality.label,
+          // 共有する音の音量（相手へ送る音。Webのみ）。
+          volume: SendGain.isSupported
+              ? CallTileVolume(
+                  value: controller.screenSendVolume,
+                  onChanged: controller.setScreenSendVolume,
+                )
+              : null,
         ),
       for (final p in remotes)
         if (controller.remoteScreenShown(p))
           screenSpec(
             userId: p.userId,
             rhingSeed: p.rhingSeed,
-            renderer: controller.screenRenderers[p.userId]!,
+            renderer: controller.screenRenderers[p.userId],
             label: p.screenLabel ?? '',
+            timedOut: controller.remoteScreenTimedOut(p),
+            volume: CallTileVolume(
+              value: controller.screenVolumeOf(p.userId),
+              onChanged: (v) => controller.setScreenVolumeOf(p.userId, v),
+            ),
           ),
       personSpec(
         userId: selfId,
@@ -527,6 +575,13 @@ class _GroupStageState extends ConsumerState<_GroupStage> {
         mirror: controller.isFrontCamera,
         videoEnabled: controller.isVideo,
         micMuted: controller.muted,
+        // 自分のマイクの音量（相手へ送る音。Webのみ）。
+        volume: SendGain.isSupported
+            ? CallTileVolume(
+                value: controller.micVolume,
+                onChanged: controller.setMicVolume,
+              )
+            : null,
       ),
       for (final p in remotes)
         personSpec(
@@ -536,6 +591,10 @@ class _GroupStageState extends ConsumerState<_GroupStage> {
           mirror: false,
           videoEnabled: controller.remoteVideoShown(p),
           micMuted: p.micMuted,
+          volume: CallTileVolume(
+            value: controller.voiceVolumeOf(p.userId),
+            onChanged: (v) => controller.setVoiceVolumeOf(p.userId, v),
+          ),
         ),
     ];
 

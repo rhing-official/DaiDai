@@ -15,7 +15,10 @@ import 'call_audio_sinks.dart';
 import 'call_avatar.dart';
 import 'bgm/call_bgm_bindings.dart';
 import 'call_tile_layout.dart';
+import 'pip_controller.dart' show enterCallPip;
+import 'screen_share.dart' show ScreenShareCapture;
 import 'screen_share_menu.dart';
+import 'swipe_down_dock.dart';
 import 'call_control_bar.dart';
 import 'call_video_viewer.dart';
 import 'camera_availability.dart';
@@ -191,7 +194,10 @@ class _CallScreenState extends ConsumerState<CallScreen> {
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
     final anyVideo =
-        _myIsVideo || _remoteIsVideo || _controller.remoteScreenShown;
+        _myIsVideo ||
+        _remoteIsVideo ||
+        _controller.remoteScreenShown ||
+        _controller.isScreenSharing;
     final ended = _controller.state == CallConnectionState.ended;
     if (anyVideo && !ended) _hadVideo = true;
     // 下スワイプでのドックは、映像がある通話が実際に繋がってから、かつ
@@ -238,22 +244,18 @@ class _CallScreenState extends ConsumerState<CallScreen> {
         },
         child: body,
       );
-      body = GestureDetector(
-        behavior: HitTestBehavior.translucent,
-        onVerticalDragEnd: (details) {
-          final velocity = details.primaryVelocity ?? 0;
-          if (velocity >= kSwipeGestureVelocityThreshold) _dockCall();
-        },
-        child: body,
-      );
+      // 下スワイプは生のポインターで判定する（`SwipeDownDock`）。ウィンドウのタップ・ピンの
+      // ボタンに負けて効かなくなっていた（beta.7）。
+      body = SwipeDownDock(onDock: _dockCall, child: body);
     }
 
     return PopScope(
       canPop: _intentionalPop,
       onPopInvokedWithResult: (didPop, _) {
         if (didPop || _intentionalPop) return;
-        // 戻る操作は通話を切らず、ミニ表示にする（切るのは終話ボタンだけ）。
-        _dockCall();
+        // 戻る操作は通話を切らず、OSのPiPに入る（入れない時はアプリ内のミニ表示）。
+        // 切るのは終話ボタンだけ。
+        _onBack();
       },
       child: body,
     );
@@ -271,6 +273,12 @@ class _CallScreenState extends ConsumerState<CallScreen> {
       radius: radius,
       fontSize: radius * 0.7,
     );
+  }
+
+  /// 戻る操作。AndroidのアプリはOS標準のPiPに入る。入れなければアプリ内のミニ表示にする。
+  Future<void> _onBack() async {
+    if (await enterCallPip()) return;
+    if (mounted) _dockCall();
   }
 
   /// 拡大表示（映像のビューア）を開く。閉じたら映像の部品を作り直す。
@@ -361,11 +369,15 @@ class _CallScreenState extends ConsumerState<CallScreen> {
         ? _controller.remoteScreenRenderer
         : _controller.localScreenRenderer;
     return ScreenShareFrame(
-      video: RTCVideoView(
-        key: ValueKey((renderer, _viewerGeneration)),
-        renderer,
-        objectFit: RTCVideoViewObjectFit.RTCVideoViewObjectFitContain,
-      ),
+      video: (!remote && ScreenShareCapture.isNativeAndroid)
+          ? const ScreenSharingNowView()
+          : (remote && !_controller.remoteScreenReady)
+          ? ScreenReceivingView(failed: _controller.remoteScreenTimedOut)
+          : RTCVideoView(
+              key: ValueKey((renderer, _viewerGeneration)),
+              renderer,
+              objectFit: RTCVideoViewObjectFit.RTCVideoViewObjectFitContain,
+            ),
       name: CallParticipantNameLabel(
         userId: remote ? _otherUserId : me,
         rhingSeed: remote ? _otherRhingSeed : widget.call.myRhingSeed(me),
@@ -405,15 +417,23 @@ class _CallScreenState extends ConsumerState<CallScreen> {
       if (_controller.remoteScreenShown)
         CallTileSpec(
           key: 'remote#screen',
-          onTap: () =>
-              _openViewer(_controller.remoteScreenRenderer, mirror: false),
+          onTap: _controller.remoteScreenReady
+              ? () =>
+                    _openViewer(_controller.remoteScreenRenderer, mirror: false)
+              : null,
+          volume: CallTileVolume(
+            value: _controller.remoteScreenVolume,
+            onChanged: _controller.setRemoteScreenVolume,
+          ),
           build: (_) => _screenTile(remote: true),
         ),
       if (_controller.isScreenSharing)
         CallTileSpec(
           key: 'self#screen',
-          onTap: () =>
-              _openViewer(_controller.localScreenRenderer, mirror: false),
+          onTap: ScreenShareCapture.isNativeAndroid
+              ? null
+              : () =>
+                    _openViewer(_controller.localScreenRenderer, mirror: false),
           build: (_) => _screenTile(remote: false),
         ),
       CallTileSpec(
@@ -431,6 +451,10 @@ class _CallScreenState extends ConsumerState<CallScreen> {
         onTap: _remoteIsVideo
             ? () => _openViewer(_controller.remoteRenderer, mirror: false)
             : null,
+        volume: CallTileVolume(
+          value: _controller.remoteVoiceVolume,
+          onChanged: _controller.setRemoteVoiceVolume,
+        ),
         build: (pinned) => _personTile(remote: true, pinned: pinned),
       ),
     ];

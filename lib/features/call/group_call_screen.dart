@@ -14,7 +14,10 @@ import 'call_audio_sinks.dart';
 import 'call_avatar.dart';
 import '../../providers/call_bgm_provider.dart';
 import 'bgm/call_bgm_bindings.dart';
+import 'pip_controller.dart' show enterCallPip;
+import 'screen_share.dart' show ScreenShareCapture;
 import 'screen_share_menu.dart';
+import 'swipe_down_dock.dart';
 import 'call_control_bar.dart';
 import 'call_tile_layout.dart';
 import 'call_video_viewer.dart';
@@ -116,6 +119,12 @@ class _GroupCallScreenState extends ConsumerState<GroupCallScreen> {
   /// ドックする（2026-08-19追加）。フォーカス中タイルの下スワイプ
   /// （グリッドへ戻る操作）とは別物の為、グリッド/音声表示の時だけ
   /// 呼ばれる（build参照）。
+  /// 戻る操作。AndroidのアプリはOS標準のPiPに入る。入れなければアプリ内のミニ表示にする。
+  Future<void> _onBack() async {
+    if (await enterCallPip()) return;
+    if (mounted) _dockCall();
+  }
+
   void _dockCall() {
     ref.read(activeCallSessionProvider.notifier).setMinimized(true);
     _popIntentionally();
@@ -137,7 +146,9 @@ class _GroupCallScreenState extends ConsumerState<GroupCallScreen> {
   /// ため、全員が同じ種別とは限らない）。
   bool get _anyVideo =>
       _controller.isVideo ||
-      _controller.remoteParticipants.any((p) => p.isVideo);
+      _controller.remoteParticipants.any((p) => p.isVideo) ||
+      _controller.isScreenSharing ||
+      _controller.anyRemoteScreenShown;
 
   @override
   Widget build(BuildContext context) {
@@ -151,8 +162,9 @@ class _GroupCallScreenState extends ConsumerState<GroupCallScreen> {
     return PopScope(
       canPop: _intentionalPop,
       onPopInvokedWithResult: (didPop, _) {
-        // 戻る操作は退出せず、ミニ表示にする（退出は終話ボタンだけ）。
-        if (!didPop && !_intentionalPop) _dockCall();
+        // 戻る操作は退出せず、OSのPiPに入る（入れない時はアプリ内のミニ表示）。
+        // 退出は終話ボタンだけ。
+        if (!didPop && !_intentionalPop) _onBack();
       },
       child: Scaffold(
         backgroundColor: _anyVideo ? colorScheme.surface : displayAreaGrey,
@@ -220,14 +232,8 @@ class _GroupCallScreenState extends ConsumerState<GroupCallScreen> {
         _anyVideo &&
         _controller.state == GroupCallConnectionState.active;
     if (!dockEnabled) return child;
-    return GestureDetector(
-      behavior: HitTestBehavior.translucent,
-      onVerticalDragEnd: (details) {
-        final velocity = details.primaryVelocity ?? 0;
-        if (velocity >= kSwipeGestureVelocityThreshold) _dockCall();
-      },
-      child: child,
-    );
+    // 生のポインターで判定する（`SwipeDownDock`、ウィンドウのタップに負けて効かなかった）。
+    return SwipeDownDock(onDock: _dockCall, child: child);
   }
 
   /// 映像を画面に出していない参加者のレンダラー（音声だけ鳴らす、2026-10-21、映像オフの
@@ -386,17 +392,33 @@ class _GroupCallScreenState extends ConsumerState<GroupCallScreen> {
     CallTileSpec screenSpec({
       required String userId,
       required String rhingSeed,
-      required RTCVideoRenderer renderer,
+      required RTCVideoRenderer? renderer,
       required String label,
+      bool isSelf = false,
+      bool timedOut = false,
+      CallTileVolume? volume,
     }) => CallTileSpec(
       key: '$userId#screen',
-      onTap: () => _openViewer(renderer, mirror: false),
+      volume: volume,
+      // Androidのアプリの自分の共有は、映像ではなく「共有しています」を出す
+      // （端末の画面全体を撮る為、プレビューを出すと無限鏡になる）。
+      // 相手の共有は、映像のストリームが届くまでは受信中の表示。
+      onTap:
+          (isSelf && ScreenShareCapture.isNativeAndroid) ||
+              renderer == null ||
+              renderer.srcObject == null
+          ? null
+          : () => _openViewer(renderer, mirror: false),
       build: (_) => ScreenShareFrame(
-        video: RTCVideoView(
-          key: ValueKey((renderer, _viewerGeneration)),
-          renderer,
-          objectFit: RTCVideoViewObjectFit.RTCVideoViewObjectFitContain,
-        ),
+        video: isSelf && ScreenShareCapture.isNativeAndroid
+            ? const ScreenSharingNowView()
+            : (renderer == null || renderer.srcObject == null)
+            ? ScreenReceivingView(failed: timedOut)
+            : RTCVideoView(
+                key: ValueKey((renderer, _viewerGeneration)),
+                renderer,
+                objectFit: RTCVideoViewObjectFit.RTCVideoViewObjectFitContain,
+              ),
         name: CallParticipantNameLabel(
           userId: userId,
           rhingSeed: rhingSeed,
@@ -420,8 +442,10 @@ class _GroupCallScreenState extends ConsumerState<GroupCallScreen> {
       required bool videoEnabled,
       required bool connectionIssue,
       bool connecting = false,
+      CallTileVolume? volume,
     }) => CallTileSpec(
       key: userId,
+      volume: volume,
       onTap: videoEnabled && renderer != null
           ? () => _openViewer(renderer, mirror: mirror)
           : null,
@@ -445,14 +469,21 @@ class _GroupCallScreenState extends ConsumerState<GroupCallScreen> {
           rhingSeed: widget.currentUser.rhingSeed,
           renderer: _controller.localScreenRenderer,
           label: _controller.screenQuality.label,
+          isSelf: true,
         ),
       for (final participant in remoteParticipants)
         if (_controller.remoteScreenShown(participant))
           screenSpec(
             userId: participant.userId,
             rhingSeed: participant.rhingSeed,
-            renderer: _controller.screenRenderers[participant.userId]!,
+            renderer: _controller.screenRenderers[participant.userId],
             label: participant.screenLabel ?? '',
+            timedOut: _controller.remoteScreenTimedOut(participant),
+            volume: CallTileVolume(
+              value: _controller.screenVolumeOf(participant.userId),
+              onChanged: (v) =>
+                  _controller.setScreenVolumeOf(participant.userId, v),
+            ),
           ),
       personSpec(
         userId: widget.currentUser.userId,
@@ -471,6 +502,11 @@ class _GroupCallScreenState extends ConsumerState<GroupCallScreen> {
           mirror: false,
           micMuted: participant.micMuted,
           videoEnabled: _controller.remoteVideoShown(participant),
+          volume: CallTileVolume(
+            value: _controller.voiceVolumeOf(participant.userId),
+            onChanged: (v) =>
+                _controller.setVoiceVolumeOf(participant.userId, v),
+          ),
           connectionIssue:
               _controller.peerConnectionIssues[participant.userId] ?? false,
           connecting:

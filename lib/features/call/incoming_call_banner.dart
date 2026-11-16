@@ -14,6 +14,7 @@ import '../../widgets/nav_chip.dart';
 import 'active_call_session.dart';
 import 'call_avatar.dart';
 import 'call_banner_card.dart';
+import 'call_log.dart';
 import 'webrtc_call_controller.dart';
 
 /// 一対の着信（応答前）を出すバナー（2026-10-23、以前は右上の縦長
@@ -56,7 +57,14 @@ class IncomingCallBannerOverlay extends ConsumerWidget {
             !controller.isCaller &&
             !controller.accepting &&
             controller.state == CallConnectionState.connecting;
-        if (!ringing) return const SizedBox.shrink();
+        if (!ringing) {
+          callLog(
+            'incoming banner hidden: isCaller=${controller.isCaller} '
+            'accepting=${controller.accepting} state=${controller.state} '
+            'error=${controller.error}',
+          );
+          return const SizedBox.shrink();
+        }
 
         void accept() {
           controller.accept();

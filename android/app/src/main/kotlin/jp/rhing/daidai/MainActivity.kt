@@ -106,6 +106,20 @@ class MainActivity : FlutterFragmentActivity() {
                     // PiPの更新に失敗しても、通話の開始・終了の処理は済んでいる。
                 }
                 result.success(null)
+            } else if (call.method == "enterPip") {
+                // 通話画面の戻るボタンで、OS標準のPiPに入る（2026-11-16）。入れたかを返す。
+                var entered = false
+                if (callActive &&
+                    Build.VERSION.SDK_INT >= Build.VERSION_CODES.O &&
+                    !isInPictureInPictureMode
+                ) {
+                    try {
+                        buildPipParams()?.let { entered = enterPictureInPictureMode(it) }
+                    } catch (e: Exception) {
+                        entered = false
+                    }
+                }
+                result.success(entered)
             } else if (call.method == "setScreenShareActive") {
                 // 画面共有の終了で、前面サービスの型から`mediaProjection`を外す（開始側は、
                 // flutter_webrtcの許可直後のフックで行う）。

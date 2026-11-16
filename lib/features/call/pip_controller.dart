@@ -28,6 +28,20 @@ const _pipChannel = MethodChannel('jp.rhing.daidai/pip');
 bool get _pipSupported =>
     !kIsWeb && defaultTargetPlatform == TargetPlatform.android;
 
+/// 戻るボタンで、OS標準のピクチャーインピクチャーに入る（2026-11-16）。入れたら`true`。
+/// Android以外・非対応の端末・入れなかった時は`false`（呼び出し側は、アプリ内のミニ表示にする）。
+Future<bool> enterCallPip() async {
+  if (!_pipSupported) return false;
+  try {
+    final ok = await _pipChannel.invokeMethod<bool>('enterPip');
+    callLog('PiP: enterPip requested ok=$ok');
+    return ok ?? false;
+  } catch (e) {
+    callLog('PiP: enterPip failed: $e');
+    return false;
+  }
+}
+
 /// 通話の有無をネイティブ（`MainActivity`）へ伝え、PiPの出入りを
 /// [pipActiveProvider]へ反映する。アプリ全体の上位に1つ置く。PiP中は
 /// 通話の映像を画面いっぱいに重ねて表示する（PiPの小窓はアプリ全体の
@@ -70,6 +84,7 @@ class _PipHostState extends ConsumerState<PipHost> {
     if (!_pipSupported) return;
     _pipChannel.setMethodCallHandler((call) async {
       if (call.method == 'pipChanged' && mounted) {
+        callLog('PiP: changed to ${call.arguments}');
         ref.read(pipActiveProvider.notifier).set(call.arguments == true);
       } else if (call.method == 'pipDismissed' && mounted) {
         // PiPの小窓を×で閉じた。通話を続けると落ちるため、終了する。

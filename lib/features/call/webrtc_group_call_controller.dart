@@ -16,6 +16,7 @@ import 'peer_answer_match.dart';
 import 'peer_connect_guard.dart';
 import 'peer_watchdog.dart';
 import 'screen_share.dart';
+import 'send_gain.dart';
 import 'rtc_config.dart';
 import '../../utils/page_exit/page_exit.dart';
 import 'audio_route.dart';
@@ -138,8 +139,26 @@ class WebrtcGroupCallController extends ChangeNotifier {
   final Map<String, RTCRtpSender> _screenAudioSenders = {};
 
   /// [p]の配信を画面に出してよいか（配信中と申告し、映像も届いている）。
-  bool remoteScreenShown(CallParticipant p) =>
-      p.screenLabel != null && screenRenderers.containsKey(p.userId);
+  /// （2026-11-16: 映像のストリームが届くのを待たず、配信中と申告された時点でウィンドウを出す。
+  /// ストリームは再ネゴシエーションを経て数秒遅れて届く。映像を出せるかは[remoteScreenReady]。）
+  bool remoteScreenShown(CallParticipant p) => p.screenLabel != null;
+
+  /// [p]の画面のストリームが描画の部品に入っていて、映像を出せるか。
+  bool remoteScreenReady(CallParticipant p) =>
+      p.screenLabel != null && screenRenderers[p.userId]?.srcObject != null;
+
+  /// 配信と申告されてから20秒経っても、映像が届かなかったか（案内を出す）。
+  bool remoteScreenTimedOut(CallParticipant p) =>
+      p.screenLabel != null &&
+      !remoteScreenReady(p) &&
+      _screenTimedOut.contains(p.userId);
+  final Set<String> _screenTimedOut = {};
+  final Map<String, Timer> _screenTimeouts = {};
+  final Map<String, Stopwatch> _screenOnWatch = {};
+
+  /// 相手ごとに最後に受け取った画面のストリーム。共有をやめて再開した時、送信側は`replaceTrack`で
+  /// 差し替えるだけで`onTrack`が来ない為、これを描画の部品へ入れ直す。
+  final Map<String, MediaStream> _remoteScreenStreams = {};
 
   final Map<String, RTCPeerConnection> _peerConnections = {};
   final Map<String, StreamSubscription> _peerLinkSubs = {};
@@ -587,9 +606,34 @@ class WebrtcGroupCallController extends ChangeNotifier {
     }
     // 配信をやめた相手の画面は片付ける（再開すると、同じストリームで届き直す）。
     for (final p in participants) {
-      if (p.userId != currentUser.userId && p.screenLabel == null) {
+      if (p.userId == currentUser.userId) continue;
+      if (p.screenLabel == null) {
         final screen = screenRenderers[p.userId];
         if (screen != null) screen.srcObject = null;
+        _screenTimeouts.remove(p.userId)?.cancel();
+        _screenTimedOut.remove(p.userId);
+        _screenOnWatch.remove(p.userId)?.stop();
+        continue;
+      }
+      // 配信が始まった（または再開した）。
+      if (!_screenOnWatch.containsKey(p.userId)) {
+        _screenOnWatch[p.userId] = Stopwatch()..start();
+        callLog('group: ${p.userId} screen: on received');
+        _screenTimeouts[p.userId] = Timer(const Duration(seconds: 20), () {
+          final still = remoteScreenReady(p);
+          if (!still) {
+            _screenTimedOut.add(p.userId);
+            callLog('group: ${p.userId} screen: stream did not arrive in 20s');
+            notifyListeners();
+          }
+        });
+      }
+      // 2回目以降の共有（`onTrack`が来ない）は、前のストリームを入れ直す。
+      final screen = screenRenderers[p.userId];
+      final kept = _remoteScreenStreams[p.userId];
+      if (screen != null && screen.srcObject == null && kept != null) {
+        screen.srcObject = kept;
+        callLog('group: ${p.userId} screen: re-attached the kept stream');
       }
     }
     for (final userId in liveOtherIds) {
@@ -705,6 +749,10 @@ class WebrtcGroupCallController extends ChangeNotifier {
       }
       if (event.streams.isNotEmpty) {
         renderer.srcObject = event.streams.first;
+        final voice = _voiceVolumes[otherUserId];
+        if (voice != null && voice < 1) {
+          unawaited(renderer.setVolume(voice).catchError((_) {}));
+        }
       }
     };
     peerConnection.onSignalingState = (state) =>
@@ -1080,6 +1128,12 @@ class WebrtcGroupCallController extends ChangeNotifier {
     _screenVideoSenders.remove(otherUserId);
     _screenAudioSenders.remove(otherUserId);
     _screenRendererInit.remove(otherUserId);
+    _remoteScreenStreams.remove(otherUserId);
+    _screenVolumes.remove(otherUserId);
+    _voiceVolumes.remove(otherUserId);
+    _screenTimeouts.remove(otherUserId)?.cancel();
+    _screenTimedOut.remove(otherUserId);
+    _screenOnWatch.remove(otherUserId);
     final screen = screenRenderers.remove(otherUserId);
     if (screen != null) unawaited(screen.dispose());
     _connectGuard.cancel(otherUserId);
@@ -1148,10 +1202,14 @@ class WebrtcGroupCallController extends ChangeNotifier {
     // 音声のトラックを取り込むのに必要）。
     renderer.srcObject = stream;
     renderer.muted = false;
-    unawaited(renderer.setVolume(_remoteScreenVolume).catchError((_) {}));
+    _remoteScreenStreams[userId] = stream;
+    _screenTimeouts.remove(userId)?.cancel();
+    _screenTimedOut.remove(userId);
+    unawaited(renderer.setVolume(screenVolumeOf(userId)).catchError((_) {}));
     callLog(
       'group: $userId screen stream attached video='
-      '${stream.getVideoTracks().length} audio=${stream.getAudioTracks().length}',
+      '${stream.getVideoTracks().length} audio=${stream.getAudioTracks().length} '
+      'after=${_screenOnWatch[userId]?.elapsedMilliseconds}ms since screen on',
     );
     notifyListeners();
   }
@@ -1179,11 +1237,12 @@ class WebrtcGroupCallController extends ChangeNotifier {
     final audio = display.getAudioTracks().firstOrNull;
     if (audio != null) {
       final sender = _screenAudioSenders[userId];
+      final outgoing = _screenGain?.track ?? audio;
       if (sender == null) {
-        _screenAudioSenders[userId] = await pc.addTrack(audio, container);
+        _screenAudioSenders[userId] = await pc.addTrack(outgoing, container);
         renegotiate = true;
       } else {
-        await sender.replaceTrack(audio);
+        await sender.replaceTrack(outgoing);
       }
     }
     return renegotiate;
@@ -1212,15 +1271,118 @@ class WebrtcGroupCallController extends ChangeNotifier {
         .catchError((_) {});
   }
 
-  /// 相手の画面共有の音声の音量を変える（0〜1、全員分に掛かる）。
+  /// 相手の画面共有の音声の音量を変える（0〜1、全員分に掛かる。個別の値は上書きする）。
   Future<void> setRemoteScreenVolume(double volume) async {
     _remoteScreenVolume = volume.clamp(0.0, 1.0);
+    _screenVolumes.clear();
     for (final renderer in screenRenderers.values) {
       try {
         await renderer.setVolume(_remoteScreenVolume);
       } catch (_) {}
     }
     notifyListeners();
+  }
+
+  // ---- 音量（2026-11-16）。聞こえる側は全プラットフォーム、送る側（マイク・共有する音）はWebのみ ----
+
+  /// 相手ごとの共有音声の音量（未設定は[remoteScreenVolume]）。
+  final Map<String, double> _screenVolumes = {};
+  double screenVolumeOf(String userId) =>
+      _screenVolumes[userId] ?? _remoteScreenVolume;
+
+  Future<void> setScreenVolumeOf(String userId, double volume) async {
+    final v = volume.clamp(0.0, 1.0);
+    _screenVolumes[userId] = v;
+    try {
+      await screenRenderers[userId]?.setVolume(v);
+    } catch (_) {}
+    notifyListeners();
+  }
+
+  /// 相手ごとの声の音量（未設定は1）。
+  final Map<String, double> _voiceVolumes = {};
+  double voiceVolumeOf(String userId) => _voiceVolumes[userId] ?? 1;
+
+  Future<void> setVoiceVolumeOf(String userId, double volume) async {
+    final v = volume.clamp(0.0, 1.0);
+    _voiceVolumes[userId] = v;
+    try {
+      await remoteRenderers[userId]?.setVolume(v);
+    } catch (_) {}
+    notifyListeners();
+  }
+
+  double _micVolume = 1;
+  double get micVolume => _micVolume;
+  SendGain? _micGain;
+  Future<void>? _micGainInit;
+
+  /// 相手へ送る自分のマイクの音量（0〜1、Webのみ。[SendGain.isSupported]）。動かすまでは、
+  /// マイクの音の経路は変えない（初めて1未満にした時にだけ、ゲインを通す）。
+  Future<void> setMicVolume(double volume) async {
+    _micVolume = volume.clamp(0.0, 1.0);
+    notifyListeners();
+    if (!SendGain.isSupported) return;
+    if (_micGain == null && _micVolume < 1) {
+      _micGainInit ??= _attachMicGain();
+      await _micGainInit;
+    }
+    _micGain?.setGain(_micVolume);
+  }
+
+  Future<void> _attachMicGain() async {
+    final stream = _localStream;
+    final old = stream?.getAudioTracks().firstOrNull;
+    if (stream == null || old == null) return;
+    final gain = await SendGain.attach(old);
+    if (gain == null) return;
+    _micGain = gain;
+    // ミュートは、ストリームの音声トラックの`enabled`で行っている為、処理後のトラックへ引き継ぐ。
+    gain.track.enabled = !_muted;
+    await stream.removeTrack(old);
+    await stream.addTrack(gain.track);
+    for (final pc in [..._peerConnections.values]) {
+      for (final sender in await pc.getSenders()) {
+        if (sender.track?.id == old.id) {
+          try {
+            await sender.replaceTrack(gain.track);
+          } catch (e) {
+            callLog('group: mic gain replaceTrack failed: $e');
+          }
+        }
+      }
+    }
+    callLog('group: mic gain on');
+  }
+
+  double _screenSendVolume = 1;
+  double get screenSendVolume => _screenSendVolume;
+  SendGain? _screenGain;
+
+  /// 相手へ送る共有音声の音量（0〜1、Webのみ）。
+  Future<void> setScreenSendVolume(double volume) async {
+    _screenSendVolume = volume.clamp(0.0, 1.0);
+    notifyListeners();
+    await _applyScreenGain();
+  }
+
+  Future<void> _applyScreenGain() async {
+    if (!SendGain.isSupported) return;
+    final audio = _screenDisplay?.getAudioTracks().firstOrNull;
+    if (audio == null) return;
+    if (_screenGain == null && _screenSendVolume < 1) {
+      final gain = await SendGain.attach(audio);
+      if (gain == null) return;
+      _screenGain = gain;
+      for (final sender in [..._screenAudioSenders.values]) {
+        try {
+          await sender.replaceTrack(gain.track);
+        } catch (e) {
+          callLog('group: screen gain replaceTrack failed: $e');
+        }
+      }
+    }
+    _screenGain?.setGain(_screenSendVolume);
   }
 
   /// 誰かの画面共有が見えているか（音量の調整を出す条件）。
@@ -1239,6 +1401,7 @@ class WebrtcGroupCallController extends ChangeNotifier {
     );
     if (display == null) return false;
     _screenDisplay = display;
+    unawaited(_applyScreenGain());
     _screenQuality = quality;
     _screenAudio = shareAudio;
     // 音楽だけを届けたい時は、共有している間だけ自分のマイクをミュートにする。
@@ -1303,6 +1466,9 @@ class WebrtcGroupCallController extends ChangeNotifier {
       } catch (_) {}
     }
     localScreenRenderer.srcObject = null;
+    final gain = _screenGain;
+    _screenGain = null;
+    if (gain != null) unawaited(gain.dispose());
     _setScreenLabelOnServer(null);
     callLog('group: screen share stopped');
     notifyListeners();
@@ -1320,6 +1486,11 @@ class WebrtcGroupCallController extends ChangeNotifier {
     _screenDisplay = next;
     next.getVideoTracks().firstOrNull?.onEnded = () => stopScreenShare();
     localScreenRenderer.srcObject = next;
+    // 共有する音の音量は、新しいトラックに掛け直す。
+    final oldGain = _screenGain;
+    _screenGain = null;
+    if (oldGain != null) unawaited(oldGain.dispose());
+    unawaited(_applyScreenGain());
     final changed = <String>[];
     for (final entry in [..._peerConnections.entries]) {
       try {
@@ -1612,6 +1783,11 @@ class WebrtcGroupCallController extends ChangeNotifier {
   @override
   void dispose() {
     _mirrorTimer?.cancel();
+    for (final timer in _screenTimeouts.values) {
+      timer.cancel();
+    }
+    unawaited(_micGain?.dispose());
+    unawaited(_screenGain?.dispose());
     if (_watchingAudioDevices) navigator.mediaDevices.ondevicechange = null;
     _removePageExitListener?.call();
     _connectGuard.cancelAll();

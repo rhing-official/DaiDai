@@ -18,6 +18,7 @@ import 'audio_route.dart';
 import 'bgm/bgm_storage.dart';
 import 'bgm/bgm_now_playing.dart';
 import 'mic_denoiser.dart';
+import 'send_gain.dart';
 import 'screen_share.dart';
 import '../../providers/bgm_preferences_provider.dart';
 import 'bgm/bgm_queue.dart';
@@ -216,8 +217,24 @@ class WebrtcCallController extends ChangeNotifier {
   /// 相手が配信中の時の画質の表示（`720P 30FPS`）。配信していなければnull。
   String? _remoteScreenLabel;
   String? get remoteScreenLabel => _remoteScreenLabel;
-  bool get remoteScreenShown =>
+
+  /// 相手が画面共有している間（`screen:on`を受けた時点から。映像のストリームが届くのを待たずに
+  /// ウィンドウを出す、2026-11-16。ストリームは再ネゴシエーションを経て数秒遅れて届く）。
+  bool get remoteScreenShown => _remoteScreenLabel != null;
+
+  /// 相手の画面のストリームが描画の部品に入っているか（映像を出せるか）。
+  bool get remoteScreenReady =>
       _remoteScreenLabel != null && _remoteScreenAttached;
+
+  /// `screen:on`から20秒経っても、ストリームが届かなかったか（案内を出す）。
+  bool get remoteScreenTimedOut => _remoteScreenTimedOut;
+  bool _remoteScreenTimedOut = false;
+  Timer? _remoteScreenTimeout;
+  final Stopwatch _remoteScreenWatch = Stopwatch();
+
+  /// 最後に受け取った相手の画面のストリーム。共有をやめて再開した時、送信側は`replaceTrack`で
+  /// 差し替えるだけで`onTrack`が来ない為、これを描画の部品へ入れ直す。
+  MediaStream? _remoteScreenStream;
 
   /// 最初に届いたストリーム＝カメラ・マイク。これと違うストリームが相手の画面。
   String? _cameraStreamId;
@@ -226,6 +243,89 @@ class WebrtcCallController extends ChangeNotifier {
   BgmNowPlaying? _remoteBgm;
   BgmNowPlaying? get remoteBgm => _remoteBgm;
   String? get remoteBgmTitle => _remoteBgm?.title;
+
+  // ---- 音量（2026-11-16）。聞こえる側は全プラットフォーム、送る側（マイク・共有する音）はWebのみ ----
+
+  double _remoteVoiceVolume = 1;
+  double get remoteVoiceVolume => _remoteVoiceVolume;
+
+  /// 相手の声の音量（0〜1）。自分の耳に届く音だけが変わる。
+  Future<void> setRemoteVoiceVolume(double volume) async {
+    _remoteVoiceVolume = volume.clamp(0.0, 1.0);
+    try {
+      await remoteRenderer.setVolume(_remoteVoiceVolume);
+    } catch (_) {}
+    notifyListeners();
+  }
+
+  double _micVolume = 1;
+  double get micVolume => _micVolume;
+  SendGain? _micGain;
+  Future<void>? _micGainInit;
+
+  /// 相手へ送る自分のマイクの音量（0〜1、Webのみ。[SendGain.isSupported]）。動かすまでは、
+  /// マイクの音の経路は変えない（初めて1未満にした時にだけ、ゲインを通す）。
+  Future<void> setMicVolume(double volume) async {
+    _micVolume = volume.clamp(0.0, 1.0);
+    notifyListeners();
+    if (!SendGain.isSupported) return;
+    if (_micGain == null && _micVolume < 1) {
+      _micGainInit ??= _attachMicGain();
+      await _micGainInit;
+    }
+    _micGain?.setGain(_micVolume);
+  }
+
+  Future<void> _attachMicGain() async {
+    final stream = _localStream;
+    final old = stream?.getAudioTracks().firstOrNull;
+    if (stream == null || old == null) return;
+    final gain = await SendGain.attach(old);
+    if (gain == null) return;
+    _micGain = gain;
+    // ミュートは、ストリームの音声トラックの`enabled`で行っている為、処理後のトラックへ引き継ぐ。
+    gain.track.enabled = !_muted;
+    await stream.removeTrack(old);
+    await stream.addTrack(gain.track);
+    for (final sender in await _peerConnection?.getSenders() ?? []) {
+      if (sender.track?.id == old.id) {
+        try {
+          await sender.replaceTrack(gain.track);
+        } catch (e) {
+          callLog('1:1 mic gain replaceTrack failed: $e');
+        }
+      }
+    }
+    callLog('1:1 mic gain on');
+  }
+
+  double _screenSendVolume = 1;
+  double get screenSendVolume => _screenSendVolume;
+  SendGain? _screenGain;
+
+  /// 相手へ送る共有音声の音量（0〜1、Webのみ）。
+  Future<void> setScreenSendVolume(double volume) async {
+    _screenSendVolume = volume.clamp(0.0, 1.0);
+    notifyListeners();
+    await _applyScreenGain();
+  }
+
+  Future<void> _applyScreenGain() async {
+    if (!SendGain.isSupported) return;
+    final audio = _screenDisplay?.getAudioTracks().firstOrNull;
+    if (audio == null) return;
+    if (_screenGain == null && _screenSendVolume < 1) {
+      final gain = await SendGain.attach(audio);
+      if (gain == null) return;
+      _screenGain = gain;
+      try {
+        await _screenAudioSender?.replaceTrack(gain.track);
+      } catch (e) {
+        callLog('1:1 screen gain replaceTrack failed: $e');
+      }
+    }
+    _screenGain?.setGain(_screenSendVolume);
+  }
 
   Future<void> _replaceOutgoingAudio(MediaStreamTrack track) async {
     for (final sender in await _peerConnection?.getSenders() ?? []) {
@@ -487,6 +587,11 @@ class WebrtcCallController extends ChangeNotifier {
         }
         if (event.streams.isNotEmpty) {
           remoteRenderer.srcObject = event.streams.first;
+          if (_remoteVoiceVolume < 1) {
+            unawaited(
+              remoteRenderer.setVolume(_remoteVoiceVolume).catchError((_) {}),
+            );
+          }
         } else {
           // ストリームに紐づかないトラック（相手が旧版など）は、既存の
           // 受信ストリームへ足して映像・音声を表示出来るようにする。
@@ -559,7 +664,8 @@ class WebrtcCallController extends ChangeNotifier {
         // （accept()参照）。ここでは発信者側キャンセルの監視のみ行う。
         _watchForCancelWhileRinging();
       }
-    } catch (e) {
+    } catch (e, st) {
+      callLog('1:1 initialize failed (isCaller=$isCaller): $e\n$st');
       _error = '通話を開始出来ませんでした（マイクの利用を許可して下さい）: $e';
       _state = CallConnectionState.ended;
       notifyListeners();
@@ -1008,10 +1114,31 @@ class WebrtcCallController extends ChangeNotifier {
         _remoteBgm = state;
         notifyListeners();
       } else if (text.startsWith(_screenOnPrefix)) {
+        final wasShown = _remoteScreenLabel != null;
         _remoteScreenLabel = text.substring(_screenOnPrefix.length);
+        if (!wasShown) {
+          _remoteScreenWatch
+            ..reset()
+            ..start();
+          _remoteScreenTimedOut = false;
+          callLog('1:1 screen: on received');
+        }
+        final kept = _remoteScreenStream;
+        if (!_remoteScreenAttached &&
+            kept != null &&
+            _remoteScreenRendererInitialized) {
+          // 2回目以降の共有（`onTrack`が来ない）は、前のストリームを入れ直す。
+          remoteScreenRenderer.srcObject = kept;
+          _remoteScreenAttached = true;
+          callLog('1:1 screen: re-attached the kept stream');
+        }
+        _armRemoteScreenTimeout();
         notifyListeners();
       } else if (text == _screenOffMessage) {
         _remoteScreenLabel = null;
+        _remoteScreenTimeout?.cancel();
+        _remoteScreenTimedOut = false;
+        _remoteScreenWatch.stop();
         if (_remoteScreenRendererInitialized) {
           remoteScreenRenderer.srcObject = null;
           _remoteScreenAttached = false;
@@ -1164,6 +1291,19 @@ class WebrtcCallController extends ChangeNotifier {
     }
   }
 
+  /// `screen:on`から20秒、映像が届かなければ、案内を出す（[remoteScreenTimedOut]）。
+  void _armRemoteScreenTimeout() {
+    _remoteScreenTimeout?.cancel();
+    if (_remoteScreenAttached || _remoteScreenLabel == null) return;
+    _remoteScreenTimeout = Timer(const Duration(seconds: 20), () {
+      if (_remoteScreenLabel != null && !_remoteScreenAttached) {
+        _remoteScreenTimedOut = true;
+        callLog('1:1 screen: stream did not arrive within 20s');
+        notifyListeners();
+      }
+    });
+  }
+
   Future<void>? _remoteScreenInit;
 
   Future<void> _attachRemoteScreen(MediaStream stream) async {
@@ -1182,10 +1322,14 @@ class WebrtcCallController extends ChangeNotifier {
     unawaited(
       remoteScreenRenderer.setVolume(_remoteScreenVolume).catchError((_) {}),
     );
+    _remoteScreenStream = stream;
     _remoteScreenAttached = true;
+    _remoteScreenTimeout?.cancel();
+    _remoteScreenTimedOut = false;
     callLog(
       '1:1 screen stream attached video=${stream.getVideoTracks().length} '
-      'audio=${stream.getAudioTracks().length}',
+      'audio=${stream.getAudioTracks().length} '
+      'after=${_remoteScreenWatch.elapsedMilliseconds}ms since screen:on',
     );
     notifyListeners();
   }
@@ -1214,11 +1358,12 @@ class WebrtcCallController extends ChangeNotifier {
     final audio = display.getAudioTracks().firstOrNull;
     if (audio != null) {
       final sender = _screenAudioSender;
+      final outgoing = _screenGain?.track ?? audio;
       if (sender == null) {
-        _screenAudioSender = await pc.addTrack(audio, container);
+        _screenAudioSender = await pc.addTrack(outgoing, container);
         renegotiate = true;
       } else {
-        await sender.replaceTrack(audio);
+        await sender.replaceTrack(outgoing);
       }
     }
     return renegotiate;
@@ -1281,6 +1426,7 @@ class WebrtcCallController extends ChangeNotifier {
     }
     localScreenRenderer.srcObject = display;
     notifyListeners();
+    unawaited(_applyScreenGain());
     callLog(
       '1:1 screen captured video=${display.getVideoTracks().length} '
       'audio=${display.getAudioTracks().length} '
@@ -1317,6 +1463,9 @@ class WebrtcCallController extends ChangeNotifier {
       } catch (_) {}
     }
     localScreenRenderer.srcObject = null;
+    final gain = _screenGain;
+    _screenGain = null;
+    if (gain != null) unawaited(gain.dispose());
     _sendScreenState(null);
     callLog('1:1 screen share stopped');
     notifyListeners();
@@ -1334,6 +1483,11 @@ class WebrtcCallController extends ChangeNotifier {
     _screenDisplay = next;
     next.getVideoTracks().firstOrNull?.onEnded = () => stopScreenShare();
     localScreenRenderer.srcObject = next;
+    // 共有する音の音量は、新しいトラックに掛け直す。
+    final oldGain = _screenGain;
+    _screenGain = null;
+    if (oldGain != null) unawaited(oldGain.dispose());
+    unawaited(_applyScreenGain());
     try {
       final renegotiate = await _attachScreenTracks();
       if (renegotiate) await _sendRenegotiationOffer();
@@ -1577,6 +1731,9 @@ class WebrtcCallController extends ChangeNotifier {
     _callSub?.cancel();
     _candidatesSub?.cancel();
     _videoFailedTimer?.cancel();
+    _remoteScreenTimeout?.cancel();
+    unawaited(_micGain?.dispose());
+    unawaited(_screenGain?.dispose());
     soundPlayer.dispose();
     bgm.dispose();
     for (final track in _localStream?.getTracks() ?? <MediaStreamTrack>[]) {

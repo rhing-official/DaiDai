@@ -170,5 +170,51 @@ void main() {
       await tester.pump();
       expect(container.read(callPinnedTilesProvider), isEmpty);
     });
+
+    testWidgets('音量のあるウィンドウにだけ音量ボタンが出て、スライダーで値が変わる', (tester) async {
+      double? changed;
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            initialAppLocaleProvider.overrideWithValue(AppLocale.japanese),
+          ],
+          child: MaterialApp(
+            home: SizedBox(
+              width: 600,
+              height: 400,
+              child: CallTileStage(
+                specs: [
+                  CallTileSpec(
+                    key: 'a',
+                    volume: CallTileVolume(
+                      value: 0.8,
+                      onChanged: (v) => changed = v,
+                    ),
+                    build: (_) => const ColoredBox(color: Colors.grey),
+                  ),
+                  CallTileSpec(
+                    key: 'b',
+                    build: (_) => const ColoredBox(color: Colors.grey),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      );
+      expect(find.byKey(const ValueKey('volume-a')), findsOneWidget);
+      expect(find.byKey(const ValueKey('volume-b')), findsNothing);
+      expect(find.byKey(const ValueKey('volume-slider-a')), findsNothing);
+      await tester.tap(find.byKey(const ValueKey('volume-a')));
+      await tester.pump();
+      expect(find.byKey(const ValueKey('volume-slider-a')), findsOneWidget);
+      final slider = find.byKey(const ValueKey('volume-slider-a'));
+      await tester.tap(slider);
+      await tester.pump();
+      expect(changed, isNotNull);
+      await tester.tap(find.byKey(const ValueKey('volume-a')));
+      await tester.pump();
+      expect(find.byKey(const ValueKey('volume-slider-a')), findsNothing);
+    });
   });
 }
