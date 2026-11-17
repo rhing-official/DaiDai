@@ -74,6 +74,9 @@ class Strings {
     required this.settingsAppearanceLight,
     required this.settingsAppearanceDark,
     required this.settingsAppearanceSystem,
+    required this.darkVariantStandard,
+    required this.darkVariantSoft,
+    required this.darkVariantBlack,
     required this.settingsColorCode,
     required this.settingsColorPresets,
     required this.settingsTextColorTitle,
@@ -1239,6 +1242,8 @@ class Strings {
     required this.callPresenceNamesTwo,
     required this.callPresenceNamesMore,
     required this.callPresenceChipLabel,
+    required this.roomsLoadFailed,
+    required this.roomsLoadRetry,
     required this.callPinWindow,
     required this.callUnpinWindow,
     required this.groupProfileCardChangeImage,
@@ -1366,6 +1371,9 @@ class Strings {
   final String settingsAppearanceLight;
   final String settingsAppearanceDark;
   final String settingsAppearanceSystem;
+  final String darkVariantStandard;
+  final String darkVariantSoft;
+  final String darkVariantBlack;
   final String settingsColorCode;
   final String settingsColorPresets;
   final String settingsTextColorTitle;
@@ -2884,6 +2892,10 @@ class Strings {
   /// 通話中の語らいの標（寄合一覧・タブ）の文言。
   final String callPresenceChipLabel;
 
+  /// 寄合の一覧が読み込めず空のまま止まった時の表示（2026-11-17）。
+  final String roomsLoadFailed;
+  final String roomsLoadRetry;
+
   /// 広場通話で1人を拡大表示している間の、一覧（グリッド）に戻るボタンの説明（2026-10-21）。
   final String callPinWindow;
   final String callUnpinWindow;
@@ -3004,18 +3016,21 @@ class Strings {
     settingsAccentColorGekigaHint: '劇画UIでは背景色として使われます',
     settingsAppearanceGekigaLockedHint: '劇画UIを選択中は変更出来ません',
     settingsAppearance: '外観',
-    settingsAppearanceLight: 'ライト',
+    settingsAppearanceLight: '胡粉',
     settingsAppearanceDark: 'ダーク',
     settingsAppearanceSystem: '端末に合わせる',
+    darkVariantSoft: '鈍色',
+    darkVariantStandard: '墨色',
+    darkVariantBlack: '漆黒',
     settingsColorCode: 'カラーコード',
     settingsColorPresets: 'プリセット',
     settingsTextColorTitle: 'フォントカラー',
     settingsTextColorDescription:
-        'ライト・ダークそれぞれの文字色をカラーコードで指定出来ます。\n背景に近い色を選ぶと読みにくくなるため注意して下さい。',
-    settingsTextColorLightLabel: 'ライト用',
+        '今の外観の文字色をカラーコードで指定出来ます。\n背景に近い色を選ぶと読みにくくなるため注意して下さい。',
+    settingsTextColorLightLabel: '',
     settingsOnAccentColorLabel: 'アクセント上',
     settingsOnAccentColorAuto: '自動',
-    settingsTextColorDarkLabel: 'ダーク用',
+    settingsTextColorDarkLabel: '',
     settingsCustomColorRegister: 'この色を登録',
     settingsCustomColorLimitReachedTemplate: (max) => '登録上限（$max色）に達しています',
     settingsCustomColorDeleteConfirmTitle: 'この色を削除しますか？',
@@ -4261,6 +4276,8 @@ class Strings {
     callPresenceNamesTwo: (a, b) => '$a・$b',
     callPresenceNamesMore: (a, others) => '$aほか$others人',
     callPresenceChipLabel: '通話中',
+    roomsLoadFailed: '読み込めませんでした',
+    roomsLoadRetry: '再読み込み',
     callPinWindow: 'ピン留め',
     callUnpinWindow: 'ピン留めを外す',
     groupProfileCardChangeImage: '画像を変更',
@@ -4382,18 +4399,21 @@ class Strings {
     settingsAppearanceGekigaLockedHint:
         'Cannot be changed while the Gekiga UI style is selected',
     settingsAppearance: 'Appearance',
-    settingsAppearanceLight: 'Light',
+    settingsAppearanceLight: 'Chalk',
     settingsAppearanceDark: 'Dark',
     settingsAppearanceSystem: 'Match device',
+    darkVariantStandard: 'Ink',
+    darkVariantSoft: 'Slate',
+    darkVariantBlack: 'Jet',
     settingsColorCode: 'Colour code',
     settingsColorPresets: 'Presets',
     settingsTextColorTitle: 'Font colour',
     settingsTextColorDescription:
-        'Set the text colour separately for light and dark mode using a colour code. Choosing a colour too close to the background will make text hard to read.',
-    settingsTextColorLightLabel: 'Light mode',
+        'Set the text colour for the current appearance using a colour code. Choosing a colour too close to the background will make text hard to read.',
+    settingsTextColorLightLabel: '',
     settingsOnAccentColorLabel: 'On accent',
     settingsOnAccentColorAuto: 'Auto',
-    settingsTextColorDarkLabel: 'Dark mode',
+    settingsTextColorDarkLabel: '',
     settingsCustomColorRegister: 'Save this colour',
     settingsCustomColorLimitReachedTemplate: (max) =>
         'You can save up to $max colours',
@@ -5780,6 +5800,8 @@ class Strings {
     callPresenceNamesTwo: (a, b) => '$a & $b',
     callPresenceNamesMore: (a, others) => '$a and $others more',
     callPresenceChipLabel: 'In a call',
+    roomsLoadFailed: 'Couldn’t load this',
+    roomsLoadRetry: 'Reload',
     callPinWindow: 'Pin',
     callUnpinWindow: 'Unpin',
     groupProfileCardChangeImage: 'Change image',

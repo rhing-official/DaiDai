@@ -61,6 +61,7 @@ import 'providers/sticker_send_mode_provider.dart';
 import 'providers/talks_list_layout_style_provider.dart';
 import 'providers/on_accent_color_provider.dart';
 import 'providers/text_color_provider.dart';
+import 'providers/dark_variant_provider.dart';
 import 'providers/theme_mode_provider.dart';
 import 'router/app_router.dart';
 import 'utils/page_reload/app_restart.dart';
@@ -196,6 +197,7 @@ Future<void> _launchApp({required bool firstLaunch}) async {
   final initialTalksListLayoutStyle = await loadInitialTalksListLayoutStyle();
   final initialLastOpenedRooms = await loadInitialLastOpenedRooms();
   final initialAppThemeMode = await loadInitialAppThemeMode();
+  final initialDarkVariant = await loadInitialDarkVariant();
   final initialAppUiStyle = await loadInitialAppUiStyle();
   final initialConversationSortOrder = await loadInitialConversationSortOrder();
   final initialFontDesign = await loadInitialFontDesign();
@@ -289,6 +291,7 @@ Future<void> _launchApp({required bool firstLaunch}) async {
           initialLastOpenedRooms,
         ),
         initialAppThemeModeProvider.overrideWithValue(initialAppThemeMode),
+        initialDarkVariantProvider.overrideWithValue(initialDarkVariant),
         initialAppUiStyleProvider.overrideWithValue(initialAppUiStyle),
         initialConversationSortOrderProvider.overrideWithValue(
           initialConversationSortOrder,
@@ -330,13 +333,14 @@ class DaiDaiApp extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final accentColor = ref.watch(accentColorProvider);
-    final textColorLight = ref.watch(textColorLightProvider);
-    final textColorDark = ref.watch(textColorDarkProvider);
+    final textColorLight = ref.watch(effectiveTextColorLightProvider);
+    final textColorDark = ref.watch(effectiveTextColorDarkProvider);
     final onAccentColorLight = ref.watch(onAccentColorLightProvider);
     final onAccentColorDark = ref.watch(onAccentColorDarkProvider);
     final gekigaBackgroundColor = ref.watch(gekigaBackgroundColorProvider);
     final appLocale = ref.watch(appLocaleProvider);
     final themeMode = ref.watch(appThemeModeProvider);
+    final darkVariant = ref.watch(darkVariantProvider);
     final uiStyle = ref.watch(appUiStyleProvider);
     // 設定タブの「フォントデザイン」（2026-09-06追加、2026-09-07に劇画も
     // 対象化）。
@@ -384,6 +388,7 @@ class DaiDaiApp extends ConsumerWidget {
         textColor: textColorDark,
         onAccentColor: onAccentColorDark,
         fontFamily: fontFamily,
+        variant: darkVariant,
       ),
       AppUiStyle.gekiga => GekigaTheme.build(
         gekigaBackgroundColor,
@@ -394,12 +399,14 @@ class DaiDaiApp extends ConsumerWidget {
         textColor: textColorDark,
         onAccentColor: onAccentColorDark,
         fontFamily: fontFamily,
+        variant: darkVariant,
       ),
       AppUiStyle.block => BlockTheme.dark(
         accentColor,
         textColor: textColorDark,
         onAccentColor: onAccentColorDark,
         fontFamily: fontFamily,
+        variant: darkVariant,
       ),
     };
     return MaterialApp.router(

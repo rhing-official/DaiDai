@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../models/dark_variant.dart';
+
 import 'app_theme_extras.dart';
 import 'glass/glass_colors.dart';
 import 'motion.dart';
@@ -40,6 +42,7 @@ class AppTheme {
     fontFamily,
     textColor,
     onAccentColor,
+    DarkVariant.standard,
   );
 
   static ThemeData dark(
@@ -47,12 +50,14 @@ class AppTheme {
     Color? textColor,
     Color? onAccentColor,
     String? fontFamily,
+    DarkVariant variant = DarkVariant.standard,
   }) => _build(
     accentColor,
     Brightness.dark,
     fontFamily,
     textColor,
     onAccentColor,
+    variant,
   );
 
   static ThemeData _build(
@@ -61,6 +66,7 @@ class AppTheme {
     String? fontFamily,
     Color? textColor,
     Color? onAccentColor,
+    DarkVariant variant,
   ) {
     final isDark = brightness == Brightness.dark;
     // ユーザーが設定タブで指定した文字色（未設定なら既存の固定色
@@ -107,12 +113,12 @@ class AppTheme {
     // アクセントカラーに依存しない固定色に揃える。
     if (isDark) {
       colorScheme = colorScheme.copyWith(
-        surface: darkBackground,
-        surfaceContainerLowest: darkBackground,
-        surfaceContainerLow: darkBackground,
-        surfaceContainer: darkSurface,
-        surfaceContainerHigh: darkSurface,
-        surfaceContainerHighest: darkSurface,
+        surface: variant.background,
+        surfaceContainerLowest: variant.background,
+        surfaceContainerLow: variant.background,
+        surfaceContainer: variant.surface,
+        surfaceContainerHigh: variant.surface,
+        surfaceContainerHighest: variant.surface,
         onSurface: resolvedTextColor,
         onSurfaceVariant: textSecondary,
       );
@@ -133,10 +139,12 @@ class AppTheme {
         onSurfaceVariant: textSecondary,
       );
     }
-    final backgroundColor = isDark ? darkBackground : colorScheme.surface;
+    final backgroundColor = isDark ? variant.background : colorScheme.surface;
     final cardColor = isDark
-        ? darkSurface
+        ? variant.surface
         : colorScheme.surfaceContainerHighest;
+    // 漆黒は面が背景に溶けるため、カードに細い枠線を足す（2026-11-17）。
+    final darkOutline = isDark ? variant.outline : null;
 
     final floatingShadow = [
       BoxShadow(
@@ -178,8 +186,11 @@ class AppTheme {
         color: cardColor,
         elevation: 6,
         shadowColor: accentColor.withValues(alpha: 0.3),
-        shape: const RoundedRectangleBorder(
-          borderRadius: BorderRadius.all(Radius.circular(20)),
+        shape: RoundedRectangleBorder(
+          borderRadius: const BorderRadius.all(Radius.circular(20)),
+          side: darkOutline == null
+              ? BorderSide.none
+              : BorderSide(color: darkOutline),
         ),
       ),
       elevatedButtonTheme: ElevatedButtonThemeData(
@@ -228,18 +239,24 @@ class AppTheme {
       // shapeの角丸24は、ガラスの`GlassAlertDialog`（`glass_dialog.dart`）が
       // 明示指定している値に揃えたもの（Material3既定の28dpのままだと
       // スタイル間で角丸が食い違う、2026-09-04追加）。
-      dialogTheme: const DialogThemeData(
-        constraints: BoxConstraints(maxWidth: 400),
+      dialogTheme: DialogThemeData(
+        constraints: const BoxConstraints(maxWidth: 400),
         shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.all(Radius.circular(24)),
+          borderRadius: const BorderRadius.all(Radius.circular(24)),
+          side: darkOutline == null
+              ? BorderSide.none
+              : BorderSide(color: darkOutline),
         ),
       ),
       // ガラスの`showGlassModalBottomSheet`（`glass_bottom_sheet.dart`）が
       // 明示指定している上辺24の角丸に揃える（2026-09-04追加、それまでは
       // フラットのみMaterial3既定の28dpのままだった）。
-      bottomSheetTheme: const BottomSheetThemeData(
+      bottomSheetTheme: BottomSheetThemeData(
         shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+          side: darkOutline == null
+              ? BorderSide.none
+              : BorderSide(color: darkOutline),
         ),
       ),
       inputDecorationTheme: InputDecorationTheme(

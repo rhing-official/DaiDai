@@ -20,6 +20,9 @@ abstract class CallRepository {
   /// 自分宛にかかってきている、応答待ちの通話（あれば1件）を監視する。
   Stream<Call?> watchIncomingCall(String userId);
 
+  /// 通話中の「生きている」印として、自分の側の時刻を書く（15秒ごと、2026-11-17）。
+  Future<void> touchPresence(String callId, {required bool isCaller});
+
   /// 自分が発信側・着信側のどちらかで、今つながっている（`active`）通話の一覧
   /// （2026-11-17。別の端末で参加中の一対の通話を、語らい一覧の標に出すため）。
   Stream<List<Call>> watchMyActiveCalls(String userId);
@@ -111,6 +114,13 @@ class FirestoreCallRepository implements CallRepository {
           final doc = snapshot.docs.first;
           return Call.fromJson(doc.id, doc.data());
         });
+  }
+
+  @override
+  Future<void> touchPresence(String callId, {required bool isCaller}) {
+    return _calls.doc(callId).update({
+      isCaller ? 'callerSeenAt' : 'calleeSeenAt': FieldValue.serverTimestamp(),
+    });
   }
 
   @override

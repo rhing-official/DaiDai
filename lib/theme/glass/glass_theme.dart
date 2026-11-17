@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../../models/dark_variant.dart';
+
 import 'glass_colors.dart';
 import 'glass_theme_extras.dart';
 import '../app_theme.dart';
@@ -25,6 +27,7 @@ class GlassTheme {
     fontFamily,
     textColor,
     onAccentColor,
+    DarkVariant.standard,
   );
 
   static ThemeData dark(
@@ -32,12 +35,14 @@ class GlassTheme {
     Color? textColor,
     Color? onAccentColor,
     String? fontFamily,
+    DarkVariant variant = DarkVariant.standard,
   }) => _build(
     accentColor,
     Brightness.dark,
     fontFamily,
     textColor,
     onAccentColor,
+    variant,
   );
 
   static ThemeData _build(
@@ -46,6 +51,7 @@ class GlassTheme {
     String? fontFamily,
     Color? textColor,
     Color? onAccentColor,
+    DarkVariant variant,
   ) {
     final isDark = brightness == Brightness.dark;
     // ユーザーが設定タブで指定した文字色（未設定なら既存の固定色のまま、
@@ -89,12 +95,12 @@ class GlassTheme {
     // `darkForeground`と同じ値のTier1を維持することで見た目を変えない。
     if (isDark) {
       colorScheme = colorScheme.copyWith(
-        surface: GlassColors.darkBackground,
-        surfaceContainerLowest: GlassColors.darkBackground,
-        surfaceContainerLow: GlassColors.darkBackground,
-        surfaceContainer: GlassColors.darkSurfaceBase,
-        surfaceContainerHigh: GlassColors.darkSurfaceBase,
-        surfaceContainerHighest: GlassColors.darkSurfaceBase,
+        surface: variant.glassBackground,
+        surfaceContainerLowest: variant.glassBackground,
+        surfaceContainerLow: variant.glassBackground,
+        surfaceContainer: variant.glassSurface,
+        surfaceContainerHigh: variant.glassSurface,
+        surfaceContainerHighest: variant.glassSurface,
         onSurface: resolvedTextColor,
         onSurfaceVariant: textSecondary,
       );
@@ -111,7 +117,7 @@ class GlassTheme {
       );
     }
     final backgroundColor = isDark
-        ? GlassColors.darkBackground
+        ? variant.glassBackground
         : GlassColors.lightBackground;
 
     final extras = GlassThemeExtras(
@@ -212,9 +218,7 @@ class GlassTheme {
       inputDecorationTheme: InputDecorationTheme(
         filled: true,
         fillColor:
-            (isDark
-                    ? GlassColors.darkSurfaceBase
-                    : GlassColors.lightSurfaceBase)
+            (isDark ? variant.glassSurface : GlassColors.lightSurfaceBase)
                 .withValues(alpha: extras.cardTintAlpha),
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(16),

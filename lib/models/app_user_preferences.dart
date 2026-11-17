@@ -12,6 +12,7 @@ class AppUserPreferences {
     this.accentColorsArgb,
     this.gekigaBackgroundColorArgb,
     this.themeMode,
+    this.darkVariant,
     this.localeCode,
     this.sendKeyMode,
     this.stickerSendMode,
@@ -57,6 +58,9 @@ class AppUserPreferences {
   final Map<String, int>? accentColorsArgb;
   final int? gekigaBackgroundColorArgb;
   final String? themeMode;
+
+  /// ダークの種類（standard/soft/black、2026-11-17追加、null=標準）。
+  final String? darkVariant;
   final String? localeCode;
   final String? sendKeyMode;
   final String? stickerSendMode;
@@ -161,6 +165,7 @@ class AppUserPreferences {
           ?.map((key, value) => MapEntry(key, (value as num).toInt())),
       gekigaBackgroundColorArgb: json['gekigaBackgroundColorArgb'] as int?,
       themeMode: json['themeMode'] as String?,
+      darkVariant: json['darkVariant'] as String?,
       localeCode: json['localeCode'] as String?,
       sendKeyMode: json['sendKeyMode'] as String?,
       stickerSendMode: json['stickerSendMode'] as String?,
@@ -212,6 +217,7 @@ class AppUserPreferences {
       if (gekigaBackgroundColorArgb != null)
         'gekigaBackgroundColorArgb': gekigaBackgroundColorArgb,
       if (themeMode != null) 'themeMode': themeMode,
+      if (darkVariant != null) 'darkVariant': darkVariant,
       if (localeCode != null) 'localeCode': localeCode,
       if (sendKeyMode != null) 'sendKeyMode': sendKeyMode,
       if (stickerSendMode != null) 'stickerSendMode': stickerSendMode,

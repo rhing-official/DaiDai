@@ -55,7 +55,7 @@ void main() {
           initialTextColorLightProvider.overrideWithValue(
             kDefaultTextColorLight,
           ),
-          initialTextColorDarkProvider.overrideWithValue(kDefaultTextColorDark),
+          initialTextColorDarkProvider.overrideWithValue(null),
           initialCustomAccentColorsProvider.overrideWithValue(const []),
           initialRemovedDefaultColorPresetsProvider.overrideWithValue(const {}),
           initialGekigaBackgroundColorProvider.overrideWithValue(

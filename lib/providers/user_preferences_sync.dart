@@ -9,6 +9,7 @@ import '../models/calendar_system.dart';
 import '../models/calendar_week_start.dart';
 import '../models/chat_layout_style.dart';
 import '../models/conversation_sort_order.dart';
+import '../models/dark_variant.dart';
 import '../models/font_design.dart';
 import '../models/message_time_format.dart';
 import '../models/send_key_mode.dart';
@@ -27,6 +28,7 @@ import 'slide_transition_style_provider.dart';
 import 'conversation_sort_order_provider.dart';
 import 'custom_accent_colors_provider.dart';
 import 'custom_font_colors_provider.dart';
+import 'dark_variant_provider.dart';
 import 'draft_sync_enabled_provider.dart';
 import 'icon_split_mirrored_provider.dart';
 import 'bgm_preferences_provider.dart';
@@ -113,6 +115,11 @@ void applyRemoteUserPreferences(WidgetRef ref, AppUserPreferences preferences) {
     if (mode != null) {
       ref.read(appThemeModeProvider.notifier).syncFromRemote(mode);
     }
+  }
+  if (preferences.darkVariant != null) {
+    ref
+        .read(darkVariantProvider.notifier)
+        .syncFromRemote(DarkVariant.fromName(preferences.darkVariant));
   }
   if (preferences.localeCode != null) {
     ref

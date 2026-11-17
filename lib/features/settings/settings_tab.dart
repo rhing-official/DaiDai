@@ -31,6 +31,7 @@ import '../../l10n/app_locale.dart';
 import '../../l10n/strings.dart';
 import '../../theme/block/block_theme.dart';
 import '../../models/app_ui_style.dart';
+import '../../models/dark_variant.dart';
 import '../../models/font_design.dart';
 import '../../models/app_user.dart';
 import '../../models/chat_layout_style.dart';
@@ -49,6 +50,7 @@ import '../../providers/calling_sound_provider.dart';
 import '../../providers/custom_accent_colors_provider.dart';
 import '../../providers/app_locale_provider.dart';
 import '../../providers/app_ui_style_provider.dart';
+import '../../providers/dark_variant_provider.dart';
 import '../../providers/font_design_provider.dart';
 import '../../providers/block_providers.dart';
 import '../../providers/chat_layout_style_provider.dart';
@@ -2821,46 +2823,76 @@ class AppearanceFolder extends ConsumerWidget {
     void selectThemeMode(ThemeMode mode) =>
         ref.read(appThemeModeProvider.notifier).setMode(mode);
 
-    final appearanceOptions = [
-      (mode: ThemeMode.light, label: strings.settingsAppearanceLight),
-      (mode: ThemeMode.dark, label: strings.settingsAppearanceDark),
-      (mode: ThemeMode.system, label: strings.settingsAppearanceSystem),
-    ];
+    // 外観は1つの一覧（ライト／ダークの3種類）。「端末に合わせる」は2026-11-18に
+    // 廃止し、初回は端末の明るさでライトかダーク（標準）になる。
+    final variant = ref.watch(darkVariantProvider);
+    final appearanceOptions =
+        <({ThemeMode mode, DarkVariant? variant, String label})>[
+          (
+            mode: ThemeMode.light,
+            variant: null,
+            label: strings.settingsAppearanceLight,
+          ),
+          (
+            mode: ThemeMode.dark,
+            variant: DarkVariant.standard,
+            label: strings.darkVariantStandard,
+          ),
+          (
+            mode: ThemeMode.dark,
+            variant: DarkVariant.soft,
+            label: strings.darkVariantSoft,
+          ),
+          (
+            mode: ThemeMode.dark,
+            variant: DarkVariant.black,
+            label: strings.darkVariantBlack,
+          ),
+        ];
+    int selectedIndex = themeMode == ThemeMode.dark
+        ? 1 + DarkVariant.values.indexOf(variant)
+        : 0;
+    void select(int i) {
+      final option = appearanceOptions[i];
+      if (option.variant != null) {
+        ref.read(darkVariantProvider.notifier).setVariant(option.variant!);
+      }
+      selectThemeMode(option.mode);
+    }
 
     final appearanceControl = isGekiga
         ? GekigaJointedTileList(
-            seeds: [
-              for (final option in appearanceOptions) option.mode.hashCode,
-            ],
+            seeds: [for (var i = 0; i < appearanceOptions.length; i++) i],
             selectedFlags: [
-              for (final option in appearanceOptions) themeMode == option.mode,
+              for (var i = 0; i < appearanceOptions.length; i++)
+                selectedIndex == i,
             ],
             children: [
-              for (final option in appearanceOptions)
+              for (var i = 0; i < appearanceOptions.length; i++)
                 GekigaTileContent(
-                  selected: themeMode == option.mode,
+                  selected: selectedIndex == i,
                   leading: AppRadioMark(
-                    selected: themeMode == option.mode,
-                    color: (themeMode == option.mode)
+                    selected: selectedIndex == i,
+                    color: (selectedIndex == i)
                         ? GekigaColors.panel
                         : GekigaColors.onPanel,
                   ),
-                  title: Text(option.label),
-                  onTap: () => selectThemeMode(option.mode),
+                  title: Text(appearanceOptions[i].label),
+                  onTap: () => select(i),
                 ),
             ],
           )
-        : RadioGroup<ThemeMode>(
-            groupValue: themeMode,
+        : RadioGroup<int>(
+            groupValue: selectedIndex,
             onChanged: (value) {
-              if (value != null) selectThemeMode(value);
+              if (value != null) select(value);
             },
             child: Column(
               children: [
-                for (final option in appearanceOptions)
-                  AppRadioListTile<ThemeMode>(
-                    value: option.mode,
-                    title: Text(option.label),
+                for (var i = 0; i < appearanceOptions.length; i++)
+                  AppRadioListTile<int>(
+                    value: i,
+                    title: Text(appearanceOptions[i].label),
                   ),
               ],
             ),
@@ -3208,7 +3240,7 @@ class _AccentColorFolderState extends ConsumerState<AccentColorFolder> {
                 filled: !isBlockTheme(context),
                 fillColor:
                     (Theme.of(context).brightness == Brightness.dark
-                            ? GlassColors.darkSurfaceBase
+                            ? ref.watch(darkVariantProvider).glassSurface
                             : GlassColors.lightSurfaceBase)
                         .withValues(alpha: 0.65),
                 border: isBlockTheme(context)
@@ -3373,12 +3405,15 @@ class _TextColorFolderState extends ConsumerState<_TextColorFolder> {
     super.initState();
     _lightController = TextEditingController(
       text: ref
-          .read(textColorLightProvider)
+          .read(effectiveTextColorLightProvider)
           .toHexString()
           .replaceFirst('#', ''),
     );
     _darkController = TextEditingController(
-      text: ref.read(textColorDarkProvider).toHexString().replaceFirst('#', ''),
+      text: ref
+          .read(effectiveTextColorDarkProvider)
+          .toHexString()
+          .replaceFirst('#', ''),
     );
   }
 
@@ -3425,18 +3460,17 @@ class _TextColorFolderState extends ConsumerState<_TextColorFolder> {
         '',
       );
     });
-    ref.read(textColorLightProvider.notifier).setColor(kDefaultTextColorLight);
+    ref.read(textColorLightProvider.notifier).setColor(null);
   }
 
   void _resetDark() {
     setState(() {
       _darkErrorText = null;
-      _darkController.text = kDefaultTextColorDark.toHexString().replaceFirst(
-        '#',
-        '',
-      );
+      _darkController.text = defaultTextColorDarkFor(
+        ref.read(darkVariantProvider),
+      ).toHexString().replaceFirst('#', '');
     });
-    ref.read(textColorDarkProvider.notifier).setColor(kDefaultTextColorDark);
+    ref.read(textColorDarkProvider.notifier).setColor(null);
   }
 
   Widget _colorRow({
@@ -3455,7 +3489,9 @@ class _TextColorFolderState extends ConsumerState<_TextColorFolder> {
           Container(
             width: 48,
             height: 48,
-            margin: EdgeInsets.only(top: 4 + _blockLabelOffset(context)),
+            margin: EdgeInsets.only(
+              top: 4 + (label.isEmpty ? 0 : _blockLabelOffset(context)),
+            ),
             decoration: BoxDecoration(
               color: color,
               shape: BoxShape.circle,
@@ -3475,7 +3511,7 @@ class _TextColorFolderState extends ConsumerState<_TextColorFolder> {
                 ),
               ),
               child: BlockFieldFrame(
-                label: label,
+                label: label.isEmpty ? null : label,
                 child: TextField(
                   controller: controller,
                   textCapitalization: TextCapitalization.characters,
@@ -3484,7 +3520,9 @@ class _TextColorFolderState extends ConsumerState<_TextColorFolder> {
                     LengthLimitingTextInputFormatter(8),
                   ],
                   decoration: InputDecoration(
-                    labelText: isBlockTheme(context) ? null : label,
+                    labelText: (isBlockTheme(context) || label.isEmpty)
+                        ? null
+                        : label,
                     prefixText: '#',
                     hintText: '1C1C1C',
                     errorText: errorText,
@@ -3497,7 +3535,7 @@ class _TextColorFolderState extends ConsumerState<_TextColorFolder> {
                     filled: !isBlockTheme(context),
                     fillColor:
                         (Theme.of(context).brightness == Brightness.dark
-                                ? GlassColors.darkSurfaceBase
+                                ? ref.watch(darkVariantProvider).glassSurface
                                 : GlassColors.lightSurfaceBase)
                             .withValues(alpha: 0.65),
                     border: isBlockTheme(context)
@@ -3550,8 +3588,15 @@ class _TextColorFolderState extends ConsumerState<_TextColorFolder> {
   @override
   Widget build(BuildContext context) {
     final strings = ref.watch(appStringsProvider);
-    final textColorLight = ref.watch(textColorLightProvider);
-    final textColorDark = ref.watch(textColorDarkProvider);
+    final textColorLight = ref.watch(effectiveTextColorLightProvider);
+    final textColorDark = ref.watch(effectiveTextColorDarkProvider);
+    // 外観の種類を変えた時など、実効値が変わったら入力欄の文字も合わせる。
+    ref.listen<Color>(effectiveTextColorLightProvider, (_, next) {
+      _lightController.text = next.toHexString().replaceFirst('#', '');
+    });
+    ref.listen<Color>(effectiveTextColorDarkProvider, (_, next) {
+      _darkController.text = next.toHexString().replaceFirst('#', '');
+    });
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       mainAxisSize: MainAxisSize.min,
@@ -6280,7 +6325,7 @@ class _OnAccentColorFieldState extends ConsumerState<_OnAccentColorField> {
                   filled: !isBlockTheme(context),
                   fillColor:
                       (Theme.of(context).brightness == Brightness.dark
-                              ? GlassColors.darkSurfaceBase
+                              ? ref.watch(darkVariantProvider).glassSurface
                               : GlassColors.lightSurfaceBase)
                           .withValues(alpha: 0.65),
                   border: isBlockTheme(context)

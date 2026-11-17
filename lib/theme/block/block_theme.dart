@@ -1,6 +1,7 @@
 import 'package:flutter/rendering.dart';
 import 'package:flutter/material.dart';
 
+import '../../models/dark_variant.dart';
 import '../app_theme.dart';
 import '../app_theme_extras.dart';
 
@@ -203,6 +204,7 @@ class BlockTheme {
     ),
     accentColor,
     Brightness.light,
+    DarkVariant.standard,
   );
 
   static ThemeData dark(
@@ -210,18 +212,26 @@ class BlockTheme {
     Color? textColor,
     Color? onAccentColor,
     String? fontFamily,
+    DarkVariant variant = DarkVariant.standard,
   }) => _build(
     AppTheme.dark(
       accentColor,
       textColor: textColor,
       onAccentColor: onAccentColor,
       fontFamily: fontFamily,
+      variant: variant,
     ),
     accentColor,
     Brightness.dark,
+    variant,
   );
 
-  static ThemeData _build(ThemeData base, Color accent, Brightness brightness) {
+  static ThemeData _build(
+    ThemeData base,
+    Color accent,
+    Brightness brightness,
+    DarkVariant variant,
+  ) {
     final isDark = brightness == Brightness.dark;
     // 透明度付きのアクセント（#RRGGBBAA）だと背景が透けて灰色っぽく見える為、
     // このスタイルでは常に不透明にする。
@@ -236,12 +246,12 @@ class BlockTheme {
     );
     // 背景は淡い色、パネル（カード・ダイアログ・メニュー）はそれより少し濃い色。
     final background = isDark
-        ? AppTheme.darkBackground
+        ? variant.background
         : tint(accent, 0.975, maxSaturation: 0.8);
     final panel = isDark
-        ? AppTheme.darkSurface
+        ? variant.surface
         : tint(accent, 0.945, maxSaturation: 0.8);
-    final field = isDark ? AppTheme.darkSurface : tint(accent, 0.985);
+    final field = isDark ? variant.surface : tint(accent, 0.985);
     final scheme = base.colorScheme.copyWith(
       primary: accent,
       surface: background,
@@ -282,7 +292,7 @@ class BlockTheme {
         ),
       ),
       chipTheme: base.chipTheme.copyWith(
-        backgroundColor: isDark ? AppTheme.darkSurface : Colors.white,
+        backgroundColor: isDark ? variant.surface : Colors.white,
         selectedColor: accent,
         disabledColor: panel,
         surfaceTintColor: Colors.transparent,

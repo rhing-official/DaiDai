@@ -36,6 +36,9 @@ class Call {
     this.answer,
     this.createdAt,
     this.endedAt,
+    this.connectedAt,
+    this.callerSeenAt,
+    this.calleeSeenAt,
     this.answeredBy,
   });
 
@@ -64,6 +67,14 @@ class Call {
   final Map<String, dynamic>? answer;
   final Timestamp? createdAt;
   final Timestamp? endedAt;
+
+  /// 応答した時刻（通話時間の計算用、2026-11-17。古い通話には無い）。
+  final Timestamp? connectedAt;
+
+  /// 通話中に各端末が15秒ごとに書く時刻（生きている通話かの判定用、2026-11-17）。
+  /// 古いクライアントの通話・今回の変更前に残った通話には無い。
+  final Timestamp? callerSeenAt;
+  final Timestamp? calleeSeenAt;
 
   /// 応答を始めた端末のセッションid（同じアカウントの別端末の着信を止めるため。未応答はnull）。
   final String? answeredBy;
@@ -98,6 +109,9 @@ class Call {
       answer: (json['answer'] as Map?)?.cast<String, dynamic>(),
       createdAt: json['createdAt'] as Timestamp?,
       endedAt: json['endedAt'] as Timestamp?,
+      connectedAt: json['connectedAt'] as Timestamp?,
+      callerSeenAt: json['callerSeenAt'] as Timestamp?,
+      calleeSeenAt: json['calleeSeenAt'] as Timestamp?,
       answeredBy: json['answeredBy'] as String?,
     );
   }
@@ -119,4 +133,28 @@ class Call {
       'endedAt': endedAt,
     };
   }
+}
+
+/// 通話中のハートビートが途絶えたとみなす時間（広場の`kGroupCallPresenceStaleAfter`と同じ）。
+const kCallPresenceStaleAfter = Duration(seconds: 45);
+
+/// ハートビートを一度も書いていない通話（古いクライアント・変更前の残骸）を、生きているとみなす
+/// 最大の時間。これを超えて`active`のままの通話は、終了が書かれず残ったものとして扱う。
+const kCallNoHeartbeatMaxAge = Duration(hours: 3);
+
+/// 一対の通話（`active`）が、まだ生きているか（2026-11-17）。語らい一覧の「通話中」の標を、
+/// 終了が書かれずに残った通話に出さないための判定。サーバーの`sweepStaleCalls`も同じ基準
+/// （ハートビートは余裕を持たせて90秒）で終わらせる。
+bool isOneToOneCallLive(Call call, DateTime now) {
+  if (call.status != CallStatus.active) return false;
+  final seen = [
+    call.callerSeenAt,
+    call.calleeSeenAt,
+  ].whereType<Timestamp>().map((t) => t.toDate()).toList();
+  if (seen.isNotEmpty) {
+    return seen.any((t) => now.difference(t) <= kCallPresenceStaleAfter);
+  }
+  final since = (call.connectedAt ?? call.createdAt)?.toDate();
+  if (since == null) return true; // 書き込み直後など、時刻が未確定
+  return now.difference(since) <= kCallNoHeartbeatMaxAge;
 }

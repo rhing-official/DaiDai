@@ -5389,6 +5389,10 @@ const CALL_MISSED_CONTENT = "不在着信";
 
 /** 呼び出し中のまま終了が書かれない一対の通話を不在着信にするまでの秒数（クライアントの30秒＋余裕）。 */
 const DM_CALL_STALE_RINGING_MS = 90 * 1000;
+/** 一対の通話のハートビート（15秒ごと）が途絶えたとみなす時間（クライアントの45秒に余裕を持たせる）。 */
+const DM_CALL_HEARTBEAT_STALE_MS = 90 * 1000;
+/** ハートビートを一度も書いていない`active`の通話を、残骸とみなす時間（`kCallNoHeartbeatMaxAge`と同じ）。 */
+const DM_CALL_NO_HEARTBEAT_MAX_MS = 3 * 60 * 60 * 1000;
 /** ハートビートが途絶えたとみなす秒数（`kGroupCallPresenceStaleAfter`と同じ）。 */
 const GROUP_CALL_PRESENCE_STALE_MS = 45 * 1000;
 /** 作成直後、まだ誰も参加していない間は放棄扱いにしない猶予（`kGroupCallAbandonedGrace`と同じ）。 */
@@ -5470,6 +5474,9 @@ export const onCallEnded = onDocumentUpdated(
     if (terminal.includes(before.status) || !terminal.includes(after.status)) {
       return;
     }
+    // 終了が書かれずに残り、`sweepStaleCalls`が片付けた通話には記録を書かない
+    // （通話時間が分からず、途中で落ちた・過去の残骸のため）。
+    if (after.staleEnded === true) return;
     const callerId = after.callerId as string | undefined;
     const calleeId = after.calleeId as string | undefined;
     const dmId = after.dmId as string | undefined;
@@ -5564,6 +5571,37 @@ export const sweepStaleCalls = onSchedule(
         continue;
       }
       await doc.ref.update({ status: "missed", endedAt: FieldValue.serverTimestamp() });
+    }
+
+    // 一対の通話で、終了が書かれずに`active`のまま残ったものを終わらせる（2026-11-17）。
+    // ハートビート（`callerSeenAt`・`calleeSeenAt`、15秒ごと）が90秒途絶えた、または
+    // ハートビートが無いまま3時間を超えたもの。通話の記録は書かない（`staleEnded`）。
+    const activeOneToOne = await db
+      .collection("calls")
+      .where("status", "==", "active")
+      .get();
+    for (const doc of activeOneToOne.docs) {
+      const data = doc.data();
+      const seen = [data.callerSeenAt, data.calleeSeenAt]
+        .filter((t): t is Timestamp => t instanceof Timestamp)
+        .map((t) => t.toMillis());
+      let lastAlive: number | null = null;
+      let stale = false;
+      if (seen.length > 0) {
+        lastAlive = Math.max(...seen);
+        stale = now - lastAlive > DM_CALL_HEARTBEAT_STALE_MS;
+      } else {
+        const since = (data.connectedAt ?? data.createdAt) as Timestamp | undefined;
+        if (!since) continue;
+        lastAlive = since.toMillis();
+        stale = now - lastAlive > DM_CALL_NO_HEARTBEAT_MAX_MS;
+      }
+      if (!stale) continue;
+      await doc.ref.update({
+        status: "ended",
+        endedAt: Timestamp.fromMillis(lastAlive),
+        staleEnded: true,
+      });
     }
 
     const active = await db

@@ -75,7 +75,7 @@ Future<void> _pumpSettingsTab(WidgetTester tester) async {
         initialAppLocaleProvider.overrideWithValue(AppLocale.japanese),
         initialAccentColorProvider.overrideWithValue(const Color(0xFFF08300)),
         initialTextColorLightProvider.overrideWithValue(kDefaultTextColorLight),
-        initialTextColorDarkProvider.overrideWithValue(kDefaultTextColorDark),
+        initialTextColorDarkProvider.overrideWithValue(null),
         initialCustomAccentColorsProvider.overrideWithValue(const []),
         initialRemovedDefaultColorPresetsProvider.overrideWithValue(const {}),
         initialGekigaBackgroundColorProvider.overrideWithValue(
@@ -146,7 +146,7 @@ Future<void> _pumpSettingsTabNarrow(WidgetTester tester) async {
         initialAppLocaleProvider.overrideWithValue(AppLocale.japanese),
         initialAccentColorProvider.overrideWithValue(const Color(0xFFF08300)),
         initialTextColorLightProvider.overrideWithValue(kDefaultTextColorLight),
-        initialTextColorDarkProvider.overrideWithValue(kDefaultTextColorDark),
+        initialTextColorDarkProvider.overrideWithValue(null),
         initialCustomAccentColorsProvider.overrideWithValue(const []),
         initialRemovedDefaultColorPresetsProvider.overrideWithValue(const {}),
         initialGekigaBackgroundColorProvider.overrideWithValue(

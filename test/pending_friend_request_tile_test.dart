@@ -16,6 +16,7 @@ FriendRequest _request() => FriendRequest(
 );
 
 void main() {
+  _idTests();
   group('DirectMessage.pendingFrom', () {
     test('申請から、表示用の一対を作る（idは決定的、両者のSeedを持つ）', () {
       final dm = DirectMessage.pendingFrom(_request());
@@ -51,5 +52,12 @@ void main() {
       await tester.pumpWidget(const MaterialApp(home: UnreadBadge(count: 120)));
       expect(find.text('99+'), findsOneWidget);
     });
+  });
+}
+
+void _idTests() {
+  test('友達申請のidと一対のidは同じ組み立て（承認後に一対を取るのに使う）', () {
+    expect(FriendRequest.idFor('b', 'a'), DirectMessage.idFor('a', 'b'));
+    expect(FriendRequest.idFor('a', 'b'), FriendRequest.idFor('b', 'a'));
   });
 }

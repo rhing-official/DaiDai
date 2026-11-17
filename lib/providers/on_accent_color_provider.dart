@@ -10,8 +10,9 @@ const _legacyPrefsKey = 'onAccentColorArgb32';
 /// 未設定の時の既定の文字色（2026-11-14、ライト用は黒・ダーク用は白）。以前は未設定を
 /// 「自動」（空欄）としていたが、見た目は同じ値のため、文字色（ライト用・ダーク用）と同じく
 /// 最初から実際の色として持つ。
-const kDefaultOnAccentColorLight = Colors.black;
-const kDefaultOnAccentColorDark = Colors.white;
+/// 2026-11-18に、4つの外観すべて共通の`#EFEFF1`へ変更（保存値は変わらない）。
+const kDefaultOnAccentColorLight = Color(0xFFEFEFF1);
+const kDefaultOnAccentColorDark = Color(0xFFEFEFF1);
 
 /// アクセントカラーで塗った面（選択中のチップ・ボタン・ピルなど）の上に乗る文字・
 /// アイコンの色（2026-11-06追加）。2026-11-14に、文字色（`text_color_provider.dart`）と同じく

@@ -123,7 +123,7 @@ void main() {
                 kDefaultTextColorLight,
               ),
               initialTextColorDarkProvider.overrideWithValue(
-                kDefaultTextColorDark,
+                null,
               ),
               initialCustomAccentColorsProvider.overrideWithValue(const []),
               initialRemovedDefaultColorPresetsProvider.overrideWithValue(

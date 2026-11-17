@@ -8,6 +8,7 @@ import 'package:firebase_storage/firebase_storage.dart';
 import 'package:flutter/foundation.dart' show ValueChanged, kIsWeb;
 import 'package:flutter_image_compress/flutter_image_compress.dart';
 
+import '../utils/resilient_rooms_stream.dart';
 import '../models/app_user.dart';
 import '../models/group.dart';
 import '../models/group_invite_preview.dart';
@@ -725,19 +726,28 @@ class FirestoreGroupRepository implements GroupRepository {
     // permission-deniedで拒否する（各ドキュメントを個別に評価してから
     // 結果をフィルタする、という動作はしない）。これが原因で、この機能を
     // 実装した当初からサイドバーの寄合一覧が一切表示されない不具合があった。
-    return _groups
+    final query = _groups
         .doc(groupId)
         .collection('rooms')
-        .where('memberIds', arrayContains: userId)
-        .snapshots()
-        .map((snapshot) {
-          final rooms =
-              snapshot.docs
-                  .map((doc) => Room.fromJson(doc.id, doc.data()))
-                  .toList()
-                ..sort(_compareByCreatedAt);
-          return rooms;
-        });
+        .where('memberIds', arrayContains: userId);
+    List<Room> parse(QuerySnapshot<Map<String, dynamic>> snapshot) =>
+        snapshot.docs.map((doc) => Room.fromJson(doc.id, doc.data())).toList()
+          ..sort(_compareByCreatedAt);
+    // キャッシュ由来の0件で空のまま止まらないよう、サーバー由来を待つ
+    // （`resilientRooms`、2026-11-17）。
+    return resilientRooms<Room>(
+      tag: 'group=$groupId',
+      open: () => query
+          .snapshots(includeMetadataChanges: true)
+          .map(
+            (snapshot) => RoomsSnapshot(
+              parse(snapshot),
+              fromCache: snapshot.metadata.isFromCache,
+            ),
+          ),
+      fetchServer: () async =>
+          parse(await query.get(const GetOptions(source: Source.server))),
+    );
   }
 
   int _compareByCreatedAt(Room a, Room b) {

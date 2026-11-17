@@ -92,8 +92,15 @@ final conversationCallProvider =
           session.call.dmId == conversationId) {
         active = session.call;
       } else {
+        // 終了が書かれずに残った通話は出さない（ハートビートが途絶えた／古すぎる、2026-11-17）。
+        ref.watch(callPresenceTickProvider);
         final mine = ref.watch(myActiveOneToOneCallsProvider).value;
-        active = mine?.where((c) => c.dmId == conversationId).firstOrNull;
+        final now = DateTime.now();
+        active = mine
+            ?.where(
+              (c) => c.dmId == conversationId && isOneToOneCallLive(c, now),
+            )
+            .firstOrNull;
       }
       if (active == null) return null;
       return ConversationCallPresence(

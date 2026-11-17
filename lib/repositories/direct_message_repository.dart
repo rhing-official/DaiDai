@@ -4,6 +4,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:flutter/foundation.dart' show ValueChanged;
 
+import '../utils/resilient_rooms_stream.dart';
 import '../models/app_user.dart';
 import '../models/direct_message.dart';
 import '../models/dm_room.dart';
@@ -519,22 +520,32 @@ class FirestoreDirectMessageRepository implements DirectMessageRepository {
     //
     // where('participants', arrayContains: userId)はfirestore.rulesの`list`
     // 要求を満たすために必須（`GroupRepository.watchRooms`のコメント参照）。
-    return _directMessages
+    final query = _directMessages
         .doc(dmId)
         .collection('rooms')
-        .where('participants', arrayContains: userId)
-        .snapshots()
-        .map((snapshot) {
-          final rooms =
-              snapshot.docs
-                  .map((doc) => DmRoom.fromJson(doc.id, doc.data()))
-                  .toList()
-                ..sort(
-                  (a, b) => (a.createdAt?.millisecondsSinceEpoch ?? 0)
-                      .compareTo(b.createdAt?.millisecondsSinceEpoch ?? 0),
-                );
-          return rooms;
-        });
+        .where('participants', arrayContains: userId);
+    List<DmRoom> parse(QuerySnapshot<Map<String, dynamic>> snapshot) =>
+        snapshot.docs.map((doc) => DmRoom.fromJson(doc.id, doc.data())).toList()
+          ..sort(
+            (a, b) => (a.createdAt?.millisecondsSinceEpoch ?? 0).compareTo(
+              b.createdAt?.millisecondsSinceEpoch ?? 0,
+            ),
+          );
+    // キャッシュ由来の0件で空のまま止まらないよう、サーバー由来を待つ
+    // （`resilientRooms`、2026-11-17。Androidで承認直後の一対が開けなかった件の防御）。
+    return resilientRooms<DmRoom>(
+      tag: 'dm=$dmId',
+      open: () => query
+          .snapshots(includeMetadataChanges: true)
+          .map(
+            (snapshot) => RoomsSnapshot(
+              parse(snapshot),
+              fromCache: snapshot.metadata.isFromCache,
+            ),
+          ),
+      fetchServer: () async =>
+          parse(await query.get(const GetOptions(source: Source.server))),
+    );
   }
 
   @override

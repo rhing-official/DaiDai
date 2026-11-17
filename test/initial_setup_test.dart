@@ -59,7 +59,7 @@ Future<ProviderContainer> _pumpSetup(
       initialAppLocaleProvider.overrideWithValue(AppLocale.japanese),
       initialAccentColorProvider.overrideWithValue(const Color(0xFFF08300)),
       initialTextColorLightProvider.overrideWithValue(kDefaultTextColorLight),
-      initialTextColorDarkProvider.overrideWithValue(kDefaultTextColorDark),
+      initialTextColorDarkProvider.overrideWithValue(null),
       initialCustomAccentColorsProvider.overrideWithValue(const []),
       initialRemovedDefaultColorPresetsProvider.overrideWithValue(const {}),
       initialGekigaBackgroundColorProvider.overrideWithValue(

@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../models/dark_variant.dart';
+import 'dark_variant_provider.dart';
 import 'repository_providers.dart';
 
 const _lightPrefsKey = 'textColorLightArgb32';
@@ -10,27 +12,29 @@ const _darkPrefsKey = 'textColorDarkArgb32';
 /// ユーザーが未設定の場合に使う既定の文字色（`accentColorProvider`と同じ
 /// パターン、2026-09-14追加）。2026-11-15に、ライトは黒（#000000）・ダークは白
 /// （#FFFFFF）へ変更（ユーザー指示）。保存値のある人は変わらない。
-const kDefaultTextColorLight = Color(0xFF000000);
-const kDefaultTextColorDark = Color(0xFFFFFFFF);
+/// 2026-11-18に、外観（胡粉・墨・鈍色・漆黒）ごとの既定色へ変更。ライトは胡粉用、
+/// ダークは[DarkVariant.defaultTextColor]。保存値（設定した色）は変わらない。
+const kDefaultTextColorLight = Color(0xFF71727B);
 
-final initialTextColorLightProvider = Provider<Color>((ref) {
+final initialTextColorLightProvider = Provider<Color?>((ref) {
   throw UnimplementedError('main()でoverrideすること');
 });
 
-final initialTextColorDarkProvider = Provider<Color>((ref) {
+final initialTextColorDarkProvider = Provider<Color?>((ref) {
   throw UnimplementedError('main()でoverrideすること');
 });
 
-Future<Color> loadInitialTextColorLight() async {
+/// 保存が無ければnull（=外観の既定色を使う）。
+Future<Color?> loadInitialTextColorLight() async {
   final prefs = await SharedPreferences.getInstance();
   final argb32 = prefs.getInt(_lightPrefsKey);
-  return argb32 == null ? kDefaultTextColorLight : Color(argb32);
+  return argb32 == null ? null : Color(argb32);
 }
 
-Future<Color> loadInitialTextColorDark() async {
+Future<Color?> loadInitialTextColorDark() async {
   final prefs = await SharedPreferences.getInstance();
   final argb32 = prefs.getInt(_darkPrefsKey);
-  return argb32 == null ? kDefaultTextColorDark : Color(argb32);
+  return argb32 == null ? null : Color(argb32);
 }
 
 /// ライト/ダークそれぞれの文字色（`colorScheme.onSurface`相当）を
@@ -39,29 +43,34 @@ Future<Color> loadInitialTextColorDark() async {
 /// 関わる為、ライト・ダークで別々の色を保存する
 /// （`accentColorProvider`が1色をライト/ダーク共通で使うのとは異なる方針、
 /// ユーザー確認済み）。
-class _TextColorNotifier extends Notifier<Color> {
+class _TextColorNotifier extends Notifier<Color?> {
   _TextColorNotifier({
     required this.initialProvider,
     required this.prefsKey,
     required this.remoteField,
   });
 
-  final Provider<Color> initialProvider;
+  final Provider<Color?> initialProvider;
   final String prefsKey;
   final String remoteField;
 
   @override
-  Color build() => ref.watch(initialProvider);
+  Color? build() => ref.watch(initialProvider);
 
-  Future<void> setColor(Color color) async {
+  /// [color]がnullなら保存を消して外観の既定色に戻す。
+  Future<void> setColor(Color? color) async {
     state = color;
     final prefs = await SharedPreferences.getInstance();
-    await prefs.setInt(prefsKey, color.toARGB32());
+    if (color == null) {
+      await prefs.remove(prefsKey);
+    } else {
+      await prefs.setInt(prefsKey, color.toARGB32());
+    }
     final userId = ref.read(authStateProvider).value?.uid;
     if (userId == null) return;
     await ref
         .read(userRepositoryProvider)
-        .updateUserPreference(userId, remoteField, color.toARGB32());
+        .updateUserPreference(userId, remoteField, color?.toARGB32());
   }
 
   /// ログイン時、Firestoreに保存されている値で端末側を上書きする
@@ -91,10 +100,25 @@ class TextColorDarkNotifier extends _TextColorNotifier {
       );
 }
 
-final textColorLightProvider = NotifierProvider<TextColorLightNotifier, Color>(
+final textColorLightProvider = NotifierProvider<TextColorLightNotifier, Color?>(
   TextColorLightNotifier.new,
 );
 
-final textColorDarkProvider = NotifierProvider<TextColorDarkNotifier, Color>(
+final textColorDarkProvider = NotifierProvider<TextColorDarkNotifier, Color?>(
   TextColorDarkNotifier.new,
 );
+
+/// 実際に使うライト（胡粉）の文字色（保存値 ?? 既定）。
+final effectiveTextColorLightProvider = Provider<Color>(
+  (ref) => ref.watch(textColorLightProvider) ?? kDefaultTextColorLight,
+);
+
+/// 実際に使うダークの文字色（保存値 ?? 選んだ種類の既定）。
+final effectiveTextColorDarkProvider = Provider<Color>(
+  (ref) =>
+      ref.watch(textColorDarkProvider) ??
+      ref.watch(darkVariantProvider).defaultTextColor,
+);
+
+/// 種類に対する既定色（設定画面の「既定に戻す」表示用）。
+Color defaultTextColorDarkFor(DarkVariant variant) => variant.defaultTextColor;

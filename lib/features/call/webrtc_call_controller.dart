@@ -446,6 +446,29 @@ class WebrtcCallController extends ChangeNotifier {
   /// この時刻から通話履歴メッセージの通話時間を計算する為に使う。
   DateTime? _connectedAt;
 
+  /// 通話中、15秒ごとに「生きている」印を書く（2026-11-17。終了が書かれずに残った通話を
+  /// 語らい一覧の標・サーバーの片付けが見分けるため）。
+  Timer? _presenceTimer;
+
+  void _startPresence() {
+    if (_presenceTimer != null) return;
+    void touch() => unawaited(
+      _callRepository
+          .touchPresence(call.callId, isCaller: isCaller)
+          .catchError((_) {}),
+    );
+    touch();
+    _presenceTimer = Timer.periodic(
+      const Duration(seconds: 15),
+      (_) => touch(),
+    );
+  }
+
+  void _stopPresence() {
+    _presenceTimer?.cancel();
+    _presenceTimer = null;
+  }
+
   bool _switchingCallType = false;
   bool get switchingCallType => _switchingCallType;
 
@@ -972,6 +995,7 @@ class WebrtcCallController extends ChangeNotifier {
           _state = CallConnectionState.active;
           _cancelRingTimeout();
           _connectedAt ??= DateTime.now();
+          _startPresence();
           _startEstablishingTimer();
           unawaited(_applySpeakerphoneWithRetry());
           // 相手（着信側）が応答したことで届いたanswer。発信側が聞いていた
@@ -1008,6 +1032,7 @@ class WebrtcCallController extends ChangeNotifier {
       _state = CallConnectionState.active;
       _cancelRingTimeout();
       _connectedAt ??= DateTime.now();
+      _startPresence();
       _startEstablishingTimer();
       unawaited(_applySpeakerphoneWithRetry());
       // 着信側が応答したことでこのアンサーを送った瞬間。着信音をここで
@@ -1114,6 +1139,7 @@ class WebrtcCallController extends ChangeNotifier {
 
   void _finish() {
     _cancelRingTimeout();
+    _stopPresence();
     if (_state == CallConnectionState.ended) return;
     _state = CallConnectionState.ended;
     // 終了を検知した瞬間、その場で自分の音を止める（2026-09-12追加）。
@@ -1866,6 +1892,7 @@ class WebrtcCallController extends ChangeNotifier {
 
   @override
   void dispose() {
+    _stopPresence();
     _mirrorTimer?.cancel();
     if (_watchingAudioDevices) navigator.mediaDevices.ondevicechange = null;
     _cancelRingTimeout();

@@ -1092,17 +1092,20 @@ class _TalksTabState extends ConsumerState<TalksTab>
     final currentUserId = widget.currentUser.userId;
     final titleText = '@${request.otherRhingSeed(currentUserId)}';
     final incoming = request.toUserId == currentUserId;
+    // 狭い画面で、保留中の画面（下で`push`する[screen]）の`Route`。承認後に一対の画面を
+    // 開いたあと、これを取り除く（一覧を経由せずに入れ替える）。
+    Route<void>? pendingRoute;
     final banner = incoming
         ? _FriendRequestDecisionBanner(
             request: request,
-            onDone: () {
-              if (!mounted) return;
-              if (split) {
-                _selectPendingScreen(null);
-              } else {
-                Navigator.of(context).pop();
-              }
-            },
+            onDone: (accepted) => unawaited(
+              _finishFriendRequest(
+                request,
+                accepted: accepted,
+                split: split,
+                pendingRoute: () => pendingRoute,
+              ),
+            ),
           )
         : _PendingApprovalBanner(
             message: strings.friendRequestOutgoingSubtitle,
@@ -1158,9 +1161,57 @@ class _TalksTabState extends ConsumerState<TalksTab>
       // 一対・広場（app_router.dartの`slideDetailPage`）と同じ、指追従の右スワイプ
       // 戻る＋画面右外からのスライドインを`slideBackRoute`で適用する
       // （2026-08-12追加、2026-09-12にインタラクティブなスライドへ変更）。
-      Navigator.of(
-        context,
-      ).push(slideBackRoute<void>(builder: (context) => screen));
+      final route = slideBackRoute<void>(builder: (context) => screen);
+      pendingRoute = route;
+      Navigator.of(context).push(route);
+    }
+  }
+
+  /// 友達申請の承認・拒否が終わった後（2026-11-17）。承認なら、できた一対のメッセージ画面を
+  /// そのまま開く（語らい一覧へ戻さない）。一対は`respondFriendRequest`が作り終えてから返る。
+  /// 取れなかった・拒否の時は、従来どおり保留中の画面を閉じる。一対の画面の開き方（分割・
+  /// アイコン＋寄合一覧・狭い画面）は[_openDirectMessage]に任せる。
+  Future<void> _finishFriendRequest(
+    FriendRequest request, {
+    required bool accepted,
+    required bool split,
+    required Route<void>? Function() pendingRoute,
+  }) async {
+    if (!mounted) return;
+    DirectMessage? dm;
+    if (accepted) {
+      try {
+        // 一対のidは友達申請のidと同じ組み立て（`FriendRequest.idFor`）。
+        dm = await ref
+            .read(directMessageRepositoryProvider)
+            .getDirectMessage(request.requestId);
+      } catch (e) {
+        debugPrint('[ROOMS] open accepted dm failed: $e');
+      }
+      if (!mounted) return;
+    }
+    if (split) {
+      setState(() => _selectedPendingRequestId = null);
+      if (dm != null) {
+        await _openDirectMessage(dm);
+      } else {
+        _selectPendingScreen(null);
+      }
+      return;
+    }
+    final route = pendingRoute();
+    if (dm == null) {
+      if (route != null && route.isActive) {
+        route.navigator?.pop();
+      } else {
+        Navigator.of(context).maybePop();
+      }
+      return;
+    }
+    await _openDirectMessage(dm);
+    // 一対の画面を上に開いたあと、下の保留中の画面だけを取り除く（一覧を映さない）。
+    if (route != null && route.isActive) {
+      route.navigator?.removeRoute(route);
     }
   }
 
@@ -1283,7 +1334,20 @@ class _TalksTabState extends ConsumerState<TalksTab>
     // 健全な一対は常に1件以上の寄合を持つため、空になるのは移行漏れ等の
     // 壊れたデータのみ（`DirectMessageRepository.getOrCreateDirectMessage`の
     // 自己修復ロジック参照）。その場合は遷移をあきらめる。
-    if (rooms.isEmpty) return;
+    if (rooms.isEmpty) {
+      // 黙って何も起きないと原因が分からないため、見せて記録する（2026-11-17）。
+      debugPrint('[ROOMS] open dm failed: no rooms dm=${dm.dmId}');
+      if (mounted) {
+        final overlay = Overlay.maybeOf(context);
+        if (overlay != null) {
+          showAutoDismissBannerIn(
+            overlay,
+            message: ref.read(appStringsProvider).roomsLoadFailed,
+          );
+        }
+      }
+      return;
+    }
     final lastRoomId = ref
         .read(lastOpenedRoomProvider.notifier)
         .lastRoomFor(ViewedDm(dm.dmId));
@@ -3481,7 +3545,7 @@ class _FriendRequestDecisionBanner extends ConsumerStatefulWidget {
   });
 
   final FriendRequest request;
-  final VoidCallback onDone;
+  final void Function(bool accepted) onDone;
 
   @override
   ConsumerState<_FriendRequestDecisionBanner> createState() =>
@@ -3502,7 +3566,7 @@ class _FriendRequestDecisionBannerState
       await ref
           .read(friendRepositoryProvider)
           .respond(request: widget.request, accept: accept);
-      if (mounted) widget.onDone();
+      if (mounted) widget.onDone(accept);
     } catch (_) {
       if (!mounted) return;
       setState(() {
@@ -5082,6 +5146,67 @@ class _EmptyDetailPlaceholder extends StatelessWidget {
   Widget build(BuildContext context) => const SizedBox.shrink();
 }
 
+/// 寄合の一覧が届くまでの表示（2026-11-17）。普段は何も描かないが、[kRoomsStuckAfter]を超えても
+/// 届かない時は「読み込めませんでした」と再読み込みのボタンを出す（Androidで、承認直後の
+/// 一対が真っ黒のまま開けなかった件。原因が分からない空白のままにしない）。
+const kRoomsStuckAfter = Duration(seconds: 8);
+
+class _RoomsStuckPlaceholder extends ConsumerStatefulWidget {
+  const _RoomsStuckPlaceholder({required this.onRetry});
+
+  final VoidCallback onRetry;
+
+  @override
+  ConsumerState<_RoomsStuckPlaceholder> createState() =>
+      _RoomsStuckPlaceholderState();
+}
+
+class _RoomsStuckPlaceholderState
+    extends ConsumerState<_RoomsStuckPlaceholder> {
+  Timer? _timer;
+  bool _stuck = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _timer = Timer(kRoomsStuckAfter, () {
+      if (mounted) setState(() => _stuck = true);
+    });
+  }
+
+  @override
+  void dispose() {
+    _timer?.cancel();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (!_stuck) return const SizedBox.shrink();
+    final strings = ref.watch(appStringsProvider);
+    return Center(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(strings.roomsLoadFailed),
+          const SizedBox(height: 8),
+          OutlinedButton(
+            onPressed: () {
+              setState(() => _stuck = false);
+              _timer?.cancel();
+              _timer = Timer(kRoomsStuckAfter, () {
+                if (mounted) setState(() => _stuck = true);
+              });
+              widget.onRetry();
+            },
+            child: Text(strings.roomsLoadRetry),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 /// 縦表示のアイコン＋寄合一覧レイアウトで、寄合一覧上の左スワイプに
 /// [preview]（選択中の寄合のメッセージ画面）を指の動きに追従させながら
 /// 表示する（2026-09-14追加）。以前はフリックを検知した瞬間に
@@ -5678,15 +5803,20 @@ class _DmDetailWithRoomsState extends ConsumerState<_DmDetailWithRooms> {
   /// （チャット本体内の寄合切り替えでは増やさず、作り直さない、2026-10-06追加）。
   int _paneGeneration = 0;
 
-  late final Stream<List<DmRoom>> _roomsStream;
+  late Stream<List<DmRoom>> _roomsStream;
 
   @override
   void initState() {
     super.initState();
-    _roomsStream = ref
-        .read(directMessageRepositoryProvider)
-        .watchRooms(dmId: widget.dm.dmId, userId: widget.currentUser.userId);
+    _roomsStream = _openRoomsStream();
   }
+
+  Stream<List<DmRoom>> _openRoomsStream() => ref
+      .read(directMessageRepositoryProvider)
+      .watchRooms(dmId: widget.dm.dmId, userId: widget.currentUser.userId);
+
+  /// 寄合の一覧の購読を作り直す（読み込めず空のままの時の再読み込み）。
+  void _retryRooms() => setState(() => _roomsStream = _openRoomsStream());
 
   // モバイルのみ全画面の/callへpushする。PCでは全画面ルートを使わず、
   // 通話セッションを直接開始するだけにする（2026-08-19変更）。以後は
@@ -5845,7 +5975,9 @@ class _DmDetailWithRoomsState extends ConsumerState<_DmDetailWithRooms> {
         // 同期的にFirestoreの`.doc('')`を呼んでしまい、"A document path must
         // be a non-empty string"のエラー画面が一瞬映る不具合があった。
         // ストリームの実データが届くまでは何も描画せず待つ（2026-09-15追加）。
-        if (roomId.isEmpty) return const _EmptyDetailPlaceholder();
+        if (roomId.isEmpty) {
+          return _RoomsStuckPlaceholder(onRetry: _retryRooms);
+        }
         final roomName = rooms
             .firstWhere(
               (r) => r.roomId == roomId,
@@ -6108,18 +6240,23 @@ class _GroupDetailWithRoomsState extends ConsumerState<_GroupDetailWithRooms> {
   /// （チャット本体内の寄合切り替えでは増やさず、作り直さない、2026-10-06追加）。
   int _paneGeneration = 0;
 
-  late final Stream<List<Room>> _roomsStream;
+  late Stream<List<Room>> _roomsStream;
 
   @override
   void initState() {
     super.initState();
-    _roomsStream = ref
-        .read(groupRepositoryProvider)
-        .watchRooms(
-          groupId: widget.group.groupId,
-          userId: widget.currentUser.userId,
-        );
+    _roomsStream = _openRoomsStream();
   }
+
+  Stream<List<Room>> _openRoomsStream() => ref
+      .read(groupRepositoryProvider)
+      .watchRooms(
+        groupId: widget.group.groupId,
+        userId: widget.currentUser.userId,
+      );
+
+  /// 寄合の一覧の購読を作り直す（読み込めず空のままの時の再読み込み）。
+  void _retryRooms() => setState(() => _roomsStream = _openRoomsStream());
 
   @override
   Widget build(BuildContext context) {
@@ -6217,7 +6354,9 @@ class _GroupDetailWithRoomsState extends ConsumerState<_GroupDetailWithRooms> {
             ? watchedLastRoomId
             : roomId;
         // [_DmDetailWithRoomsState.build]と同じ理由（2026-09-15追加）。
-        if (roomId.isEmpty) return const _EmptyDetailPlaceholder();
+        if (roomId.isEmpty) {
+          return _RoomsStuckPlaceholder(onRetry: _retryRooms);
+        }
         final roomName = rooms
             .firstWhere(
               (r) => r.roomId == roomId,
