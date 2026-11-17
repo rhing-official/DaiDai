@@ -45,10 +45,14 @@ import { parseKiwamiReference } from "./kiwamiReference";
 import {
   type PackDeletionStatus,
   canTransition,
+  deletionRequestId,
   packDeletionNoticeText,
+  stickerDeletionNoticeText,
   validateDeleteAt,
   validateDeletionText,
+  validateStickerRemoval,
 } from "./packDeletion";
+import { parseRoleUpdates } from "./stickerRoles";
 import {
   SWITCH_MAX_SESSIONS_PER_USER,
   SWITCH_SESSION_TTL_MS,
@@ -2234,8 +2238,9 @@ export const updateStickerPackMeta = onCall(
 );
 
 /**
- * 出品済みパックに画像を追加する。技術仕様書7.5節の方針により追加専用
- * （削除・差し替えは不可、購入済みユーザーの手持ちスタンプを変えないため）。
+ * 出品済みパックに画像を追加する。技術仕様書7.5節の方針により、この関数は追加専用。
+ * 差し替えは`replaceStickerImage`（運営の許可は不要、stickerIdは変わらない）、
+ * 削除は申請制（`requestStickerPackDeletion`にstickerIdを付ける、2026-11-17）。
  */
 export const addStickersToStickerPack = onCall(
   { region: "asia-northeast1" },
@@ -2527,6 +2532,21 @@ function readPackId(data: unknown): string {
   return packId;
 }
 
+/** 申請の対象。stickerIdがあれば、パックの中の1枚の削除。 */
+function readDeletionTarget(data: unknown): {
+  packId: string;
+  stickerId: string | undefined;
+  requestId: string;
+} {
+  const packId = readPackId(data);
+  const raw = (data as { stickerId?: unknown } | undefined)?.stickerId;
+  if (raw !== undefined && (typeof raw !== "string" || !raw)) {
+    throw new HttpsError("invalid-argument", "stickerIdが正しくありません");
+  }
+  const stickerId = typeof raw === "string" ? raw : undefined;
+  return { packId, stickerId, requestId: deletionRequestId(packId, stickerId) };
+}
+
 function readDeletionStatus(value: unknown): PackDeletionStatus {
   return typeof value === "string" ? (value as PackDeletionStatus) : "pending";
 }
@@ -2655,7 +2675,7 @@ export const requestStickerPackDeletion = onCall(
     if (!uid) {
       throw new HttpsError("unauthenticated", "ログインが必要です");
     }
-    const packId = readPackId(request.data);
+    const { packId, stickerId, requestId } = readDeletionTarget(request.data);
     const reason = validateDeletionText(request.data?.reason, "削除の理由", { required: true });
     if (!reason.ok) throw new HttpsError("invalid-argument", reason.message);
 
@@ -2677,7 +2697,20 @@ export const requestStickerPackDeletion = onCall(
     if (pack.deleteScheduledAt) {
       throw new HttpsError("already-exists", "すでに削除が予定されています");
     }
-    const reqRef = db.collection("packDeletionRequests").doc(packId);
+    // 1枚の削除: 下限・代表・存在を確認する
+    let stickerName = "";
+    if (stickerId) {
+      const list = (pack.stickers as StickerInput[] | undefined) ?? [];
+      const check = validateStickerRemoval(
+        list.map((s) => s.stickerId),
+        stickerId,
+        typeof pack.coverStickerId === "string" ? pack.coverStickerId : null,
+        MIN_STICKERS_PER_PACK,
+      );
+      if (!check.ok) throw new HttpsError("failed-precondition", check.message);
+      stickerName = list.find((s) => s.stickerId === stickerId)?.name ?? "";
+    }
+    const reqRef = db.collection("packDeletionRequests").doc(requestId);
     const existing = await reqRef.get();
     if (existing.exists) {
       const status = readDeletionStatus(existing.data()?.status);
@@ -2688,6 +2721,8 @@ export const requestStickerPackDeletion = onCall(
     // 却下・取り消し・完了のあとの再申請は、新しい申請として上書きする
     await reqRef.set({
       packId,
+      kind: stickerId ? "sticker" : "pack",
+      ...(stickerId ? { stickerId, stickerName } : {}),
       packName: typeof pack.name === "string" ? pack.name : "",
       creatorId: uid,
       reason: reason.value,
@@ -2707,11 +2742,11 @@ export const approveStickerPackDeletion = onCall(
   { region: "asia-northeast1", timeoutSeconds: 300 },
   async (request) => {
     assertAdmin(request);
-    const packId = readPackId(request.data);
+    const { packId, stickerId, requestId } = readDeletionTarget(request.data);
     const deleteAt = validateDeleteAt(request.data?.deleteAt, new Date());
     if (!deleteAt.ok) throw new HttpsError("invalid-argument", deleteAt.message);
 
-    const reqRef = db.collection("packDeletionRequests").doc(packId);
+    const reqRef = db.collection("packDeletionRequests").doc(requestId);
     const reqDoc = await reqRef.get();
     if (!reqDoc.exists) {
       throw new HttpsError("not-found", "削除の申請が見つかりません");
@@ -2728,7 +2763,18 @@ export const approveStickerPackDeletion = onCall(
     const packName: string =
       typeof packDoc.data()?.name === "string" ? packDoc.data()!.name : "";
 
-    await packRef.update({ deleteScheduledAt: Timestamp.fromDate(deleteAt.value) });
+    let notice = packDeletionNoticeText(packName, deleteAt.value);
+    if (stickerId) {
+      // 1枚の削除: パックの入手は止めない（deleteScheduledAtは付けない）
+      const list = (packDoc.data()?.stickers as StickerInput[] | undefined) ?? [];
+      const target = list.find((s) => s.stickerId === stickerId);
+      if (!target) {
+        throw new HttpsError("not-found", "そのぺったんは、すでにパックにありません");
+      }
+      notice = stickerDeletionNoticeText(packName, target.name, deleteAt.value);
+    } else {
+      await packRef.update({ deleteScheduledAt: Timestamp.fromDate(deleteAt.value) });
+    }
     await reqRef.update({
       status: "scheduled" satisfies PackDeletionStatus,
       scheduledDeleteAt: Timestamp.fromDate(deleteAt.value),
@@ -2739,11 +2785,7 @@ export const approveStickerPackDeletion = onCall(
 
     let notified = 0;
     try {
-      notified = await notifyPackOwners(
-        packId,
-        packDeletionNoticeText(packName, deleteAt.value),
-        deleteAt.value,
-      );
+      notified = await notifyPackOwners(packId, notice, deleteAt.value);
       await reqRef.update({ noticeCount: notified, noticeError: FieldValue.delete() });
     } catch (error) {
       logger.error("パックの削除のお知らせに失敗", { packId, error });
@@ -2758,11 +2800,11 @@ export const rejectStickerPackDeletion = onCall(
   { region: "asia-northeast1" },
   async (request) => {
     assertAdmin(request);
-    const packId = readPackId(request.data);
+    const { requestId } = readDeletionTarget(request.data);
     const note = validateDeletionText(request.data?.note, "却下の理由", { required: false });
     if (!note.ok) throw new HttpsError("invalid-argument", note.message);
 
-    const reqRef = db.collection("packDeletionRequests").doc(packId);
+    const reqRef = db.collection("packDeletionRequests").doc(requestId);
     const reqDoc = await reqRef.get();
     if (!reqDoc.exists) {
       throw new HttpsError("not-found", "削除の申請が見つかりません");
@@ -2785,8 +2827,8 @@ export const cancelScheduledPackDeletion = onCall(
   { region: "asia-northeast1" },
   async (request) => {
     assertAdmin(request);
-    const packId = readPackId(request.data);
-    const reqRef = db.collection("packDeletionRequests").doc(packId);
+    const { packId, stickerId, requestId } = readDeletionTarget(request.data);
+    const reqRef = db.collection("packDeletionRequests").doc(requestId);
     const reqDoc = await reqRef.get();
     if (!reqDoc.exists) {
       throw new HttpsError("not-found", "削除の申請が見つかりません");
@@ -2795,7 +2837,7 @@ export const cancelScheduledPackDeletion = onCall(
       throw new HttpsError("failed-precondition", "この削除の予定は、取り消せる状態ではありません");
     }
     const packRef = db.collection("stickerPacks").doc(packId);
-    if ((await packRef.get()).exists) {
+    if (!stickerId && (await packRef.get()).exists) {
       await packRef.update({ deleteScheduledAt: FieldValue.delete() });
     }
     await reqRef.update({
@@ -2804,6 +2846,182 @@ export const cancelScheduledPackDeletion = onCall(
       decidedBy: request.auth!.uid,
     });
     return { cancelled: true };
+  },
+);
+
+/**
+ * パックの配列から、ぺったん1枚を取り除く（画像ファイルは消さない）。すでに無ければ何もしない
+ * （何度実行しても安全）。下限・代表の検証は、申請・承認の時に済んでいるため、ここでは見ない。
+ */
+async function removeStickerFromPack(packId: string, stickerId: string): Promise<void> {
+  const ref = db.collection("stickerPacks").doc(packId);
+  await db.runTransaction(async (tx) => {
+    const doc = await tx.get(ref);
+    if (!doc.exists) return;
+    const list = (doc.data()?.stickers as StickerInput[] | undefined) ?? [];
+    if (!list.some((s) => s.stickerId === stickerId)) return;
+    tx.update(ref, {
+      stickers: list.filter((s) => s.stickerId !== stickerId),
+      updatedAt: FieldValue.serverTimestamp(),
+    });
+  });
+}
+
+/**
+ * 出品者が、利用者のいないパックから、ぺったん1枚を直接削除する。利用者がいるパックは、
+ * 運営への申請（requestStickerPackDeletion、stickerId付き）が要る。
+ */
+export const deleteStickerFromPack = onCall(
+  { region: "asia-northeast1" },
+  async (request) => {
+    const uid = request.auth?.uid;
+    if (!uid) {
+      throw new HttpsError("unauthenticated", "ログインが必要です");
+    }
+    const { packId, stickerId } = readDeletionTarget(request.data);
+    if (!stickerId) {
+      throw new HttpsError("invalid-argument", "stickerIdが必要です");
+    }
+    const ref = db.collection("stickerPacks").doc(packId);
+    const doc = await ref.get();
+    if (!doc.exists) {
+      throw new HttpsError("not-found", "パックが見つかりません");
+    }
+    const pack = doc.data()!;
+    if (pack.creatorId !== uid) {
+      throw new HttpsError("permission-denied", "自分が出品したパックのみ編集できます");
+    }
+    const ownerCount = typeof pack.ownerCount === "number" ? pack.ownerCount : 0;
+    if (ownerCount > 0) {
+      throw new HttpsError(
+        "failed-precondition",
+        "このパックは現在利用しているユーザーがいるため、直接は削除できません。削除を運営へ申請してください",
+      );
+    }
+    const list = (pack.stickers as StickerInput[] | undefined) ?? [];
+    const check = validateStickerRemoval(
+      list.map((s) => s.stickerId),
+      stickerId,
+      typeof pack.coverStickerId === "string" ? pack.coverStickerId : null,
+      MIN_STICKERS_PER_PACK,
+    );
+    if (!check.ok) throw new HttpsError("failed-precondition", check.message);
+    await removeStickerFromPack(packId, stickerId);
+  },
+);
+
+/**
+ * 出品済みパックのぺったん1枚の画像を、差し替える（運営の許可は不要）。stickerId・並び順は
+ * 変えないので、入手した人の手持ちの対応は壊れない。旧画像のファイルは、過去のメッセージ
+ * （送信時の画像URLを保存している）のために消さない。nameとrolesは、渡されたときだけ変える。
+ */
+export const replaceStickerImage = onCall(
+  { region: "asia-northeast1" },
+  async (request) => {
+    const uid = request.auth?.uid;
+    if (!uid) {
+      throw new HttpsError("unauthenticated", "ログインが必要です");
+    }
+    const { packId, stickerId } = readDeletionTarget(request.data);
+    if (!stickerId) {
+      throw new HttpsError("invalid-argument", "stickerIdが必要です");
+    }
+    const imageUrl = request.data?.imageUrl;
+    if (typeof imageUrl !== "string" || !imageUrl) {
+      throw new HttpsError("invalid-argument", "imageUrlが必要です");
+    }
+    // 他人の画像・外部のURLを指せないよう、出品者自身のstickerPackAssets配下のURLだけを受ける
+    if (!storagePathFromDownloadUrl(imageUrl, uid)) {
+      throw new HttpsError("invalid-argument", "imageUrlが正しくありません");
+    }
+    const name = request.data?.name;
+    if (name !== undefined && (typeof name !== "string" || !name.trim())) {
+      throw new HttpsError("invalid-argument", "nameが正しくありません");
+    }
+    const roles = request.data?.roles;
+    if (roles !== undefined && !Array.isArray(roles)) {
+      throw new HttpsError("invalid-argument", "rolesが正しくありません");
+    }
+
+    const ref = db.collection("stickerPacks").doc(packId);
+    await db.runTransaction(async (tx) => {
+      const doc = await tx.get(ref);
+      if (!doc.exists) {
+        throw new HttpsError("not-found", "パックが見つかりません");
+      }
+      const pack = doc.data()!;
+      if (pack.creatorId !== uid) {
+        throw new HttpsError("permission-denied", "自分が出品したパックのみ編集できます");
+      }
+      if (pack.deleteScheduledAt) {
+        throw new HttpsError("failed-precondition", "削除が予定されているパックは、編集できません");
+      }
+      const list = (pack.stickers as StickerInput[] | undefined) ?? [];
+      if (!list.some((s) => s.stickerId === stickerId)) {
+        throw new HttpsError("not-found", "そのぺったんは、このパックにありません");
+      }
+      tx.update(ref, {
+        stickers: list.map((s) =>
+          s.stickerId !== stickerId
+            ? s
+            : {
+                ...s,
+                imageUrl,
+                ...(typeof name === "string" ? { name: name.trim() } : {}),
+                ...(Array.isArray(roles)
+                  ? { roles: roles.filter((r): r is string => typeof r === "string") }
+                  : {}),
+              },
+        ),
+        updatedAt: FieldValue.serverTimestamp(),
+      });
+    });
+  },
+);
+
+/**
+ * 出品済みパックのぺったんの役割（メッセージ内容に応じた提案に使う）を、後から付け直す
+ * （運営の許可は不要。画像・stickerIdは変わらず、提案の出方だけが変わる）。
+ * 渡したぺったんの`roles`だけを置き換える。空の配列で、役割なしに戻せる。
+ */
+export const updateStickerRoles = onCall(
+  { region: "asia-northeast1" },
+  async (request) => {
+    const uid = request.auth?.uid;
+    if (!uid) {
+      throw new HttpsError("unauthenticated", "ログインが必要です");
+    }
+    const packId = readPackId(request.data);
+    const parsed = parseRoleUpdates(request.data?.roles);
+    if (!parsed.ok) throw new HttpsError("invalid-argument", parsed.message);
+
+    const ref = db.collection("stickerPacks").doc(packId);
+    await db.runTransaction(async (tx) => {
+      const doc = await tx.get(ref);
+      if (!doc.exists) {
+        throw new HttpsError("not-found", "パックが見つかりません");
+      }
+      const pack = doc.data()!;
+      if (pack.creatorId !== uid) {
+        throw new HttpsError("permission-denied", "自分が出品したパックのみ編集できます");
+      }
+      if (pack.deleteScheduledAt) {
+        throw new HttpsError("failed-precondition", "削除が予定されているパックは、編集できません");
+      }
+      const list = (pack.stickers as StickerInput[] | undefined) ?? [];
+      const rolesById = new Map(parsed.value.map((u) => [u.stickerId, u.roles]));
+      for (const id of rolesById.keys()) {
+        if (!list.some((s) => s.stickerId === id)) {
+          throw new HttpsError("not-found", `stickerId "${id}" は、このパックにありません`);
+        }
+      }
+      tx.update(ref, {
+        stickers: list.map((s) =>
+          rolesById.has(s.stickerId) ? { ...s, roles: rolesById.get(s.stickerId)! } : s,
+        ),
+        updatedAt: FieldValue.serverTimestamp(),
+      });
+    });
   },
 );
 
@@ -2823,17 +3041,28 @@ export const processScheduledPackDeletions = onSchedule(
       .limit(PACK_DELETION_BATCH_LIMIT)
       .get();
     for (const reqDoc of due.docs) {
-      const packId = reqDoc.id;
+      // 1枚の削除の申請は、文書IDがpackId__stickerIdのため、packIdは本文から読む
+      const packId = typeof reqDoc.data().packId === "string" ? reqDoc.data().packId : reqDoc.id;
+      const stickerId =
+        reqDoc.data().kind === "sticker" && typeof reqDoc.data().stickerId === "string"
+          ? (reqDoc.data().stickerId as string)
+          : undefined;
       try {
-        // 持ち主の記録を先に消す（途中で失敗しても、次の回で、残りを消せる）
-        await removeOwnedRecords(packId);
-        const packDoc = await db.collection("stickerPacks").doc(packId).get();
-        if (packDoc.exists) await deletePackAndAssets(packId, packDoc.data()!);
+        if (stickerId) {
+          // 1枚だけ、パックの配列から取り除く。画像ファイルは、過去のメッセージ
+          // （送信時の画像URLを保存している）のために消さない
+          await removeStickerFromPack(packId, stickerId);
+        } else {
+          // 持ち主の記録を先に消す（途中で失敗しても、次の回で、残りを消せる）
+          await removeOwnedRecords(packId);
+          const packDoc = await db.collection("stickerPacks").doc(packId).get();
+          if (packDoc.exists) await deletePackAndAssets(packId, packDoc.data()!);
+        }
         await reqDoc.ref.update({
           status: "completed" satisfies PackDeletionStatus,
           completedAt: FieldValue.serverTimestamp(),
         });
-        logger.info(`予定の時刻になったパックを削除しました: ${packId}`);
+        logger.info(`予定の時刻になった削除を実行しました: ${packId}${stickerId ? `/${stickerId}` : ""}`);
       } catch (error) {
         logger.error("パックの予定の削除に失敗", { packId, error });
         await reqDoc.ref.update({

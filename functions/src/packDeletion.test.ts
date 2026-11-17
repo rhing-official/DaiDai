@@ -68,3 +68,31 @@ test("状態の遷移: 申請中→承認済み/却下、承認済み→完了/�
   assert.equal(canTransition("failed", "scheduled"), true);
   assert.equal(canTransition("rejected", "scheduled"), false);
 });
+
+import {
+  deletionRequestId,
+  stickerDeletionNoticeText,
+  validateStickerRemoval,
+} from "./packDeletion";
+
+test("申請の文書ID: パックはpackId、1枚はpackId__stickerId", () => {
+  assert.equal(deletionRequestId("p1"), "p1");
+  assert.equal(deletionRequestId("p1", "s1"), "p1__s1");
+});
+
+test("1枚の削除: 下限・代表・存在しないIDを拒否する", () => {
+  const ids = ["a", "b", "c", "d", "e"];
+  assert.equal(validateStickerRemoval(ids, "e", "a", 4).ok, true);
+  assert.equal(validateStickerRemoval(ids, "x", "a", 4).ok, false); // ない
+  assert.equal(validateStickerRemoval(ids, "a", "a", 4).ok, false); // 代表
+  assert.equal(validateStickerRemoval(["a", "b", "c", "d"], "d", "a", 4).ok, false); // 下限
+  assert.equal(validateStickerRemoval(ids, "e", undefined, 4).ok, true);
+});
+
+test("1枚の削除のお知らせの定型文（日本時間）", () => {
+  const text = stickerDeletionNoticeText("春のパック", "ねこ", new Date("2026-12-01T03:00:00.000Z"));
+  assert.equal(
+    text,
+    "「春のパック」というぺったんパックの中の「ねこ」をお使いの利用者の方に連絡します。12月1日12時に使えなくなります。",
+  );
+});

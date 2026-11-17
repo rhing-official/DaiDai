@@ -112,3 +112,49 @@ export function formatJapanDateTime(date: Date): string {
 export function packDeletionNoticeText(packName: string, deleteAt: Date): string {
   return `「${packName}」というぺったんをお使いの利用者の方に連絡します。${formatJapanDateTime(deleteAt)}に使えなくなります。`;
 }
+
+// ---------------------------------------------------------------------
+// ぺったん1枚の削除（2026-11-17）。パックの削除と同じ申請の仕組みを使う。
+// ---------------------------------------------------------------------
+
+/** 申請の文書ID。パックの削除は`packId`（従来どおり）、1枚の削除は`packId__stickerId`。 */
+export function deletionRequestId(packId: string, stickerId?: string): string {
+  return stickerId ? `${packId}__${stickerId}` : packId;
+}
+
+/**
+ * パックから1枚を削除してよいか。削除後に下限を下回る場合と、パックの「代表」は不可。
+ * stickers: そのパックの今のぺったんのstickerId一覧。
+ */
+export function validateStickerRemoval(
+  stickerIds: string[],
+  stickerId: string,
+  coverStickerId: string | null | undefined,
+  minCount: number,
+): Validated<true> {
+  if (!stickerIds.includes(stickerId)) {
+    return { ok: false, message: "このパックにそのぺったんはありません" };
+  }
+  if (stickerIds.length - 1 < minCount) {
+    return {
+      ok: false,
+      message: `パックには${minCount}枚以上のぺったんが必要です。パックごと削除する場合は、パックの削除を申請してください`,
+    };
+  }
+  if (coverStickerId && coverStickerId === stickerId) {
+    return {
+      ok: false,
+      message: "代表のぺったんは削除できません。先に、代表を別のぺったんに変えてください",
+    };
+  }
+  return { ok: true, value: true };
+}
+
+/** 1枚の削除について、そのぺったんを入手した人へのお知らせの定型文。 */
+export function stickerDeletionNoticeText(
+  packName: string,
+  stickerName: string,
+  deleteAt: Date,
+): string {
+  return `「${packName}」というぺったんパックの中の「${stickerName}」をお使いの利用者の方に連絡します。${formatJapanDateTime(deleteAt)}に使えなくなります。`;
+}
