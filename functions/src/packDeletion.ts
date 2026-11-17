@@ -109,7 +109,15 @@ export function formatJapanDateTime(date: Date): string {
 }
 
 /** そのぺったんを入手した人へのお知らせの定型文。 */
-export function packDeletionNoticeText(packName: string, deleteAt: Date): string {
+export function packDeletionNoticeText(
+  packName: string,
+  deleteAt: Date,
+  urgent = false,
+): string {
+  // 緊急（すぐに削除する）は、日時を書かない（権利侵害など、待てない削除。2026-11-17）
+  if (urgent) {
+    return `「${packName}」というぺったんをお使いの利用者の方に連絡します。緊急の対応のため、まもなく使えなくなります。`;
+  }
   return `「${packName}」というぺったんをお使いの利用者の方に連絡します。${formatJapanDateTime(deleteAt)}に使えなくなります。`;
 }
 
@@ -155,6 +163,10 @@ export function stickerDeletionNoticeText(
   packName: string,
   stickerName: string,
   deleteAt: Date,
+  urgent = false,
 ): string {
+  if (urgent) {
+    return `「${packName}」というぺったんパックの中の「${stickerName}」をお使いの利用者の方に連絡します。緊急の対応のため、まもなく使えなくなります。`;
+  }
   return `「${packName}」というぺったんパックの中の「${stickerName}」をお使いの利用者の方に連絡します。${formatJapanDateTime(deleteAt)}に使えなくなります。`;
 }

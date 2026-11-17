@@ -44,6 +44,7 @@ import Stripe from "stripe";
 import { parseKiwamiReference } from "./kiwamiReference";
 import {
   type PackDeletionStatus,
+  type Validated,
   canTransition,
   deletionRequestId,
   packDeletionNoticeText,
@@ -2743,7 +2744,12 @@ export const approveStickerPackDeletion = onCall(
   async (request) => {
     assertAdmin(request);
     const { packId, stickerId, requestId } = readDeletionTarget(request.data);
-    const deleteAt = validateDeleteAt(request.data?.deleteAt, new Date());
+    // 緊急（urgent）は、周知の最短の期間（24時間）を設けず、すぐに削除する（権利侵害など、
+    // 待てない場合）。お知らせは、同じように送る。削除は、次の5分ごとの処理で実行される
+    const urgent = request.data?.urgent === true;
+    const deleteAt: Validated<Date> = urgent
+      ? { ok: true, value: new Date() }
+      : validateDeleteAt(request.data?.deleteAt, new Date());
     if (!deleteAt.ok) throw new HttpsError("invalid-argument", deleteAt.message);
 
     const reqRef = db.collection("packDeletionRequests").doc(requestId);
@@ -2763,7 +2769,7 @@ export const approveStickerPackDeletion = onCall(
     const packName: string =
       typeof packDoc.data()?.name === "string" ? packDoc.data()!.name : "";
 
-    let notice = packDeletionNoticeText(packName, deleteAt.value);
+    let notice = packDeletionNoticeText(packName, deleteAt.value, urgent);
     if (stickerId) {
       // 1枚の削除: パックの入手は止めない（deleteScheduledAtは付けない）
       const list = (packDoc.data()?.stickers as StickerInput[] | undefined) ?? [];
@@ -2771,13 +2777,14 @@ export const approveStickerPackDeletion = onCall(
       if (!target) {
         throw new HttpsError("not-found", "そのぺったんは、すでにパックにありません");
       }
-      notice = stickerDeletionNoticeText(packName, target.name, deleteAt.value);
+      notice = stickerDeletionNoticeText(packName, target.name, deleteAt.value, urgent);
     } else {
       await packRef.update({ deleteScheduledAt: Timestamp.fromDate(deleteAt.value) });
     }
     await reqRef.update({
       status: "scheduled" satisfies PackDeletionStatus,
       scheduledDeleteAt: Timestamp.fromDate(deleteAt.value),
+      urgent,
       decidedAt: FieldValue.serverTimestamp(),
       decidedBy: request.auth!.uid,
       error: FieldValue.delete(),
@@ -2791,6 +2798,12 @@ export const approveStickerPackDeletion = onCall(
       logger.error("パックの削除のお知らせに失敗", { packId, error });
       await reqRef.update({ noticeError: String(error).slice(0, 300) });
     }
+    await writeAdminAuditLog({
+      adminUid: request.auth!.uid,
+      action: "approvePackDeletion",
+      targetUserIds: [typeof reqDoc.data()?.creatorId === "string" ? reqDoc.data()!.creatorId : ""].filter(Boolean),
+      note: `packId=${packId}${stickerId ? ` stickerId=${stickerId}` : ""} 削除日時=${deleteAt.value.toISOString()}${urgent ? " 緊急" : ""} 通知=${notified}人`,
+    });
     return { scheduled: true, notified };
   },
 );
@@ -2818,6 +2831,13 @@ export const rejectStickerPackDeletion = onCall(
       decidedAt: FieldValue.serverTimestamp(),
       decidedBy: request.auth!.uid,
     });
+    await writeAdminAuditLog({
+      adminUid: request.auth!.uid,
+      action: "rejectPackDeletion",
+      targetUserIds: [typeof reqDoc.data()?.creatorId === "string" ? reqDoc.data()!.creatorId : ""].filter(Boolean),
+      note: `packId=${reqDoc.data()?.packId ?? requestId}${reqDoc.data()?.stickerId ? ` stickerId=${reqDoc.data()!.stickerId}` : ""}`,
+      reason: note.value || undefined,
+    });
     return { rejected: true };
   },
 );
@@ -2844,6 +2864,12 @@ export const cancelScheduledPackDeletion = onCall(
       status: "cancelled" satisfies PackDeletionStatus,
       decidedAt: FieldValue.serverTimestamp(),
       decidedBy: request.auth!.uid,
+    });
+    await writeAdminAuditLog({
+      adminUid: request.auth!.uid,
+      action: "cancelPackDeletion",
+      targetUserIds: [typeof reqDoc.data()?.creatorId === "string" ? reqDoc.data()!.creatorId : ""].filter(Boolean),
+      note: `packId=${packId}${stickerId ? ` stickerId=${stickerId}` : ""}`,
     });
     return { cancelled: true };
   },
@@ -3660,7 +3686,10 @@ async function writeAdminAuditLog(entry: {
     | "grantKiwami"
     | "revokeKiwami"
     | "deleteAccount"
-    | "scheduleDeleteAccount";
+    | "scheduleDeleteAccount"
+    | "approvePackDeletion"
+    | "rejectPackDeletion"
+    | "cancelPackDeletion";
   targetUserIds: string[];
   reason?: string;
   note?: string;
