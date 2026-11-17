@@ -90,6 +90,14 @@
         { "fieldPath": "messageHash", "order": "ASCENDING" },
         { "fieldPath": "createdAt", "order": "ASCENDING" }
       ]
+    },
+    {
+      "collectionGroup": "packDeletionRequests",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "status", "order": "ASCENDING" },
+        { "fieldPath": "scheduledDeleteAt", "order": "ASCENDING" }
+      ]
     }
   ],
   "fieldOverrides": [
@@ -97,6 +105,16 @@
       "collectionGroup": "ops",
       "fieldPath": "transactions",
       "indexes": []
+    },
+    {
+      "collectionGroup": "ownedStickerPacks",
+      "fieldPath": "packId",
+      "indexes": [
+        { "order": "ASCENDING", "queryScope": "COLLECTION" },
+        { "order": "DESCENDING", "queryScope": "COLLECTION" },
+        { "arrayConfig": "CONTAINS", "queryScope": "COLLECTION" },
+        { "order": "ASCENDING", "queryScope": "COLLECTION_GROUP" }
+      ]
     }
   ]
 }

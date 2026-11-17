@@ -3,6 +3,7 @@ import 'dart:io' show Platform;
 import 'dart:typed_data';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import '../services/app_functions.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
@@ -37,6 +38,22 @@ abstract class AnnouncementRepository {
 
   /// 発信元のアイコンをアップロードして差し替える（管理者のみ）。
   Future<void> updateOfficialIcon(Uint8List bytes);
+}
+
+/// 全員に配るお便り[broadcasts]と、自分だけに届く個別のお知らせ[notices]
+/// （`users/{uid}/notices`、2026-11-17追加。例: 入手したぺったんの削除の予告）を、
+/// 配信の古い順に1つの列にまとめる。サーバー時刻が未確定（null）のものは最新扱い。
+List<Announcement> mergeAnnouncements(
+  List<Announcement> broadcasts,
+  List<Announcement> notices,
+) {
+  return [...broadcasts, ...notices]..sort((a, b) {
+    final at = a.createdAt, bt = b.createdAt;
+    if (at == null && bt == null) return 0;
+    if (at == null) return 1;
+    if (bt == null) return -1;
+    return at.compareTo(bt);
+  });
 }
 
 /// [Announcement]を、`ChatScreen`で表示出来る[Message]へ写す。
@@ -94,8 +111,7 @@ class FirestoreAnnouncementRepository implements AnnouncementRepository {
   DocumentReference<Map<String, dynamic>> get _officialDoc =>
       _firestore.collection('system').doc('official');
 
-  @override
-  Stream<List<Announcement>> watchAnnouncements() {
+  Stream<List<Announcement>> _watchBroadcasts() {
     return _firestore
         .collection('announcements')
         .orderBy('createdAt')
@@ -106,6 +122,69 @@ class FirestoreAnnouncementRepository implements AnnouncementRepository {
               Announcement.fromJson(doc.id, doc.data()),
           ],
         );
+  }
+
+  /// 自分だけに届く個別のお知らせ（`users/{uid}/notices`）。ログインしていない、
+  /// または読めない（ルールが未デプロイ等）ときは、空として扱い、お便り全体を止めない。
+  Stream<List<Announcement>> _watchNotices() {
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    if (uid == null) return Stream.value(const <Announcement>[]);
+    return _firestore
+        .collection('users')
+        .doc(uid)
+        .collection('notices')
+        .orderBy('createdAt')
+        .snapshots()
+        .map(
+          (snapshot) => [
+            for (final doc in snapshot.docs)
+              // お便り（announcements）のIDと重ならないよう、印を付ける。
+              Announcement.fromJson('notice-${doc.id}', doc.data()),
+          ],
+        )
+        .transform(
+          StreamTransformer.fromHandlers(
+            handleError: (error, stack, sink) =>
+                sink.add(const <Announcement>[]),
+          ),
+        );
+  }
+
+  @override
+  Stream<List<Announcement>> watchAnnouncements() {
+    late final StreamController<List<Announcement>> controller;
+    StreamSubscription<List<Announcement>>? broadcastsSub;
+    StreamSubscription<List<Announcement>>? noticesSub;
+    List<Announcement>? broadcasts;
+    List<Announcement>? notices;
+
+    void emit() {
+      final b = broadcasts;
+      final n = notices;
+      if (b == null || n == null || controller.isClosed) return;
+      controller.add(mergeAnnouncements(b, n));
+    }
+
+    controller = StreamController<List<Announcement>>(
+      onListen: () {
+        broadcastsSub = _watchBroadcasts().listen((value) {
+          broadcasts = value;
+          emit();
+        }, onError: controller.addError);
+        noticesSub = _watchNotices().listen((value) {
+          notices = value;
+          emit();
+        }, onError: (_) {
+          notices = const <Announcement>[];
+          emit();
+        });
+      },
+      onCancel: () async {
+        await broadcastsSub?.cancel();
+        await noticesSub?.cancel();
+      },
+    );
+    return controller.stream;
   }
 
   @override

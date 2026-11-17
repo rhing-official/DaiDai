@@ -73,6 +73,21 @@ void main() {
     expect(message.content, 'こんにちは');
   });
 
+  test('mergeAnnouncements: 全員のお便りと個別のお知らせを、古い順に1つにまとめる', () {
+    Announcement a(String id, int? seconds) => Announcement(
+      id: id,
+      content: id,
+      createdAt: seconds == null ? null : Timestamp(seconds, 0),
+    );
+    final merged = mergeAnnouncements(
+      [a('b1', 10), a('b2', 30)],
+      [a('notice-n1', 20), a('notice-n2', null)],
+    );
+    // 未確定（null）は最新扱いで、最後に並ぶ。
+    expect(merged.map((e) => e.id), ['b1', 'notice-n1', 'b2', 'notice-n2']);
+    expect(mergeAnnouncements(const [], const []), isEmpty);
+  });
+
   test('announcementMessagesNewestFirst: 新しい順（先頭が最新）に並べる', () {
     Announcement a(String id, int day) => Announcement(
       id: id,

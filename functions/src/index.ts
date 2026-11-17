@@ -29,7 +29,12 @@ import {
   onDocumentUpdated,
   onDocumentWritten,
 } from "firebase-functions/v2/firestore";
-import { HttpsError, onCall, onRequest } from "firebase-functions/v2/https";
+import {
+  type CallableRequest,
+  HttpsError,
+  onCall,
+  onRequest,
+} from "firebase-functions/v2/https";
 import { onSchedule } from "firebase-functions/v2/scheduler";
 import { onObjectFinalized } from "firebase-functions/v2/storage";
 import { spawn } from "node:child_process";
@@ -37,6 +42,13 @@ import ffmpeg from "fluent-ffmpeg";
 import { path as ffmpegPath } from "@ffmpeg-installer/ffmpeg";
 import Stripe from "stripe";
 import { parseKiwamiReference } from "./kiwamiReference";
+import {
+  type PackDeletionStatus,
+  canTransition,
+  packDeletionNoticeText,
+  validateDeleteAt,
+  validateDeletionText,
+} from "./packDeletion";
 import {
   SWITCH_MAX_SESSIONS_PER_USER,
   SWITCH_SESSION_TTL_MS,
@@ -2427,9 +2439,39 @@ export const recordStickerPackView = onCall(
 );
 
 /**
+ * パック本体・閲覧回数・ストレージ上の画像を削除する（画像はベストエフォート）。
+ * 出品者の直接削除（deleteStickerPack）と、運営の承認後の自動削除
+ * （processScheduledPackDeletions）で共有する。
+ */
+async function deletePackAndAssets(
+  packId: string,
+  data: FirebaseFirestore.DocumentData,
+): Promise<void> {
+  const creatorId = typeof data.creatorId === "string" ? data.creatorId : "";
+  await db.collection("stickerPacks").doc(packId).delete();
+  // 出品者向けの閲覧回数も、孤児にならないよう一緒に消す
+  await db.collection("packStats").doc(packId).delete();
+
+  const stickers = (data.stickers as { imageUrl: string }[] | undefined) ?? [];
+  const bucket = getStorage().bucket();
+  await Promise.all(
+    stickers.map(async (s) => {
+      const path = storagePathFromDownloadUrl(s.imageUrl, creatorId);
+      if (!path) return;
+      try {
+        await bucket.file(path).delete({ ignoreNotFound: true });
+      } catch (err) {
+        logger.warn(`ストレージオブジェクトの削除に失敗しました: ${path}`, err);
+      }
+    }),
+  );
+}
+
+/**
  * 出品者が自分のパックを削除する。誰か1人でも現在所有していれば
- * （ownerCount > 0）削除できない（購入済みユーザーの手持ちスタンプを
- * 消さないため）。ストレージ上の画像も併せてベストエフォートで削除する。
+ * （ownerCount > 0）直接は削除できず、運営への削除の申請
+ * （requestStickerPackDeletion）が要る（購入済みユーザーの手持ちスタンプを
+ * 勝手に消さないため）。ストレージ上の画像も併せてベストエフォートで削除する。
  */
 export const deleteStickerPack = onCall(
   { region: "asia-northeast1" },
@@ -2455,27 +2497,351 @@ export const deleteStickerPack = onCall(
     if (ownerCount > 0) {
       throw new HttpsError(
         "failed-precondition",
-        "このパックは現在利用しているユーザーがいるため削除できません",
+        "このパックは現在利用しているユーザーがいるため、直接は削除できません。削除を運営へ申請してください",
       );
     }
+    await deletePackAndAssets(packId, data);
+  },
+);
 
-    await ref.delete();
-    // 出品者向けの閲覧回数も、孤児にならないよう一緒に消す
-    await db.collection("packStats").doc(packId).delete();
+// ---------------------------------------------------------------------
+// 出品済みパックの削除の申請→運営の承認→日時を指定して自動削除（2026-11-17追加）。
+// 利用者がいる（ownerCount > 0）パックは、出品者が直接削除できず、削除を申請する。
+// 運営（管理者）は、承認のときに削除する日時を指定する。承認すると、そのぺったんを
+// 入手した人だけにお知らせ（users/{uid}/notices）を送り、指定の時刻に
+// processScheduledPackDeletionsが完全に削除する。申請は
+// `packDeletionRequests/{packId}`（書き込みはCloud Functionsのみ）。
+// ---------------------------------------------------------------------
 
-    const stickers = (data.stickers as { imageUrl: string }[] | undefined) ?? [];
-    const bucket = getStorage().bucket();
-    await Promise.all(
-      stickers.map(async (s) => {
-        const path = storagePathFromDownloadUrl(s.imageUrl, uid);
-        if (!path) return;
-        try {
-          await bucket.file(path).delete({ ignoreNotFound: true });
-        } catch (err) {
-          logger.warn(`ストレージオブジェクトの削除に失敗しました: ${path}`, err);
-        }
-      }),
-    );
+function assertAdmin(request: CallableRequest): void {
+  if (request.auth?.token.admin !== true) {
+    throw new HttpsError("permission-denied", "管理者のみ実行できます");
+  }
+}
+
+function readPackId(data: unknown): string {
+  const packId = (data as { packId?: unknown } | undefined)?.packId;
+  if (typeof packId !== "string" || !packId) {
+    throw new HttpsError("invalid-argument", "packIdが必要です");
+  }
+  return packId;
+}
+
+function readDeletionStatus(value: unknown): PackDeletionStatus {
+  return typeof value === "string" ? (value as PackDeletionStatus) : "pending";
+}
+
+/** そのぺったんを入手した人（`ownedStickerPacks`の持ち主）のuid一覧。 */
+async function ownerUidsOfPack(packId: string): Promise<string[]> {
+  const snap = await db
+    .collectionGroup("ownedStickerPacks")
+    .where("packId", "==", packId)
+    .get();
+  const uids: string[] = [];
+  for (const doc of snap.docs) {
+    const uid = doc.ref.parent.parent?.id;
+    if (uid) uids.push(uid);
+  }
+  return uids;
+}
+
+/** 入手した全員の`ownedStickerPacks`のうち、そのパックの分を削除する（500件ずつ）。 */
+async function removeOwnedRecords(packId: string): Promise<number> {
+  let removed = 0;
+  for (;;) {
+    const snap = await db
+      .collectionGroup("ownedStickerPacks")
+      .where("packId", "==", packId)
+      .limit(500)
+      .get();
+    if (snap.empty) return removed;
+    const batch = db.batch();
+    for (const doc of snap.docs) batch.delete(doc.ref);
+    await batch.commit();
+    removed += snap.size;
+  }
+}
+
+/**
+ * そのぺったんを入手した人だけに、お知らせ（`users/{uid}/notices`、アプリの
+ * 設定>運営>お便りに並ぶ）を保存し、プッシュ通知を送る。送った人数を返す。
+ */
+async function notifyPackOwners(
+  packId: string,
+  message: string,
+  deleteAt: Date,
+): Promise<number> {
+  const uids = await ownerUidsOfPack(packId);
+  if (uids.length === 0) return 0;
+
+  // 個別のお知らせの保存（500件ずつ）
+  for (let i = 0; i < uids.length; i += 500) {
+    const batch = db.batch();
+    for (const uid of uids.slice(i, i + 500)) {
+      batch.set(db.collection("users").doc(uid).collection("notices").doc(), {
+        content: message,
+        kind: "packDeletion",
+        packId,
+        deleteAt: Timestamp.fromDate(deleteAt),
+        createdAt: FieldValue.serverTimestamp(),
+      });
+    }
+    await batch.commit();
+  }
+
+  // プッシュ通知（お便りと同じ送り方。稼働中のアカウントのみ）
+  const official = (await db.doc("system/official").get()).data();
+  const title: string =
+    typeof official?.name === "string" && official.name
+      ? official.name
+      : OFFICIAL_DEFAULT_NAME;
+  const iconUrl: string | null =
+    typeof official?.iconUrl === "string" ? official.iconUrl : null;
+  const androidTokens: string[] = [];
+  const webTokens: string[] = [];
+  for (let i = 0; i < uids.length; i += 300) {
+    const refs = uids.slice(i, i + 300).map((uid) => db.collection("users").doc(uid));
+    const docs = await db.getAll(...refs);
+    for (const userDoc of docs) {
+      if (!userDoc.exists || userDoc.data()?.accountStatus !== "active") continue;
+      const tokens = await loadFcmTokens(userDoc.id, userDoc.data()?.fcmTokens);
+      for (const entry of tokens) {
+        if (entry.platform === "android") androidTokens.push(entry.token);
+        else if (entry.platform === "web") webTokens.push(entry.token);
+      }
+    }
+  }
+  const body = message.length > 100 ? `${message.slice(0, 100)}…` : message;
+  const sentAtMs = Date.now();
+  const messaging = getMessaging();
+  for (let i = 0; i < androidTokens.length; i += 500) {
+    await messaging.sendEachForMulticast({
+      tokens: androidTokens.slice(i, i + 500),
+      data: {
+        title,
+        body,
+        iconUrl: iconUrl ?? "",
+        previewUrl: "",
+        isDm: "true",
+        conversationId: "",
+        roomId: "",
+        sentAt: String(sentAtMs),
+      },
+      android: { priority: "high" },
+    });
+  }
+  for (let i = 0; i < webTokens.length; i += 500) {
+    await messaging.sendEachForMulticast({
+      tokens: webTokens.slice(i, i + 500),
+      webpush: {
+        notification: {
+          title,
+          body: withSentTime(body, sentAtMs),
+          icon: iconUrl ?? undefined,
+        },
+        data: { isDm: "true", conversationId: "", roomId: "" },
+        fcmOptions: { link: "/" },
+      },
+    });
+  }
+  return uids.length;
+}
+
+/** 出品者が、利用者のいるパックの削除を、運営へ申請する（理由は必須）。 */
+export const requestStickerPackDeletion = onCall(
+  { region: "asia-northeast1" },
+  async (request) => {
+    const uid = request.auth?.uid;
+    if (!uid) {
+      throw new HttpsError("unauthenticated", "ログインが必要です");
+    }
+    const packId = readPackId(request.data);
+    const reason = validateDeletionText(request.data?.reason, "削除の理由", { required: true });
+    if (!reason.ok) throw new HttpsError("invalid-argument", reason.message);
+
+    const packDoc = await db.collection("stickerPacks").doc(packId).get();
+    if (!packDoc.exists) {
+      throw new HttpsError("not-found", "パックが見つかりません");
+    }
+    const pack = packDoc.data()!;
+    if (pack.creatorId !== uid) {
+      throw new HttpsError("permission-denied", "自分が出品したパックのみ申請できます");
+    }
+    const ownerCount = typeof pack.ownerCount === "number" ? pack.ownerCount : 0;
+    if (ownerCount <= 0) {
+      throw new HttpsError(
+        "failed-precondition",
+        "このパックは利用している人がいないので、申請せずに直接削除できます",
+      );
+    }
+    if (pack.deleteScheduledAt) {
+      throw new HttpsError("already-exists", "すでに削除が予定されています");
+    }
+    const reqRef = db.collection("packDeletionRequests").doc(packId);
+    const existing = await reqRef.get();
+    if (existing.exists) {
+      const status = readDeletionStatus(existing.data()?.status);
+      if (status === "pending" || status === "scheduled" || status === "failed") {
+        throw new HttpsError("already-exists", "すでに削除を申請しています");
+      }
+    }
+    // 却下・取り消し・完了のあとの再申請は、新しい申請として上書きする
+    await reqRef.set({
+      packId,
+      packName: typeof pack.name === "string" ? pack.name : "",
+      creatorId: uid,
+      reason: reason.value,
+      ownerCount,
+      status: "pending" satisfies PackDeletionStatus,
+      requestedAt: FieldValue.serverTimestamp(),
+    });
+    return { requested: true };
+  },
+);
+
+/**
+ * 削除の申請を承認し、削除する日時を指定する（管理者のみ）。日時は今から24時間以上先。
+ * パックに`deleteScheduledAt`を付けて新しい入手を止め、入手した人だけにお知らせを送る。
+ */
+export const approveStickerPackDeletion = onCall(
+  { region: "asia-northeast1", timeoutSeconds: 300 },
+  async (request) => {
+    assertAdmin(request);
+    const packId = readPackId(request.data);
+    const deleteAt = validateDeleteAt(request.data?.deleteAt, new Date());
+    if (!deleteAt.ok) throw new HttpsError("invalid-argument", deleteAt.message);
+
+    const reqRef = db.collection("packDeletionRequests").doc(packId);
+    const reqDoc = await reqRef.get();
+    if (!reqDoc.exists) {
+      throw new HttpsError("not-found", "削除の申請が見つかりません");
+    }
+    const status = readDeletionStatus(reqDoc.data()?.status);
+    if (!canTransition(status, "scheduled")) {
+      throw new HttpsError("failed-precondition", "この申請は、承認できる状態ではありません");
+    }
+    const packRef = db.collection("stickerPacks").doc(packId);
+    const packDoc = await packRef.get();
+    if (!packDoc.exists) {
+      throw new HttpsError("not-found", "パックが見つかりません");
+    }
+    const packName: string =
+      typeof packDoc.data()?.name === "string" ? packDoc.data()!.name : "";
+
+    await packRef.update({ deleteScheduledAt: Timestamp.fromDate(deleteAt.value) });
+    await reqRef.update({
+      status: "scheduled" satisfies PackDeletionStatus,
+      scheduledDeleteAt: Timestamp.fromDate(deleteAt.value),
+      decidedAt: FieldValue.serverTimestamp(),
+      decidedBy: request.auth!.uid,
+      error: FieldValue.delete(),
+    });
+
+    let notified = 0;
+    try {
+      notified = await notifyPackOwners(
+        packId,
+        packDeletionNoticeText(packName, deleteAt.value),
+        deleteAt.value,
+      );
+      await reqRef.update({ noticeCount: notified, noticeError: FieldValue.delete() });
+    } catch (error) {
+      logger.error("パックの削除のお知らせに失敗", { packId, error });
+      await reqRef.update({ noticeError: String(error).slice(0, 300) });
+    }
+    return { scheduled: true, notified };
+  },
+);
+
+/** 削除の申請を却下する（管理者のみ）。理由は任意（出品者に表示される）。 */
+export const rejectStickerPackDeletion = onCall(
+  { region: "asia-northeast1" },
+  async (request) => {
+    assertAdmin(request);
+    const packId = readPackId(request.data);
+    const note = validateDeletionText(request.data?.note, "却下の理由", { required: false });
+    if (!note.ok) throw new HttpsError("invalid-argument", note.message);
+
+    const reqRef = db.collection("packDeletionRequests").doc(packId);
+    const reqDoc = await reqRef.get();
+    if (!reqDoc.exists) {
+      throw new HttpsError("not-found", "削除の申請が見つかりません");
+    }
+    if (!canTransition(readDeletionStatus(reqDoc.data()?.status), "rejected")) {
+      throw new HttpsError("failed-precondition", "この申請は、却下できる状態ではありません");
+    }
+    await reqRef.update({
+      status: "rejected" satisfies PackDeletionStatus,
+      decisionNote: note.value,
+      decidedAt: FieldValue.serverTimestamp(),
+      decidedBy: request.auth!.uid,
+    });
+    return { rejected: true };
+  },
+);
+
+/** 承認済みの削除の予定を取り消す（管理者のみ）。パックはそのまま残り、入手も再開する。 */
+export const cancelScheduledPackDeletion = onCall(
+  { region: "asia-northeast1" },
+  async (request) => {
+    assertAdmin(request);
+    const packId = readPackId(request.data);
+    const reqRef = db.collection("packDeletionRequests").doc(packId);
+    const reqDoc = await reqRef.get();
+    if (!reqDoc.exists) {
+      throw new HttpsError("not-found", "削除の申請が見つかりません");
+    }
+    if (!canTransition(readDeletionStatus(reqDoc.data()?.status), "cancelled")) {
+      throw new HttpsError("failed-precondition", "この削除の予定は、取り消せる状態ではありません");
+    }
+    const packRef = db.collection("stickerPacks").doc(packId);
+    if ((await packRef.get()).exists) {
+      await packRef.update({ deleteScheduledAt: FieldValue.delete() });
+    }
+    await reqRef.update({
+      status: "cancelled" satisfies PackDeletionStatus,
+      decidedAt: FieldValue.serverTimestamp(),
+      decidedBy: request.auth!.uid,
+    });
+    return { cancelled: true };
+  },
+);
+
+const PACK_DELETION_BATCH_LIMIT = 20;
+
+/**
+ * 指定の日時になった削除の予定を、実行する（5分ごと）。入手した人の`ownedStickerPacks`、
+ * パック本体、画像を削除する。何度実行しても安全（すでに消えていれば、完了にするだけ）。
+ */
+export const processScheduledPackDeletions = onSchedule(
+  { schedule: "every 5 minutes", region: "asia-northeast1", timeoutSeconds: 540 },
+  async () => {
+    const due = await db
+      .collection("packDeletionRequests")
+      .where("status", "==", "scheduled")
+      .where("scheduledDeleteAt", "<=", Timestamp.now())
+      .limit(PACK_DELETION_BATCH_LIMIT)
+      .get();
+    for (const reqDoc of due.docs) {
+      const packId = reqDoc.id;
+      try {
+        // 持ち主の記録を先に消す（途中で失敗しても、次の回で、残りを消せる）
+        await removeOwnedRecords(packId);
+        const packDoc = await db.collection("stickerPacks").doc(packId).get();
+        if (packDoc.exists) await deletePackAndAssets(packId, packDoc.data()!);
+        await reqDoc.ref.update({
+          status: "completed" satisfies PackDeletionStatus,
+          completedAt: FieldValue.serverTimestamp(),
+        });
+        logger.info(`予定の時刻になったパックを削除しました: ${packId}`);
+      } catch (error) {
+        logger.error("パックの予定の削除に失敗", { packId, error });
+        await reqDoc.ref.update({
+          status: "failed" satisfies PackDeletionStatus,
+          error: String(error).slice(0, 300),
+        });
+      }
+    }
   },
 );
 
@@ -2595,6 +2961,14 @@ export const createCheckoutSession = onCall(
       .doc(packId);
     if ((await ownedRef.get()).exists) {
       throw new HttpsError("already-exists", "このパックはすでに入手済みです");
+    }
+
+    // 削除が予定されているパックは、新しく入手できない（運営が日時を決めた時点で止める）
+    if (pack.deleteScheduledAt) {
+      throw new HttpsError(
+        "failed-precondition",
+        "このぺったんは、まもなく公開を終了するため、入手できません",
+      );
     }
 
     const price = typeof pack.price === "number" ? pack.price : 0;

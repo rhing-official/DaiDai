@@ -195,6 +195,14 @@ service cloud.firestore {
         allow write: if false;
       }
 
+      // users/{userId}/notices/{noticeId}: 運営からの個別のお知らせ（2026-11-17追加）。
+      // 全員に配る`announcements`と違い、特定の住人だけに送る（例: 入手したぺったんの
+      // 削除の予告）。本人だけが読める。書き込みはCloud Functionsのみ。
+      match /notices/{noticeId} {
+        allow read: if request.auth != null && request.auth.uid == userId;
+        allow write: if false;
+      }
+
       // users/{userId}/passkeyCredentials/{credentialId}: Rhing Seed＋パスキー
       // （WebAuthn）ログインで登録した認証情報（2026-09-16追加）。作成・
       // カウンタ更新は必ずfinishPasskeyRegistration/finishPasskeyAuthentication
@@ -299,6 +307,16 @@ service cloud.firestore {
     match /packStats/{packId} {
       allow read: if request.auth != null
         && get(/databases/$(database)/documents/stickerPacks/$(packId)).data.creatorId == request.auth.uid;
+      allow write: if false;
+    }
+
+    // packDeletionRequests/{packId}: 出品済みパックの削除の申請（2026-11-17追加）。
+    // 利用者のいるパックは、出品者が運営へ申請し、運営（管理者）が日時を指定して承認する。
+    // 出品者本人と管理者が読める。書き込みは、Cloud Functions（requestStickerPackDeletion・
+    // approve／reject／cancelScheduledPackDeletion・processScheduledPackDeletions）のみ。
+    match /packDeletionRequests/{packId} {
+      allow read: if isAdmin()
+        || (request.auth != null && resource.data.creatorId == request.auth.uid);
       allow write: if false;
     }
 
