@@ -3583,7 +3583,7 @@ class Strings {
     callScreenShareLinuxNote:
         'Linuxでは、スピーカーから鳴っている音を全部送ります（アプリは選べません）。通話の相手の声も含まれるので、ヘッドホンの使用をおすすめします。',
     callScreenShareLinuxNoMonitor:
-        '音の取り込み元（「Monitor of …」の入力）が見つかりません。pavucontrolの入力デバイスで確認してください。',
+        'Linuxのブラウザでは、他のアプリの音は送れません。タブを共有すると、そのタブの音は送れます。他のアプリの音を送るには、今後Linuxのアプリ版で対応予定です。',
     callScreenShareAndroidAudioNote:
         '端末の音は、あなたの声に混ざって届きます。Spotifyなど、音の取り込みを許可していないアプリの音は送れません。',
     callScreenDeliveryRetry: 'やり直す',
@@ -5027,7 +5027,7 @@ class Strings {
     callScreenShareLinuxNote:
         'On Linux, everything playing through your speakers is sent (you cannot choose an app). It includes the other people’s voices, so headphones are recommended.',
     callScreenShareLinuxNoMonitor:
-        'No audio source found (an input called “Monitor of …”). Check the input devices in pavucontrol.',
+        'In Linux browsers, sound from other apps cannot be sent. If you share a tab, that tab’s sound can be sent. Sending other apps’ sound is planned for the Linux app version.',
     callScreenShareAndroidAudioNote:
         'Your device’s sound is mixed into your voice. Apps that do not allow audio capture, such as Spotify, cannot be shared.',
     callScreenDeliveryRetry: 'Try again',

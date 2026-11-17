@@ -751,7 +751,7 @@ final Strings _stringsFr = Strings._(
   callScreenShareLinuxNote:
       "Sous Linux, tout ce qui sort des haut-parleurs est envoyé (impossible de choisir une appli). La voix des autres y est incluse : un casque est recommandé.",
   callScreenShareLinuxNoMonitor:
-      "Aucune source audio trouvée (entrée « Monitor of … »). Vérifiez les entrées dans pavucontrol.",
+      "Dans les navigateurs sous Linux, le son des autres applis ne peut pas être envoyé. En partageant un onglet, le son de cet onglet peut l’être. L’envoi du son des autres applis est prévu dans la version appli pour Linux.",
   callScreenShareAndroidAudioNote:
       "Le son de l’appareil est mélangé à votre voix. Les applis qui n’autorisent pas la capture audio, comme Spotify, ne peuvent pas être partagées.",
   callScreenDeliveryRetry: "Réessayer",
