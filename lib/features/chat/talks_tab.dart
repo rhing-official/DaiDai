@@ -78,8 +78,6 @@ import '../../widgets/glass/glass_icon_badge.dart';
 import '../../widgets/glass/glass_surface.dart';
 import '../../widgets/media_preview_frame.dart'
     show GekigaStraightMonochromeBox;
-import '../../widgets/dialog_keyboard_shortcuts.dart';
-import '../../widgets/glass/glass_dialog.dart';
 import '../../widgets/hover_profile_card.dart';
 import '../../widgets/pane_visibility.dart';
 import '../../widgets/unread_badge.dart';
@@ -97,7 +95,6 @@ import '../../router/back_stack.dart';
 import 'group_settings_popup.dart';
 import 'room_list_pane.dart';
 import 'talks_search.dart';
-import '../../widgets/app_dialog.dart';
 import '../../widgets/delayed_spinner.dart';
 
 enum _TalksCategory { dm, group }
@@ -1047,6 +1044,122 @@ class _TalksTabState extends ConsumerState<TalksTab>
       _category = _TalksCategory.values[index];
       _selectedPendingScreen = null;
     });
+  }
+
+  /// 開いている友達申請のid（一覧の箱の選択表示用、2026-11-17）。
+  String? _selectedPendingRequestId;
+
+  bool _isPendingSelected(FriendRequest request) =>
+      _selectedPendingScreen != null &&
+      _selectedPendingRequestId == request.requestId;
+
+  /// 友達申請（届いた・送った）の一覧の箱。普段の一対と同じ箱で描き、未読数の代わりに
+  /// 「!」を出す。承認・拒否などの中身は、開いたメッセージ画面のバナーに出す（2026-11-17）。
+  Widget _pendingRequestTile(FriendRequest request, {required bool compact}) {
+    final dm = DirectMessage.pendingFrom(request);
+    void open() => _openFriendRequest(request, split: !compact && _isSplit);
+    if (compact) {
+      return _DirectMessageIconTile(
+        currentUser: widget.currentUser,
+        dm: dm,
+        unreadCount: 0,
+        pinned: false,
+        muted: false,
+        selected: _isPendingSelected(request),
+        onTap: open,
+        pendingRequest: request,
+      );
+    }
+    return DirectMessageTile(
+      currentUser: widget.currentUser,
+      dm: dm,
+      pinned: false,
+      muted: false,
+      unreadCount: 0,
+      selected: _isPendingSelected(request),
+      onTap: open,
+      pendingRequest: request,
+    );
+  }
+
+  /// 友達申請の箱を押した時の、メッセージ画面（承認前は一対が存在せず、メッセージは
+  /// 空・送信不可の画面にバナーだけを出す）。届いた申請は、バナーで承認・拒否できる。
+  /// [split]なら一覧を見せたまま右のペインに、そうでなければ別ページで開く。
+  void _openFriendRequest(FriendRequest request, {required bool split}) {
+    final strings = ref.read(appStringsProvider);
+    final currentUserId = widget.currentUser.userId;
+    final titleText = '@${request.otherRhingSeed(currentUserId)}';
+    final incoming = request.toUserId == currentUserId;
+    final banner = incoming
+        ? _FriendRequestDecisionBanner(
+            request: request,
+            onDone: () {
+              if (!mounted) return;
+              if (split) {
+                _selectPendingScreen(null);
+              } else {
+                Navigator.of(context).pop();
+              }
+            },
+          )
+        : _PendingApprovalBanner(
+            message: strings.friendRequestOutgoingSubtitle,
+          );
+    final screen = ChatScreen(
+      title: titleText,
+      currentUserId: currentUserId,
+      isDm: true,
+      messagesStream: Stream.value(const <Message>[]),
+      onSend:
+          (
+            _, {
+            silent = false,
+            replyTo,
+            mentions = MessageMentions.none,
+            sendAt,
+          }) async {},
+      disabled: true,
+      banner: banner,
+    );
+    if (split) {
+      // 承認前はdirectMessagesドキュメント自体が存在せず実データの寄合は持てない
+      // （firestore.rulesで承認後の作成のみ許可）ため、承認後に必ず出来る「メイン」
+      // 1件だけの寄合一覧を模したプレースホルダーを、他の（承認済みの）語らいと同じ
+      // 3カラム構成で見せる（選択・追加は出来ない、2026-08-12追加）。
+      _selectedPendingRequestId = request.requestId;
+      _selectPendingScreen(
+        Row(
+          children: [
+            SizedBox(
+              width: 220,
+              child: RoomListPane(
+                conversationName: titleText,
+                rooms: [
+                  (
+                    roomId: 'pending-main',
+                    name: strings.roomDefaultName,
+                    unreadCount: 0,
+                  ),
+                ],
+                selectedRoomId: 'pending-main',
+                onSelectRoom: (_) {},
+              ),
+            ),
+            const VerticalDivider(width: 1),
+            Expanded(child: screen),
+          ],
+        ),
+      );
+    } else {
+      // 承認待ち画面は常にメッセージが空（吹き出しが無い＝全面が余白）で、通常の
+      // 語らいのように吹き出し上の右スワイプで戻る仕組みが機能する余地が無い。通常の
+      // 一対・広場（app_router.dartの`slideDetailPage`）と同じ、指追従の右スワイプ
+      // 戻る＋画面右外からのスライドインを`slideBackRoute`で適用する
+      // （2026-08-12追加、2026-09-12にインタラクティブなスライドへ変更）。
+      Navigator.of(
+        context,
+      ).push(slideBackRoute<void>(builder: (context) => screen));
+    }
   }
 
   /// 承認待ちの一対・広場のタイルをタップした時、分割表示なら一覧を
@@ -2294,21 +2407,9 @@ class _TalksTabState extends ConsumerState<TalksTab>
         final sortedDms = _sortedByPin(orderedDms, prefsById, (dm) => dm.dmId);
         tiles.addAll([
           for (final request in incomingRequests)
-            _FriendRequestTile(
-              currentUserId: widget.currentUser.userId,
-              request: request,
-              isSplit: false,
-              onSelectPending: _selectPendingScreen,
-              compact: true,
-            ),
+            _pendingRequestTile(request, compact: true),
           for (final request in outgoingRequests)
-            _FriendRequestTile(
-              currentUserId: widget.currentUser.userId,
-              request: request,
-              isSplit: false,
-              onSelectPending: _selectPendingScreen,
-              compact: true,
-            ),
+            _pendingRequestTile(request, compact: true),
           for (final dm in sortedDms)
             _DirectMessageIconTile(
               currentUser: widget.currentUser,
@@ -2564,25 +2665,15 @@ class _TalksTabState extends ConsumerState<TalksTab>
         for (final dm in sortedDms) dm.dmId.hashCode,
       ];
       final selectedFlags = <bool>[
-        for (final _ in incomingRequests) false,
-        for (final _ in outgoingRequests) false,
+        for (final request in incomingRequests) _isPendingSelected(request),
+        for (final request in outgoingRequests) _isPendingSelected(request),
         for (final dm in sortedDms) _isSplit && _selectedDm?.dmId == dm.dmId,
       ];
       final children = <Widget>[
         for (final request in incomingRequests)
-          _FriendRequestTile(
-            currentUserId: widget.currentUser.userId,
-            request: request,
-            isSplit: _isSplit,
-            onSelectPending: _selectPendingScreen,
-          ),
+          _pendingRequestTile(request, compact: false),
         for (final request in outgoingRequests)
-          _FriendRequestTile(
-            currentUserId: widget.currentUser.userId,
-            request: request,
-            isSplit: _isSplit,
-            onSelectPending: _selectPendingScreen,
-          ),
+          _pendingRequestTile(request, compact: false),
         for (final dm in sortedDms)
           DirectMessageTile(
             currentUser: widget.currentUser,
@@ -2619,19 +2710,9 @@ class _TalksTabState extends ConsumerState<TalksTab>
       padding: const EdgeInsets.symmetric(horizontal: 8),
       children: [
         for (final request in incomingRequests)
-          _FriendRequestTile(
-            currentUserId: widget.currentUser.userId,
-            request: request,
-            isSplit: _isSplit,
-            onSelectPending: _selectPendingScreen,
-          ),
+          _pendingRequestTile(request, compact: false),
         for (final request in outgoingRequests)
-          _FriendRequestTile(
-            currentUserId: widget.currentUser.userId,
-            request: request,
-            isSplit: _isSplit,
-            onSelectPending: _selectPendingScreen,
-          ),
+          _pendingRequestTile(request, compact: false),
         for (final dm in sortedDms)
           DirectMessageTile(
             currentUser: widget.currentUser,
@@ -3388,228 +3469,95 @@ class _PendingApprovalBanner extends StatelessWidget {
   }
 }
 
-class _FriendRequestTile extends ConsumerWidget {
-  const _FriendRequestTile({
-    required this.currentUserId,
+/// 届いた友達申請の承認・拒否（メッセージ画面のバナー、2026-11-17）。以前は一覧の行の右端に
+/// ボタンを詰めていて、名前の列が潰れて崩れていた。承認・拒否が終わったら[onDone]で画面を
+/// 閉じる。失敗は握りつぶさず、バナーに出す。
+class _FriendRequestDecisionBanner extends ConsumerStatefulWidget {
+  const _FriendRequestDecisionBanner({
     required this.request,
-    required this.isSplit,
-    required this.onSelectPending,
-    this.compact = false,
+    required this.onDone,
   });
 
-  final String currentUserId;
   final FriendRequest request;
-
-  /// アイコンレール（「アイコン＋寄合一覧」、幅が狭い）用。承認済みの一対と
-  /// 同じコンパクトなアイコンタイル（[_ConversationIconTile]）で描く
-  /// （広場の[_PendingGroupJoinRequestTile.compact]と同じ。以前は通常の
-  /// `ListTile`＋承認/却下ボタンが狭い幅で崩れた）。届いた申請は、タップで
-  /// 承認/却下のダイアログを開く。
-  final bool compact;
-
-  /// 分割表示中かどうか。trueなら承認待ちタップ時に[onSelectPending]で
-  /// 右側のペインへその場で表示し、falseなら別ページを開く（2026-08-05追加）。
-  final bool isSplit;
-  final ValueChanged<Widget?> onSelectPending;
-
-  bool get _isIncoming => request.toUserId == currentUserId;
-
-  String get _otherUserId => currentUserId == request.fromUserId
-      ? request.toUserId
-      : request.fromUserId;
+  final VoidCallback onDone;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final strings = ref.watch(appStringsProvider);
-    final otherUser = ref.watch(watchedUserProvider(_otherUserId)).value;
-    // まだ一対が成立していなくても、dmIdは決定的に計算出来るため
-    // （`DirectMessage.idFor`）、相手が申請送信時に選んだ会話毎の
-    // プロフィールカードがあればそれを反映して表示する（2026-07-29追加）。
-    final dmId = DirectMessage.idFor(currentUserId, _otherUserId);
-    final iconUrl = otherUser?.effectiveIconFor(dmId)?.url;
-    final iconFocal = otherUser?.effectiveIconFocalFor(dmId);
-    final uiStyle = ref.watch(appUiStyleProvider);
-    final isGekiga = uiStyle == AppUiStyle.gekiga;
+  ConsumerState<_FriendRequestDecisionBanner> createState() =>
+      _FriendRequestDecisionBannerState();
+}
 
-    final leadingWidget = uiStyle == AppUiStyle.glass
-        ? GlassAvatar(
-            size: 40,
-            image: iconUrl != null ? NetworkImage(iconUrl) : null,
-            focal: iconFocal,
-            fallback: iconUrl != null
-                ? null
-                : Icon(
-                    Icons.person_outline,
-                    color: Theme.of(context).colorScheme.onSurfaceVariant,
-                  ),
-          )
-        : FocalCircleAvatar(
-            blockFrame: true,
-            url: iconUrl,
-            focal: iconFocal,
-            foregroundColor: Theme.of(context).colorScheme.onSurfaceVariant,
-            fallback: const Icon(Icons.person_outline),
-          );
-    final titleText = '@${request.otherRhingSeed(currentUserId)}';
-    // outgoing（自分が送った申請）は「相手の承認を待っています」という
-    // 待ちの情報を、一覧のブロックからは消してタップ時のプレビュー画面側に
-    // 表示する（2026-08-04変更）。incoming（相手から届いた申請）は
-    // 承認/却下ボタンがあるため現状のまま変更しない。
-    final subtitleWidget = _isIncoming
-        ? Text(strings.friendRequestIncomingSubtitle)
-        : null;
-    final trailingWidget = _isIncoming
-        ? Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              TextButton(
-                onPressed: () => ref
-                    .read(friendRepositoryProvider)
-                    .respond(request: request, accept: false),
-                child: Text(strings.friendRequestDecline),
-              ),
-              const SizedBox(width: 4),
-              FilledButton(
-                onPressed: () => ref
-                    .read(friendRepositoryProvider)
-                    .respond(request: request, accept: true),
-                child: Text(strings.friendRequestAccept),
+class _FriendRequestDecisionBannerState
+    extends ConsumerState<_FriendRequestDecisionBanner> {
+  bool _busy = false;
+  bool _failed = false;
+
+  Future<void> _respond(bool accept) async {
+    setState(() {
+      _busy = true;
+      _failed = false;
+    });
+    try {
+      await ref
+          .read(friendRepositoryProvider)
+          .respond(request: widget.request, accept: accept);
+      if (mounted) widget.onDone();
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _busy = false;
+        _failed = true;
+      });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final strings = ref.watch(appStringsProvider);
+    final theme = Theme.of(context);
+    final message = widget.request.message?.trim();
+    return Material(
+      color: theme.colorScheme.surfaceContainerHighest,
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(16, 10, 16, 10),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              strings.friendRequestIncomingSubtitle,
+              style: theme.textTheme.bodyMedium,
+            ),
+            if (message != null && message.isNotEmpty) ...[
+              const SizedBox(height: 4),
+              Text(message, style: theme.textTheme.bodySmall),
+            ],
+            if (_failed) ...[
+              const SizedBox(height: 4),
+              Text(
+                strings.friendRequestRespondFailed,
+                style: theme.textTheme.bodySmall?.copyWith(
+                  color: Colors.red.shade700,
+                ),
               ),
             ],
-          )
-        : null;
-    final onTap = _isIncoming
-        ? null
-        : () {
-            final screen = ChatScreen(
-              title: titleText,
-              currentUserId: currentUserId,
-              isDm: true,
-              messagesStream: Stream.value(const <Message>[]),
-              onSend:
-                  (
-                    _, {
-                    silent = false,
-                    replyTo,
-                    mentions = MessageMentions.none,
-                    sendAt,
-                  }) async {},
-              disabled: true,
-              banner: _PendingApprovalBanner(
-                message: strings.friendRequestOutgoingSubtitle,
-              ),
-            );
-            if (isSplit) {
-              // 承認前はdirectMessagesドキュメント自体が存在せず実データの
-              // 寄合は持てない（firestore.rulesで承認後の作成のみ許可）ため、
-              // 承認後に必ず出来る「メイン」1件だけの寄合一覧を模した
-              // プレースホルダーを、他の（承認済みの）語らいと同じ3カラム
-              // 構成で見せる（選択・追加は出来ない、2026-08-12追加）。
-              onSelectPending(
-                Row(
-                  children: [
-                    SizedBox(
-                      width: 220,
-                      child: RoomListPane(
-                        conversationName: titleText,
-                        rooms: [
-                          (
-                            roomId: 'pending-main',
-                            name: ref.read(appStringsProvider).roomDefaultName,
-                            unreadCount: 0,
-                          ),
-                        ],
-                        selectedRoomId: 'pending-main',
-                        onSelectRoom: (_) {},
-                      ),
-                    ),
-                    const VerticalDivider(width: 1),
-                    Expanded(child: screen),
-                  ],
-                ),
-              );
-            } else {
-              // 承認待ち画面は常にメッセージが空（吹き出しが無い＝全面が
-              // 余白）で、通常の語らいのように吹き出し上の右スワイプで戻る
-              // 仕組み（`_MessageInteractionsState`の`InteractiveSwipeBackScope`
-              // 中継）が機能する余地が無い。通常の一対・広場
-              // （app_router.dartの`slideDetailPage`）と同じ、指追従の右スワイプ
-              // 戻る＋画面右外からのスライドインを`slideBackRoute`で適用する
-              // （2026-08-12追加、2026-09-12にインタラクティブなスライドへ変更）。
-              Navigator.of(
-                context,
-              ).push(slideBackRoute<void>(builder: (context) => screen));
-            }
-          };
-
-    if (compact) {
-      return _ConversationIconTile(
-        conversationId: dmId,
-        userId: currentUserId,
-        avatar: leadingWidget,
-        label: titleText,
-        unreadCount: 0,
-        pinned: false,
-        muted: false,
-        selected: false,
-        onTap:
-            onTap ??
-            () {
-              final repository = ref.read(friendRepositoryProvider);
-              final isGlass = uiStyle == AppUiStyle.glass;
-              final title = Text(titleText);
-              final content = Text(strings.friendRequestIncomingSubtitle);
-              final actions = [
+            const SizedBox(height: 8),
+            Wrap(
+              spacing: 8,
+              runSpacing: 4,
+              children: [
+                // 文字色はアクセントカラーにしない（CLAUDE.mdの方針、テーマの一括対応に任せる）。
                 TextButton(
-                  onPressed: () {
-                    Navigator.of(context).pop();
-                    repository.respond(request: request, accept: false);
-                  },
+                  onPressed: _busy ? null : () => _respond(false),
                   child: Text(strings.friendRequestDecline),
                 ),
                 FilledButton(
-                  onPressed: () {
-                    Navigator.of(context).pop();
-                    repository.respond(request: request, accept: true);
-                  },
+                  onPressed: _busy ? null : () => _respond(true),
                   child: Text(strings.friendRequestAccept),
                 ),
-              ];
-              showAppDialog<void>(
-                context: context,
-                builder: (_) => isGlass
-                    ? GlassAlertDialog(
-                        title: title,
-                        content: content,
-                        actions: actions,
-                      )
-                    : KeyboardAlertDialog(
-                        title: title,
-                        content: content,
-                        actions: actions,
-                      ),
-              );
-            },
-        gesturesEnabled: false,
-      );
-    }
-
-    if (isGekiga) {
-      return GekigaTileContent(
-        leading: leadingWidget,
-        title: Text(titleText),
-        subtitle: subtitleWidget,
-        trailing: trailingWidget,
-        onTap: onTap,
-      );
-    }
-
-    return ListTile(
-      leading: leadingWidget,
-      title: Text(titleText),
-      subtitle: subtitleWidget,
-      trailing: trailingWidget,
-      onTap: onTap,
+              ],
+            ),
+          ],
+        ),
+      ),
     );
   }
 }
@@ -3917,8 +3865,14 @@ class DirectMessageTile extends ConsumerWidget {
     required this.unreadCount,
     required this.onTap,
     this.selected = false,
+    this.pendingRequest,
     super.key,
   });
+
+  /// 承認前の友達申請（2026-11-17）。指定すると、普段の一対と同じ箱のまま、副題を申請の
+  /// 状態の文言に、未読数を「!」にする。ピン留め・通知オフの操作は付けない（実在する
+  /// 一対ではないため）。[dm]は[DirectMessage.pendingFrom]で作ったもの。
+  final FriendRequest? pendingRequest;
 
   final AppUser currentUser;
   final DirectMessage dm;
@@ -3963,12 +3917,26 @@ class DirectMessageTile extends ConsumerWidget {
     final gekigaAwareIconColor = isGekiga
         ? (selected ? GekigaColors.panel : GekigaColors.onPanel)
         : colorScheme.onSurfaceVariant;
-    final previewLabel = _conversationPreviewLabel(
-      ref.watch(appStringsProvider),
-      ref.watch(vocabularyProvider),
-      dm.lastMessageContentType,
-      dm.lastMessagePreview,
-    );
+    final request = pendingRequest;
+    final previewLabel = request != null
+        ? (request.toUserId == currentUser.userId
+              ? ref.watch(appStringsProvider).friendRequestIncomingSubtitle
+              : ref.watch(appStringsProvider).friendRequestOutgoingSubtitle)
+        : _conversationPreviewLabel(
+            ref.watch(appStringsProvider),
+            ref.watch(vocabularyProvider),
+            dm.lastMessageContentType,
+            dm.lastMessagePreview,
+          );
+    Widget gestures(Widget child) => request != null
+        ? child
+        : _ConversationGestures(
+            conversationId: dm.dmId,
+            userId: currentUser.userId,
+            pinned: pinned,
+            muted: muted,
+            child: child,
+          );
 
     final leadingWidget = isGlass
         ? GlassAvatar(
@@ -3993,22 +3961,20 @@ class DirectMessageTile extends ConsumerWidget {
       lastMessageAt: dm.lastMessageAt?.toDate(),
       selected: selected,
     );
-    final trailingWidget = (pinned || muted || unreadCount > 0)
+    final trailingWidget =
+        (request != null || pinned || muted || unreadCount > 0)
         ? _ConversationTrailing(
             pinned: pinned,
             muted: muted,
             unreadCount: unreadCount,
             selected: selected,
+            showAttention: request != null,
           )
         : null;
 
     if (isGekiga) {
-      return _ConversationGestures(
-        conversationId: dm.dmId,
-        userId: currentUser.userId,
-        pinned: pinned,
-        muted: muted,
-        child: GekigaTileContent(
+      return gestures(
+        GekigaTileContent(
           selected: selected,
           leading: leadingWidget,
           title: _ConversationTitle(
@@ -4024,12 +3990,8 @@ class DirectMessageTile extends ConsumerWidget {
 
     if (isGlass) {
       // 選択・非選択で文字色は変えない（背景の塗りだけで選択状態を表す）。
-      return _ConversationGestures(
-        conversationId: dm.dmId,
-        userId: currentUser.userId,
-        pinned: pinned,
-        muted: muted,
-        child: Padding(
+      return gestures(
+        Padding(
           padding: const EdgeInsets.symmetric(vertical: 3),
           child: GlassSurface(
             variant: GlassVariant.card,
@@ -4053,12 +4015,8 @@ class DirectMessageTile extends ConsumerWidget {
       );
     }
 
-    return _ConversationGestures(
-      conversationId: dm.dmId,
-      userId: currentUser.userId,
-      pinned: pinned,
-      muted: muted,
-      child: BlockTalkTileWrap(
+    return gestures(
+      BlockTalkTileWrap(
         selected: selected,
         child: ListTile(
           shape: RoundedRectangleBorder(
@@ -4304,7 +4262,11 @@ class _DirectMessageIconTile extends ConsumerWidget {
     required this.muted,
     required this.selected,
     required this.onTap,
+    this.pendingRequest,
   });
+
+  /// 承認前の友達申請（2026-11-17、[DirectMessageTile.pendingRequest]と同じ）。
+  final FriendRequest? pendingRequest;
 
   final AppUser currentUser;
   final DirectMessage dm;
@@ -4366,6 +4328,8 @@ class _DirectMessageIconTile extends ConsumerWidget {
       muted: muted,
       selected: selected,
       onTap: onTap,
+      attention: pendingRequest != null,
+      gesturesEnabled: pendingRequest == null,
     );
   }
 }
@@ -4450,7 +4414,11 @@ class _ConversationIconTile extends StatelessWidget {
     required this.selected,
     required this.onTap,
     this.gesturesEnabled = true,
+    this.attention = false,
   });
+
+  /// 未読数の代わりに「!」を出す（承認待ちの友達申請、2026-11-17）。
+  final bool attention;
 
   /// falseなら長押しのピン留め・ミュートメニューを付けない（承認待ちの広場は
   /// まだメンバーではなく`conversationPrefs`へ書けない為、2026-10-11追加）。
@@ -4531,7 +4499,7 @@ class _ConversationIconTile extends StatelessWidget {
                       },
                     ),
                   ),
-                if (unreadCount > 0)
+                if (unreadCount > 0 || attention)
                   Positioned(
                     right: -4,
                     top: -4,
@@ -4552,7 +4520,9 @@ class _ConversationIconTile extends StatelessWidget {
                         borderRadius: BorderRadius.circular(10),
                       ),
                       child: Text(
-                        unreadCount > 99 ? '99+' : '$unreadCount',
+                        attention
+                            ? '!'
+                            : (unreadCount > 99 ? '99+' : '$unreadCount'),
                         textAlign: TextAlign.center,
                         style: const TextStyle(
                           color: Colors.white,
@@ -4639,11 +4609,15 @@ class _ConversationTrailing extends ConsumerWidget {
     required this.muted,
     required this.unreadCount,
     this.selected = false,
+    this.showAttention = false,
   });
 
   final bool pinned;
   final bool muted;
   final int unreadCount;
+
+  /// 未読数の代わりに「!」を出す（承認待ちの友達申請、2026-11-17）。
+  final bool showAttention;
 
   /// 劇画で行が選択中（白地）かどうか。文字と同じ色（選択中=黒、他=白）にする。
   final bool selected;
@@ -4678,7 +4652,10 @@ class _ConversationTrailing extends ConsumerWidget {
                 : Theme.of(context).colorScheme.onSurface,
           ),
         ],
-        if (unreadCount > 0) ...[
+        if (showAttention) ...[
+          if (pinned || muted) const SizedBox(width: 6),
+          const UnreadBadge.attention(),
+        ] else if (unreadCount > 0) ...[
           if (pinned || muted) const SizedBox(width: 6),
           UnreadBadge(count: unreadCount),
         ],

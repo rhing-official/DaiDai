@@ -405,6 +405,7 @@ final Strings _stringsFr = Strings._(
   friendRequestIncomingSubtitle:
       'Cette personne vous a envoyé une demande d’ami',
   friendRequestOutgoingSubtitle: 'En attente de son acceptation',
+  friendRequestRespondFailed: 'Impossible de terminer. Veuillez réessayer',
   friendRequestMessageLabel: 'Message (facultatif, 100 caractères maximum)',
   friendRequestRateLimited:
       'Vous avez envoyé beaucoup de demandes d’ami récemment. Veuillez réessayer plus tard.',
@@ -845,10 +846,13 @@ final Strings _stringsFr = Strings._(
   callBgmRemoveFromPlaylist: 'Retirer de la liste',
   callSoundboardAdd: 'Ajouter un effet sonore',
   callSoundboardEmpty:
-      'Aucun effet sonore. Ajoutez-en un et tout le monde dans cette conversation pourra l’utiliser',
+      'Aucun effet sonore. Ajoutez-en un : vous pourrez l’utiliser dans toutes vos conversations, et tout le monde dans celle où vous l’ajoutez aussi',
   callSoundboardAddFailed: 'Impossible d’ajouter l’effet sonore',
   callSoundboardTooLarge: 'Un effet sonore ne peut pas dépasser 2 Mo',
-  callSoundboardFull: 'Vous pouvez ajouter jusqu’à 30 effets sonores',
+  callSoundboardFull:
+      'Vous pouvez ajouter jusqu’à 5 effets sonores avec l’offre gratuite, ou 10 avec Premium',
+  callSoundboardMine: 'Mes effets sonores',
+  callSoundboardShared: 'Effets sonores de cette conversation',
   callSoundboardVolume: 'Volume',
   callSoundboardSearchHint: 'Rechercher',
   callSoundboardUploadTitle: 'Importer un son',

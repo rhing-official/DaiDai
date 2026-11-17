@@ -7,6 +7,7 @@ import 'package:pointer_interceptor/pointer_interceptor.dart';
 
 import '../../../l10n/strings.dart';
 import '../../../models/soundboard_sound.dart';
+import '../../../providers/kiwami_providers.dart';
 import '../../../providers/repository_providers.dart';
 import '../../../repositories/soundboard_repository.dart';
 import '../../../router/back_stack.dart';
@@ -151,17 +152,16 @@ class _SoundDialogBodyState extends ConsumerState<_SoundDialogBody> {
         await repo.updateSound(
           isDm: b.isDm,
           conversationId: b.conversationId,
-          soundId: editing.soundId,
+          sound: editing,
           name: _name.text,
           volume: _volume,
         );
       } else {
-        final count =
-            (await repo
-                    .watchSounds(isDm: b.isDm, conversationId: b.conversationId)
-                    .first)
-                .length;
-        if (count >= kMaxSoundboardSounds) {
+        // 上限は1人あたり（無料5個・極み10個、2026-11-17）。
+        final limit = soundboardLimitFor(
+          kiwami: ref.read(isKiwamiProvider(b.userId)),
+        );
+        if (await repo.countMySounds(b.userId) >= limit) {
           _banner(strings.callSoundboardFull);
           return;
         }
@@ -172,6 +172,7 @@ class _SoundDialogBodyState extends ConsumerState<_SoundDialogBody> {
           name: _name.text.trim(),
           fileName: _fileName!,
           bytes: _bytes!,
+          limit: limit,
           volume: _volume,
         );
       }

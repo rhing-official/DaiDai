@@ -445,6 +445,12 @@ async function deleteAccount(
     db.collection("users").doc(userId).collection("switchSessions"),
     writer,
   );
+  // サウンドボードの効果音（個人保存、2026-11-17）。Storageのファイルは、他の個人保存の
+  // 素材（`userSounds`など）と同じく、ここでは消していない。
+  await deleteSubcollection(
+    db.collection("users").doc(userId).collection("soundboardSounds"),
+    writer,
+  );
   await writer.delete(db.collection("users").doc(userId));
   await writer.commit();
 
@@ -6016,6 +6022,115 @@ function pairId(a: string, b: string): string {
   return [a, b].sort().join("_");
 }
 
+/**
+ * 友達になった2人の、friends双方・一対（directMessages）・メインの寄合を作る
+ * （Admin SDK、ルールを経由しない）。相互申請の即時承認（`sendFriendRequest`）と、
+ * 承認（`respondFriendRequest`）で共有する。残骸があっても失敗しないよう、
+ * friendsは上書き、一対と寄合は既にあれば作り直さない（2026-11-17）。
+ * [extraWrites]は同じバッチに載せたい書き込み（申請の`accepted`への更新）。
+ */
+async function createFriendship(
+  userAId: string,
+  userARhingSeed: string,
+  userBId: string,
+  userBRhingSeed: string,
+  extraWrites?: (batch: FirebaseFirestore.WriteBatch) => void,
+): Promise<void> {
+  const dmId = pairId(userAId, userBId);
+  const dmRef = db.collection("directMessages").doc(dmId);
+  const [dmDoc, existingRooms] = await Promise.all([
+    dmRef.get(),
+    dmRef.collection("rooms").limit(1).get(),
+  ]);
+  const batch = db.batch();
+  extraWrites?.(batch);
+  batch.set(
+    db.collection("users").doc(userAId).collection("friends").doc(userBId),
+    { friendRhingSeed: userBRhingSeed, addedAt: FieldValue.serverTimestamp() },
+  );
+  batch.set(
+    db.collection("users").doc(userBId).collection("friends").doc(userAId),
+    { friendRhingSeed: userARhingSeed, addedAt: FieldValue.serverTimestamp() },
+  );
+  if (!dmDoc.exists) {
+    batch.set(dmRef, {
+      participants: [userAId, userBId],
+      participantRhingSeeds: { [userAId]: userARhingSeed, [userBId]: userBRhingSeed },
+      readReceiptsEnabled: true,
+      roomsEnabled: false,
+    });
+  }
+  if (existingRooms.empty) {
+    batch.set(dmRef.collection("rooms").doc(), {
+      dmId,
+      name: "メイン",
+      participants: [userAId, userBId],
+      createdAt: FieldValue.serverTimestamp(),
+      pinnedMessageIds: [],
+    });
+  }
+  await batch.commit();
+}
+
+/**
+ * 友達申請の承認（宛先本人のみ）。以前はクライアントが「申請をacceptedへ」→「friends・
+ * 一対・寄合を作成」の2回に分けて書いていて、後者がルールで拒否されると、申請だけが
+ * 保留から消えて友達にならなかった（2026-11-17）。ここで1回のバッチにまとめる。
+ * 拒否はクライアントの直接更新のまま。
+ */
+export const respondFriendRequest = onCall(
+  { region: "asia-northeast1" },
+  async (request) => {
+    const uid = request.auth?.uid;
+    if (!uid) {
+      throw new HttpsError("unauthenticated", "ログインが必要です");
+    }
+    const requestId = request.data?.requestId;
+    if (typeof requestId !== "string" || !requestId) {
+      throw new HttpsError("invalid-argument", "requestIdが必要です");
+    }
+    const ref = db.collection("friendRequests").doc(requestId);
+    const doc = await ref.get();
+    if (!doc.exists) {
+      throw new HttpsError("not-found", "友達申請が見つかりません");
+    }
+    const data = doc.data()!;
+    const fromUserId: unknown = data.fromUserId;
+    const toUserId: unknown = data.toUserId;
+    if (typeof fromUserId !== "string" || typeof toUserId !== "string") {
+      throw new HttpsError("failed-precondition", "友達申請の内容が不正です");
+    }
+    if (toUserId !== uid) {
+      throw new HttpsError("permission-denied", "宛先の本人だけが承認できます");
+    }
+    if (data.status === "accepted") {
+      // 承認済みでも友達が作られていない（以前の不具合の残り）場合は、作り直す。
+      const stillFriends = (
+        await db.collection("users").doc(toUserId).collection("friends").doc(fromUserId).get()
+      ).exists;
+      if (stillFriends) return;
+    } else if (data.status !== "pending") {
+      throw new HttpsError("failed-precondition", "この友達申請は承認できません");
+    }
+    // Rhing Seedは、申請に書かれた値ではなく、両者の`users`の値を使う（`sendFriendRequest`と同じ）。
+    const [fromUser, toUser] = await Promise.all([
+      db.collection("users").doc(fromUserId).get(),
+      db.collection("users").doc(toUserId).get(),
+    ]);
+    const fromRhingSeed: unknown = fromUser.data()?.rhingSeed;
+    const toRhingSeed: unknown = toUser.data()?.rhingSeed;
+    if (typeof fromRhingSeed !== "string" || typeof toRhingSeed !== "string") {
+      throw new HttpsError("not-found", "ユーザーが見つかりません");
+    }
+    await createFriendship(fromUserId, fromRhingSeed, toUserId, toRhingSeed, (batch) => {
+      batch.update(ref, {
+        status: "accepted",
+        respondedAt: FieldValue.serverTimestamp(),
+      });
+    });
+  },
+);
+
 const FRIEND_REQUEST_NEW_ACCOUNT_AGE_DAYS = 7;
 const FRIEND_REQUEST_RATE_LIMIT_NEW = { perHour: 5, perDay: 10 };
 const FRIEND_REQUEST_RATE_LIMIT_NORMAL = { perHour: 30, perDay: 100 };
@@ -6189,41 +6304,8 @@ export const sendFriendRequest = onCall(
       createdAt: FieldValue.serverTimestamp(),
     });
 
-    // 相互承認時のfriends/directMessages/dmRoom作成
-    // （`FirestoreFriendRepository.respond`と同じ内容のAdmin SDK版）。
-    const createFriendship = async (
-      userAId: string,
-      userARhingSeed: string,
-      userBId: string,
-      userBRhingSeed: string,
-    ): Promise<void> => {
-      const dmId = pairId(userAId, userBId);
-      const dmRef = db.collection("directMessages").doc(dmId);
-      const roomRef = dmRef.collection("rooms").doc();
-      const batch = db.batch();
-      batch.set(
-        db.collection("users").doc(userAId).collection("friends").doc(userBId),
-        { friendRhingSeed: userBRhingSeed, addedAt: FieldValue.serverTimestamp() },
-      );
-      batch.set(
-        db.collection("users").doc(userBId).collection("friends").doc(userAId),
-        { friendRhingSeed: userARhingSeed, addedAt: FieldValue.serverTimestamp() },
-      );
-      batch.set(dmRef, {
-        participants: [userAId, userBId],
-        participantRhingSeeds: { [userAId]: userARhingSeed, [userBId]: userBRhingSeed },
-        readReceiptsEnabled: true,
-        roomsEnabled: false,
-      });
-      batch.set(roomRef, {
-        dmId,
-        name: "メイン",
-        participants: [userAId, userBId],
-        createdAt: FieldValue.serverTimestamp(),
-        pinnedMessageIds: [],
-      });
-      await batch.commit();
-    };
+    // 相互承認時のfriends/directMessages/dmRoom作成は、モジュールレベルの
+    // `createFriendship`（承認の`respondFriendRequest`と共通）を使う。
 
     // 宛先が送信者をブロックしている場合は、何も作らず成功と同じ応答で終える
     // （相手にブロックを悟らせない、2026-10-11）。試行はレート制限に数え済み。

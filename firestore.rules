@@ -152,6 +152,38 @@ service cloud.firestore {
         allow read, write: if request.auth != null && request.auth.uid == userId;
       }
 
+      // users/{userId}/soundboardSounds/{soundId}: 通話のサウンドボードの効果音のマスター
+      // （2026-11-17）。追加した人のアカウントに保存し、本人のどの語らいでも使う。本人のみ
+      // 読み書き可能。追加した語らい（originId）のメンバーが使えるよう、同じidの参照を
+      // その語らいの`soundboardSounds`にも置く（そちらのルールは各会話の節）。ファイル本体は
+      // Storageの`soundboard/user/{userId}/{soundId}/...`。件数の上限（無料5・極み10）は
+      // ルールでは数えられないため、クライアントが判定する。
+      match /soundboardSounds/{soundId} {
+        allow read, delete: if request.auth != null && request.auth.uid == userId;
+        allow create: if request.auth != null && request.auth.uid == userId
+          && request.resource.data.createdBy == userId
+          && request.resource.data.storagePath.matches('soundboard/user/' + userId + '/.*')
+          && request.resource.data.name is string
+          && request.resource.data.name.size() >= 1
+          && request.resource.data.name.size() <= 40
+          && request.resource.data.volume is number
+          && request.resource.data.volume >= 0
+          && request.resource.data.volume <= 1
+          && request.resource.data.originIsDm is bool
+          && request.resource.data.originId is string
+          && (request.resource.data.originIsDm
+              ? userId in get(/databases/$(database)/documents/directMessages/$(request.resource.data.originId)).data.participants
+              : userId in get(/databases/$(database)/documents/groups/$(request.resource.data.originId)).data.memberIds);
+        allow update: if request.auth != null && request.auth.uid == userId
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['name', 'volume'])
+          && request.resource.data.name is string
+          && request.resource.data.name.size() >= 1
+          && request.resource.data.name.size() <= 40
+          && request.resource.data.volume is number
+          && request.resource.data.volume >= 0
+          && request.resource.data.volume <= 1;
+      }
+
       // users/{userId}/contactAliases/{targetUserId}: 相手の呼び名を自分の画面だけで
       // 上書きする指定（2026-11-06追加）。blockedUsersと同じ完全に個人的な設定で、
       // 本人のみ読み書き可能（相手には一切公開しない）。呼び名は1〜20文字。
@@ -522,17 +554,22 @@ service cloud.firestore {
             && resource.data.accountDeletedUserId != request.auth.uid)
         );
 
-      // soundboardSounds: 通話のサウンドボードの効果音（2026-11-16）。参加者2人が対等に
-      // 読み・追加・削除できる。ファイル本体はStorageの`soundboard/dm/{dmId}/...`。
+      // soundboardSounds: 通話のサウンドボードの効果音の参照（2026-11-16、2026-11-17に
+      // 個人保存へ変更）。音は追加した人のアカウント（`users/{uid}/soundboardSounds`）に
+      // 保存され、ここには追加したこの一対のための参照を置く。読みは参加者2人、追加・
+      // 名前と音量の変更・削除は追加した本人だけ。以前の（この一対に直接保存された）音も、
+      // 持ち主が同じように変更・削除できる。ファイルはStorageの`soundboard/user/...`
+      // （以前の音は`soundboard/dm/{dmId}/...`）。
       match /soundboardSounds/{soundId} {
         allow read: if request.auth != null
           && request.auth.uid in get(/databases/$(database)/documents/directMessages/$(dmId)).data.participants;
         allow create: if request.auth != null
           && request.auth.uid in get(/databases/$(database)/documents/directMessages/$(dmId)).data.participants
-          && request.resource.data.createdBy == request.auth.uid;
-        // 名前・音量の変更（2026-11-17）。参加者2人が対等。ほかのフィールドは変えられない。
+          && request.resource.data.createdBy == request.auth.uid
+          && request.resource.data.storagePath.matches('soundboard/user/' + request.auth.uid + '/.*');
+        // 名前・音量の変更。追加した本人だけ。ほかのフィールドは変えられない。
         allow update: if request.auth != null
-          && request.auth.uid in get(/databases/$(database)/documents/directMessages/$(dmId)).data.participants
+          && resource.data.createdBy == request.auth.uid
           && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['name', 'volume'])
           && request.resource.data.name is string
           && request.resource.data.name.size() >= 1
@@ -541,7 +578,7 @@ service cloud.firestore {
           && request.resource.data.volume >= 0
           && request.resource.data.volume <= 1;
         allow delete: if request.auth != null
-          && request.auth.uid in get(/databases/$(database)/documents/directMessages/$(dmId)).data.participants;
+          && resource.data.createdBy == request.auth.uid;
       }
 
       // rooms/{roomId}: 寄合（テキストチャンネル、2026-07-28追加）。
@@ -1256,19 +1293,20 @@ service cloud.firestore {
           && hasGroupPermission(groupId, 'manageRoles');
       }
 
-      // soundboardSounds: 通話のサウンドボードの効果音（2026-11-16）。広場のメンバーなら
-      // 誰でも読める・追加できる。削除は追加した本人か長。ファイル本体は
-      // Storageの`soundboard/group/{groupId}/...`。
+      // soundboardSounds: 通話のサウンドボードの効果音の参照（2026-11-16、2026-11-17に
+      // 個人保存へ変更）。音は追加した人のアカウント（`users/{uid}/soundboardSounds`）に
+      // 保存され、ここには追加したこの広場のための参照を置く。読みは広場のメンバー、追加・
+      // 名前と音量の変更・削除は追加した本人だけ（長も他の人の音は変えられない）。以前の
+      // （この広場に直接保存された）音も、持ち主が同じように変更・削除できる。
       match /soundboardSounds/{soundId} {
         allow read: if request.auth != null
           && request.auth.uid in get(/databases/$(database)/documents/groups/$(groupId)).data.memberIds;
         allow create: if request.auth != null
           && request.auth.uid in get(/databases/$(database)/documents/groups/$(groupId)).data.memberIds
-          && request.resource.data.createdBy == request.auth.uid;
-        // 名前・音量の変更（2026-11-17）。追加した本人か長。ほかのフィールドは変えられない。
+          && request.resource.data.createdBy == request.auth.uid
+          && request.resource.data.storagePath.matches('soundboard/user/' + request.auth.uid + '/.*');
         allow update: if request.auth != null
-          && (resource.data.createdBy == request.auth.uid
-              || get(/databases/$(database)/documents/groups/$(groupId)).data.ownerId == request.auth.uid)
+          && resource.data.createdBy == request.auth.uid
           && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['name', 'volume'])
           && request.resource.data.name is string
           && request.resource.data.name.size() >= 1
@@ -1277,8 +1315,7 @@ service cloud.firestore {
           && request.resource.data.volume >= 0
           && request.resource.data.volume <= 1;
         allow delete: if request.auth != null
-          && (resource.data.createdBy == request.auth.uid
-              || get(/databases/$(database)/documents/groups/$(groupId)).data.ownerId == request.auth.uid);
+          && resource.data.createdBy == request.auth.uid;
       }
 
       // rooms/{roomId}: 寄合。memberIdsを広場から非正規化して持つ

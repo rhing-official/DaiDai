@@ -2,8 +2,6 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import '../services/app_functions.dart';
 
 import '../models/app_user.dart';
-import '../models/direct_message.dart';
-import '../models/dm_room.dart';
 import '../models/friend.dart';
 import '../models/friend_request.dart';
 
@@ -125,55 +123,13 @@ class FirestoreFriendRepository implements FriendRepository {
       return;
     }
 
-    // friendRequestsの承認を先に確定させてから友達関係・一対を作る。
-    // （Firestoreルールがdirectメッセージ/friends作成時にこのステータスを参照する為、
-    //   同じバッチ内で先に依存させるより、確定後の別コミットにする方が確実）
-    await ref.update({
-      'status': FriendRequestStatus.accepted.name,
-      'respondedAt': FieldValue.serverTimestamp(),
+    // 承認は、申請のacceptedへの更新と、友達関係・一対・寄合の作成を、Cloud Functions
+    // （`respondFriendRequest`、Admin SDK）が1回のバッチで行う（2026-11-17）。以前は
+    // クライアントが2回に分けて書いていて、後者がルールで拒否されると、申請だけが
+    // 保留から消えて友達にならなかった。
+    await _functions.httpsCallable('respondFriendRequest').call({
+      'requestId': request.requestId,
     });
-
-    final dmId = DirectMessage.idFor(request.fromUserId, request.toUserId);
-    final dmRef = _firestore.collection('directMessages').doc(dmId);
-    final roomRef = dmRef.collection('rooms').doc();
-    final participants = [request.fromUserId, request.toUserId];
-    final dm = DirectMessage(
-      dmId: dmId,
-      participants: participants,
-      participantRhingSeeds: {
-        request.fromUserId: request.fromRhingSeed,
-        request.toUserId: request.toRhingSeed,
-      },
-      // 一対は常に単一モードで作られる（GroupのroomsEnabledと同じ考え方、
-      // 2026-07-29追加）。後からハンバーガーメニューの「寄合を増やす」で
-      // 複数モードに切り替えられる。
-      roomsEnabled: false,
-    );
-    final room = DmRoom(
-      roomId: roomRef.id,
-      dmId: dmId,
-      name: 'メイン',
-      participants: participants,
-    );
-
-    final batch = _firestore.batch();
-    batch.set(
-      _friendsOf(request.fromUserId).doc(request.toUserId),
-      Friend(
-        friendUserId: request.toUserId,
-        friendRhingSeed: request.toRhingSeed,
-      ).toJson(),
-    );
-    batch.set(
-      _friendsOf(request.toUserId).doc(request.fromUserId),
-      Friend(
-        friendUserId: request.fromUserId,
-        friendRhingSeed: request.fromRhingSeed,
-      ).toJson(),
-    );
-    batch.set(dmRef, dm.toJson());
-    batch.set(roomRef, room.toJson());
-    await batch.commit();
   }
 
   @override

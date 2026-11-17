@@ -338,6 +338,7 @@ class Strings {
     required this.userProfileCardAcceptNotice,
     required this.friendRequestIncomingSubtitle,
     required this.friendRequestOutgoingSubtitle,
+    required this.friendRequestRespondFailed,
     required this.friendRequestMessageLabel,
     required this.friendRequestRateLimited,
     required this.chatSpamWarningTitle,
@@ -701,6 +702,8 @@ class Strings {
     required this.callSoundboardAddFailed,
     required this.callSoundboardTooLarge,
     required this.callSoundboardFull,
+    required this.callSoundboardMine,
+    required this.callSoundboardShared,
     required this.callSoundboardVolume,
     required this.callSoundboardSearchHint,
     required this.callSoundboardUploadTitle,
@@ -1656,6 +1659,7 @@ class Strings {
   final String userProfileCardAcceptNotice;
   final String friendRequestIncomingSubtitle;
   final String friendRequestOutgoingSubtitle;
+  final String friendRequestRespondFailed;
 
   /// 友達申請に添える任意メッセージ（100文字まで）の入力欄ラベル
   /// （技術仕様書8.3レイヤー2、2026-09-07追加）。
@@ -2123,6 +2127,8 @@ class Strings {
   final String callSoundboardAddFailed;
   final String callSoundboardTooLarge;
   final String callSoundboardFull;
+  final String callSoundboardMine;
+  final String callSoundboardShared;
   final String callSoundboardVolume;
   final String callSoundboardSearchHint;
   final String callSoundboardUploadTitle;
@@ -3276,6 +3282,7 @@ class Strings {
     userProfileCardAcceptNotice: '送信すると友達申請を承認したことになります',
     friendRequestIncomingSubtitle: '相手から申請が届いています',
     friendRequestOutgoingSubtitle: '相手の承認を待っています',
+    friendRequestRespondFailed: '処理できませんでした。もう一度お試しください',
     friendRequestMessageLabel: 'メッセージ（任意、100文字まで）',
     friendRequestRateLimited: '短時間に多くの友達申請を送っている為、しばらく時間をおいてから再度お試しください',
     chatSpamWarningTitle: 'スパムの可能性があります',
@@ -3666,10 +3673,12 @@ class Strings {
     callBgmAddToPlaylist: 'プレイリストへ追加',
     callBgmRemoveFromPlaylist: 'プレイリストから外す',
     callSoundboardAdd: 'サウンドを追加',
-    callSoundboardEmpty: '効果音がありません。「効果音を追加」で登録すると、この語らいの全員が使えます',
+    callSoundboardEmpty: 'サウンドがありません。追加すると、自分のどの語らいでも使え、追加した語らいの全員も使えます',
     callSoundboardAddFailed: '効果音を追加できませんでした',
     callSoundboardTooLarge: '効果音は2MBまでです',
-    callSoundboardFull: '効果音は30個までです',
+    callSoundboardFull: '追加できるサウンドは、無料プランで5個、極みプランで10個までです',
+    callSoundboardMine: 'マイサウンド',
+    callSoundboardShared: 'この語らいのサウンド',
     callSoundboardVolume: '音量',
     callSoundboardSearchHint: '検索',
     callSoundboardUploadTitle: 'サウンドをアップロード',
@@ -4687,6 +4696,7 @@ class Strings {
         'Sending this will accept their friend request.',
     friendRequestIncomingSubtitle: 'They sent you a friend request',
     friendRequestOutgoingSubtitle: 'Waiting for them to accept',
+    friendRequestRespondFailed: 'Couldn’t complete that. Please try again',
     friendRequestMessageLabel: 'Message (optional, up to 100 characters)',
     friendRequestRateLimited:
         "You've sent a lot of friend requests recently. Please try again later.",
@@ -5120,10 +5130,13 @@ class Strings {
     callBgmRemoveFromPlaylist: 'Remove from playlist',
     callSoundboardAdd: 'Add a sound',
     callSoundboardEmpty:
-        'No sound effects yet. Add one and everyone in this conversation can use it',
+        'No sounds yet. Add one and you can use it in any of your conversations; everyone in the conversation where you add it can use it too',
     callSoundboardAddFailed: 'Couldn’t add the sound effect',
     callSoundboardTooLarge: 'Sound effects can be up to 2 MB',
-    callSoundboardFull: 'You can add up to 30 sound effects',
+    callSoundboardFull:
+        'You can add up to 5 sounds on the free plan, or 10 with Premium',
+    callSoundboardMine: 'My sounds',
+    callSoundboardShared: 'Sounds in this conversation',
     callSoundboardVolume: 'Volume',
     callSoundboardSearchHint: 'Search',
     callSoundboardUploadTitle: 'Upload a sound',

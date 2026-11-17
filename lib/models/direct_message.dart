@@ -1,5 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 
+import 'friend_request.dart';
+
 /// 一対（DirectMessage） - 1対1の会話空間
 class DirectMessage {
   const DirectMessage({
@@ -18,6 +20,22 @@ class DirectMessage {
     this.roomsEnabled = false,
     this.roomOrder = const [],
   });
+
+  /// 承認前の友達申請を、語らい一覧に普段の一対と同じ箱で出すための表示用の一対
+  /// （2026-11-17）。実在する一対ではない（承認されるまで`directMessages`には作られない）が、
+  /// `dmId`は決定的（[idFor]、申請のidと同じ）なので、相手のカードなど会話ごとの表示を
+  /// そのまま引ける。最終時刻は申請の送信時刻。
+  factory DirectMessage.pendingFrom(FriendRequest request) {
+    return DirectMessage(
+      dmId: request.requestId,
+      participants: [request.fromUserId, request.toUserId],
+      participantRhingSeeds: {
+        request.fromUserId: request.fromRhingSeed,
+        request.toUserId: request.toRhingSeed,
+      },
+      lastMessageAt: request.createdAt,
+    );
+  }
 
   final String dmId;
   final List<String> participants;

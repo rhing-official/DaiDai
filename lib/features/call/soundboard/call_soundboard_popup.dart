@@ -7,7 +7,6 @@ import 'package:pointer_interceptor/pointer_interceptor.dart';
 
 import '../../../l10n/strings.dart';
 import '../../../models/soundboard_sound.dart';
-import '../../../providers/group_providers.dart';
 import '../../../providers/repository_providers.dart';
 import '../../../providers/soundboard_providers.dart';
 import '../../../router/back_stack.dart';
@@ -152,20 +151,19 @@ class _SoundboardPopupState extends ConsumerState<_SoundboardPopup> {
     final strings = ref.watch(appStringsProvider);
     final theme = Theme.of(context);
     final scheme = theme.colorScheme;
-    final key = (isDm: _binding.isDm, conversationId: _binding.conversationId);
-    final all = ref.watch(soundboardSoundsProvider(key)).value ?? const [];
-    final sounds = filterSoundboardSounds(all, _search.text);
+    final lists = ref.watch(
+      soundboardListsProvider((
+        isDm: _binding.isDm,
+        conversationId: _binding.conversationId,
+        userId: _binding.userId,
+      )),
+    );
+    final all = lists.all;
+    final mine = filterSoundboardSounds(lists.mine, _search.text);
+    final shared = filterSoundboardSounds(lists.shared, _search.text);
     final volume = ref.watch(soundboardVolumeProvider);
-    // 広場の長は、他の人が追加したサウンドも変更・削除できる。
-    final isOwner =
-        !_binding.isDm &&
-        ref
-                .watch(watchedGroupProvider(_binding.conversationId))
-                .value
-                ?.ownerId ==
-            _binding.userId;
-    bool canManage(SoundboardSound s) =>
-        _binding.isDm || s.createdBy == _binding.userId || isOwner;
+    // 変更・削除は追加した本人だけ（広場の長も他の人の音は触れない、2026-11-17）。
+    bool canManage(SoundboardSound s) => s.createdBy == _binding.userId;
 
     return Padding(
       padding: const EdgeInsets.all(12),
@@ -213,28 +211,46 @@ class _SoundboardPopupState extends ConsumerState<_SoundboardPopup> {
                 builder: (context, constraints) {
                   const gap = 8.0;
                   final tileWidth = (constraints.maxWidth - gap * 2) / 3;
-                  return Wrap(
-                    spacing: gap,
-                    runSpacing: gap,
-                    children: [
-                      for (final sound in sounds)
-                        SizedBox(
-                          width: tileWidth,
-                          child: _SoundTile(
-                            sound: sound,
-                            canManage: canManage(sound),
-                            onPlay: () => _play(sound),
-                            onEdit: () => showSoundboardSoundDialog(
-                              context,
-                              binding: _binding,
-                              editing: sound,
+                  Widget tiles(List<SoundboardSound> list, {Widget? last}) =>
+                      Wrap(
+                        spacing: gap,
+                        runSpacing: gap,
+                        children: [
+                          for (final sound in list)
+                            SizedBox(
+                              width: tileWidth,
+                              child: _SoundTile(
+                                sound: sound,
+                                canManage: canManage(sound),
+                                onPlay: () => _play(sound),
+                                onEdit: () => showSoundboardSoundDialog(
+                                  context,
+                                  binding: _binding,
+                                  editing: sound,
+                                ),
+                                onDelete: () => _delete(sound),
+                              ),
                             ),
-                            onDelete: () => _delete(sound),
-                          ),
-                        ),
-                      SizedBox(
-                        width: tileWidth,
-                        child: _AddTile(
+                          if (last != null)
+                            SizedBox(width: tileWidth, child: last),
+                        ],
+                      );
+                  Widget heading(String text) => Padding(
+                    padding: const EdgeInsets.fromLTRB(2, 4, 2, 6),
+                    child: Text(
+                      text,
+                      style: theme.textTheme.labelMedium?.copyWith(
+                        color: scheme.onSurfaceVariant,
+                      ),
+                    ),
+                  );
+                  return Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      heading(strings.callSoundboardMine),
+                      tiles(
+                        mine,
+                        last: _AddTile(
                           label: strings.callSoundboardAdd,
                           onTap: () => showSoundboardSoundDialog(
                             context,
@@ -242,6 +258,11 @@ class _SoundboardPopupState extends ConsumerState<_SoundboardPopup> {
                           ),
                         ),
                       ),
+                      if (shared.isNotEmpty) ...[
+                        const SizedBox(height: 12),
+                        heading(strings.callSoundboardShared),
+                        tiles(shared),
+                      ],
                     ],
                   );
                 },
@@ -259,7 +280,7 @@ class _SoundboardPopupState extends ConsumerState<_SoundboardPopup> {
                 ),
               ),
             )
-          else if (sounds.isEmpty)
+          else if (mine.isEmpty && shared.isEmpty)
             Padding(
               padding: const EdgeInsets.only(top: 12),
               child: Text(
