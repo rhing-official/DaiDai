@@ -13,6 +13,7 @@ import '../../providers/app_ui_style_provider.dart';
 import '../../providers/repository_providers.dart';
 import '../../utils/auto_dismiss_banner.dart';
 import '../../widgets/app_dialog.dart';
+import '../../widgets/sticker_image.dart';
 import '../calendar/date_time_pick.dart';
 import '../../theme/block/block_theme.dart';
 import '../../theme/gekiga/gekiga_colors.dart';
@@ -859,7 +860,7 @@ class _ScheduledThumb extends StatelessWidget {
         ),
       };
     } else if (_url != null) {
-      child = Image.network(
+      child = StickerImage(
         _url,
         fit: BoxFit.contain,
         errorBuilder: (_, _, _) => const Icon(Icons.emoji_emotions_outlined),

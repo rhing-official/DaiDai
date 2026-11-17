@@ -166,6 +166,12 @@ abstract class AuthRepository {
   /// Web以外（ネイティブ）でも使える。
   Future<User> signInWithDiscoverablePasskey();
 
+  /// [signInWithDiscoverablePasskey]の、サーバーへのチャレンジ要求を先に済ませておく
+  /// （2026-11-17追加）。押してからサーバーの返事を待つ間にパスワードマネージャーの
+  /// 候補表示が遅れるため、ログイン画面の表示時に呼んでおく。失敗しても何も起きず
+  /// （押した時に改めて取る）、呼ばなくても動作は変わらない。
+  Future<void> prefetchDiscoverablePasskeyChallenge();
+
   /// Conditional UI（パスワードマネージャー自動候補表示）によるパスキー
   /// ログイン（2026-09-16追加、Web版のみ対応）。Rhing Seedの入力なしに
   /// ブラウザ側のパスキー候補一覧をユーザーに提示し、選択されたパスキーで
@@ -552,14 +558,52 @@ class FirebaseAuthRepository implements AuthRepository {
     return user;
   }
 
-  @override
-  Future<User> signInWithDiscoverablePasskey() async {
+  /// 先に取っておいたチャレンジ（[prefetchDiscoverablePasskeyChallenge]）。
+  /// 1回使ったら捨てる（サーバー側も1回きり）。
+  Future<({String challengeId, Map<String, dynamic> options})>?
+  _prefetchedChallenge;
+  DateTime? _prefetchedAt;
+
+  /// サーバーの有効期限（5分、`PASSKEY_CHALLENGE_TTL_MS`）より短く見積もる。
+  static const _prefetchedChallengeMaxAge = Duration(minutes: 4);
+
+  Future<({String challengeId, Map<String, dynamic> options})>
+  _beginDiscoverableChallenge() async {
     final beginResult = await _functions
         .httpsCallable('beginPasskeyAuthenticationDiscoverable')
         .call();
     final beginData = _asJsonMap(beginResult.data);
-    final challengeId = beginData['challengeId'] as String;
-    final options = beginData['options'] as Map<String, dynamic>;
+    return (
+      challengeId: beginData['challengeId'] as String,
+      options: beginData['options'] as Map<String, dynamic>,
+    );
+  }
+
+  @override
+  Future<void> prefetchDiscoverablePasskeyChallenge() async {
+    final at = _prefetchedAt;
+    if (_prefetchedChallenge != null &&
+        at != null &&
+        DateTime.now().difference(at) < _prefetchedChallengeMaxAge) {
+      return;
+    }
+    final future = _beginDiscoverableChallenge();
+    _prefetchedChallenge = future;
+    _prefetchedAt = DateTime.now();
+    try {
+      await future;
+    } catch (_) {
+      // 先取りの失敗は無視する（押した時に改めて取る）。
+      if (identical(_prefetchedChallenge, future)) _prefetchedChallenge = null;
+    }
+  }
+
+  @override
+  Future<User> signInWithDiscoverablePasskey() async {
+    var begin = await _takePrefetchedChallenge();
+    begin ??= await _beginDiscoverableChallenge();
+    final challengeId = begin.challengeId;
+    final options = begin.options;
 
     final assertionResponse = await PasskeyAuthenticator().authenticate(
       AuthenticateRequestType.fromJson(options),
@@ -572,6 +616,24 @@ class FirebaseAuthRepository implements AuthRepository {
       throw StateError('パスキーログインに失敗しました');
     }
     return user;
+  }
+
+  Future<({String challengeId, Map<String, dynamic> options})?>
+  _takePrefetchedChallenge() async {
+    final future = _prefetchedChallenge;
+    final at = _prefetchedAt;
+    _prefetchedChallenge = null;
+    _prefetchedAt = null;
+    if (future == null ||
+        at == null ||
+        DateTime.now().difference(at) >= _prefetchedChallengeMaxAge) {
+      return null;
+    }
+    try {
+      return await future;
+    } catch (_) {
+      return null;
+    }
   }
 
   Future<User?> _finishDiscoverablePasskeySignIn(

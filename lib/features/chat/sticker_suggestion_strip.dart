@@ -9,6 +9,7 @@ import '../../providers/app_ui_style_provider.dart';
 import '../../theme/gekiga/gekiga_colors.dart';
 import '../../utils/platform_info.dart';
 import '../../widgets/glass/glass_surface.dart';
+import '../../widgets/sticker_image.dart';
 
 /// メッセージ内容に応じたぺったん提案のパネル（2026-09-05追加、
 /// `lib/utils/sticker_suggestion.dart`の`suggestStickers`が返す候補を
@@ -56,7 +57,7 @@ class StickerSuggestionStrip extends ConsumerWidget {
       child: SizedBox(
         width: _stickerSize,
         height: _stickerSize,
-        child: Image.network(
+        child: StickerImage(
           sticker.imageUrl,
           fit: BoxFit.contain,
           errorBuilder: (_, _, _) => const Icon(Icons.broken_image_outlined),

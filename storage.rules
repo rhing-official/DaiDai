@@ -132,13 +132,14 @@ service firebase.storage {
     // 画像素材（技術仕様書7.4・7.5参照、2026-08-11追加）。商品画像として
     // 未ログインの一般訪問者にも見せる必要があるため閲覧は誰でも可能。
     // アップロードは本人（creatorId）のみ。重い画像を防ぐため、1枚2MB以下・
-    // PNG/WebP/JPEG/GIFのみに制限（HomePageの作成画面でも同じ上限を検査している。
-    // ピクセル数はルールでは見られないため、画面側のみ）。削除は本人なら常に可能。
+    // PNG/WebP/JPEG/GIF/SVGのみに制限（HomePageの作成画面でも同じ上限を検査している。
+    // ピクセル数はルールでは見られないため、画面側のみ。SVGは画面側でスクリプト等を除去して
+    // からアップロードする、2026-11-17追加）。削除は本人なら常に可能。
     match /stickerPackAssets/{creatorId}/{allPaths=**} {
       allow read: if true;
       allow create, update: if request.auth != null && request.auth.uid == creatorId
         && request.resource.size <= 2 * 1024 * 1024
-        && request.resource.contentType in ['image/png', 'image/webp', 'image/jpeg', 'image/gif'];
+        && request.resource.contentType in ['image/png', 'image/webp', 'image/jpeg', 'image/gif', 'image/svg+xml'];
       allow delete: if request.auth != null && request.auth.uid == creatorId;
     }
 

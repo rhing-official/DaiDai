@@ -1,4 +1,7 @@
+import 'dart:async';
+
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -52,6 +55,24 @@ class _SignInScreenState extends ConsumerState<SignInScreen>
   void initState() {
     super.initState();
     if (useWebRedirectSignIn) _receiveRedirectResult();
+    _prefetchPasskeyChallenge();
+  }
+
+  /// 「パスキーでログイン」を押した時にサーバーの返事を待たずにパスワード
+  /// マネージャーの候補を出せるよう、チャレンジを先に取っておく（2026-11-17、
+  /// Webのみ。ダイアログの自動表示がWebだけのため）。
+  void _prefetchPasskeyChallenge() {
+    if (!kIsWeb || !isPasskeyCapablePlatform) return;
+    try {
+      unawaited(
+        ref
+            .read(authRepositoryProvider)
+            .prefetchDiscoverablePasskeyChallenge()
+            .catchError((_) {}),
+      );
+    } catch (_) {
+      // 先取りは最適化のため、失敗してもログイン自体には影響させない。
+    }
   }
 
   /// Googleのリダイレクトから戻ってきた時の、2段階認証の要求・失敗を受け取る

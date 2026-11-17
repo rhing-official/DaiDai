@@ -13,6 +13,7 @@ import '../../utils/yokocho.dart';
 import '../../widgets/glass/glass_dialog.dart';
 import '../../widgets/dialog_keyboard_shortcuts.dart';
 import '../../widgets/app_dialog.dart';
+import '../../widgets/sticker_image.dart';
 
 /// 所持しているぺったんパック一覧・アンインストールのポップアップ（設定＞
 /// アカウントから開く、2026-08-11追加。当初はページ遷移だったが、
@@ -174,7 +175,7 @@ class _OwnedPackCard extends ConsumerWidget {
                   final sticker = pack.stickers[index];
                   return SizedBox(
                     width: 64,
-                    child: Image.network(
+                    child: StickerImage(
                       sticker.imageUrl,
                       fit: BoxFit.contain,
                       errorBuilder: (_, _, _) =>

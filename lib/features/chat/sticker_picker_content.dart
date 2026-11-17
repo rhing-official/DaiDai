@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../l10n/strings.dart';
 import '../../models/app_ui_style.dart';
 import '../../models/sticker.dart';
+import '../../widgets/sticker_image.dart';
 import '../../providers/app_ui_style_provider.dart';
 import '../../models/sticker_send_mode.dart';
 import '../../providers/last_sticker_tab_provider.dart';
@@ -266,7 +267,7 @@ class _StickerPickerContentState extends ConsumerState<StickerPickerContent> {
           clipBehavior: Clip.antiAlias,
           child: Padding(
             padding: const EdgeInsets.all(16),
-            child: Image.network(
+            child: StickerImage(
               sticker.imageUrl,
               fit: BoxFit.contain,
               errorBuilder: (_, _, _) =>
@@ -565,7 +566,7 @@ class _StickerPickerContentState extends ConsumerState<StickerPickerContent> {
           onTapDown: (details) =>
               _lastTapDownGlobalPos = details.globalPosition,
           onTap: () => _handleStickerTap(sticker, mode),
-          child: Image.network(
+          child: StickerImage(
             sticker.imageUrl,
             // 原寸のままデコードすると、多数並ぶ一覧で重いため縮小して読む。
             cacheWidth: 256,
@@ -624,7 +625,7 @@ class _RailIcon extends StatelessWidget {
                     size: 20,
                     color: colorScheme.onSurfaceVariant,
                   )
-                : Image.network(
+                : StickerImage(
                     imageUrl,
                     cacheWidth: 96,
                     fit: BoxFit.contain,

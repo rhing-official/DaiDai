@@ -23,6 +23,7 @@ import '../../widgets/gekiga/gekiga_panel_box.dart';
 import '../../widgets/gekiga/gekiga_text_field.dart';
 import '../../widgets/glass/glass_avatar.dart';
 import '../../widgets/style_choice_chip.dart';
+import '../../widgets/sticker_image.dart';
 import '../../widgets/delayed_spinner.dart';
 import 'talks_tab.dart' show BlockTalkTileWrap, dmSearchLabel;
 
@@ -677,7 +678,7 @@ class _PreviewPane extends StatelessWidget {
       mainAxisSize: MainAxisSize.min,
       children: [
         if (preview.stickerUrl != null)
-          Image.network(preview.stickerUrl!, width: 120, height: 120),
+          StickerImage(preview.stickerUrl!, width: 120, height: 120),
         if (preview.media.isNotEmpty)
           Wrap(
             spacing: 6,

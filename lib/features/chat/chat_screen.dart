@@ -119,6 +119,7 @@ import '../../l10n/tutorial_content.dart';
 import '../../providers/avatar_palette_provider.dart';
 import '../guide/tutorial/tutorial_target.dart';
 import '../../widgets/app_dialog.dart';
+import '../../widgets/sticker_image.dart';
 import '../../widgets/toggles/app_checkbox.dart';
 import '../../widgets/delayed_spinner.dart';
 import '../../widgets/keyboard_stable_body.dart';
@@ -4550,7 +4551,7 @@ Widget? _replyPreviewThumbnail(Message target) {
     case 'sticker':
       final url = target.stickerData?.stickerUrl;
       if (url == null) return null;
-      return Image.network(
+      return StickerImage(
         url,
         width: size,
         height: size,
@@ -7212,7 +7213,7 @@ class _MessageRow extends ConsumerWidget {
     final size = (MediaQuery.sizeOf(context).width * 0.6).clamp(160.0, 260.0);
     return GestureDetector(
       onTap: () => _handleStickerTap(context, ref, stickerData),
-      child: Image.network(
+      child: StickerImage(
         stickerData.stickerUrl,
         width: size,
         height: size,
