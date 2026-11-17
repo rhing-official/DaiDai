@@ -2,6 +2,8 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart' show MethodChannel;
 import 'package:flutter_webrtc/flutter_webrtc.dart';
 
+import 'call_log.dart';
+
 /// 画面共有（配信）の画質（2026-11-15）。解像度（高さ）とフレームレート。
 /// 高画質（1080p以上・60FPS）は極みプラン限定（無料は480p・720pで最大30FPS）。
 @immutable
@@ -134,11 +136,23 @@ class ScreenShareCapture {
   /// 共有のストリームへ、Monitor入力の音声トラックを足す。足せたら`true`。
   static Future<bool> _addLinuxMonitor(MediaStream stream) async {
     try {
-      final monitor = pickMonitor(
-        await listLinuxMonitors(),
-        preferredLinuxMonitorId,
+      final monitors = await listLinuxMonitors();
+      final monitor = pickMonitor(monitors, preferredLinuxMonitorId);
+      callLog(
+        'screen audio (linux): monitors=${monitors.length} '
+        'picked=${monitor?.label}',
       );
-      if (monitor == null) return false;
+      if (monitor == null) {
+        // 入力デバイスの一覧（ラベルが空なら、マイクの許可が無い）。
+        try {
+          final all = await navigator.mediaDevices.enumerateDevices();
+          callLog(
+            'screen audio (linux): inputs=${[for (final d in all)
+              if (d.kind == 'audioinput') '"${d.label}"']}',
+          );
+        } catch (_) {}
+        return false;
+      }
       final audio = await navigator.mediaDevices.getUserMedia({
         'audio': {
           'deviceId': {'exact': monitor.id},
@@ -154,8 +168,10 @@ class ScreenShareCapture {
         await stream.addTrack(track);
         added = true;
       }
+      callLog('screen audio (linux): added=$added');
       return added;
-    } catch (_) {
+    } catch (e) {
+      callLog('screen audio (linux): failed: $e');
       return false;
     }
   }
@@ -225,8 +241,7 @@ class ScreenShareCapture {
             'frameRate': {'ideal': quality.captureFps},
           },
           // 音声は、マイク向けの加工（エコー除去・ノイズ抑制・自動音量）を掛けずに取る。
-          // Linuxのブラウザは、ここでは音を取らない（Monitor入力で別に取る、[start]）。
-          'audio': (shareAudio && !isLinuxBrowser)
+          'audio': shareAudio
               ? {
                   'echoCancellation': false,
                   'noiseSuppression': false,
@@ -235,7 +250,7 @@ class ScreenShareCapture {
               : false,
           // Chromeの選択画面で、システム音声の共有を出す。自分のタブは選択肢から外す（映像が自分を
           // 映し続ける無限鏡になる為）。非対応のブラウザは、知らない項目を無視する。
-          if (shareAudio && !isLinuxBrowser) 'systemAudio': 'include',
+          if (shareAudio) 'systemAudio': 'include',
           'selfBrowserSurface': 'exclude',
           'surfaceSwitching': 'include',
         };
@@ -268,8 +283,11 @@ class ScreenShareCapture {
         constraints(quality, shareAudio: shareAudio),
       );
       applyAudioOnly(stream, quality);
-      if (isLinuxBrowser && shareAudio) {
-        // 取れなくても共有は続ける（音が取れなかった案内が出る）。
+      callLog('screen: linuxBrowser=$isLinuxBrowser shareAudio=$shareAudio');
+      // Linuxのブラウザは、タブを共有した時しか音が付かない。付かなかった時だけ、Monitor入力を
+      // 試す（Chromium系はMonitor入力を一覧に出さない為、取れるのはFirefox等。取れなくても共有は
+      // 続ける）。
+      if (isLinuxBrowser && shareAudio && stream.getAudioTracks().isEmpty) {
         await _addLinuxMonitor(stream);
       }
       return stream;
