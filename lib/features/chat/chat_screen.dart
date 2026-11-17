@@ -7207,12 +7207,15 @@ class _MessageRow extends ConsumerWidget {
     if (stickerData == null) {
       return Text(message.content, style: TextStyle(color: onBubbleColor));
     }
+    // 画像の中の文字が読めるよう大きく出す（2026-11-17、以前は120固定）。画面幅の6割を、
+    // 160〜260に収める（スマホは約230、広い画面は260）。
+    final size = (MediaQuery.sizeOf(context).width * 0.6).clamp(160.0, 260.0);
     return GestureDetector(
       onTap: () => _handleStickerTap(context, ref, stickerData),
       child: Image.network(
         stickerData.stickerUrl,
-        width: 120,
-        height: 120,
+        width: size,
+        height: size,
         fit: BoxFit.contain,
         errorBuilder: (_, _, _) =>
             Icon(Icons.broken_image_outlined, color: onBubbleColor),
