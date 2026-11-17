@@ -6401,12 +6401,15 @@ class _MessageRow extends ConsumerWidget {
     final startedAt = message.callStartedAt?.toDate();
     final durationSeconds = message.callDurationSeconds;
     final isVideoCall = message.callIsVideo ?? false;
+    final missed = message.isMissedCall;
     return Row(
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Icon(
-          isVideoCall ? Icons.videocam_outlined : Icons.call_outlined,
+          missed
+              ? Icons.call_missed
+              : (isVideoCall ? Icons.videocam_outlined : Icons.call_outlined),
           size: 18,
           color: onBubbleColor,
         ),
@@ -6415,8 +6418,11 @@ class _MessageRow extends ConsumerWidget {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(message.content, style: TextStyle(color: onBubbleColor)),
-            if (startedAt != null && durationSeconds != null)
+            Text(
+              missed ? strings.callMissedLabel : message.content,
+              style: TextStyle(color: onBubbleColor),
+            ),
+            if (!missed && startedAt != null && durationSeconds != null)
               Text(
                 strings.callSummaryStartedAtTemplate(
                   formatMessageTime(startedAt, timeFormat),

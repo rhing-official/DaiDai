@@ -15,7 +15,6 @@ import '../../providers/repository_providers.dart';
 import '../../providers/ringtone_sound_provider.dart';
 import '../../repositories/call_repository.dart';
 import 'rtc_config.dart';
-import '../../repositories/direct_message_repository.dart';
 import '../../repositories/group_call_repository.dart';
 import 'webrtc_call_controller.dart';
 import 'webrtc_group_call_controller.dart';
@@ -176,7 +175,6 @@ class ActiveCallSessionNotifier extends Notifier<ActiveCallSession?> {
     required Call call,
     required bool isCaller,
     required CallRepository callRepository,
-    required DirectMessageRepository directMessageRepository,
   }) {
     _prefetchIceServers();
     final current = state;
@@ -191,7 +189,6 @@ class ActiveCallSessionNotifier extends Notifier<ActiveCallSession?> {
       call: call,
       isCaller: isCaller,
       callRepository: callRepository,
-      directMessageRepository: directMessageRepository,
       iceServersLoader: _loader,
       joinWithCamera: ref.read(joinVideoCameraOnProvider),
       bgmPreferences: ref.read(bgmPreferencesProvider),

@@ -84,7 +84,6 @@ class _CallScreenState extends ConsumerState<CallScreen> {
           call: widget.call,
           isCaller: widget.isCaller,
           callRepository: ref.read(callRepositoryProvider),
-          directMessageRepository: ref.read(directMessageRepositoryProvider),
         );
     _controller.addListener(_onControllerChanged);
   }

@@ -289,7 +289,6 @@ final goRouterProvider = Provider<GoRouter>((ref) {
           call: call,
           isCaller: true,
           callRepository: callRepository,
-          directMessageRepository: ref.read(directMessageRepositoryProvider),
         );
   }
 

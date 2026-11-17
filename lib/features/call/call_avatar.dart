@@ -82,6 +82,22 @@ class CallParticipantAvatar extends ConsumerWidget {
 /// `@rhingSeed`にフォールバックする。通話UIは従来`rhingSeed`をそのまま
 /// 「@rhingSeed」の形で表示しており呼び名を反映していなかった
 /// （2026-08-31修正）。
+/// [CallParticipantNameLabel]と同じ規則で解決した呼び名の文字列（2026-11-17、通話中の標・
+/// バナーで複数人の呼び名を1つの文にまとめるため）。
+String callParticipantDisplayName(
+  WidgetRef ref, {
+  required String userId,
+  required String rhingSeed,
+  required String? conversationId,
+}) {
+  final user = ref.watch(watchedUserProvider(userId)).value;
+  return resolveDisplayName(
+    alias: aliasOf(ref.watch(myContactAliasesProvider).value, userId),
+    nickname: user?.effectiveNicknameFor(conversationId)?.text,
+    rhingSeed: rhingSeed,
+  );
+}
+
 class CallParticipantNameLabel extends ConsumerWidget {
   const CallParticipantNameLabel({
     required this.userId,

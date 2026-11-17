@@ -8,7 +8,6 @@ import 'package:daidai/features/call/webrtc_group_call_controller.dart';
 import 'package:daidai/models/app_user.dart';
 import 'package:daidai/models/call.dart';
 import 'package:daidai/repositories/call_repository.dart';
-import 'package:daidai/repositories/direct_message_repository.dart';
 import 'package:daidai/repositories/group_call_repository.dart';
 
 class _NoRepo implements GroupCallRepository {
@@ -17,11 +16,6 @@ class _NoRepo implements GroupCallRepository {
 }
 
 class _NoCallRepo implements CallRepository {
-  @override
-  dynamic noSuchMethod(Invocation invocation) => null;
-}
-
-class _NoDmRepo implements DirectMessageRepository {
   @override
   dynamic noSuchMethod(Invocation invocation) => null;
 }
@@ -112,7 +106,6 @@ void main() {
       call: call,
       isCaller: false,
       callRepository: _NoCallRepo(),
-      directMessageRepository: _NoDmRepo(),
     );
     notifier.set(
       OneToOneCallSession(controller: controller, call: call, isCaller: false),

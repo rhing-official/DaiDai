@@ -1437,6 +1437,7 @@ final Strings _stringsFr = Strings._(
       '$minutes min $seconds s',
   callDurationMinutesTemplate: (minutes) => '$minutes min',
   callDurationSecondsTemplate: (seconds) => '$seconds s',
+  callMissedLabel: 'Appel manqué',
   roomDefaultName: 'Principal',
   talksEmptyDmTemplate: (dmTerm) =>
       'Aucun $dmTerm pour le moment. Touchez + ci-dessus pour ajouter quelqu’un.',
@@ -1480,6 +1481,9 @@ final Strings _stringsFr = Strings._(
   groupCallInProgressBannerLabel: (isVideo) => isVideo
       ? 'Un appel vidéo est en cours. Touchez pour rejoindre'
       : 'Un appel est en cours. Touchez pour rejoindre',
+  callPresenceNamesTwo: (a, b) => '$a et $b',
+  callPresenceNamesMore: (a, others) => '$a et $others autres',
+  callPresenceChipLabel: 'En appel',
   callPinWindow: 'Épingler',
   callUnpinWindow: 'Désépingler',
   groupProfileCardChangeImage: "Changer l'image",

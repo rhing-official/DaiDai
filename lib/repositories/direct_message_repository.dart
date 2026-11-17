@@ -190,21 +190,6 @@ abstract class DirectMessageRepository {
     DateTime? sendAt,
   });
 
-  /// 通話が終了した際、通話履歴メッセージ（開始時刻・通話時間）を送る。
-  /// 発信者側からのみ呼ばれる（`WebrtcCallController`参照）。実際に接続
-  /// （応答）された通話のみが対象で、不在着信・拒否の場合は呼ばれない。
-  /// 通話はどの寄合を開いていても発信出来る為、常にこの一対で最も
-  /// 古い（`createdAt`が最小の）寄合に投稿する（呼び出し側でroomIdを
-  /// 意識させない為の設計）。
-  Future<void> sendCallSummaryMessage({
-    required String dmId,
-    required String senderId,
-    required String senderRhingSeed,
-    required DateTime startedAt,
-    required int durationSeconds,
-    required bool isVideo,
-  });
-
   /// カレンダーの予定を追加した際、その寄合に通知メッセージを送る
   /// （2026-09-04追加）。タップすると`showCalendarEventDetailDialog`で
   /// 出欠確認ポップアップを開けるよう[eventId]を持たせる。
@@ -1001,51 +986,6 @@ class FirestoreDirectMessageRepository implements DirectMessageRepository {
       lastMessageContentType: 'sticker',
       lastMessagePreview: null,
     );
-  }
-
-  @override
-  Future<void> sendCallSummaryMessage({
-    required String dmId,
-    required String senderId,
-    required String senderRhingSeed,
-    required DateTime startedAt,
-    required int durationSeconds,
-    required bool isVideo,
-  }) async {
-    final dmRef = _directMessages.doc(dmId);
-    final oldestRoom = await dmRef
-        .collection('rooms')
-        .orderBy('createdAt')
-        .limit(1)
-        .get();
-    if (oldestRoom.docs.isEmpty) return;
-    final targetRoomId = oldestRoom.docs.first.id;
-    final roomRef = dmRef.collection('rooms').doc(targetRoomId);
-    final messageRef = roomRef.collection('messages').doc();
-
-    final message = Message(
-      messageId: messageRef.id,
-      conversationId: targetRoomId,
-      conversationType: 'dm',
-      senderId: senderId,
-      senderRhingSeed: senderRhingSeed,
-      content: '通話が終了しました',
-      contentType: 'call',
-      callStartedAt: Timestamp.fromDate(startedAt),
-      callDurationSeconds: durationSeconds,
-      callIsVideo: isVideo,
-    );
-
-    final batch = _firestore.batch();
-    batch.set(messageRef, message.toJson());
-    batch.update(roomRef, {'lastMessageAt': FieldValue.serverTimestamp()});
-    batch.update(dmRef, {
-      'lastMessageAt': FieldValue.serverTimestamp(),
-      'lastMessageSenderId': senderId,
-      'lastMessageContentType': 'call',
-      'lastMessagePreview': messageSnippetOf(message.content),
-    });
-    await batch.commit();
   }
 
   @override

@@ -241,13 +241,22 @@ class CallPeerLink {
 /// （`WebrtcGroupCallController`と、通話中の人数表示で共通、2026-10-21）。
 const kGroupCallPresenceStaleAfter = Duration(seconds: 45);
 
-/// 離脱扱いでない（ハートビートが途絶えていない）参加者の人数。
-int liveParticipantCount(List<CallParticipant> participants, DateTime now) {
+/// 離脱扱いでない（ハートビートが途絶えていない）参加者（2026-11-17、人数だけでなく
+/// 誰かをバナー・一覧の標に出すために取り出せるようにした）。
+List<CallParticipant> liveParticipants(
+  List<CallParticipant> participants,
+  DateTime now,
+) {
   return participants.where((p) {
     final lastSeenAt = p.lastSeenAt;
     if (lastSeenAt == null) return true;
     return now.difference(lastSeenAt.toDate()) <= kGroupCallPresenceStaleAfter;
-  }).length;
+  }).toList();
+}
+
+/// 離脱扱いでない（ハートビートが途絶えていない）参加者の人数。
+int liveParticipantCount(List<CallParticipant> participants, DateTime now) {
+  return liveParticipants(participants, now).length;
 }
 
 /// 広場の進行中の通話（`groupCalls/{id}`の中身[data]）。文書が無い・終了済みならnull

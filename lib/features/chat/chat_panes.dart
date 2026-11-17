@@ -67,6 +67,7 @@ import 'group_settings_popup.dart';
 import 'room_tab_bar.dart';
 import 'severance_dialog.dart';
 import '../../providers/group_call_providers.dart';
+import 'call_presence_mark.dart';
 import 'group_call_join_banner.dart';
 import 'join_request_banner.dart';
 import 'proposal_banner.dart';
@@ -1010,6 +1011,7 @@ class _DmChatPaneState extends ConsumerState<DmChatPane> {
     return Column(
       children: [
         roomTabBarWidget,
+        CallPresenceBar(conversationId: dm.dmId),
         Expanded(
           child: MediaQuery.removePadding(
             context: context,
@@ -1039,47 +1041,42 @@ class _SeveranceBanner extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final strings = ref.watch(appStringsProvider);
-    final colorScheme = Theme.of(context).colorScheme;
     final isProposedByMe = dm.severanceRequestedBy == currentUserId;
 
-    return Material(
-      color: colorScheme.errorContainer,
-      child: ProposalBannerLayout(
-        message: Text(
-          isProposedByMe
-              ? strings.severanceBannerWaitingForOther
-              : strings.severanceBannerProposedByOther,
-          style: TextStyle(color: colorScheme.onErrorContainer),
-        ),
-        actions: [
-          if (isProposedByMe)
-            TextButton(
-              onPressed: () => ref
-                  .read(directMessageRepositoryProvider)
-                  .cancelSeverance(dm.dmId),
-              child: Text(strings.severanceBannerCancelButton),
-            )
-          else ...[
-            TextButton(
-              onPressed: () => ref
-                  .read(directMessageRepositoryProvider)
-                  .declineSeverance(dmId: dm.dmId, userId: currentUserId),
-              child: Text(strings.severanceBannerDeclineButton),
-            ),
-            FilledButton(
-              style: proposalAcceptButtonStyle(),
-              onPressed: () => SeveranceDialog.show(
-                context,
-                mode: SeveranceDialogMode.accept,
-                dmId: dm.dmId,
-                currentUserId: currentUserId,
-                otherUserId: otherUserId,
-              ),
-              child: Text(strings.severanceBannerAcceptButton),
-            ),
-          ],
-        ],
+    return ProposalBannerLayout(
+      message: Text(
+        isProposedByMe
+            ? strings.severanceBannerWaitingForOther
+            : strings.severanceBannerProposedByOther,
       ),
+      actions: [
+        if (isProposedByMe)
+          TextButton(
+            onPressed: () => ref
+                .read(directMessageRepositoryProvider)
+                .cancelSeverance(dm.dmId),
+            child: Text(strings.severanceBannerCancelButton),
+          )
+        else ...[
+          TextButton(
+            onPressed: () => ref
+                .read(directMessageRepositoryProvider)
+                .declineSeverance(dmId: dm.dmId, userId: currentUserId),
+            child: Text(strings.severanceBannerDeclineButton),
+          ),
+          FilledButton(
+            style: proposalAcceptButtonStyle(),
+            onPressed: () => SeveranceDialog.show(
+              context,
+              mode: SeveranceDialogMode.accept,
+              dmId: dm.dmId,
+              currentUserId: currentUserId,
+              otherUserId: otherUserId,
+            ),
+            child: Text(strings.severanceBannerAcceptButton),
+          ),
+        ],
+      ],
     );
   }
 }
@@ -1095,23 +1092,16 @@ class _SeveranceDeclinedBanner extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final strings = ref.watch(appStringsProvider);
-    final colorScheme = Theme.of(context).colorScheme;
-    return Material(
-      color: colorScheme.errorContainer,
-      child: ProposalBannerLayout(
-        message: Text(
-          strings.severanceBannerDeclinedByOther,
-          style: TextStyle(color: colorScheme.onErrorContainer),
+    return ProposalBannerLayout(
+      message: Text(strings.severanceBannerDeclinedByOther),
+      actions: [
+        TextButton(
+          onPressed: () => ref
+              .read(directMessageRepositoryProvider)
+              .dismissSeveranceDeclined(dmId),
+          child: Text(strings.severanceBannerDeclinedOkButton),
         ),
-        actions: [
-          TextButton(
-            onPressed: () => ref
-                .read(directMessageRepositoryProvider)
-                .dismissSeveranceDeclined(dmId),
-            child: Text(strings.severanceBannerDeclinedOkButton),
-          ),
-        ],
-      ),
+      ],
     );
   }
 }
@@ -1148,51 +1138,43 @@ class _ReadReceiptsProposalBanner extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final strings = ref.watch(appStringsProvider);
-    final colorScheme = Theme.of(context).colorScheme;
     final isProposedByMe = dm.readReceiptsProposalBy == currentUserId;
     final turningOn = !dm.readReceiptsEnabled;
     final otherLabel = '@${dm.otherRhingSeed(currentUserId)}';
 
-    return Material(
-      color: colorScheme.errorContainer,
-      child: ProposalBannerLayout(
-        message: Text(
-          isProposedByMe
-              ? (turningOn
-                    ? strings.conversationReadReceiptsBannerWaitingOn
-                    : strings.conversationReadReceiptsBannerWaitingOff)
-              : (turningOn
-                    ? strings.conversationReadReceiptsBannerProposedOn(
-                        otherLabel,
-                      )
-                    : strings.conversationReadReceiptsBannerProposedOff(
-                        otherLabel,
-                      )),
-          style: TextStyle(color: colorScheme.onErrorContainer),
-        ),
-        actions: [
-          if (isProposedByMe)
-            TextButton(
-              onPressed: () => ref
-                  .read(directMessageRepositoryProvider)
-                  .cancelReadReceiptsToggleProposal(dm.dmId),
-              child: Text(strings.conversationReadReceiptsBannerCancelButton),
-            )
-          else ...[
-            TextButton(
-              onPressed: () => ref
-                  .read(directMessageRepositoryProvider)
-                  .cancelReadReceiptsToggleProposal(dm.dmId),
-              child: Text(strings.conversationReadReceiptsBannerDeclineButton),
-            ),
-            FilledButton(
-              style: proposalAcceptButtonStyle(),
-              onPressed: () => _accept(context, ref, strings, turningOn),
-              child: Text(strings.conversationReadReceiptsBannerAcceptButton),
-            ),
-          ],
-        ],
+    return ProposalBannerLayout(
+      message: Text(
+        isProposedByMe
+            ? (turningOn
+                  ? strings.conversationReadReceiptsBannerWaitingOn
+                  : strings.conversationReadReceiptsBannerWaitingOff)
+            : (turningOn
+                  ? strings.conversationReadReceiptsBannerProposedOn(otherLabel)
+                  : strings.conversationReadReceiptsBannerProposedOff(
+                      otherLabel,
+                    )),
       ),
+      actions: [
+        if (isProposedByMe)
+          TextButton(
+            onPressed: () => ref
+                .read(directMessageRepositoryProvider)
+                .cancelReadReceiptsToggleProposal(dm.dmId),
+            child: Text(strings.conversationReadReceiptsBannerCancelButton),
+          )
+        else ...[
+          TextButton(
+            onPressed: () => ref
+                .read(directMessageRepositoryProvider)
+                .cancelReadReceiptsToggleProposal(dm.dmId),
+            child: Text(strings.conversationReadReceiptsBannerDeclineButton),
+          ),
+          FilledButton(
+            onPressed: () => _accept(context, ref, strings, turningOn),
+            child: Text(strings.conversationReadReceiptsBannerAcceptButton),
+          ),
+        ],
+      ],
     );
   }
 }
@@ -3039,6 +3021,7 @@ class _GroupChatPaneState extends ConsumerState<GroupChatPane> {
     return Column(
       children: [
         roomTabBarWidget,
+        CallPresenceBar(conversationId: group.groupId),
         Expanded(
           child: MediaQuery.removePadding(
             context: context,

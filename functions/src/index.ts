@@ -5383,6 +5383,216 @@ export const onGroupCallRingEnded = onDocumentUpdated(
   },
 );
 
+/** 通話の記録メッセージ（`contentType: 'call'`）の本文。UIは`callResult`で専用表示に切り替える。 */
+const CALL_ENDED_CONTENT = "通話が終了しました";
+const CALL_MISSED_CONTENT = "不在着信";
+
+/** 呼び出し中のまま終了が書かれない一対の通話を不在着信にするまでの秒数（クライアントの30秒＋余裕）。 */
+const DM_CALL_STALE_RINGING_MS = 90 * 1000;
+/** ハートビートが途絶えたとみなす秒数（`kGroupCallPresenceStaleAfter`と同じ）。 */
+const GROUP_CALL_PRESENCE_STALE_MS = 45 * 1000;
+/** 作成直後、まだ誰も参加していない間は放棄扱いにしない猶予（`kGroupCallAbandonedGrace`と同じ）。 */
+const GROUP_CALL_ABANDONED_GRACE_MS = 60 * 1000;
+
+/**
+ * 通話の記録メッセージを、会話で最も古い寄合へ1件書く（2026-11-17）。
+ * 以前は発信者の端末が送っており、アプリが落ちる・相手が先に切る等で欠落したため、
+ * 通話ドキュメントの終了をトリガーにサーバーが書く。メッセージIDは通話ごとに決まるため、
+ * トリガーが重複して発火しても1件にしかならない。通知は出さない（`sendMessageNotification`が
+ * `call`を除外している）。
+ */
+async function writeCallRecordMessage(params: {
+  isDm: boolean;
+  conversationId: string;
+  callId: string;
+  senderId: string;
+  missed: boolean;
+  startedAt: Timestamp | null;
+  durationSeconds: number | null;
+  isVideo: boolean;
+}): Promise<void> {
+  const { isDm, conversationId, callId, senderId, missed } = params;
+  const parentRef = db.doc(
+    `${isDm ? "directMessages" : "groups"}/${conversationId}`,
+  );
+  const oldestRoom = await parentRef
+    .collection("rooms")
+    .orderBy("createdAt")
+    .limit(1)
+    .get();
+  if (oldestRoom.empty) return;
+  const roomRef = oldestRoom.docs[0].ref;
+  const messageRef = roomRef.collection("messages").doc(`call_${callId}`);
+  if ((await messageRef.get()).exists) return;
+  const senderDoc = await db.doc(`users/${senderId}`).get();
+  const content = missed ? CALL_MISSED_CONTENT : CALL_ENDED_CONTENT;
+  const batch = db.batch();
+  batch.create(messageRef, {
+    conversationId: roomRef.id,
+    conversationType: isDm ? "dm" : "room",
+    senderId,
+    senderRhingSeed: senderDoc.data()?.rhingSeed ?? null,
+    content,
+    contentType: "call",
+    callResult: missed ? "missed" : "completed",
+    callId,
+    callStartedAt: missed ? null : params.startedAt,
+    callDurationSeconds: missed ? null : params.durationSeconds,
+    callIsVideo: params.isVideo,
+    sentAt: FieldValue.serverTimestamp(),
+    hiddenFor: [],
+    readBy: [],
+    isSpam: false,
+    silent: false,
+    reactions: {},
+  });
+  batch.update(roomRef, { lastMessageAt: FieldValue.serverTimestamp() });
+  batch.update(parentRef, {
+    lastMessageAt: FieldValue.serverTimestamp(),
+    lastMessageSenderId: senderId,
+    lastMessageContentType: "call",
+    lastMessagePreview: content,
+  });
+  await batch.commit();
+}
+
+/**
+ * 一対の通話が終わったら、発信者名義で通話の記録（つながった通話）か不在着信（不在・拒否・応答前の終了）を残す。
+ * 応答時刻（`connectedAt`）が無い古いクライアントの通話は、時間なしの記録にする。
+ */
+export const onCallEnded = onDocumentUpdated(
+  { document: "calls/{callId}", region: "asia-northeast1" },
+  async (event) => {
+    const before = event.data?.before.data();
+    const after = event.data?.after.data();
+    if (!before || !after) return;
+    const terminal = ["ended", "declined", "missed"];
+    if (terminal.includes(before.status) || !terminal.includes(after.status)) {
+      return;
+    }
+    const callerId = after.callerId as string | undefined;
+    const calleeId = after.calleeId as string | undefined;
+    const dmId = after.dmId as string | undefined;
+    if (!callerId || !calleeId || !dmId) return;
+    // ブロック中の相手との通話は、相手に悟らせないため記録しない。
+    if (
+      (await isBlockedBy(calleeId, callerId)) ||
+      (await isBlockedBy(callerId, calleeId))
+    ) {
+      return;
+    }
+    const answered = before.status === "active" && after.status === "ended";
+    const connectedAt = after.connectedAt as Timestamp | undefined;
+    const endedAt = (after.endedAt as Timestamp | undefined) ?? Timestamp.now();
+    const durationSeconds =
+      answered && connectedAt
+        ? Math.max(0, Math.round((endedAt.toMillis() - connectedAt.toMillis()) / 1000))
+        : null;
+    await writeCallRecordMessage({
+      isDm: true,
+      conversationId: dmId,
+      callId: event.params.callId,
+      senderId: callerId,
+      missed: !answered,
+      startedAt: connectedAt ?? null,
+      durationSeconds,
+      isVideo: after.isVideo === true,
+    });
+  },
+);
+
+/**
+ * 広場の通話が終わったら、通話を始めた人の名義で記録を残す。始めた人以外が1人も入らなかった
+ * 通話は不在着信。始めた人が広場のメンバーでなくなっていれば長の名義にする。
+ * `joinedUserIds`を持たない古いクライアントの通話は、不在着信と決めつけず通話記録として扱う。
+ */
+export const recordGroupCallEnd = onDocumentUpdated(
+  { document: "groupCalls/{groupCallId}", region: "asia-northeast1" },
+  async (event) => {
+    const before = event.data?.before.data();
+    const after = event.data?.after.data();
+    if (!before || !after) return;
+    if (before.status !== "active" || after.status !== "ended") return;
+    const groupId = after.groupId as string | undefined;
+    const initiatorId = after.initiatorId as string | undefined;
+    if (!groupId || !initiatorId) return;
+    const groupDoc = await db.doc(`groups/${groupId}`).get();
+    if (!groupDoc.exists) return;
+    const group = groupDoc.data()!;
+    const memberIds: string[] = Array.isArray(group.memberIds) ? group.memberIds : [];
+    const senderId = memberIds.includes(initiatorId)
+      ? initiatorId
+      : (group.ownerId as string | undefined);
+    if (!senderId) return;
+    const joined = after.joinedUserIds as string[] | undefined;
+    const missed =
+      Array.isArray(joined) && joined.every((id) => id === initiatorId);
+    const createdAt = after.createdAt as Timestamp | undefined;
+    const endedAt = (after.endedAt as Timestamp | undefined) ?? Timestamp.now();
+    await writeCallRecordMessage({
+      isDm: false,
+      conversationId: groupId,
+      callId: event.params.groupCallId,
+      senderId,
+      missed,
+      startedAt: createdAt ?? null,
+      durationSeconds: createdAt
+        ? Math.max(0, Math.round((endedAt.toMillis() - createdAt.toMillis()) / 1000))
+        : null,
+      isVideo: after.isVideo === true,
+    });
+  },
+);
+
+/**
+ * 終了が書かれないまま残った通話を片付ける（2026-11-17）。端末が落ちる・圏外になる等で、
+ * クライアントが終了を書けなかった通話は、記録も出ないため。一対は呼び出し中のまま
+ * 一定時間が過ぎたものを`missed`に、広場はハートビートが途絶えた通話を`ended`にする
+ * （どちらも更新が`onCallEnded`・`recordGroupCallEnd`を起こして記録が書かれる）。
+ */
+export const sweepStaleCalls = onSchedule(
+  { schedule: "every 5 minutes", region: "asia-northeast1" },
+  async () => {
+    const now = Date.now();
+    const ringing = await db
+      .collection("calls")
+      .where("status", "==", "ringing")
+      .get();
+    for (const doc of ringing.docs) {
+      const createdAt = doc.data().createdAt as Timestamp | undefined;
+      if (!createdAt || now - createdAt.toMillis() < DM_CALL_STALE_RINGING_MS) {
+        continue;
+      }
+      await doc.ref.update({ status: "missed", endedAt: FieldValue.serverTimestamp() });
+    }
+
+    const active = await db
+      .collection("groupCalls")
+      .where("status", "==", "active")
+      .get();
+    for (const doc of active.docs) {
+      const data = doc.data();
+      const createdAt = data.createdAt as Timestamp | undefined;
+      if (!createdAt || now - createdAt.toMillis() < GROUP_CALL_ABANDONED_GRACE_MS) {
+        continue;
+      }
+      const participants = await doc.ref.collection("participants").get();
+      const live = participants.docs.filter((p) => {
+        const lastSeenAt = p.data().lastSeenAt as Timestamp | undefined;
+        if (!lastSeenAt) return true;
+        return now - lastSeenAt.toMillis() <= GROUP_CALL_PRESENCE_STALE_MS;
+      });
+      if (live.length > 0) continue;
+      await doc.ref.update({ status: "ended", endedAt: FieldValue.serverTimestamp() });
+      const pointer = db.doc(`groupActiveCallPointers/${data.groupId}`);
+      const pointerDoc = await pointer.get();
+      if (pointerDoc.data()?.activeCallId === doc.id) {
+        await pointer.update({ activeCallId: null });
+      }
+    }
+  },
+);
+
 /** 投票（poll）の回答が作成・更新・削除された際、親の投票ドキュメントの
  * `responseCount`/`optionVoteCounts`（選択肢ごとの得票数）を、`responses`
  * サブコレクションを都度全件読み直して絶対値で計算し直す（2026-09-06追加、

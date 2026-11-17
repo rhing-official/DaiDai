@@ -69,6 +69,18 @@ final _presenceTickProvider = StreamProvider<int>(
   (ref) => Stream.periodic(const Duration(seconds: 15), (i) => i),
 );
 
+/// 広場の通話の参加者（離脱扱いの人も含む生の一覧）。通話中の標・バナーの参加者表示に使う
+/// （2026-11-17）。
+final groupCallParticipantsProvider =
+    Provider.family<AsyncValue<List<CallParticipant>>, String>(
+      (ref, groupCallId) => ref.watch(_callParticipantsProvider(groupCallId)),
+    );
+
+/// 15秒ごとに進む。ハートビート切れの判定のやり直しに使う。
+final callPresenceTickProvider = Provider<int>(
+  (ref) => ref.watch(_presenceTickProvider).value ?? 0,
+);
+
 /// 自分がメンバーになっている広場全てを横断して、現在進行中の通話一覧を
 /// 監視する。着信バナー（[GroupIncomingCallListener]）が新規に始まった
 /// 通話を検知する為に使う。

@@ -79,7 +79,6 @@ class _IncomingCallListenerState extends ConsumerState<IncomingCallListener> {
             call: call,
             isCaller: false,
             callRepository: ref.read(callRepositoryProvider),
-            directMessageRepository: ref.read(directMessageRepositoryProvider),
           );
     });
 

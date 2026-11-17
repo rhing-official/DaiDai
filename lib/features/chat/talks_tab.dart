@@ -80,6 +80,8 @@ import '../../widgets/media_preview_frame.dart'
     show GekigaStraightMonochromeBox;
 import '../../widgets/hover_profile_card.dart';
 import '../../widgets/pane_visibility.dart';
+import '../../providers/conversation_call_providers.dart';
+import 'call_presence_mark.dart';
 import '../../widgets/unread_badge.dart';
 import '../../providers/home_shell_providers.dart';
 import '../../widgets/home_tab_swipe.dart';
@@ -3961,16 +3963,14 @@ class DirectMessageTile extends ConsumerWidget {
       lastMessageAt: dm.lastMessageAt?.toDate(),
       selected: selected,
     );
-    final trailingWidget =
-        (request != null || pinned || muted || unreadCount > 0)
-        ? _ConversationTrailing(
-            pinned: pinned,
-            muted: muted,
-            unreadCount: unreadCount,
-            selected: selected,
-            showAttention: request != null,
-          )
-        : null;
+    final trailingWidget = _ConversationTrailing(
+      pinned: pinned,
+      muted: muted,
+      unreadCount: unreadCount,
+      selected: selected,
+      showAttention: request != null,
+      conversationId: request == null ? dm.dmId : null,
+    );
 
     if (isGekiga) {
       return gestures(
@@ -4151,24 +4151,21 @@ class GroupTile extends ConsumerWidget {
                   ?.length ??
               0)
         : 0;
-    final trailingBase = (pinned || muted || unreadCount > 0)
-        ? _ConversationTrailing(
-            pinned: pinned,
-            muted: muted,
-            unreadCount: unreadCount,
-            selected: selected,
-          )
-        : null;
+    final trailingBase = _ConversationTrailing(
+      pinned: pinned,
+      muted: muted,
+      unreadCount: unreadCount,
+      selected: selected,
+      conversationId: group.groupId,
+    );
     final trailingWidget = joinRequestCount == 0
         ? trailingBase
         : Row(
             mainAxisSize: MainAxisSize.min,
             children: [
               _JoinRequestBadge(count: joinRequestCount),
-              if (trailingBase != null) ...[
-                const SizedBox(width: 8),
-                trailingBase,
-              ],
+              const SizedBox(width: 8),
+              trailingBase,
             ],
           );
 
@@ -4499,6 +4496,31 @@ class _ConversationIconTile extends StatelessWidget {
                       },
                     ),
                   ),
+                // 通話中の標（アバターの右下、2026-11-17）。
+                Positioned(
+                  right: -4,
+                  bottom: -4,
+                  child: Consumer(
+                    builder: (context, ref, _) {
+                      final presence = ref.watch(
+                        conversationCallProvider(conversationId),
+                      );
+                      if (presence == null) return const SizedBox.shrink();
+                      return Container(
+                        padding: const EdgeInsets.all(3),
+                        decoration: BoxDecoration(
+                          color: colorScheme.primary,
+                          shape: BoxShape.circle,
+                        ),
+                        child: Icon(
+                          presence.isVideo ? Icons.videocam : Icons.call,
+                          size: 12,
+                          color: colorScheme.onPrimary,
+                        ),
+                      );
+                    },
+                  ),
+                ),
                 if (unreadCount > 0 || attention)
                   Positioned(
                     right: -4,
@@ -4610,11 +4632,15 @@ class _ConversationTrailing extends ConsumerWidget {
     required this.unreadCount,
     this.selected = false,
     this.showAttention = false,
+    this.conversationId,
   });
 
   final bool pinned;
   final bool muted;
   final int unreadCount;
+
+  /// 通話中の標を出す会話（一対のdmId・広場のgroupId、2026-11-17）。nullなら出さない。
+  final String? conversationId;
 
   /// 未読数の代わりに「!」を出す（承認待ちの友達申請、2026-11-17）。
   final bool showAttention;
@@ -4633,9 +4659,19 @@ class _ConversationTrailing extends ConsumerWidget {
         ? gekigaFg.withValues(alpha: 0.75)
         : resolveTertiaryTextColor(context, isGlass: isGlass);
 
+    final callMarkId = conversationId;
+    final callMark = callMarkId == null
+        ? null
+        : CallPresenceMark(
+            conversationId: callMarkId,
+            color: isGekiga
+                ? gekigaFg
+                : Theme.of(context).colorScheme.onSurface,
+          );
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
+        if (callMark != null) ...[callMark, const SizedBox(width: 6)],
         if (muted)
           Icon(
             Icons.notifications_off_outlined,
@@ -5694,7 +5730,6 @@ class _DmDetailWithRoomsState extends ConsumerState<_DmDetailWithRooms> {
           call: call,
           isCaller: true,
           callRepository: callRepository,
-          directMessageRepository: ref.read(directMessageRepositoryProvider),
         );
   }
 
@@ -5872,6 +5907,7 @@ class _DmDetailWithRoomsState extends ConsumerState<_DmDetailWithRooms> {
           listTopPadding: _SearchInsetScope.headerZoneOf(context) == null
               ? 12
               : _kRoomListTopPadding,
+          conversationId: dm.dmId,
           conversationName: conversationName,
           rooms: [
             for (final r in _orderedRooms(rooms, dm.roomOrder, (r) => r.roomId))
@@ -6237,6 +6273,7 @@ class _GroupDetailWithRoomsState extends ConsumerState<_GroupDetailWithRooms> {
           listTopPadding: _SearchInsetScope.headerZoneOf(context) == null
               ? 12
               : _kRoomListTopPadding,
+          conversationId: group.groupId,
           conversationName: group.name,
           rooms: [
             for (final r in _orderedRooms(

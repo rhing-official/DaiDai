@@ -7,7 +7,6 @@ import 'package:flutter_webrtc/flutter_webrtc.dart';
 
 import '../../models/call.dart';
 import '../../repositories/call_repository.dart';
-import '../../repositories/direct_message_repository.dart';
 import 'call_log.dart';
 import 'ice_diagnostics.dart';
 import 'call_ring_timeout.dart';
@@ -35,14 +34,12 @@ class WebrtcCallController extends ChangeNotifier {
     required this.call,
     required this.isCaller,
     required CallRepository callRepository,
-    required DirectMessageRepository directMessageRepository,
     IceServersLoader? iceServersLoader,
     this.joinWithCamera = true,
     this.bgmPreferences = const BgmPreferences(),
     this.onBgmPreferencesChanged,
     this.onBgmLastPlayedChanged,
   }) : _callRepository = callRepository,
-       _directMessageRepository = directMessageRepository,
        _iceServersLoader = iceServersLoader;
 
   final Call call;
@@ -58,7 +55,6 @@ class WebrtcCallController extends ChangeNotifier {
   onBgmPreferencesChanged;
   final void Function(BgmLastPlayed last)? onBgmLastPlayedChanged;
   final CallRepository _callRepository;
-  final DirectMessageRepository _directMessageRepository;
 
   /// 中継（TURN）の認証情報の取得（nullならSTUNのみ、2026-10-21）。
   final IceServersLoader? _iceServersLoader;
@@ -1127,30 +1123,8 @@ class WebrtcCallController extends ChangeNotifier {
     // まとめて止める為、発信側/着信側どちらの呼び出し中の音も対応出来る。
     soundPlayer.stopRingtone();
     notifyListeners();
-    // 通話履歴メッセージは発信者側からのみ送る（両側から送ると二重投稿に
-    // なる為）。実際に接続（応答）された通話のみが対象で、不在着信・
-    // 拒否（_connectedAtが立たないまま終了）の場合は送らない。
-    if (isCaller && _connectedAt != null) {
-      unawaited(_logCallSummary(_connectedAt!));
-    }
-  }
-
-  Future<void> _logCallSummary(DateTime startedAt) async {
-    final durationSeconds = DateTime.now().difference(startedAt).inSeconds;
-    if (durationSeconds <= 0) return;
-    try {
-      await _directMessageRepository.sendCallSummaryMessage(
-        dmId: call.dmId,
-        senderId: call.callerId,
-        senderRhingSeed: call.callerRhingSeed,
-        startedAt: startedAt,
-        durationSeconds: durationSeconds,
-        isVideo: call.isVideo,
-      );
-    } catch (_) {
-      // 通信不安定等。通話自体は既に終了している為、履歴メッセージの
-      // 送信失敗は握りつぶす（再試行の仕組みは持たない）。
-    }
+    // 通話の記録（通話履歴・不在着信）は、通話ドキュメントの終了をトリガーに
+    // Cloud Functions（`onCallEnded`）が書く（2026-11-17。端末から送ると欠落した）。
   }
 
   Future<void> decline() async {

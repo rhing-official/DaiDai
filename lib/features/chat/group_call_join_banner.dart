@@ -8,7 +8,9 @@ import '../../providers/group_call_banner_dismissals.dart';
 import '../../providers/group_call_providers.dart';
 import '../../theme/gekiga/gekiga_colors.dart';
 import '../../widgets/glass/glass_surface.dart';
+import '../../providers/conversation_call_providers.dart';
 import '../call/active_call_session.dart';
+import '../call/call_participants_strip.dart';
 
 /// 広場の語らい上部に出す「通話中です。タップして参加」バナー（2026-10-21追加）。
 /// その広場に進行中の通話があり、自分がまだ参加していない時、語らいを開くたびに
@@ -40,6 +42,8 @@ class GroupCallJoinBanner extends ConsumerWidget {
     );
     if (!show || call == null) return const SizedBox.shrink();
 
+    final participants =
+        ref.watch(conversationCallProvider(groupId))?.users ?? const [];
     final strings = ref.watch(appStringsProvider);
     final colorScheme = Theme.of(context).colorScheme;
     final uiStyle = ref.watch(appUiStyleProvider);
@@ -61,9 +65,24 @@ class GroupCallJoinBanner extends ConsumerWidget {
             ),
             const SizedBox(width: 8),
             Expanded(
-              child: Text(
-                strings.groupCallInProgressBannerLabel(call.isVideo),
-                style: TextStyle(color: foreground),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    strings.groupCallInProgressBannerLabel(call.isVideo),
+                    style: TextStyle(color: foreground),
+                  ),
+                  // 誰が入っているか（アイコンと呼び名、2026-11-17）。
+                  if (participants.isNotEmpty) ...[
+                    const SizedBox(height: 4),
+                    CallParticipantsStrip(
+                      users: participants,
+                      conversationId: groupId,
+                      color: foreground,
+                    ),
+                  ],
+                ],
               ),
             ),
             IconButton(

@@ -1,3 +1,4 @@
+import 'call_presence_mark.dart';
 import '../../widgets/pick_zone.dart';
 import '../../theme/block/block_theme.dart';
 import 'package:flutter/foundation.dart' show setEquals;
@@ -53,6 +54,7 @@ class RoomListPane extends ConsumerStatefulWidget {
     this.onReorderRooms,
     this.headerZoneHeight,
     this.listTopPadding = 12,
+    this.conversationId,
     super.key,
   });
 
@@ -60,6 +62,9 @@ class RoomListPane extends ConsumerStatefulWidget {
   /// Rhing Seed）。ヘッダーに表示する（以前は用語「寄合」の固定文言だったが、
   /// どの会話の寄合一覧を見ているか分かりにくいとの指摘を受けて変更）。
   final String conversationName;
+
+  /// 通話中の標を出す会話（一対のdmId・広場のgroupId、2026-11-17）。nullなら出さない。
+  final String? conversationId;
 
   final List<RoomListEntry> rooms;
   final String? selectedRoomId;
@@ -348,7 +353,22 @@ class _RoomListPaneState extends ConsumerState<RoomListPane> {
                     // 高さは箱に合わせる（無指定だと領域いっぱいに広がり、箱が
                     // ボタンより下にずれる）。
                     heightFactor: 1,
-                    child: TalksNameChip(label: widget.conversationName),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Flexible(
+                          child: TalksNameChip(label: widget.conversationName),
+                        ),
+                        if (widget.conversationId != null) ...[
+                          const SizedBox(width: 8),
+                          CallPresenceMark(
+                            conversationId: widget.conversationId!,
+                            color: Theme.of(context).colorScheme.onSurface,
+                            label: true,
+                          ),
+                        ],
+                      ],
+                    ),
                   ),
                 ),
                 if (widget.onOpenConversationSettings != null) ...[

@@ -1204,6 +1204,7 @@ class Strings {
     required this.callDurationMinutesSecondsTemplate,
     required this.callDurationMinutesTemplate,
     required this.callDurationSecondsTemplate,
+    required this.callMissedLabel,
     required this.roomDefaultName,
     required this.talksEmptyDmTemplate,
     required this.talksEmptyGroupTemplate,
@@ -1235,6 +1236,9 @@ class Strings {
     required this.mediaSkipBackwardLabel,
     required this.mediaVideoUnplayableNotice,
     required this.groupCallInProgressBannerLabel,
+    required this.callPresenceNamesTwo,
+    required this.callPresenceNamesMore,
+    required this.callPresenceChipLabel,
     required this.callPinWindow,
     required this.callUnpinWindow,
     required this.groupProfileCardChangeImage,
@@ -2834,6 +2838,9 @@ class Strings {
   callDurationMinutesSecondsTemplate;
   final String Function(int minutes) callDurationMinutesTemplate;
   final String Function(int seconds) callDurationSecondsTemplate;
+
+  /// 不在着信の記録の文言（2026-11-17）。
+  final String callMissedLabel;
   final String roomDefaultName;
   final String Function(String dmTerm) talksEmptyDmTemplate;
   final String Function(String plazaTerm) talksEmptyGroupTemplate;
@@ -2869,6 +2876,13 @@ class Strings {
 
   /// 通話中の広場の語らいを開いた時に出す、参加を促すバナー（2026-10-21）。
   final String Function(bool isVideo) groupCallInProgressBannerLabel;
+
+  /// 通話に入っている人の呼び名の並べ方（バナー・一覧の標、2026-11-17）。2人・3人以上。
+  final String Function(String a, String b) callPresenceNamesTwo;
+  final String Function(String a, int others) callPresenceNamesMore;
+
+  /// 通話中の語らいの標（寄合一覧・タブ）の文言。
+  final String callPresenceChipLabel;
 
   /// 広場通話で1人を拡大表示している間の、一覧（グリッド）に戻るボタンの説明（2026-10-21）。
   final String callPinWindow;
@@ -4209,6 +4223,7 @@ class Strings {
         '$minutes分$seconds秒',
     callDurationMinutesTemplate: (minutes) => '$minutes分',
     callDurationSecondsTemplate: (seconds) => '$seconds秒',
+    callMissedLabel: '不在着信',
     roomDefaultName: 'メイン',
     talksEmptyDmTemplate: (dmTerm) => 'まだ$dmTermが有りません。上の＋から相手を追加して下さい。',
     talksEmptyGroupTemplate: (plazaTerm) => 'まだ$plazaTermが有りません。上の＋から作成して下さい。',
@@ -4243,6 +4258,9 @@ class Strings {
         'この端末では、この動画の映像を再生できません。4Kなど画質が高くて重い動画は、映像が再生されないことがあります。しばらくしてからもう一度開くか、ダウンロードして別のアプリで開いてください。',
     groupCallInProgressBannerLabel: (isVideo) =>
         isVideo ? 'ビデオ通話中です。タップして参加' : '通話中です。タップして参加',
+    callPresenceNamesTwo: (a, b) => '$a・$b',
+    callPresenceNamesMore: (a, others) => '$aほか$others人',
+    callPresenceChipLabel: '通話中',
     callPinWindow: 'ピン留め',
     callUnpinWindow: 'ピン留めを外す',
     groupProfileCardChangeImage: '画像を変更',
@@ -5719,6 +5737,7 @@ class Strings {
         '${minutes}m ${seconds}s',
     callDurationMinutesTemplate: (minutes) => '${minutes}m',
     callDurationSecondsTemplate: (seconds) => '${seconds}s',
+    callMissedLabel: 'Missed call',
     roomDefaultName: 'Main',
     talksEmptyDmTemplate: (dmTerm) =>
         'No $dmTerm conversations yet. Tap + above to add someone.',
@@ -5758,6 +5777,9 @@ class Strings {
     groupCallInProgressBannerLabel: (isVideo) => isVideo
         ? 'A video call is in progress. Tap to join'
         : 'A call is in progress. Tap to join',
+    callPresenceNamesTwo: (a, b) => '$a & $b',
+    callPresenceNamesMore: (a, others) => '$a and $others more',
+    callPresenceChipLabel: 'In a call',
     callPinWindow: 'Pin',
     callUnpinWindow: 'Unpin',
     groupProfileCardChangeImage: 'Change image',

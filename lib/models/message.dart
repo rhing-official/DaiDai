@@ -201,6 +201,7 @@ class Message {
     this.callStartedAt,
     this.callDurationSeconds,
     this.callIsVideo,
+    this.callResult,
     this.accountDeletionResponse,
     this.fileMetadata,
     this.attachments = const [],
@@ -324,6 +325,11 @@ class Message {
   final int? callDurationSeconds;
   final bool? callIsVideo;
 
+  /// 通話の結果（`completed`: つながった、`missed`: 不在着信・拒否、2026-11-17）。
+  /// nullは旧データ（`completed`扱い）。サーバー（Cloud Functions）が書く。
+  final String? callResult;
+  bool get isMissedCall => callResult == 'missed';
+
   /// contentType='accountDeleted'（アカウント削除通知）専用フィールド。
   /// DMでのみ使う（広場では常にnull=表示のみで応答不要）。[senderId]には
   /// 削除されたユーザーのuserIdをそのまま入れる（'call'タイプが発信者の
@@ -427,6 +433,7 @@ class Message {
       callStartedAt: json['callStartedAt'] as Timestamp?,
       callDurationSeconds: json['callDurationSeconds'] as int?,
       callIsVideo: json['callIsVideo'] as bool?,
+      callResult: json['callResult'] as String?,
       accountDeletionResponse: json['accountDeletionResponse'] as String?,
       fileMetadata: json['fileMetadata'] == null
           ? null
@@ -485,6 +492,7 @@ class Message {
       'callStartedAt': callStartedAt,
       'callDurationSeconds': callDurationSeconds,
       'callIsVideo': callIsVideo,
+      'callResult': callResult,
       'accountDeletionResponse': accountDeletionResponse,
       'fileMetadata': fileMetadata?.toJson(),
       if (attachments.isNotEmpty)

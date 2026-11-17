@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:cloud_firestore/cloud_firestore.dart';
 
 import '../models/app_user.dart';
@@ -17,6 +19,10 @@ abstract class CallRepository {
 
   /// 自分宛にかかってきている、応答待ちの通話（あれば1件）を監視する。
   Stream<Call?> watchIncomingCall(String userId);
+
+  /// 自分が発信側・着信側のどちらかで、今つながっている（`active`）通話の一覧
+  /// （2026-11-17。別の端末で参加中の一対の通話を、語らい一覧の標に出すため）。
+  Stream<List<Call>> watchMyActiveCalls(String userId);
 
   Future<void> setOffer(String callId, Map<String, dynamic> offer);
   Future<void> setAnswer(String callId, Map<String, dynamic> answer);
@@ -108,6 +114,43 @@ class FirestoreCallRepository implements CallRepository {
   }
 
   @override
+  Stream<List<Call>> watchMyActiveCalls(String userId) {
+    late final StreamController<List<Call>> controller;
+    StreamSubscription<QuerySnapshot<Map<String, dynamic>>>? callerSub;
+    StreamSubscription<QuerySnapshot<Map<String, dynamic>>>? calleeSub;
+    var asCaller = <Call>[];
+    var asCallee = <Call>[];
+    void emit() => controller.add([...asCaller, ...asCallee]);
+    List<Call> parse(QuerySnapshot<Map<String, dynamic>> snapshot) =>
+        snapshot.docs.map((doc) => Call.fromJson(doc.id, doc.data())).toList();
+    controller = StreamController<List<Call>>(
+      onListen: () {
+        callerSub = _calls
+            .where('callerId', isEqualTo: userId)
+            .where('status', isEqualTo: CallStatus.active.name)
+            .snapshots()
+            .listen((snapshot) {
+              asCaller = parse(snapshot);
+              emit();
+            }, onError: controller.addError);
+        calleeSub = _calls
+            .where('calleeId', isEqualTo: userId)
+            .where('status', isEqualTo: CallStatus.active.name)
+            .snapshots()
+            .listen((snapshot) {
+              asCallee = parse(snapshot);
+              emit();
+            }, onError: controller.addError);
+      },
+      onCancel: () async {
+        await callerSub?.cancel();
+        await calleeSub?.cancel();
+      },
+    );
+    return controller.stream;
+  }
+
+  @override
   Future<void> setOffer(String callId, Map<String, dynamic> offer) {
     return _calls.doc(callId).update({'offer': offer});
   }
@@ -117,6 +160,8 @@ class FirestoreCallRepository implements CallRepository {
     return _calls.doc(callId).update({
       'answer': answer,
       'status': CallStatus.active.name,
+      // 応答時刻。通話の記録（Cloud Functions）の通話時間に使う（2026-11-17）。
+      'connectedAt': FieldValue.serverTimestamp(),
     });
   }
 

@@ -317,6 +317,11 @@ class FirestoreGroupCallRepository implements GroupCallRepository {
     await _participantsOf(
       groupCallId,
     ).doc(user.userId).set(participant.toJson());
+    // 誰かが入ったことを残す（参加者の記録は抜けると消えるため）。通話の記録
+    // （Cloud Functions）が、始めた人以外が入らなかった通話を不在着信と判断する（2026-11-17）。
+    await _groupCalls.doc(groupCallId).update({
+      'joinedUserIds': FieldValue.arrayUnion([user.userId]),
+    });
   }
 
   @override
