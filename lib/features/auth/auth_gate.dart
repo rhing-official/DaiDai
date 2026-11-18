@@ -83,6 +83,9 @@ class _AuthenticatedUserGateState
   /// 初期設定（[InitialSetupScreen]）を終えたか。
   bool _setupDone = false;
 
+  /// 追加の途中で終わったままの起動かを、もう調べたか（2026-11-18、最初の1回だけ）。
+  bool _leftoverChecked = false;
+
   @override
   void initState() {
     super.initState();
@@ -95,9 +98,27 @@ class _AuthenticatedUserGateState
   // [AccountRestoreScreen.onRestored]からも呼び直す。
   Future<({AppUser? user, Residence? residence, bool isAdmin})>
   _fetchUser() async {
+    // アカウントの追加の途中で終わったまま（アプリの再起動・ページの再読み込み）、新しい
+    // アカウントでログインして起動した時は、作成の画面（規約・Rhing Seed・居住地アンケート・
+    // 初期設定・使い方ガイド）に閉じ込めず、元のアカウントへ自動で戻す（2026-11-18）。
+    // このセッションで追加を始めた時は対象外。端末の設定の入れ替えによる再読み込みを
+    // 挟んだ起動は、`takeLeftoverAdd`が見分ける。
+    if (!_leftoverChecked) {
+      _leftoverChecked = true;
+      if (!ref.read(addStartedThisSessionProvider) &&
+          await ref
+              .read(accountSwitcherProvider)
+              .takeLeftoverAdd(currentUid: widget.userId)) {
+        await _restoreLeftoverAdd();
+        // 戻す（再読み込み）か、ログイン画面へ出る（サインアウト）まで待つ。
+        await Completer<void>().future;
+      }
+    }
     // 端末の設定は、ログインしたアカウントのものへ入れ替える（前のアカウントの設定は退避、
     // 2026-11-14）。入れ替わった時は、設定を読み直すためアプリを作り直す。
     if (await swapLocalStateTo(widget.userId)) {
+      // 追加の途中なら、この再読み込みは再起動ではないと、次の起動に伝える。
+      await ref.read(accountSwitcherProvider).markAddContinues();
       reloadPage();
       // 作り直されるまで待つ（この画面は破棄される）。
       await Completer<void>().future;
@@ -118,6 +139,19 @@ class _AuthenticatedUserGateState
     // 管理者（運営者）のアカウントからは居住地を集めない（2026-10-18追加）。
     final isAdmin = await ref.read(authRepositoryProvider).isAdmin();
     return (user: user, residence: residence, isAdmin: isAdmin);
+  }
+
+  /// 途中で終わった追加を、元のアカウントへ戻す。戻せなかった時（追加元の保存が無い・
+  /// 失効・通信不可）は、作りかけのアカウントに閉じ込めないため、サインアウトして通常の
+  /// ログイン画面へ出す。作りかけのアカウントは、次にログインすれば続きから作れる。
+  Future<void> _restoreLeftoverAdd() async {
+    // 最初のフレームの後（バナーを出せるOverlayができてから）に呼ぶ。
+    await WidgetsBinding.instance.endOfFrame;
+    if (!mounted) return;
+    final restored = await restoreOriginalAccount(context, ref);
+    if (!restored && mounted) {
+      await ref.read(authRepositoryProvider).signOut();
+    }
   }
 
   @override

@@ -136,6 +136,31 @@ class AccountSwitcher {
     return true;
   }
 
+  /// 新しいアカウントでログインした直後に、端末の設定の入れ替えでアプリを作り直す（再読み込み）
+  /// 直前に呼ぶ（2026-11-18）。追加は続いていると、次の起動で[takeLeftoverAdd]に伝える。
+  /// 保留が無ければ何もしない。
+  Future<void> markAddContinues() async {
+    final pending = await store.loadPending();
+    if (pending == null || pending.continued) return;
+    await store.savePending(pending.withContinued(true));
+  }
+
+  /// 起動した時に、追加の途中で終わった（アプリの再起動・ページの再読み込み）まま、新しい
+  /// アカウントでログインしているか（2026-11-18）。規約・Rhing Seed・居住地アンケートなどの
+  /// 作成の途中で再起動した時に、元のアカウントへ戻す判断に使う。保留が有り、今ログインして
+  /// いるのが追加元ではない時に`true`。ただし、[markAddContinues]の印があれば、再読み込み
+  /// による起動なので`false`を返し、印を消す（追加は続く）。チケットの期限は関係しない
+  /// （[restoreOriginal]と同じ）。
+  Future<bool> takeLeftoverAdd({required String currentUid}) async {
+    final pending = await store.loadPending();
+    if (pending == null || pending.fromUid == currentUid) return false;
+    if (pending.continued) {
+      await store.savePending(pending.withContinued(false));
+      return false;
+    }
+    return true;
+  }
+
   Future<bool> hasPendingAdd() async {
     final pending = await store.loadPending();
     return pending != null && pending.expiresAtMs >= _nowMs();

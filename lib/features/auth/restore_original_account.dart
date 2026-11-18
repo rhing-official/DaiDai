@@ -9,11 +9,13 @@ import '../settings/account_toggle.dart' show switchAccountFailureMessage;
 
 /// アカウントの追加を終えずにやめた時、追加を始めた元のアカウントへ戻す（2026-11-14）。
 /// 成功すると再読み込みされる。戻せなかった時（保存が無い・失効・極み切れ・通信不可）は
-/// バナーで知らせ、通常のログイン画面になる。
-Future<void> restoreOriginalAccount(BuildContext context, WidgetRef ref) async {
+/// バナーで知らせ、通常のログイン画面になる。戻した（再読み込みを始めた）なら`true`、
+/// 戻せなかったなら`false`（2026-11-18に戻り値を追加）。
+Future<bool> restoreOriginalAccount(BuildContext context, WidgetRef ref) async {
   final strings = ref.read(appStringsProvider);
+  var restored = false;
   try {
-    await ref.read(accountSwitcherProvider).restoreOriginal();
+    restored = await ref.read(accountSwitcherProvider).restoreOriginal();
   } on SwitchAccountException catch (error) {
     if (context.mounted) {
       showAutoDismissBanner(
@@ -31,4 +33,5 @@ Future<void> restoreOriginalAccount(BuildContext context, WidgetRef ref) async {
     }
   }
   ref.invalidate(hasPendingAccountAddProvider);
+  return restored;
 }

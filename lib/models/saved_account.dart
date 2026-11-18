@@ -71,6 +71,7 @@ class PendingAccountAdd {
     required this.ticket,
     required this.expiresAtMs,
     required this.fromUid,
+    this.continued = false,
   });
 
   final String ticket;
@@ -79,10 +80,23 @@ class PendingAccountAdd {
   /// 追加元（極みのアカウント）のuid。
   final String fromUid;
 
+  /// 新しいアカウントでログインした直後の、端末の設定の入れ替えによる再読み込み（アプリを
+  /// 作り直す）を挟んで、追加がまだ続いていること（2026-11-18）。再起動と区別するため、
+  /// 再読み込みの直前に`true`にし、次の起動で読んだら`false`へ戻す。
+  final bool continued;
+
+  PendingAccountAdd withContinued(bool value) => PendingAccountAdd(
+    ticket: ticket,
+    expiresAtMs: expiresAtMs,
+    fromUid: fromUid,
+    continued: value,
+  );
+
   Map<String, dynamic> toJson() => {
     'ticket': ticket,
     'expiresAtMs': expiresAtMs,
     'fromUid': fromUid,
+    'continued': continued,
   };
 
   static PendingAccountAdd? tryFromJson(Object? json) {
@@ -97,6 +111,7 @@ class PendingAccountAdd {
       ticket: ticket,
       expiresAtMs: expiresAtMs,
       fromUid: fromUid,
+      continued: json['continued'] == true,
     );
   }
 }

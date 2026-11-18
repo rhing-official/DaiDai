@@ -284,6 +284,37 @@ void main() {
       expect(log, isEmpty);
     });
 
+    test('途中で終わった追加の保留は、追加元ではないアカウントでログインしている時だけ見つかる', () async {
+      // 保留が無ければ、残っていない。
+      expect(await switcher.takeLeftoverAdd(currentUid: 'B'), isFalse);
+      store.pending = pending();
+      // 新しいアカウントB（作成の途中）でログインしている。
+      expect(await switcher.takeLeftoverAdd(currentUid: 'B'), isTrue);
+      // 追加元のAでログインしている時は、戻す必要が無い。
+      expect(await switcher.takeLeftoverAdd(currentUid: 'A'), isFalse);
+      // チケットの期限は関係しない。
+      store.pending = pending(expiresAtMs: 1);
+      nowMs = 100000;
+      expect(await switcher.takeLeftoverAdd(currentUid: 'B'), isTrue);
+      // 調べるだけで、保留は消さない。
+      expect(store.pending, isNotNull);
+    });
+
+    test('設定の入れ替えによる再読み込みを挟んだ起動は、再起動ではない（印は1回で消える）', () async {
+      // 保留が無ければ、印は付けない。
+      await switcher.markAddContinues();
+      expect(store.pending, isNull);
+
+      store.pending = pending();
+      await switcher.markAddContinues();
+      expect(store.pending!.continued, isTrue);
+      // 次の起動: 追加は続いているので戻さず、印を消す。
+      expect(await switcher.takeLeftoverAdd(currentUid: 'B'), isFalse);
+      expect(store.pending!.continued, isFalse);
+      // その次の起動（本当の再起動）は戻す。
+      expect(await switcher.takeLeftoverAdd(currentUid: 'B'), isTrue);
+    });
+
     test('保存が無ければ、保留を消して何もしない', () async {
       store.pending = pending();
       expect(await switcher.restoreOriginal(), isFalse);
