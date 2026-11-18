@@ -9,11 +9,13 @@ import 'package:pointer_interceptor/pointer_interceptor.dart';
 
 import '../../models/app_ui_style.dart';
 import '../../providers/app_ui_style_provider.dart';
+import '../../providers/call_display_provider.dart';
 import '../../providers/camera_availability_provider.dart';
 import '../../router/app_router.dart';
 import '../../theme/block/block_theme.dart';
 import '../../theme/gekiga/gekiga_colors.dart';
 import '../../theme/glass/glass_colors.dart';
+import '../../l10n/strings.dart';
 import '../../utils/platform_info.dart';
 import '../../widgets/gekiga/gekiga_badge.dart';
 import '../../widgets/media_preview_frame.dart'
@@ -85,6 +87,19 @@ class PinnedCallOverlay extends ConsumerWidget {
 
     if (isMobileCallPlatform && !session.minimized) {
       return const SizedBox.shrink(); // まだ全画面表示中
+    }
+
+    // 設定（端末ごと）で小窓を出さない場合（2026-11-18）。細いチップか何も出さないかだが、
+    // どちらでも、映像を持たない参加者の音声は（Webでは見えない動画要素が鳴らすため）鳴らし続ける。
+    final miniStyle = ref.watch(callMiniStyleProvider);
+    if (miniStyle != CallMiniStyle.video) {
+      return ListenableBuilder(
+        listenable: session.controllerListenable,
+        builder: (context, _) => _PinnedCallLight(
+          session: session,
+          showChip: miniStyle == CallMiniStyle.bar,
+        ),
+      );
     }
 
     // ミュート・映像有無等、コントローラーの状態変化に応じて
@@ -622,5 +637,86 @@ class _MiniIconButton extends StatelessWidget {
     }
     if (visible) return button;
     return IgnorePointer(child: Opacity(opacity: 0, child: button));
+  }
+}
+
+/// ミニ表示を「細いチップ」「出さない」にしている時の表示（2026-11-18）。チップは画面右上に
+/// 小さく出し、タップで通話画面へ戻る。映像は描かない。リモートの音声を鳴らす見えない動画要素
+/// だけは、小窓と同じ条件で残す。
+class _PinnedCallLight extends ConsumerWidget {
+  const _PinnedCallLight({required this.session, required this.showChip});
+
+  final ActiveCallSession session;
+  final bool showChip;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final skipSinks = kPinnedNoSinks || _lightMobileVideo;
+    final sinks = skipSinks
+        ? const <RTCVideoRenderer>[]
+        : switch (session) {
+            GroupCallSession(:final controller) => [
+              ...controller.remoteRenderers.values,
+            ],
+            OneToOneCallSession(:final controller) => [
+              controller.remoteRenderer,
+            ],
+          };
+    final sinkWidget = CallAudioSinks(renderers: sinks);
+    if (!showChip) {
+      return Positioned(left: 0, top: 0, child: sinkWidget);
+    }
+
+    final strings = ref.watch(appStringsProvider);
+    final scheme = Theme.of(context).colorScheme;
+    final isGekiga = ref.watch(appUiStyleProvider) == AppUiStyle.gekiga;
+    final bg = isGekiga ? GekigaColors.onPanel : scheme.primary;
+    final fg = isGekiga ? GekigaColors.panel : scheme.onPrimary;
+    final muted = switch (session) {
+      OneToOneCallSession(:final controller) => controller.muted,
+      GroupCallSession(:final controller) => controller.muted,
+    };
+    return Positioned(
+      top: MediaQuery.paddingOf(context).top + 8,
+      right: 8,
+      child: PointerInterceptor(
+        child: Material(
+          color: bg,
+          shape: const StadiumBorder(),
+          clipBehavior: Clip.antiAlias,
+          child: InkWell(
+            onTap: () => reopenActiveCall(ref.read, session),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+              child: Stack(
+                clipBehavior: Clip.none,
+                children: [
+                  Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(
+                        muted ? Icons.mic_off : Icons.call,
+                        size: 16,
+                        color: fg,
+                      ),
+                      const SizedBox(width: 6),
+                      Text(
+                        strings.callPresenceChipLabel,
+                        style: TextStyle(
+                          color: fg,
+                          fontSize: 13,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ],
+                  ),
+                  Positioned(left: 0, top: 0, child: sinkWidget),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
   }
 }

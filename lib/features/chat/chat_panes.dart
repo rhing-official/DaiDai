@@ -245,8 +245,9 @@ class DmChatPane extends ConsumerStatefulWidget {
   final String roomId;
   final String roomName;
 
-  final VoidCallback? onCallPressed;
-  final VoidCallback? onVideoCallPressed;
+  /// 通話ボタン。今開いている寄合のid（通話を始めた寄合として記録する、2026-11-18）を渡す。
+  final void Function(String roomId)? onCallPressed;
+  final void Function(String roomId)? onVideoCallPressed;
 
   /// AppBar直下に寄合の横スクロールタブバー（`RoomTabBar`）を表示するか
   /// （2026-08-03追加）。trueでも[DirectMessage.roomsEnabled]がfalseの
@@ -652,6 +653,7 @@ class _DmChatPaneState extends ConsumerState<DmChatPane> {
             textScaler: MediaQuery.textScalerOf(context),
             isGekiga: ref.watch(appUiStyleProvider) == AppUiStyle.gekiga,
             onSelectRoom: (room) => _switchRoom(room.roomId, room.name),
+            conversationId: dm.dmId,
             onCreateRoom: (name) =>
                 dmRepository.createRoom(dmId: dm.dmId, name: name),
           );
@@ -771,8 +773,12 @@ class _DmChatPaneState extends ConsumerState<DmChatPane> {
           sendAt: sendAt,
         );
       },
-      onCallPressed: widget.onCallPressed,
-      onVideoCallPressed: widget.onVideoCallPressed,
+      onCallPressed: widget.onCallPressed == null
+          ? null
+          : () => widget.onCallPressed!(roomId),
+      onVideoCallPressed: widget.onVideoCallPressed == null
+          ? null
+          : () => widget.onVideoCallPressed!(roomId),
       // 既読の無効化は、会話に極みの人がいる間だけ効く（2026-10-17）。
       readReceiptsEnabled:
           dm.readReceiptsEnabled ||
@@ -1011,7 +1017,10 @@ class _DmChatPaneState extends ConsumerState<DmChatPane> {
     return Column(
       children: [
         roomTabBarWidget,
-        CallPresenceBar(conversationId: dm.dmId),
+        CallPresenceBar(
+          conversationId: dm.dmId,
+          roomIds: {for (final r in rooms ?? const []) r.roomId},
+        ),
         Expanded(
           child: MediaQuery.removePadding(
             context: context,
@@ -2458,6 +2467,7 @@ class _GroupChatPaneState extends ConsumerState<GroupChatPane> {
       group: group,
       initiator: currentUser,
       isVideo: isVideo,
+      roomId: _currentRoomId,
     );
 
     final participants = await groupCallRepository
@@ -2684,6 +2694,7 @@ class _GroupChatPaneState extends ConsumerState<GroupChatPane> {
             textScaler: MediaQuery.textScalerOf(context),
             isGekiga: ref.watch(appUiStyleProvider) == AppUiStyle.gekiga,
             onSelectRoom: (room) => _switchRoom(room.roomId, room.name),
+            conversationId: group.groupId,
             onCreateRoom: canManageRooms
                 ? (name) => groupRepository.createRoom(
                     groupId: group.groupId,
@@ -3021,7 +3032,10 @@ class _GroupChatPaneState extends ConsumerState<GroupChatPane> {
     return Column(
       children: [
         roomTabBarWidget,
-        CallPresenceBar(conversationId: group.groupId),
+        CallPresenceBar(
+          conversationId: group.groupId,
+          roomIds: {for (final r in rooms) r.roomId},
+        ),
         Expanded(
           child: MediaQuery.removePadding(
             context: context,

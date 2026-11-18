@@ -40,6 +40,7 @@ class Call {
     this.callerSeenAt,
     this.calleeSeenAt,
     this.answeredBy,
+    this.roomId,
   });
 
   final String callId;
@@ -47,6 +48,9 @@ class Call {
   /// この通話が属する一対のid。通話終了後、通話履歴メッセージをどの語らいに
   /// 投稿するか特定する為に使う（`WebrtcCallController`参照）。
   final String dmId;
+
+  /// 通話を始めた寄合のid（表示用、2026-11-18）。変更前に始まった通話はnull。
+  final String? roomId;
   final String callerId;
   final String callerRhingSeed;
   final String calleeId;
@@ -113,12 +117,14 @@ class Call {
       callerSeenAt: json['callerSeenAt'] as Timestamp?,
       calleeSeenAt: json['calleeSeenAt'] as Timestamp?,
       answeredBy: json['answeredBy'] as String?,
+      roomId: json['roomId'] as String?,
     );
   }
 
   Map<String, dynamic> toJson() {
     return {
       'dmId': dmId,
+      if (roomId != null) 'roomId': roomId,
       'callerId': callerId,
       'callerRhingSeed': callerRhingSeed,
       'calleeId': calleeId,

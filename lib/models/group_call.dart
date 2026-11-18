@@ -32,6 +32,7 @@ class GroupCall {
     this.maxParticipants = kMaxGroupCallParticipants,
     this.createdAt,
     this.endedAt,
+    this.roomId,
   });
 
   final String groupCallId;
@@ -48,6 +49,10 @@ class GroupCall {
   final Timestamp? createdAt;
   final Timestamp? endedAt;
 
+  /// 通話を始めた寄合のid（表示用、2026-11-18）。寄合一覧の「通話中」の標を、始めた寄合に
+  /// 出すために使う。変更前に始まった通話はnull。
+  final String? roomId;
+
   factory GroupCall.fromJson(String groupCallId, Map<String, dynamic> json) {
     return GroupCall(
       groupCallId: groupCallId,
@@ -60,6 +65,7 @@ class GroupCall {
           json['maxParticipants'] as int? ?? kMaxGroupCallParticipants,
       createdAt: json['createdAt'] as Timestamp?,
       endedAt: json['endedAt'] as Timestamp?,
+      roomId: json['roomId'] as String?,
     );
   }
 
@@ -73,6 +79,7 @@ class GroupCall {
       'maxParticipants': maxParticipants,
       'createdAt': createdAt ?? FieldValue.serverTimestamp(),
       'endedAt': endedAt,
+      if (roomId != null) 'roomId': roomId,
     };
   }
 }

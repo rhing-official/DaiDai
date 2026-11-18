@@ -19,4 +19,11 @@ void main() {
     expect(_call({}).isMissedCall, isFalse);
     expect(_call({'callResult': 'completed'}).isMissedCall, isFalse);
   });
+
+  test('callResultがcancelledならキャンセル（不在着信とは別）', () {
+    final m = _call({'callResult': 'cancelled'});
+    expect(m.isCancelledCall, isTrue);
+    expect(m.isMissedCall, isFalse);
+    expect(_call({'callResult': 'missed'}).isCancelledCall, isFalse);
+  });
 }

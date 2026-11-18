@@ -7,7 +7,12 @@ import 'package:file_picker/file_picker.dart';
 import 'package:firebase_auth/firebase_auth.dart'
     show FirebaseAuthException, MultiFactorInfo;
 import 'package:flutter/foundation.dart'
-    show kIsWeb, LicenseEntry, LicenseParagraph, LicenseRegistry;
+    show
+        kIsWeb,
+        defaultTargetPlatform,
+        LicenseEntry,
+        LicenseParagraph,
+        LicenseRegistry;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../../services/app_functions.dart';
@@ -50,6 +55,7 @@ import '../../providers/calling_sound_provider.dart';
 import '../../providers/custom_accent_colors_provider.dart';
 import '../../providers/app_locale_provider.dart';
 import '../../providers/app_ui_style_provider.dart';
+import '../../providers/call_display_provider.dart';
 import '../../providers/call_sound_enabled_provider.dart';
 import '../../providers/dark_variant_provider.dart';
 import '../../providers/font_design_provider.dart';
@@ -5652,6 +5658,32 @@ class _NotificationsPage extends ConsumerWidget {
             onChanged: setEnabled,
           ),
         const Divider(height: 24),
+        // 通話画面を出た後のミニ表示と、アプリを離れた時のPiP（端末ごと、2026-11-18）。
+        _SectionHeader(strings.settingsSubCallDisplay),
+        _SettingsChoiceList<CallMiniStyle>(
+          title: strings.settingsCallMiniTitle,
+          hint: strings.settingsCallMiniNoneHint,
+          value: ref.watch(callMiniStyleProvider),
+          options: [
+            (CallMiniStyle.video, strings.settingsCallMiniVideoLabel),
+            (CallMiniStyle.bar, strings.settingsCallMiniBarLabel),
+            (CallMiniStyle.none, strings.settingsCallMiniNoneLabel),
+          ],
+          onChanged: (v) => ref.read(callMiniStyleProvider.notifier).set(v),
+        ),
+        // OS標準のPiPはAndroidだけ（Webに同等が無いOS固有の設定）。
+        if (!kIsWeb && defaultTargetPlatform == TargetPlatform.android)
+          _SettingsChoiceList<CallPipPolicy>(
+            title: strings.settingsCallPipTitle,
+            value: ref.watch(callPipPolicyProvider),
+            options: [
+              (CallPipPolicy.video, strings.settingsCallPipVideoLabel),
+              (CallPipPolicy.always, strings.settingsCallPipAlwaysLabel),
+              (CallPipPolicy.never, strings.settingsCallPipNeverLabel),
+            ],
+            onChanged: (v) => ref.read(callPipPolicyProvider.notifier).set(v),
+          ),
+        const Divider(height: 24),
         _SectionHeader(strings.settingsSubSound),
         // 着信音・呼出音を鳴らすか（端末ごと、2026-11-18）。
         AppSwitchListTile(
@@ -6254,6 +6286,88 @@ class _SlidePickSwitch extends ConsumerWidget {
       title: Text(strings.settingsSlidePickTitle),
       subtitle: Text(strings.settingsSlidePickSubtitle),
       onChanged: setEnabled,
+    );
+  }
+}
+
+/// 設定の「ラジオで1つ選ぶ」一覧（2026-11-18、通話の表示用）。劇画は他の選択肢と同じ
+/// 連結タイル、他はラジオのリスト。
+class _SettingsChoiceList<T> extends ConsumerWidget {
+  const _SettingsChoiceList({
+    required this.title,
+    required this.value,
+    required this.options,
+    required this.onChanged,
+    this.hint,
+  });
+
+  final String title;
+  final String? hint;
+  final T value;
+  final List<(T, String)> options;
+  final ValueChanged<T> onChanged;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final isGekiga = ref.watch(appUiStyleProvider) == AppUiStyle.gekiga;
+    final control = isGekiga
+        ? GekigaJointedTileList(
+            seeds: [for (var i = 0; i < options.length; i++) i],
+            selectedFlags: [for (final o in options) o.$1 == value],
+            children: [
+              for (final o in options)
+                GekigaTileContent(
+                  selected: o.$1 == value,
+                  leading: AppRadioMark(
+                    selected: o.$1 == value,
+                    color: o.$1 == value
+                        ? GekigaColors.panel
+                        : GekigaColors.onPanel,
+                  ),
+                  title: Text(o.$2),
+                  onTap: () => onChanged(o.$1),
+                ),
+            ],
+          )
+        : RadioGroup<T>(
+            groupValue: value,
+            onChanged: (v) {
+              if (v != null) onChanged(v);
+            },
+            child: Column(
+              children: [
+                for (final o in options)
+                  AppRadioListTile<T>(
+                    contentPadding: EdgeInsets.zero,
+                    value: o.$1,
+                    title: Text(o.$2),
+                  ),
+              ],
+            ),
+          );
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Padding(
+            padding: const EdgeInsets.only(top: 4, bottom: 4),
+            child: Text(title, style: Theme.of(context).textTheme.bodyMedium),
+          ),
+          control,
+          if (hint != null)
+            Padding(
+              padding: const EdgeInsets.only(top: 4),
+              child: Text(
+                hint!,
+                style: TextStyle(
+                  fontSize: 12,
+                  color: Theme.of(context).hintColor,
+                ),
+              ),
+            ),
+        ],
+      ),
     );
   }
 }

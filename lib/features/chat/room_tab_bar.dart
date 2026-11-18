@@ -14,6 +14,7 @@ import '../../widgets/gekiga/gekiga_icon_badge.dart';
 import '../../widgets/gekiga/gekiga_panel_box.dart';
 import '../../widgets/glass/glass_surface.dart';
 import '../../widgets/unread_badge.dart';
+import 'call_presence_mark.dart';
 import 'room_list_pane.dart' show RoomListEntry, promptForRoomName;
 
 /// 狭い画面（縦表示）のチャット画面上部に表示する、寄合の一覧タブバー
@@ -56,8 +57,12 @@ class RoomTabBar extends ConsumerStatefulWidget {
     required this.isGekiga,
     this.textScaler = TextScaler.noScaling,
     this.onCreateRoom,
+    this.conversationId,
     super.key,
   });
+
+  /// 通話中の標を出す会話（一対のdmId・広場のgroupId、2026-11-18）。通話を始めた寄合のタブに出す。
+  final String? conversationId;
 
   final List<RoomListEntry> rooms;
   final String selectedRoomId;
@@ -208,17 +213,44 @@ class _RoomTabBarState extends ConsumerState<RoomTabBar> {
   /// 見積りを変えないよう幅は消費せず、`Stack`で重ねるだけにする
   /// （2026-10-04追加）。選択中の寄合は常に既読のため出さない。
   Widget _withUnreadBadge(RoomListEntry room, bool selected, Widget label) {
-    if (selected || room.unreadCount <= 0) return label;
+    final conversationId = widget.conversationId;
+    final showUnread = !selected && room.unreadCount > 0;
+    if (!showUnread && conversationId == null) return label;
+    final scheme = Theme.of(context).colorScheme;
     return Stack(
       clipBehavior: Clip.none,
       alignment: Alignment.center,
       children: [
         label,
-        Positioned(
-          top: -10,
-          right: -14,
-          child: UnreadBadge(count: room.unreadCount),
-        ),
+        // 通話を始めた寄合の左上に、通話中の標（通話中でなければ何も出ない、2026-11-18）。
+        if (conversationId != null)
+          Positioned(
+            top: -10,
+            left: -14,
+            child: DecoratedBox(
+              decoration: BoxDecoration(
+                color: widget.isGekiga ? GekigaColors.onPanel : scheme.primary,
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 4),
+                child: CallPresenceMark(
+                  conversationId: conversationId,
+                  roomId: room.roomId,
+                  color: widget.isGekiga
+                      ? GekigaColors.panel
+                      : scheme.onPrimary,
+                  size: 14,
+                ),
+              ),
+            ),
+          ),
+        if (showUnread)
+          Positioned(
+            top: -10,
+            right: -14,
+            child: UnreadBadge(count: room.unreadCount),
+          ),
       ],
     );
   }

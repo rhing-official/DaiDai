@@ -259,8 +259,8 @@ class _PracticeHomeBodyState extends ConsumerState<_PracticeHomeBody> {
                     roomId: _openChat!.roomId,
                     roomName: _openChat!.roomName,
                     // 通話のボタンを出す（練習中は何も始めない）。
-                    onCallPressed: () {},
-                    onVideoCallPressed: () {},
+                    onCallPressed: (_) {},
+                    onVideoCallPressed: (_) {},
                   ),
             const ProfileTab(currentUser: practiceUser),
             const SizedBox.shrink(),

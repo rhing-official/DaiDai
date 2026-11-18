@@ -10,6 +10,7 @@ import '../../l10n/strings.dart';
 import '../../l10n/vocabulary.dart';
 import '../../models/app_ui_style.dart';
 import '../../providers/app_ui_style_provider.dart';
+import '../../theme/gekiga/gekiga_colors.dart';
 import '../../widgets/gekiga/gekiga_panel_box.dart';
 import '../../widgets/gekiga/gekiga_text_field.dart';
 import '../../widgets/glass/glass_dialog.dart';
@@ -218,6 +219,28 @@ class _RoomListPaneState extends ConsumerState<RoomListPane> {
     final isGekiga = uiStyle == AppUiStyle.gekiga;
     final isGlass = uiStyle == AppUiStyle.glass;
 
+    // 寄合のブロックの右端: 通話を始めた寄合なら通話中の標、未読があれば件数（2026-11-18）。
+    Widget? trailingOf(RoomListEntry room, Color fg) {
+      final conversationId = widget.conversationId;
+      final unread = room.unreadCount > 0;
+      if (conversationId == null && !unread) return null;
+      return Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (conversationId != null)
+            CallPresenceMark(
+              conversationId: conversationId,
+              roomId: room.roomId,
+              color: fg,
+            ),
+          if (unread) ...[
+            const SizedBox(width: 6),
+            UnreadBadge(count: room.unreadCount),
+          ],
+        ],
+      );
+    }
+
     // [index]は並べ替え有効時（[RoomListPane.onReorderRooms]非null）のみ
     // 渡され、`leading`にドラッグハンドルを追加する（2026-09-08追加）。
     Widget buildRoomTile(RoomListEntry room, {int? index}) {
@@ -243,9 +266,10 @@ class _RoomListPaneState extends ConsumerState<RoomListPane> {
           selected: isSelected,
           leading: tagIcon,
           title: Text(room.name, maxLines: 1, overflow: TextOverflow.ellipsis),
-          trailing: room.unreadCount > 0
-              ? UnreadBadge(count: room.unreadCount)
-              : null,
+          trailing: trailingOf(
+            room,
+            isSelected ? GekigaColors.panel : GekigaColors.onPanel,
+          ),
           onTap: () => widget.onSelectRoom(room),
         );
       }
@@ -271,9 +295,7 @@ class _RoomListPaneState extends ConsumerState<RoomListPane> {
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                 ),
-                trailing: room.unreadCount > 0
-                    ? UnreadBadge(count: room.unreadCount)
-                    : null,
+                trailing: trailingOf(room, colorScheme.onSurfaceVariant),
                 onTap: () => widget.onSelectRoom(room),
               ),
             ),
@@ -303,9 +325,7 @@ class _RoomListPaneState extends ConsumerState<RoomListPane> {
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                 ),
-                trailing: room.unreadCount > 0
-                    ? UnreadBadge(count: room.unreadCount)
-                    : null,
+                trailing: trailingOf(room, fg),
                 onTap: () => widget.onSelectRoom(room),
               ),
             ),
@@ -320,9 +340,10 @@ class _RoomListPaneState extends ConsumerState<RoomListPane> {
         selectedColor: colorScheme.onPrimary,
         leading: tagIcon,
         title: Text(room.name, maxLines: 1, overflow: TextOverflow.ellipsis),
-        trailing: room.unreadCount > 0
-            ? UnreadBadge(count: room.unreadCount)
-            : null,
+        trailing: trailingOf(
+          room,
+          isSelected ? colorScheme.onPrimary : colorScheme.onSurface,
+        ),
         onTap: () => widget.onSelectRoom(room),
       );
     }
@@ -365,6 +386,8 @@ class _RoomListPaneState extends ConsumerState<RoomListPane> {
                             conversationId: widget.conversationId!,
                             color: Theme.of(context).colorScheme.onSurface,
                             label: true,
+                            // 通話を始めた寄合のブロックに標が出る時は、ここには出さない。
+                            unplacedAmong: {for (final r in _rooms) r.roomId},
                           ),
                         ],
                       ],

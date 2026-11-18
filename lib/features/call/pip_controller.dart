@@ -4,6 +4,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_webrtc/flutter_webrtc.dart';
 
+import '../../providers/call_display_provider.dart';
 import 'active_call_session.dart';
 import 'call_log.dart';
 import 'call_avatar.dart';
@@ -58,10 +59,29 @@ class PipHost extends ConsumerStatefulWidget {
 class _PipHostState extends ConsumerState<PipHost> {
   ActiveCallSession? _watchedSession;
   bool _keepScreenOn = false;
+  bool? _sentPipAllowed;
+
+  /// アプリを離れた時・戻るでOS標準のPiPへ入ってよいかをネイティブへ伝える（2026-11-18、
+  /// 設定の方針＋映像の有無）。入ってはいけない時は、ネイティブはPiPに入らず、アプリ内の
+  /// ミニ表示（設定に従う）になる。
+  void _syncPipAllowed() {
+    final session = _watchedSession;
+    final hasVideo =
+        session != null &&
+        (session.isVideoLocallyOn || session.hasAnyRemoteVideoOn);
+    final allowed = callPipAllowed(
+      ref.read(callPipPolicyProvider),
+      hasVideo: hasVideo,
+    );
+    if (allowed == _sentPipAllowed) return;
+    _sentPipAllowed = allowed;
+    _invoke('setPipAllowed', {'allowed': allowed});
+  }
 
   /// 映像通話の間だけ、OSの自動消灯を止める（2026-11-13）。消灯すると映像が固まり、
   /// 音声の送受信も止まるため。音声通話は前面サービスで続けるので消灯してよい。
   void _syncKeepScreenOn() {
+    _syncPipAllowed();
     final session = _watchedSession;
     final keep =
         session != null &&
@@ -74,6 +94,7 @@ class _PipHostState extends ConsumerState<PipHost> {
   void _watchSession(ActiveCallSession? session) {
     _watchedSession?.controllerListenable.removeListener(_syncKeepScreenOn);
     _watchedSession = session;
+    _sentPipAllowed = null;
     session?.controllerListenable.addListener(_syncKeepScreenOn);
     _syncKeepScreenOn();
   }
@@ -145,6 +166,7 @@ class _PipHostState extends ConsumerState<PipHost> {
   Widget build(BuildContext context) {
     if (!_pipSupported) return widget.child;
 
+    ref.listen(callPipPolicyProvider, (_, _) => _syncPipAllowed());
     ref.listen(activeCallSessionProvider, (previous, next) {
       final wasActive = previous != null;
       final isActive = next != null;

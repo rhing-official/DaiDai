@@ -10,6 +10,7 @@ import '../../models/sound_preset.dart';
 import '../../providers/call_answer_providers.dart';
 import '../../providers/group_call_providers.dart';
 import '../../providers/repository_providers.dart';
+import '../../providers/ring_launch_provider.dart';
 import '../../providers/call_sound_enabled_provider.dart';
 import '../../providers/ringtone_sound_provider.dart';
 import '../../router/app_router.dart';
@@ -101,6 +102,13 @@ class _GroupIncomingCallListenerState
       _joinCall(match.first);
     }
 
+    // 着信の全画面（応答/拒否）が同じ広場通話を出している間は、バナーは要らない（2026-11-18）。
+    // バナーが先に出ていたら外す。
+    ref.listen(ringLaunchProvider, (previous, next) {
+      if (next == null || !next.isGroup) return;
+      _expireBanner(next.callId);
+    });
+
     ref.listen(pendingCallAnswerProvider, (previous, next) {
       if (next == null || !next.isGroup) return;
       final calls = ref
@@ -156,11 +164,16 @@ class _GroupIncomingCallListenerState
     return widget.child;
   }
 
+  /// 着信の全画面が、この通話を既に出している（バナーも着信音も要らない）か。
+  bool _shownFullScreen(GroupCall call) =>
+      ref.read(ringLaunchProvider)?.callId == call.groupCallId;
+
   Future<void> _handleNewCall(GroupCall call) async {
+    if (_shownFullScreen(call)) return;
     final group = await ref
         .read(groupRepositoryProvider)
         .getGroup(call.groupId);
-    if (!mounted) return;
+    if (!mounted || _shownFullScreen(call)) return;
     ref
         .read(groupCallBannersProvider.notifier)
         .add(

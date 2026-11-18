@@ -22,6 +22,7 @@ class ConversationCallPresence {
     required this.users,
     required this.isVideo,
     required this.isMine,
+    this.roomId,
   });
 
   /// 通話に入っている人。読み込み中は空（通話があること自体は分かる）。
@@ -30,6 +31,9 @@ class ConversationCallPresence {
 
   /// 自分がこの通話に参加中か。
   final bool isMine;
+
+  /// 通話を始めた寄合のid（2026-11-18）。変更前に始まった通話はnull。
+  final String? roomId;
 }
 
 /// 自分が発信側・着信側で今つながっている一対の通話（別の端末で参加中のものを含む）。
@@ -79,6 +83,7 @@ final conversationCallProvider =
                 CallPresenceUser(userId: p.userId, rhingSeed: p.rhingSeed),
             ],
             isVideo: call.isVideo,
+            roomId: call.roomId,
             isMine:
                 sessionConversationId == conversationId ||
                 live.any((p) => p.userId == userId),
@@ -115,6 +120,7 @@ final conversationCallProvider =
           ),
         ],
         isVideo: active.isVideo,
+        roomId: active.roomId,
         isMine: sessionConversationId == conversationId,
       );
     });

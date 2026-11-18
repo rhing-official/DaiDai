@@ -19,6 +19,7 @@ abstract class GroupCallRepository {
     required Group group,
     required AppUser initiator,
     bool isVideo = false,
+    String? roomId,
   });
 
   /// 広場に進行中の通話が既にあればそれを返し、無ければ新規作成する。
@@ -36,6 +37,7 @@ abstract class GroupCallRepository {
     required Group group,
     required AppUser initiator,
     bool isVideo = false,
+    String? roomId,
   });
 
   /// その広場で現在進行中の通話（あれば1件）を監視する。
@@ -184,6 +186,7 @@ class FirestoreGroupCallRepository implements GroupCallRepository {
     required Group group,
     required AppUser initiator,
     bool isVideo = false,
+    String? roomId,
   }) async {
     final ref = _groupCalls.doc();
     final call = GroupCall(
@@ -193,6 +196,7 @@ class FirestoreGroupCallRepository implements GroupCallRepository {
       memberIds: group.memberIds,
       status: GroupCallStatus.active,
       isVideo: isVideo,
+      roomId: roomId,
     );
 
     await ref.set(call.toJson());
@@ -205,6 +209,7 @@ class FirestoreGroupCallRepository implements GroupCallRepository {
     required Group group,
     required AppUser initiator,
     bool isVideo = false,
+    String? roomId,
   }) async {
     final pointerRef = _activeCallPointer(group.groupId);
     return _firestore.runTransaction<GroupCall>((transaction) async {
@@ -235,6 +240,7 @@ class FirestoreGroupCallRepository implements GroupCallRepository {
         memberIds: group.memberIds,
         status: GroupCallStatus.active,
         isVideo: isVideo,
+        roomId: roomId,
       );
       transaction.set(newCallRef, call.toJson());
       transaction.set(pointerRef, {'activeCallId': newCallRef.id});

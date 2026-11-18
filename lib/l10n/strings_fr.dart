@@ -211,6 +211,18 @@ final Strings _stringsFr = Strings._(
   profileFontDesignDialogEditTitle: 'Modifier la police',
   settingsSubSound: 'Son',
   settingsSoundRingtoneTitle: 'Sonnerie',
+  settingsSubCallDisplay: 'Appels',
+  settingsCallMiniTitle: 'Affichage réduit après avoir quitté l’écran d’appel',
+  settingsCallMiniVideoLabel: 'Petite fenêtre avec la vidéo',
+  settingsCallMiniBarLabel: 'Pastille « En appel » seulement',
+  settingsCallMiniNoneLabel: 'Ne rien afficher',
+  settingsCallMiniNoneHint:
+      'Ce réglage ne s’applique qu’à cet appareil. Si rien n’est affiché, touchez l’icône d’appel du salon pour revenir à l’appel (sur téléphone, la notification fonctionne aussi)',
+  settingsCallPipTitle:
+      'Image dans l’image en quittant l’application (Android)',
+  settingsCallPipVideoLabel: 'Seulement avec vidéo ou partage d’écran',
+  settingsCallPipAlwaysLabel: 'Toujours',
+  settingsCallPipNeverLabel: 'Jamais',
   settingsRingtoneEnabledTitle: 'Jouer la sonnerie',
   settingsRingbackEnabledTitle: 'Jouer la tonalité d’appel',
   settingsRingEnabledSubtitle:
@@ -1445,6 +1457,7 @@ final Strings _stringsFr = Strings._(
   callDurationMinutesTemplate: (minutes) => '$minutes min',
   callDurationSecondsTemplate: (seconds) => '$seconds s',
   callMissedLabel: 'Appel manqué',
+  callCancelledLabel: 'Appel annulé',
   roomDefaultName: 'Principal',
   talksEmptyDmTemplate: (dmTerm) =>
       'Aucun $dmTerm pour le moment. Touchez + ci-dessus pour ajouter quelqu’un.',

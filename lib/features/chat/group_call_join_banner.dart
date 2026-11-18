@@ -5,6 +5,7 @@ import '../../l10n/strings.dart';
 import '../../models/app_ui_style.dart';
 import '../../providers/app_ui_style_provider.dart';
 import '../../providers/group_call_banner_dismissals.dart';
+import '../../models/group_call.dart' show liveParticipants;
 import '../../providers/group_call_providers.dart';
 import '../../theme/gekiga/gekiga_colors.dart';
 import '../../widgets/glass/glass_surface.dart';
@@ -35,7 +36,14 @@ class GroupCallJoinBanner extends ConsumerWidget {
     final call = ref.watch(activeGroupCallProvider(groupId)).value;
     final session = ref.watch(activeCallSessionProvider);
     final joinedId = session is GroupCallSession ? session.groupCallId : null;
+    ref.watch(callPresenceTickProvider);
+    final loadedParticipants = call == null
+        ? null
+        : ref.watch(groupCallParticipantsProvider(call.groupCallId)).value;
     final show = shouldShowGroupCallBanner(
+      liveParticipantCount: loadedParticipants == null
+          ? null
+          : liveParticipants(loadedParticipants, DateTime.now()).length,
       activeGroupCallId: call?.groupCallId,
       joinedGroupCallId: joinedId,
       dismissedIds: ref.watch(groupCallBannerDismissalsProvider),

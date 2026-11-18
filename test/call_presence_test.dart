@@ -11,6 +11,7 @@ CallParticipant _p(String id, {DateTime? lastSeen}) => CallParticipant(
 );
 
 void main() {
+  _roomIdRoundTrip();
   group('通話に入っている人の呼び名の文', () {
     test('1人・2人・3人以上', () {
       expect(CallParticipantsStrip.namesLabel(Strings.ja, ['A']), 'A');
@@ -33,6 +34,43 @@ void main() {
       ], now);
       expect(live.map((p) => p.userId), ['fresh', 'unknown']);
       expect(liveParticipantCount([_p('a'), _p('b')], now), 2);
+    });
+  });
+}
+
+void _roomIdRoundTrip() {
+  group('通話を始めた寄合のid', () {
+    test('GroupCallのroomIdはtoJson/fromJsonで往復し、無ければ書かない', () {
+      const withRoom = GroupCall(
+        groupCallId: 'g1',
+        groupId: 'grp',
+        initiatorId: 'u1',
+        memberIds: ['u1'],
+        status: GroupCallStatus.active,
+        roomId: 'r1',
+      );
+      expect(withRoom.toJson()['roomId'], 'r1');
+      final restored = GroupCall.fromJson('g1', {
+        ...withRoom.toJson(),
+        'createdAt': null,
+      });
+      expect(restored.roomId, 'r1');
+
+      const without = GroupCall(
+        groupCallId: 'g2',
+        groupId: 'grp',
+        initiatorId: 'u1',
+        memberIds: ['u1'],
+        status: GroupCallStatus.active,
+      );
+      expect(without.toJson().containsKey('roomId'), isFalse);
+      expect(
+        GroupCall.fromJson('g2', {
+          ...without.toJson(),
+          'createdAt': null,
+        }).roomId,
+        isNull,
+      );
     });
   });
 }

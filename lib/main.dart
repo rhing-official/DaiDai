@@ -62,6 +62,7 @@ import 'providers/send_key_mode_provider.dart';
 import 'providers/sticker_send_mode_provider.dart';
 import 'providers/talks_list_layout_style_provider.dart';
 import 'providers/appearance_colors_provider.dart';
+import 'providers/call_display_provider.dart';
 import 'providers/call_sound_enabled_provider.dart';
 import 'providers/dark_variant_provider.dart';
 import 'providers/theme_mode_provider.dart';
@@ -201,6 +202,8 @@ Future<void> _launchApp({required bool firstLaunch}) async {
   final initialDarkVariant = await loadInitialDarkVariant();
   final initialCallRingtoneEnabled = await loadInitialCallRingtoneEnabled();
   final initialCallRingbackEnabled = await loadInitialCallRingbackEnabled();
+  final initialCallMiniStyle = await loadInitialCallMiniStyle();
+  final initialCallPipPolicy = await loadInitialCallPipPolicy();
   final initialAppUiStyle = await loadInitialAppUiStyle();
   final initialConversationSortOrder = await loadInitialConversationSortOrder();
   final initialFontDesign = await loadInitialFontDesign();
@@ -302,6 +305,8 @@ Future<void> _launchApp({required bool firstLaunch}) async {
         initialCallRingbackEnabledProvider.overrideWithValue(
           initialCallRingbackEnabled,
         ),
+        initialCallMiniStyleProvider.overrideWithValue(initialCallMiniStyle),
+        initialCallPipPolicyProvider.overrideWithValue(initialCallPipPolicy),
         initialAppUiStyleProvider.overrideWithValue(initialAppUiStyle),
         initialConversationSortOrderProvider.overrideWithValue(
           initialConversationSortOrder,

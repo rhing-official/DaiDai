@@ -22,8 +22,12 @@ bool shouldShowGroupCallBanner({
   required String? activeGroupCallId,
   required String? joinedGroupCallId,
   required Set<String> dismissedIds,
+  int? liveParticipantCount,
 }) {
   if (activeGroupCallId == null) return false;
+  // 誰も入っていない通話（キャンセル・全員退出の直後で終わろうとしている）には、参加を促さない。
+  // 読み込み中（null）は従来どおり出す（2026-11-18）。
+  if (liveParticipantCount == 0) return false;
   if (joinedGroupCallId == activeGroupCallId) return false;
   return !dismissedIds.contains(activeGroupCallId);
 }

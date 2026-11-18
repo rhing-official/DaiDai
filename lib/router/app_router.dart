@@ -253,6 +253,7 @@ final goRouterProvider = Provider<GoRouter>((ref) {
     AppUser currentUser,
     DirectMessage dm, {
     bool isVideo = false,
+    String? roomId,
   }) async {
     // 通話中の再発信で二重通話にならないよう、進行中の通話があればその画面を開き直す
     // （2026-11-13）。
@@ -271,6 +272,7 @@ final goRouterProvider = Provider<GoRouter>((ref) {
       callee: other,
       dmId: dm.dmId,
       isVideo: isVideo,
+      roomId: roomId,
     );
     if (isMobileCallPlatform) {
       router.push(
@@ -352,9 +354,14 @@ final goRouterProvider = Provider<GoRouter>((ref) {
             dm: args.dm,
             roomId: args.roomId,
             roomName: args.roomName,
-            onCallPressed: () => startCall(args.currentUser, args.dm),
-            onVideoCallPressed: () =>
-                startCall(args.currentUser, args.dm, isVideo: true),
+            onCallPressed: (roomId) =>
+                startCall(args.currentUser, args.dm, roomId: roomId),
+            onVideoCallPressed: (roomId) => startCall(
+              args.currentUser,
+              args.dm,
+              isVideo: true,
+              roomId: roomId,
+            ),
             showRoomTabBar: args.showRoomTabBar,
           );
           if (args.instant) {

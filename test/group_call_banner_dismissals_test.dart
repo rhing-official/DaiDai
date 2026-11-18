@@ -16,6 +16,27 @@ void main() {
       );
     });
 
+    test('通話に入っている人が0人なら出さない（読み込み中は出す）', () {
+      expect(
+        shouldShowGroupCallBanner(
+          activeGroupCallId: 'c1',
+          joinedGroupCallId: null,
+          dismissedIds: const {},
+          liveParticipantCount: 0,
+        ),
+        isFalse,
+      );
+      expect(
+        shouldShowGroupCallBanner(
+          activeGroupCallId: 'c1',
+          joinedGroupCallId: null,
+          dismissedIds: const {},
+          liveParticipantCount: 1,
+        ),
+        isTrue,
+      );
+    });
+
     test('通話が無い・自分が参加済み・閉じたら出さない', () {
       expect(
         shouldShowGroupCallBanner(

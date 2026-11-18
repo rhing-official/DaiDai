@@ -43,6 +43,11 @@ import { path as ffmpegPath } from "@ffmpeg-installer/ffmpeg";
 import Stripe from "stripe";
 import { parseKiwamiReference } from "./kiwamiReference";
 import {
+  CallRecordResult,
+  dmCallRecordResult,
+  groupCallRecordResult,
+} from "./callRecordResult";
+import {
   type PackDeletionStatus,
   type Validated,
   canTransition,
@@ -5386,6 +5391,7 @@ export const onGroupCallRingEnded = onDocumentUpdated(
 /** 通話の記録メッセージ（`contentType: 'call'`）の本文。UIは`callResult`で専用表示に切り替える。 */
 const CALL_ENDED_CONTENT = "通話が終了しました";
 const CALL_MISSED_CONTENT = "不在着信";
+const CALL_CANCELLED_CONTENT = "キャンセル";
 
 /** 呼び出し中のまま終了が書かれない一対の通話を不在着信にするまでの秒数（クライアントの30秒＋余裕）。 */
 const DM_CALL_STALE_RINGING_MS = 90 * 1000;
@@ -5410,12 +5416,13 @@ async function writeCallRecordMessage(params: {
   conversationId: string;
   callId: string;
   senderId: string;
-  missed: boolean;
+  result: CallRecordResult;
   startedAt: Timestamp | null;
   durationSeconds: number | null;
   isVideo: boolean;
 }): Promise<void> {
-  const { isDm, conversationId, callId, senderId, missed } = params;
+  const { isDm, conversationId, callId, senderId, result } = params;
+  const missed = result !== "completed";
   const parentRef = db.doc(
     `${isDm ? "directMessages" : "groups"}/${conversationId}`,
   );
@@ -5429,7 +5436,12 @@ async function writeCallRecordMessage(params: {
   const messageRef = roomRef.collection("messages").doc(`call_${callId}`);
   if ((await messageRef.get()).exists) return;
   const senderDoc = await db.doc(`users/${senderId}`).get();
-  const content = missed ? CALL_MISSED_CONTENT : CALL_ENDED_CONTENT;
+  const content =
+    result === "cancelled"
+      ? CALL_CANCELLED_CONTENT
+      : missed
+        ? CALL_MISSED_CONTENT
+        : CALL_ENDED_CONTENT;
   const batch = db.batch();
   batch.create(messageRef, {
     conversationId: roomRef.id,
@@ -5438,7 +5450,7 @@ async function writeCallRecordMessage(params: {
     senderRhingSeed: senderDoc.data()?.rhingSeed ?? null,
     content,
     contentType: "call",
-    callResult: missed ? "missed" : "completed",
+    callResult: result,
     callId,
     callStartedAt: missed ? null : params.startedAt,
     callDurationSeconds: missed ? null : params.durationSeconds,
@@ -5488,7 +5500,8 @@ export const onCallEnded = onDocumentUpdated(
     ) {
       return;
     }
-    const answered = before.status === "active" && after.status === "ended";
+    const result = dmCallRecordResult(before.status, after.status);
+    const answered = result === "completed";
     const connectedAt = after.connectedAt as Timestamp | undefined;
     const endedAt = (after.endedAt as Timestamp | undefined) ?? Timestamp.now();
     const durationSeconds =
@@ -5500,7 +5513,7 @@ export const onCallEnded = onDocumentUpdated(
       conversationId: dmId,
       callId: event.params.callId,
       senderId: callerId,
-      missed: !answered,
+      result,
       startedAt: connectedAt ?? null,
       durationSeconds,
       isVideo: after.isVideo === true,
@@ -5531,17 +5544,20 @@ export const recordGroupCallEnd = onDocumentUpdated(
       ? initiatorId
       : (group.ownerId as string | undefined);
     if (!senderId) return;
-    const joined = after.joinedUserIds as string[] | undefined;
-    const missed =
-      Array.isArray(joined) && joined.every((id) => id === initiatorId);
     const createdAt = after.createdAt as Timestamp | undefined;
     const endedAt = (after.endedAt as Timestamp | undefined) ?? Timestamp.now();
+    const result = groupCallRecordResult({
+      joinedUserIds: after.joinedUserIds,
+      initiatorId,
+      createdAtMs: createdAt ? createdAt.toMillis() : null,
+      endedAtMs: endedAt.toMillis(),
+    });
     await writeCallRecordMessage({
       isDm: false,
       conversationId: groupId,
       callId: event.params.groupCallId,
       senderId,
-      missed,
+      result,
       startedAt: createdAt ?? null,
       durationSeconds: createdAt
         ? Math.max(0, Math.round((endedAt.toMillis() - createdAt.toMillis()) / 1000))

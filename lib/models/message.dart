@@ -330,6 +330,9 @@ class Message {
   final String? callResult;
   bool get isMissedCall => callResult == 'missed';
 
+  /// 呼び出しが終わる前に発信側が切った通話（2026-11-18）。
+  bool get isCancelledCall => callResult == 'cancelled';
+
   /// contentType='accountDeleted'（アカウント削除通知）専用フィールド。
   /// DMでのみ使う（広場では常にnull=表示のみで応答不要）。[senderId]には
   /// 削除されたユーザーのuserIdをそのまま入れる（'call'タイプが発信者の

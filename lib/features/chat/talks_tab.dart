@@ -5821,7 +5821,11 @@ class _DmDetailWithRoomsState extends ConsumerState<_DmDetailWithRooms> {
   // モバイルのみ全画面の/callへpushする。PCでは全画面ルートを使わず、
   // 通話セッションを直接開始するだけにする（2026-08-19変更）。以後は
   // `CallOverlay`が今の画面の上に通話画面を重ねて表示する（2026-10-23）。
-  Future<void> _startCall(DirectMessage dm, {bool isVideo = false}) async {
+  Future<void> _startCall(
+    DirectMessage dm, {
+    bool isVideo = false,
+    String? roomId,
+  }) async {
     // 通話中の再発信で二重通話にならないよう、進行中の通話があればその画面を開き直す
     // （2026-11-13）。
     final ongoing = ref.read(activeCallSessionProvider);
@@ -5840,6 +5844,7 @@ class _DmDetailWithRoomsState extends ConsumerState<_DmDetailWithRooms> {
       callee: other,
       dmId: dm.dmId,
       isVideo: isVideo,
+      roomId: roomId,
     );
     if (isMobileCallPlatform) {
       ref
@@ -6186,8 +6191,9 @@ class _DmDetailWithRoomsState extends ConsumerState<_DmDetailWithRooms> {
                   dm: dm,
                   roomId: roomId,
                   roomName: roomName,
-                  onCallPressed: () => _startCall(dm),
-                  onVideoCallPressed: () => _startCall(dm, isVideo: true),
+                  onCallPressed: (roomId) => _startCall(dm, roomId: roomId),
+                  onVideoCallPressed: (roomId) =>
+                      _startCall(dm, isVideo: true, roomId: roomId),
                 ),
               ),
             ),

@@ -188,6 +188,16 @@ class Strings {
     required this.settingsSubSound,
     required this.settingsSoundRingtoneTitle,
     required this.settingsSoundCallingTitle,
+    required this.settingsSubCallDisplay,
+    required this.settingsCallMiniTitle,
+    required this.settingsCallMiniVideoLabel,
+    required this.settingsCallMiniBarLabel,
+    required this.settingsCallMiniNoneLabel,
+    required this.settingsCallMiniNoneHint,
+    required this.settingsCallPipTitle,
+    required this.settingsCallPipVideoLabel,
+    required this.settingsCallPipAlwaysLabel,
+    required this.settingsCallPipNeverLabel,
     required this.settingsRingtoneEnabledTitle,
     required this.settingsRingbackEnabledTitle,
     required this.settingsRingEnabledSubtitle,
@@ -1211,6 +1221,7 @@ class Strings {
     required this.callDurationMinutesTemplate,
     required this.callDurationSecondsTemplate,
     required this.callMissedLabel,
+    required this.callCancelledLabel,
     required this.roomDefaultName,
     required this.talksEmptyDmTemplate,
     required this.talksEmptyGroupTemplate,
@@ -1505,6 +1516,16 @@ class Strings {
   final String settingsSubSound;
   final String settingsSoundRingtoneTitle;
   final String settingsSoundCallingTitle;
+  final String settingsSubCallDisplay;
+  final String settingsCallMiniTitle;
+  final String settingsCallMiniVideoLabel;
+  final String settingsCallMiniBarLabel;
+  final String settingsCallMiniNoneLabel;
+  final String settingsCallMiniNoneHint;
+  final String settingsCallPipTitle;
+  final String settingsCallPipVideoLabel;
+  final String settingsCallPipAlwaysLabel;
+  final String settingsCallPipNeverLabel;
   final String settingsRingtoneEnabledTitle;
   final String settingsRingbackEnabledTitle;
   final String settingsRingEnabledSubtitle;
@@ -2855,6 +2876,7 @@ class Strings {
 
   /// 不在着信の記録の文言（2026-11-17）。
   final String callMissedLabel;
+  final String callCancelledLabel;
   final String roomDefaultName;
   final String Function(String dmTerm) talksEmptyDmTemplate;
   final String Function(String plazaTerm) talksEmptyGroupTemplate;
@@ -3153,6 +3175,17 @@ class Strings {
     settingsSubSound: 'サウンド',
     settingsSoundRingtoneTitle: '着信音',
     settingsSoundCallingTitle: '呼出音',
+    settingsSubCallDisplay: '通話',
+    settingsCallMiniTitle: '通話画面を出た時のミニ表示',
+    settingsCallMiniVideoLabel: '映像つきの小窓',
+    settingsCallMiniBarLabel: '「通話中」のチップだけ',
+    settingsCallMiniNoneLabel: '何も出さない',
+    settingsCallMiniNoneHint:
+        'この端末だけの設定です。「何も出さない」にした時は、通話中の寄合の標（電話のアイコン）をタップすると通話画面へ戻れます（スマホは通知からも戻れます）',
+    settingsCallPipTitle: 'アプリを離れた時のピクチャーインピクチャー（Android）',
+    settingsCallPipVideoLabel: '映像・画面共有がある時だけ',
+    settingsCallPipAlwaysLabel: '常に出す',
+    settingsCallPipNeverLabel: '出さない',
     settingsRingtoneEnabledTitle: '着信音を鳴らす',
     settingsRingbackEnabledTitle: '呼出音を鳴らす',
     settingsRingEnabledSubtitle:
@@ -4249,6 +4282,7 @@ class Strings {
     callDurationMinutesTemplate: (minutes) => '$minutes分',
     callDurationSecondsTemplate: (seconds) => '$seconds秒',
     callMissedLabel: '不在着信',
+    callCancelledLabel: 'キャンセル',
     roomDefaultName: 'メイン',
     talksEmptyDmTemplate: (dmTerm) => 'まだ$dmTermが有りません。上の＋から相手を追加して下さい。',
     talksEmptyGroupTemplate: (plazaTerm) => 'まだ$plazaTermが有りません。上の＋から作成して下さい。',
@@ -4551,6 +4585,17 @@ class Strings {
     settingsSubSound: 'Sound',
     settingsSoundRingtoneTitle: 'Ringtone',
     settingsSoundCallingTitle: 'Calling tone',
+    settingsSubCallDisplay: 'Calls',
+    settingsCallMiniTitle: 'Mini display after leaving the call screen',
+    settingsCallMiniVideoLabel: 'Small window with video',
+    settingsCallMiniBarLabel: '“In a call” chip only',
+    settingsCallMiniNoneLabel: 'Show nothing',
+    settingsCallMiniNoneHint:
+        'This setting applies to this device only. If you show nothing, tap the call mark on the room to return to the call (on a phone, you can also use the notification)',
+    settingsCallPipTitle: 'Picture-in-picture when leaving the app (Android)',
+    settingsCallPipVideoLabel: 'Only with video or screen sharing',
+    settingsCallPipAlwaysLabel: 'Always',
+    settingsCallPipNeverLabel: 'Never',
     settingsRingtoneEnabledTitle: 'Play the ringtone',
     settingsRingbackEnabledTitle: 'Play the calling tone',
     settingsRingEnabledSubtitle:
@@ -5772,6 +5817,7 @@ class Strings {
     callDurationMinutesTemplate: (minutes) => '${minutes}m',
     callDurationSecondsTemplate: (seconds) => '${seconds}s',
     callMissedLabel: 'Missed call',
+    callCancelledLabel: 'Cancelled call',
     roomDefaultName: 'Main',
     talksEmptyDmTemplate: (dmTerm) =>
         'No $dmTerm conversations yet. Tap + above to add someone.',

@@ -31,6 +31,9 @@ class MainActivity : FlutterFragmentActivity() {
     private val pipChannelName = "jp.rhing.daidai/pip"
     private var pipChannel: MethodChannel? = null
     private var callActive = false
+
+    /** 設定と映像の有無から、Dart側が決めた「OS標準のPiPへ入ってよいか」（2026-11-18）。 */
+    private var pipAllowed = true
     private var recordingCallback: AudioManager.AudioRecordingCallback? = null
     private var lastMicSilenced = false
     private val callActionChannelName = "jp.rhing.daidai/call_action"
@@ -218,10 +221,18 @@ class MainActivity : FlutterFragmentActivity() {
                     busy = false
                 }
                 result.success(busy)
+            } else if (call.method == "setPipAllowed") {
+                pipAllowed = call.argument<Boolean>("allowed") ?: true
+                try {
+                    updatePipParams()
+                } catch (e: Exception) {
+                    // 更新に失敗しても、次に離れる時の判定（pipAllowed）は効く。
+                }
+                result.success(null)
             } else if (call.method == "enterPip") {
                 // 通話画面の戻るボタンで、OS標準のPiPに入る（2026-11-16）。入れたかを返す。
                 var entered = false
-                if (callActive &&
+                if (callActive && pipAllowed &&
                     Build.VERSION.SDK_INT >= Build.VERSION_CODES.O &&
                     !isInPictureInPictureMode
                 ) {
@@ -313,7 +324,7 @@ class MainActivity : FlutterFragmentActivity() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
             // Android 12以降は、通話中にホームへ戻ると自動的に入る。最近のアプリ画面からの切り替えは
             // 自動では入らないため、onUserLeaveHintで手動で入る。
-            builder.setAutoEnterEnabled(callActive)
+            builder.setAutoEnterEnabled(callActive && pipAllowed)
         }
         return builder.build()
     }
@@ -374,7 +385,7 @@ class MainActivity : FlutterFragmentActivity() {
         // Android 8〜11は自動で入れないため、離れる時に手動で入る。Android 12以降も、自動入室は
         // 「ホームへ戻る」でしか働かず、最近のアプリ画面からの切り替えでは入らないため、手動で入る
         // （既に入っている・入りかけの時は何もしない）。
-        if (callActive &&
+        if (callActive && pipAllowed &&
             Build.VERSION.SDK_INT >= Build.VERSION_CODES.O &&
             !isInPictureInPictureMode
         ) {
