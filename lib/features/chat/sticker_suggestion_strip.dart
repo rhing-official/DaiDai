@@ -34,10 +34,10 @@ class StickerSuggestionStrip extends ConsumerWidget {
   final List<Sticker> stickers;
   final void Function(Sticker sticker) onStickerTap;
 
-  static const _stickerSize = 68.0;
+  static const _stickerSize = 160.0;
   static const _gap = 8.0;
   static const _padding = 8.0;
-  static const _maxRows = 3;
+  static const _maxRows = 2;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -48,7 +48,7 @@ class StickerSuggestionStrip extends ConsumerWidget {
     final radius = isGekiga ? BorderRadius.zero : BorderRadius.circular(12);
 
     // スマホは横1行（最大10件）で横スクロール、PC・タブレットは左に固めて
-    // 最大3行に折り返し、入り切らない分は縦スクロール（2026-10-29）。
+    // 最大2行に折り返し（ぺったんを68→160に拡大、2026-11-19）、入り切らない分は縦スクロール（2026-10-29）。
     final isPhone = classifyDevice(context) == DeviceClass.phone;
     final shown = isPhone ? stickers.take(10).toList() : stickers;
     Widget tile(Sticker sticker) => InkWell(
