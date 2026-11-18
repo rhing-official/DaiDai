@@ -17,20 +17,6 @@ import 'package:passkeys_platform_interface/passkeys_platform_interface.dart';
 import '../utils/google_sign_in_bootstrap.dart';
 import '../utils/web_redirect_sign_in.dart';
 
-/// 秘密の質問1組（設定時の入力用、2026-09-16追加）。
-class SecretQuestionInput {
-  const SecretQuestionInput({required this.question, required this.answer});
-  final String question;
-  final String answer;
-}
-
-/// 秘密の質問の設定状況（ハッシュ自体は含まない、2026-09-16追加）。
-class SecretQuestionsStatus {
-  const SecretQuestionsStatus({required this.configured, this.updatedAt});
-  final bool configured;
-  final DateTime? updatedAt;
-}
-
 /// 登録済みパスキー1件のメタ情報（設定画面の一覧表示用、2026-09-16追加）。
 class PasskeyCredentialInfo {
   const PasskeyCredentialInfo({
@@ -50,16 +36,6 @@ class PasskeyCredentialInfo {
   /// 住人が付けた任意の名前（2026-09-18追加）。未設定なら`null`で、一覧では
   /// 作成日時にフォールバック表示する。
   final String? name;
-}
-
-/// パスキー紛失時の復旧フロー第1段階で返される質問一覧（2026-09-16追加）。
-class PasskeyRecoveryQuestions {
-  const PasskeyRecoveryQuestions({
-    required this.recoveryId,
-    required this.questions,
-  });
-  final String recoveryId;
-  final List<String> questions;
 }
 
 /// パスキーでの新規登録を、利用者が中断した（提案・セキュリティキーを断った等）こと
@@ -190,14 +166,6 @@ abstract class AuthRepository {
   /// 呼ぶ必要は無い）。
   Future<void> cancelConditionalPasskeyAttempt();
 
-  /// 秘密の質問（3問固定）を設定・更新する（2026-09-16追加、パスキー紛失時の
-  /// 復旧用）。既存の設定があれば3問まるごと置き換える。回答はサーバー側で
-  /// ハッシュ化して保存し、平文は保持しない。
-  Future<void> setSecretQuestions(List<SecretQuestionInput> questions);
-
-  /// 秘密の質問の設定状況を取得する（ハッシュ自体は取得出来ない）。
-  Future<SecretQuestionsStatus> getSecretQuestionsStatus();
-
   /// 現在ログイン中ユーザーが登録済みのパスキー一覧を取得する
   /// （設定画面のパスキー管理UI用）。
   Future<List<PasskeyCredentialInfo>> listPasskeyCredentials();
@@ -214,14 +182,6 @@ abstract class AuthRepository {
 
   /// 登録済みパスキーの名前を変更する（2026-09-18追加）。
   Future<void> renamePasskeyCredential(String credentialId, String name);
-
-  /// パスキー紛失時の復旧フロー第1段階（2026-09-16追加）。[rhingSeed]の
-  /// アカウントに秘密の質問が設定されていれば質問一覧を返す。
-  Future<PasskeyRecoveryQuestions> beginPasskeyRecovery(String rhingSeed);
-
-  /// 復旧フロー第2段階。[answers]は[beginPasskeyRecovery]が返した質問と
-  /// 同じ順序の3つの回答。3問全て正解した場合のみサインインする。
-  Future<User> finishPasskeyRecovery(String recoveryId, List<String> answers);
 
   /// 現在ログイン中ユーザーが管理者（Firebase Custom Claims `admin: true`）
   /// かどうか（管理画面向け、2026-08-12追加）。[forceRefresh]をtrueにすると
@@ -701,30 +661,6 @@ class FirebaseAuthRepository implements AuthRepository {
   }
 
   @override
-  Future<void> setSecretQuestions(List<SecretQuestionInput> questions) async {
-    await _functions.httpsCallable('setSecretQuestions').call({
-      'questions': questions
-          .map((q) => {'question': q.question, 'answer': q.answer})
-          .toList(),
-    });
-  }
-
-  @override
-  Future<SecretQuestionsStatus> getSecretQuestionsStatus() async {
-    final result = await _functions
-        .httpsCallable('getSecretQuestionsStatus')
-        .call();
-    final data = _asJsonMap(result.data);
-    final updatedAtMs = data['updatedAt'] as int?;
-    return SecretQuestionsStatus(
-      configured: data['configured'] as bool,
-      updatedAt: updatedAtMs == null
-          ? null
-          : DateTime.fromMillisecondsSinceEpoch(updatedAtMs),
-    );
-  }
-
-  @override
   Future<List<PasskeyCredentialInfo>> listPasskeyCredentials() async {
     final result = await _functions
         .httpsCallable('listPasskeyCredentials')
@@ -784,38 +720,6 @@ class FirebaseAuthRepository implements AuthRepository {
       'credentialId': credentialId,
       'name': name,
     });
-  }
-
-  @override
-  Future<PasskeyRecoveryQuestions> beginPasskeyRecovery(
-    String rhingSeed,
-  ) async {
-    final result = await _functions.httpsCallable('beginPasskeyRecovery').call({
-      'rhingSeed': rhingSeed,
-    });
-    final data = _asJsonMap(result.data);
-    final questions = (data['questions'] as List<dynamic>).cast<String>();
-    return PasskeyRecoveryQuestions(
-      recoveryId: data['recoveryId'] as String,
-      questions: questions,
-    );
-  }
-
-  @override
-  Future<User> finishPasskeyRecovery(
-    String recoveryId,
-    List<String> answers,
-  ) async {
-    final result = await _functions.httpsCallable('finishPasskeyRecovery').call(
-      {'recoveryId': recoveryId, 'answers': answers},
-    );
-    final customToken = (result.data as Map)['customToken'] as String;
-    final userCredential = await _auth.signInWithCustomToken(customToken);
-    final user = userCredential.user;
-    if (user == null) {
-      throw StateError('アカウントの復旧に失敗しました');
-    }
-    return user;
   }
 
   @override

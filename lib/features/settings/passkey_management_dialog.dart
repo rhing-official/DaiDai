@@ -11,7 +11,6 @@ import '../../providers/app_ui_style_provider.dart';
 import '../../providers/repository_providers.dart';
 import '../../repositories/auth_repository.dart';
 import '../../widgets/glass/glass_dialog.dart';
-import 'secret_questions_setup_dialog.dart';
 import '../../widgets/dialog_keyboard_shortcuts.dart';
 import '../../widgets/app_dialog.dart';
 
@@ -20,9 +19,9 @@ import '../../widgets/app_dialog.dart';
 /// （2026-09-18追加）。
 const _kPasskeyNameMaxLength = 30;
 
-/// 登録済みパスキーの一覧・追加登録・削除と、秘密の質問（復旧手段）の
-/// 設定状況をまとめたダイアログ（2026-09-16追加）。設定＞アカウント＞
-/// セキュリティの「パスキー」行から開く。
+/// 登録済みパスキーの一覧・追加登録・削除をまとめたダイアログ（2026-09-16追加）。
+/// 設定＞アカウント＞セキュリティの「パスキー」行から開く。パスキーを失った時の
+/// 復旧手段（秘密の質問）は2026-11-18に廃止した。
 class PasskeyManagementDialog extends ConsumerStatefulWidget {
   const PasskeyManagementDialog({super.key});
 
@@ -40,13 +39,7 @@ class PasskeyManagementDialog extends ConsumerStatefulWidget {
 
 class _PasskeyManagementDialogState
     extends ConsumerState<PasskeyManagementDialog> {
-  late Future<
-    ({
-      List<PasskeyCredentialInfo> credentials,
-      SecretQuestionsStatus questionsStatus,
-    })
-  >
-  _future;
+  late Future<List<PasskeyCredentialInfo>> _future;
   bool _isBusy = false;
   String? _errorMessage;
 
@@ -56,17 +49,8 @@ class _PasskeyManagementDialogState
     _future = _load();
   }
 
-  Future<
-    ({
-      List<PasskeyCredentialInfo> credentials,
-      SecretQuestionsStatus questionsStatus,
-    })
-  >
-  _load() async {
-    final repo = ref.read(authRepositoryProvider);
-    final credentials = await repo.listPasskeyCredentials();
-    final questionsStatus = await repo.getSecretQuestionsStatus();
-    return (credentials: credentials, questionsStatus: questionsStatus);
+  Future<List<PasskeyCredentialInfo>> _load() {
+    return ref.read(authRepositoryProvider).listPasskeyCredentials();
   }
 
   void _reload() {
@@ -160,13 +144,8 @@ class _PasskeyManagementDialogState
     Strings strings,
     PasskeyCredentialInfo credential,
     bool isLast,
-    bool questionsConfigured,
   ) async {
-    final confirmed = await _confirmDeletePasskey(
-      context,
-      strings,
-      isLast && !questionsConfigured,
-    );
+    final confirmed = await _confirmDeletePasskey(context, strings, isLast);
     if (!confirmed || !mounted) return;
     setState(() {
       _isBusy = true;
@@ -191,13 +170,6 @@ class _PasskeyManagementDialogState
     }
   }
 
-  Future<void> _editSecretQuestions() async {
-    final saved = await SecretQuestionsSetupDialog.show(context);
-    if (saved == true && mounted) {
-      _reload();
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
     final strings = ref.watch(appStringsProvider);
@@ -214,8 +186,7 @@ class _PasskeyManagementDialogState
           if (!snapshot.hasData) {
             return const SizedBox(height: 160);
           }
-          final credentials = snapshot.data!.credentials;
-          final questionsStatus = snapshot.data!.questionsStatus;
+          final credentials = snapshot.data!;
           return SingleChildScrollView(
             child: Column(
               mainAxisSize: MainAxisSize.min,
@@ -261,7 +232,6 @@ class _PasskeyManagementDialogState
                                     strings,
                                     credential,
                                     credentials.length == 1,
-                                    questionsStatus.configured,
                                   ),
                           ),
                         ],
@@ -272,32 +242,15 @@ class _PasskeyManagementDialogState
                   onPressed: _isBusy ? null : () => _addPasskey(strings),
                   child: Text(strings.passkeyManagementAddButton),
                 ),
-                const Divider(height: 32),
-                Text(
-                  strings.secretQuestionsSectionTitle,
-                  style: Theme.of(context).textTheme.titleSmall,
-                ),
-                const SizedBox(height: 8),
-                Text(strings.secretQuestionsSectionDescription),
-                const SizedBox(height: 8),
-                Row(
-                  children: [
-                    Expanded(
-                      child: Text(
-                        questionsStatus.configured
-                            ? strings.secretQuestionsStatusConfigured
-                            : strings.secretQuestionsStatusNotConfigured,
-                        style: TextStyle(
-                          color: Theme.of(context).colorScheme.onSurfaceVariant,
-                        ),
-                      ),
-                    ),
-                    TextButton(
-                      onPressed: _isBusy ? null : _editSecretQuestions,
-                      child: Text(strings.secretQuestionsEditButton),
-                    ),
-                  ],
-                ),
+                // 登録が1つだけの時は、パスキーを失うと入れなくなる事実を伝える
+                // （復旧手段が無いため、2026-11-18）。
+                if (credentials.length <= 1) ...[
+                  const SizedBox(height: 12),
+                  Text(
+                    strings.passkeyManagementSingleCredentialNote,
+                    style: Theme.of(context).textTheme.bodySmall,
+                  ),
+                ],
                 if (_errorMessage != null) ...[
                   const SizedBox(height: 12),
                   Text(
@@ -390,8 +343,8 @@ class _PasskeyNameDialogState extends ConsumerState<_PasskeyNameDialog> {
   }
 }
 
-/// パスキー削除の確認ダイアログ。最後の1つを削除しようとしていて、かつ
-/// 秘密の質問も未設定の場合は追加の警告を表示する。
+/// パスキー削除の確認ダイアログ。最後の1つを削除しようとしている場合は、追加の警告を
+/// 表示する。
 Future<bool> _confirmDeletePasskey(
   BuildContext context,
   Strings strings,

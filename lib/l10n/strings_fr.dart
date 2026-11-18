@@ -284,6 +284,15 @@ final Strings _stringsFr = Strings._(
   passkeyCreateAccountButton: 'Commencer avec une clé d’accès',
   passkeyCreateAccountNote:
       'Votre compte Google ou Apple n’est pas utilisé. La clé d’accès est enregistrée sur cet appareil ou dans votre gestionnaire de mots de passe. Si vous refusez la proposition d’enregistrement, une clé de sécurité peut vous être demandée.',
+  passkeyCreateWarningTitle:
+      'Si vous perdez votre clé d’accès, vous perdez l’accès',
+  passkeyCreateWarningBody:
+      'Ce compte n’est accessible qu’avec une clé d’accès. Si vous la perdez, il n’existe aucun moyen de récupérer le compte (DaiDai ne détient ni adresse e-mail ni numéro de téléphone). Nous vous conseillons d’enregistrer des clés d’accès sur plusieurs appareils. Si vous les perdez toutes, le compte sera perdu.',
+  passkeyCreateWarningCheckbox:
+      'Je comprends que je ne pourrai plus accéder au compte si je perds ma clé d’accès',
+  passkeyCreateWarningContinue: 'Continuer',
+  passkeyManagementSingleCredentialNote:
+      'Vous n’avez qu’une seule clé d’accès. Si vous la perdez, vous ne pourrez plus accéder à ce compte. Nous vous conseillons d’en enregistrer une aussi sur un autre appareil.',
   passkeyCreateFailed:
       'Impossible de créer la clé d’accès. Veuillez réessayer.',
   passkeySignInButton: 'Se connecter avec Rhing Seed',
@@ -297,26 +306,6 @@ final Strings _stringsFr = Strings._(
       'Aucun compte n’a été trouvé pour ce Rhing Seed.',
   passkeySignInDialogErrorNoPasskey:
       'Aucune clé d’accès n’est enregistrée pour ce compte. Après vous être connecté avec Google, vous pourrez en ajouter une depuis Réglages > Sécurité.',
-  passkeyRecoveryLinkLabel: 'Impossible d’utiliser votre clé d’accès ?',
-  passkeyRecoveryDialogTitle: 'Récupérer le compte',
-  passkeyRecoveryDialogRhingSeedDescription:
-      'Saisissez votre Rhing Seed enregistré.',
-  passkeyRecoveryDialogNextButton: 'Suivant',
-  passkeyRecoveryDialogAnswerDescription: 'Répondez aux questions ci-dessous.',
-  passkeyRecoveryDialogSubmitButton: 'Récupérer le compte',
-  passkeyRecoveryErrorNotFound:
-      'Aucun compte n’a été trouvé pour ce Rhing Seed.',
-  passkeyRecoveryErrorNoQuestionsConfigured:
-      'Aucune méthode de récupération n’est configurée pour ce compte.',
-  passkeyRecoveryErrorLocked:
-      'Trop de tentatives. Veuillez réessayer plus tard.',
-  passkeyRecoveryErrorWrongAnswers:
-      'Ces réponses ne correspondent pas à nos données.',
-  passkeyRecoveryErrorGeneric: 'La récupération du compte a échoué.',
-  passkeyRecoveryAddNewPasskeyTitle: 'Enregistrer une nouvelle clé d’accès ?',
-  passkeyRecoveryAddNewPasskeyDescription:
-      'Vous pouvez enregistrer une nouvelle clé d’accès sur cet appareil pour remplacer celle que vous avez perdue.',
-  passkeyRecoveryAddNewPasskeyConfirmButton: 'Enregistrer maintenant',
   qrLoginScanConfirmTitle: 'Autoriser la connexion sur cet appareil ?',
   qrLoginScanConfirmMessage:
       'Si vous ne reconnaissez pas cette demande, ne l’autorisez pas.',
@@ -357,24 +346,13 @@ final Strings _stringsFr = Strings._(
       'Vous ne pourrez plus vous connecter avec la clé d’accès de cet appareil.',
   passkeyManagementDeleteConfirmButton: 'Oui',
   passkeyManagementLastCredentialWarning:
-      'Il s’agit de votre dernière clé d’accès. Sans questions secrètes configurées, vous ne pourrez pas récupérer ce compte si vous la perdez.',
+      'Il s’agit de votre dernière clé d’accès. Si vous la supprimez, vous ne pourrez plus accéder à ce compte (il n’existe aucun moyen de le récupérer).',
   passkeyManagementAddError: 'Échec de l’ajout de la clé d’accès.',
   passkeyManagementDeleteError: 'Échec de la suppression de la clé d’accès.',
   passkeyManagementRenameError: 'Échec du renommage de la clé d’accès.',
   passkeyManagementNameDialogTitle: 'Nom de la clé d’accès',
   passkeyManagementNameDialogHint: 'p. ex. clé d’accès du MacBook (facultatif)',
   passkeyManagementRenameTooltip: 'Renommer',
-  secretQuestionsSectionTitle: 'Questions secrètes',
-  secretQuestionsSectionDescription:
-      'Si vous perdez l’accès à votre clé d’accès, vous pouvez récupérer votre compte grâce à ces questions.',
-  secretQuestionsStatusConfigured: 'Configurées',
-  secretQuestionsStatusNotConfigured: 'Non configurées',
-  secretQuestionsEditButton: 'Configurer / modifier',
-  secretQuestionsQuestionLabel: 'Question',
-  secretQuestionsAnswerLabel: 'Réponse',
-  secretQuestionsSaveButton: 'Enregistrer',
-  secretQuestionsSavedMessage: 'Questions secrètes enregistrées.',
-  secretQuestionsSaveError: 'Échec de l’enregistrement.',
   settingsQrLogin: 'Se connecter avec un code QR',
   settingsDeleteAccount: 'Supprimer le compte',
   settingsSendKeyTitle: 'Touche d’envoi des messages',

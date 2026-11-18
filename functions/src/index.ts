@@ -20,7 +20,6 @@ import {
   verifyAuthenticationResponse,
   verifyRegistrationResponse,
 } from "@simplewebauthn/server";
-import bcrypt from "bcryptjs";
 import { logger } from "firebase-functions";
 import { defineSecret, defineString } from "firebase-functions/params";
 import {
@@ -454,6 +453,12 @@ async function deleteAccount(
   // 素材（`userSounds`など）と同じく、ここでは消していない。
   await deleteSubcollection(
     db.collection("users").doc(userId).collection("soundboardSounds"),
+    writer,
+  );
+  // 登録済みパスキーの公開鍵（2026-11-18、これまで残っていた）。Firestoreは親の
+  // ドキュメントを消してもサブコレクションを消さない。
+  await deleteSubcollection(
+    db.collection("users").doc(userId).collection("passkeyCredentials"),
     writer,
   );
   await writer.delete(db.collection("users").doc(userId));
@@ -1512,98 +1517,12 @@ export const cleanupPasskeyChallenges = onSchedule(
 );
 
 // -----------------------------------------------------------------------
-// パスキー紛失時の復旧（秘密の質問）・複数パスキー管理（2026-09-16追加）。
-// 秘密の質問の回答はbcryptjsでハッシュ化し、`users/{uid}/secretQuestions/
-// config`（Cloud Functions・Admin SDK経由の書き込み・読み取りのみ、
-// firestore.rulesで`allow read, write: if false`）に保存する。CLAUDE.mdが
-// 想定していた「Userモデルのフィールド」ではなく保護されたサブコレクションに
-// した理由は、`users/{userId}`ドキュメント自体はログイン済みなら誰でも
-// 読める設計（`allow read: if request.auth != null`）のため、直接載せると
-// bcryptハッシュが他の住人から読める状態になってしまうため。
+// 複数パスキー管理（2026-09-16追加）。
+// 秘密の質問によるパスキー紛失時の復旧は、2026-11-18に廃止した（推測されやすく、
+// バックアップコードも採用しないため）。パスキーを失った場合の復旧手段は、事前に
+// 登録した別のパスキーか、後から連携するGoogle・Appleのログインのみで、どちらも
+// 無ければ復旧できない（`文書/バックアップコード.md`）。
 // -----------------------------------------------------------------------
-
-/**
- * 秘密の質問の回答を比較・保存用に正規化する（前後空白除去＋小文字化）。
- * 表記ゆれの許容はこの最小限に留める。
- */
-function normalizeSecretAnswer(answer: string): string {
-  return answer.trim().toLowerCase();
-}
-
-const PASSKEY_RECOVERY_TTL_MS = 10 * 60 * 1000;
-const RECOVERY_LOCKOUT_MAX_ATTEMPTS = 5;
-const RECOVERY_LOCKOUT_DURATION_MS = 15 * 60 * 1000;
-
-/**
- * 秘密の質問（3問固定）を設定・更新する（本人のみ）。既存の設定がある場合も
- * 3問まるごと置き換える。回答は正規化した上でbcryptハッシュ化し、平文は
- * 一切保持しない。
- */
-export const setSecretQuestions = onCall(
-  { region: "asia-northeast1" },
-  async (request) => {
-    if (!request.auth) {
-      throw new HttpsError("unauthenticated", "ログインが必要です");
-    }
-    const questions = request.data?.questions;
-    if (
-      !Array.isArray(questions) ||
-      questions.length !== 3 ||
-      questions.some(
-        (q) =>
-          typeof q?.question !== "string" ||
-          !q.question.trim() ||
-          typeof q?.answer !== "string" ||
-          !q.answer.trim(),
-      )
-    ) {
-      throw new HttpsError(
-        "invalid-argument",
-        "質問・回答の組を3つ指定してください",
-      );
-    }
-    const hashed = await Promise.all(
-      questions.map(async (q) => ({
-        question: (q.question as string).trim(),
-        answerHash: await bcrypt.hash(
-          normalizeSecretAnswer(q.answer as string),
-          10,
-        ),
-      })),
-    );
-    await db
-      .collection("users")
-      .doc(request.auth.uid)
-      .collection("secretQuestions")
-      .doc("config")
-      .set({ questions: hashed, updatedAt: FieldValue.serverTimestamp() });
-    return { success: true };
-  },
-);
-
-/**
- * 秘密の質問の設定状況のみを返す（ハッシュ自体は返さない）。設定画面の
- * パスキー管理UIで使う。
- */
-export const getSecretQuestionsStatus = onCall(
-  { region: "asia-northeast1" },
-  async (request) => {
-    if (!request.auth) {
-      throw new HttpsError("unauthenticated", "ログインが必要です");
-    }
-    const doc = await db
-      .collection("users")
-      .doc(request.auth.uid)
-      .collection("secretQuestions")
-      .doc("config")
-      .get();
-    if (!doc.exists) {
-      return { configured: false, updatedAt: null };
-    }
-    const updatedAt = doc.data()?.updatedAt as Timestamp | undefined;
-    return { configured: true, updatedAt: updatedAt?.toMillis() ?? null };
-  },
-);
 
 /**
  * 登録済みパスキーの一覧を返す（公開鍵・カウンタ等の機微情報は含めない）。
@@ -1795,193 +1714,6 @@ export const renamePasskeyCredential = onCall(
       .doc(credentialId)
       .update({ name });
     return { success: true };
-  },
-);
-
-/**
- * パスキー紛失時の復旧フロー第1段階。指定されたRhing Seedのアカウントに
- * 秘密の質問が設定されていれば、質問文（ハッシュは含まない）を返す。
- * ロックアウト中は`resource-exhausted`で拒否する。
- */
-export const beginPasskeyRecovery = onCall(
-  { region: "asia-northeast1" },
-  async (request) => {
-    // rhingId→rhingSeedへの改名に伴う移行期間シム（2026-09-23追加、
-    // beginPasskeyAuthenticationと同じ理由）。クライアントの動作確認が
-    // 済んだら`request.data?.rhingId`のフォールバックを削除すること。
-    const rhingSeed = request.data?.rhingSeed ?? request.data?.rhingId;
-    if (typeof rhingSeed !== "string" || !rhingSeed) {
-      throw new HttpsError("invalid-argument", "rhingSeedが必要です");
-    }
-    const usersSnapshot = await db
-      .collection("users")
-      .where("rhingSeed", "==", rhingSeed.trim().toLowerCase())
-      .limit(1)
-      .get();
-    if (usersSnapshot.empty) {
-      throw new HttpsError(
-        "not-found",
-        "そのRhing Seedのアカウントが見つかりません",
-      );
-    }
-    const uid = usersSnapshot.docs[0].id;
-
-    const lockoutRef = db
-      .collection("users")
-      .doc(uid)
-      .collection("recoveryLockout")
-      .doc("state");
-    const lockoutDoc = await lockoutRef.get();
-    const lockedUntil = lockoutDoc.data()?.lockedUntil as
-      | Timestamp
-      | undefined;
-    if (lockedUntil && lockedUntil.toMillis() > Date.now()) {
-      throw new HttpsError(
-        "resource-exhausted",
-        "試行回数が多すぎます。しばらくしてから再度お試しください",
-      );
-    }
-
-    const questionsDoc = await db
-      .collection("users")
-      .doc(uid)
-      .collection("secretQuestions")
-      .doc("config")
-      .get();
-    if (!questionsDoc.exists) {
-      throw new HttpsError(
-        "failed-precondition",
-        "このアカウントには復旧手段が設定されていません",
-      );
-    }
-    const questions = (
-      questionsDoc.data()!.questions as { question: string }[]
-    ).map((q) => q.question);
-
-    const sessionRef = await db.collection("passkeyRecoverySessions").add({
-      uid,
-      createdAt: FieldValue.serverTimestamp(),
-    });
-    return { recoveryId: sessionRef.id, questions };
-  },
-);
-
-/**
- * 復旧フロー第2段階。3問すべての回答が一致すればカスタムトークンを返す
- * （ユーザー確認済みの判定基準）。失敗時はロックアウトカウンタを進め、
- * 規定回数（5回）に達すると15分間ロックする。どの問いが誤りかは応答に
- * 含めない。
- */
-export const finishPasskeyRecovery = onCall(
-  { region: "asia-northeast1" },
-  async (request) => {
-    const recoveryId = request.data?.recoveryId;
-    const answers = request.data?.answers;
-    if (
-      typeof recoveryId !== "string" ||
-      !recoveryId ||
-      !Array.isArray(answers) ||
-      answers.length !== 3 ||
-      answers.some((a) => typeof a !== "string")
-    ) {
-      throw new HttpsError("invalid-argument", "recoveryId/answersが必要です");
-    }
-
-    const sessionRef = db
-      .collection("passkeyRecoverySessions")
-      .doc(recoveryId);
-    const sessionDoc = await sessionRef.get();
-    if (!sessionDoc.exists) {
-      throw new HttpsError("not-found", "セッションが見つかりません");
-    }
-    const sessionData = sessionDoc.data()!;
-    await sessionRef.delete();
-    const createdAt = sessionData.createdAt as Timestamp | undefined;
-    if (
-      !createdAt ||
-      Date.now() - createdAt.toMillis() > PASSKEY_RECOVERY_TTL_MS
-    ) {
-      throw new HttpsError(
-        "deadline-exceeded",
-        "セッションの有効期限が切れています",
-      );
-    }
-    const uid = sessionData.uid as string;
-
-    const lockoutRef = db
-      .collection("users")
-      .doc(uid)
-      .collection("recoveryLockout")
-      .doc("state");
-
-    const questionsDoc = await db
-      .collection("users")
-      .doc(uid)
-      .collection("secretQuestions")
-      .doc("config")
-      .get();
-    if (!questionsDoc.exists) {
-      throw new HttpsError(
-        "failed-precondition",
-        "このアカウントには復旧手段が設定されていません",
-      );
-    }
-    const storedQuestions = questionsDoc.data()!.questions as {
-      answerHash: string;
-    }[];
-
-    const results = await Promise.all(
-      storedQuestions.map((q, i) =>
-        bcrypt.compare(normalizeSecretAnswer(answers[i] as string), q.answerHash),
-      ),
-    );
-    const allCorrect = results.every((r) => r);
-
-    if (!allCorrect) {
-      await db.runTransaction(async (tx) => {
-        const lockoutDoc = await tx.get(lockoutRef);
-        const failedAttempts =
-          ((lockoutDoc.data()?.failedAttempts as number | undefined) ?? 0) +
-          1;
-        if (failedAttempts >= RECOVERY_LOCKOUT_MAX_ATTEMPTS) {
-          tx.set(lockoutRef, {
-            failedAttempts: 0,
-            lockedUntil: Timestamp.fromMillis(
-              Date.now() + RECOVERY_LOCKOUT_DURATION_MS,
-            ),
-          });
-        } else {
-          tx.set(lockoutRef, { failedAttempts, lockedUntil: null });
-        }
-      });
-      throw new HttpsError("invalid-argument", "入力内容が正しくありません");
-    }
-
-    await lockoutRef.delete();
-    const customToken = await getAuth().createCustomToken(uid);
-    return { customToken };
-  },
-);
-
-/**
- * 期限切れの`passkeyRecoverySessions`を定期的に掃除する
- * （`cleanupPasskeyChallenges`と同じパターン）。
- */
-export const cleanupPasskeyRecoverySessions = onSchedule(
-  { schedule: "every 60 minutes", region: "asia-northeast1" },
-  async () => {
-    const cutoff = Timestamp.fromMillis(
-      Date.now() - PASSKEY_RECOVERY_TTL_MS,
-    );
-    const snapshot = await db
-      .collection("passkeyRecoverySessions")
-      .where("createdAt", "<", cutoff)
-      .get();
-    const writer = new ChunkedWriter();
-    for (const doc of snapshot.docs) {
-      await writer.delete(doc.ref);
-    }
-    await writer.commit();
   },
 );
 

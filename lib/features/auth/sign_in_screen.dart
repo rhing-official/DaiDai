@@ -18,7 +18,7 @@ import '../../widgets/branded_block_button.dart';
 import '../../widgets/fixed_font_theme.dart';
 import '../../widgets/apple_sign_in_button.dart';
 import '../../widgets/google_sign_in_button.dart';
-import 'passkey_recovery_dialog.dart';
+import 'passkey_create_warning_dialog.dart';
 import 'passkey_sign_in_dialog.dart';
 import 'qr_login_dialog.dart';
 import 'qr_login_panel.dart';
@@ -455,18 +455,16 @@ class _SignInScreenState extends ConsumerState<SignInScreen>
         const SizedBox(height: 20),
         const Divider(),
         const SizedBox(height: 8),
-        // 「パスキーが使えない場合」を先に、アカウント作成を後に置く（2026-11-06）。
+        // 「パスキーを紛失した」の復旧リンク（秘密の質問）は、2026-11-18に廃止した。
+        // パスキーを失うと入れなくなる事実を、アカウントを作る前に伝える。
         TextButton(
           onPressed: _isSigningIn
               ? null
-              : () => PasskeyRecoveryDialog.show(context),
-          child: Text(strings.passkeyRecoveryLinkLabel),
-        ),
-        const SizedBox(height: 4),
-        TextButton(
-          onPressed: _isSigningIn
-              ? null
-              : () => _signIn((repo) => repo.registerWithPasskey()),
+              : () async {
+                  final ok = await PasskeyCreateWarningDialog.show(context);
+                  if (!ok || !mounted) return;
+                  await _signIn((repo) => repo.registerWithPasskey());
+                },
           child: Text(strings.passkeyCreateAccountButton),
         ),
         Padding(

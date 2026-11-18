@@ -247,6 +247,11 @@ class Strings {
     required this.qrLoginSignInError,
     required this.passkeyCreateAccountButton,
     required this.passkeyCreateAccountNote,
+    required this.passkeyCreateWarningTitle,
+    required this.passkeyCreateWarningBody,
+    required this.passkeyCreateWarningCheckbox,
+    required this.passkeyCreateWarningContinue,
+    required this.passkeyManagementSingleCredentialNote,
     required this.passkeyCreateFailed,
     required this.passkeySignInButton,
     required this.passkeySignInDialogDescription,
@@ -255,20 +260,6 @@ class Strings {
     required this.passkeySignInDialogError,
     required this.passkeySignInDialogErrorNotFound,
     required this.passkeySignInDialogErrorNoPasskey,
-    required this.passkeyRecoveryLinkLabel,
-    required this.passkeyRecoveryDialogTitle,
-    required this.passkeyRecoveryDialogRhingSeedDescription,
-    required this.passkeyRecoveryDialogNextButton,
-    required this.passkeyRecoveryDialogAnswerDescription,
-    required this.passkeyRecoveryDialogSubmitButton,
-    required this.passkeyRecoveryErrorNotFound,
-    required this.passkeyRecoveryErrorNoQuestionsConfigured,
-    required this.passkeyRecoveryErrorLocked,
-    required this.passkeyRecoveryErrorWrongAnswers,
-    required this.passkeyRecoveryErrorGeneric,
-    required this.passkeyRecoveryAddNewPasskeyTitle,
-    required this.passkeyRecoveryAddNewPasskeyDescription,
-    required this.passkeyRecoveryAddNewPasskeyConfirmButton,
     required this.qrLoginScanConfirmTitle,
     required this.qrLoginScanConfirmMessage,
     required this.qrLoginScanConfirmButton,
@@ -306,16 +297,6 @@ class Strings {
     required this.passkeyManagementNameDialogTitle,
     required this.passkeyManagementNameDialogHint,
     required this.passkeyManagementRenameTooltip,
-    required this.secretQuestionsSectionTitle,
-    required this.secretQuestionsSectionDescription,
-    required this.secretQuestionsStatusConfigured,
-    required this.secretQuestionsStatusNotConfigured,
-    required this.secretQuestionsEditButton,
-    required this.secretQuestionsQuestionLabel,
-    required this.secretQuestionsAnswerLabel,
-    required this.secretQuestionsSaveButton,
-    required this.secretQuestionsSavedMessage,
-    required this.secretQuestionsSaveError,
     required this.settingsQrLogin,
     required this.settingsDeleteAccount,
     required this.settingsSendKeyTitle,
@@ -1575,6 +1556,11 @@ class Strings {
   final String qrLoginSignInError;
   final String passkeyCreateAccountButton;
   final String passkeyCreateAccountNote;
+  final String passkeyCreateWarningTitle;
+  final String passkeyCreateWarningBody;
+  final String passkeyCreateWarningCheckbox;
+  final String passkeyCreateWarningContinue;
+  final String passkeyManagementSingleCredentialNote;
   final String passkeyCreateFailed;
   final String passkeySignInButton;
   final String passkeySignInDialogDescription;
@@ -1583,20 +1569,6 @@ class Strings {
   final String passkeySignInDialogError;
   final String passkeySignInDialogErrorNotFound;
   final String passkeySignInDialogErrorNoPasskey;
-  final String passkeyRecoveryLinkLabel;
-  final String passkeyRecoveryDialogTitle;
-  final String passkeyRecoveryDialogRhingSeedDescription;
-  final String passkeyRecoveryDialogNextButton;
-  final String passkeyRecoveryDialogAnswerDescription;
-  final String passkeyRecoveryDialogSubmitButton;
-  final String passkeyRecoveryErrorNotFound;
-  final String passkeyRecoveryErrorNoQuestionsConfigured;
-  final String passkeyRecoveryErrorLocked;
-  final String passkeyRecoveryErrorWrongAnswers;
-  final String passkeyRecoveryErrorGeneric;
-  final String passkeyRecoveryAddNewPasskeyTitle;
-  final String passkeyRecoveryAddNewPasskeyDescription;
-  final String passkeyRecoveryAddNewPasskeyConfirmButton;
   final String qrLoginScanConfirmTitle;
   final String qrLoginScanConfirmMessage;
   final String qrLoginScanConfirmButton;
@@ -1634,16 +1606,6 @@ class Strings {
   final String passkeyManagementNameDialogTitle;
   final String passkeyManagementNameDialogHint;
   final String passkeyManagementRenameTooltip;
-  final String secretQuestionsSectionTitle;
-  final String secretQuestionsSectionDescription;
-  final String secretQuestionsStatusConfigured;
-  final String secretQuestionsStatusNotConfigured;
-  final String secretQuestionsEditButton;
-  final String secretQuestionsQuestionLabel;
-  final String secretQuestionsAnswerLabel;
-  final String secretQuestionsSaveButton;
-  final String secretQuestionsSavedMessage;
-  final String secretQuestionsSaveError;
   final String settingsQrLogin;
   final String settingsDeleteAccount;
   final String settingsSendKeyTitle;
@@ -3241,6 +3203,13 @@ class Strings {
     passkeyCreateAccountButton: 'パスキーで新しく始める',
     passkeyCreateAccountNote:
         'Google・Appleのアカウントは使いません。パスキーを、この端末かパスワードマネージャーに保存します。保存の提案を断ると、セキュリティキーを求められることがあります。',
+    passkeyCreateWarningTitle: 'パスキーを失うと入れなくなります',
+    passkeyCreateWarningBody:
+        'このアカウントには、パスキーでだけ入れます。パスキーを失うと、復旧する方法はありません（DaiDaiは、メールアドレスも電話番号も持たないためです）。複数の端末にパスキーを登録しておくことをおすすめします。すべて失った場合、アカウントは諦めていただくことになります。',
+    passkeyCreateWarningCheckbox: 'パスキーを失うと入れなくなることを理解しました',
+    passkeyCreateWarningContinue: '続ける',
+    passkeyManagementSingleCredentialNote:
+        'パスキーが1つだけです。失うと、このアカウントには入れなくなります。別の端末にも登録しておくことをおすすめします。',
     passkeyCreateFailed: 'パスキーを作れませんでした。もう一度お試しください。',
     passkeySignInButton: 'パスキーでログイン',
     passkeySignInDialogDescription:
@@ -3251,20 +3220,6 @@ class Strings {
     passkeySignInDialogErrorNotFound: 'そのRhing Seedのアカウントが見つかりません。',
     passkeySignInDialogErrorNoPasskey:
         'このアカウントにはパスキーが登録されていません。Googleでログイン後、設定＞セキュリティからパスキーを追加出来ます。',
-    passkeyRecoveryLinkLabel: 'パスキーが使えない場合',
-    passkeyRecoveryDialogTitle: 'アカウントの復旧',
-    passkeyRecoveryDialogRhingSeedDescription: '登録済みのRhing Seedを入力して下さい。',
-    passkeyRecoveryDialogNextButton: '次へ',
-    passkeyRecoveryDialogAnswerDescription: '以下の質問に回答して下さい。',
-    passkeyRecoveryDialogSubmitButton: '復旧する',
-    passkeyRecoveryErrorNotFound: 'そのRhing Seedのアカウントが見つかりません。',
-    passkeyRecoveryErrorNoQuestionsConfigured: 'このアカウントには復旧手段が設定されていません。',
-    passkeyRecoveryErrorLocked: '試行回数が多すぎます。しばらくしてから再度お試しください。',
-    passkeyRecoveryErrorWrongAnswers: '入力内容が正しくありません。',
-    passkeyRecoveryErrorGeneric: '復旧に失敗しました。',
-    passkeyRecoveryAddNewPasskeyTitle: '新しいパスキーを登録しますか？',
-    passkeyRecoveryAddNewPasskeyDescription: '紛失した端末の代わりに、この端末で新しいパスキーを登録出来ます。',
-    passkeyRecoveryAddNewPasskeyConfirmButton: '今直ぐ登録',
     qrLoginScanConfirmTitle: 'この端末でのログインを許可しますか？',
     qrLoginScanConfirmMessage: '心当たりが無い場合は許可しないで下さい。',
     qrLoginScanConfirmButton: '許可する',
@@ -3299,23 +3254,13 @@ class Strings {
     passkeyManagementDeleteConfirmMessage: '削除すると、この端末ではパスキーでログインできなくなります。',
     passkeyManagementDeleteConfirmButton: 'はい',
     passkeyManagementLastCredentialWarning:
-        '最後のパスキーです。秘密の質問を設定していないと、紛失時にアカウントへアクセスできなくなります。',
+        '最後のパスキーです。削除すると、このアカウントには入れなくなります（復旧する方法はありません）。',
     passkeyManagementAddError: 'パスキーの追加に失敗しました。',
     passkeyManagementDeleteError: 'パスキーの削除に失敗しました。',
     passkeyManagementRenameError: 'パスキーの名前の変更に失敗しました。',
     passkeyManagementNameDialogTitle: 'パスキーの名前',
     passkeyManagementNameDialogHint: '例: MacBookのパスキー（空欄でも可）',
     passkeyManagementRenameTooltip: '名前を変更',
-    secretQuestionsSectionTitle: '秘密の質問',
-    secretQuestionsSectionDescription: 'パスキーが使えなくなった場合、この質問でアカウントを復旧出来ます。',
-    secretQuestionsStatusConfigured: '設定済み',
-    secretQuestionsStatusNotConfigured: '未設定',
-    secretQuestionsEditButton: '設定・変更する',
-    secretQuestionsQuestionLabel: '質問',
-    secretQuestionsAnswerLabel: '回答',
-    secretQuestionsSaveButton: '保存',
-    secretQuestionsSavedMessage: '秘密の質問を保存しました。',
-    secretQuestionsSaveError: '保存に失敗しました。',
     settingsQrLogin: 'QRコードでログイン',
     settingsDeleteAccount: 'アカウントを削除',
     settingsSendKeyTitle: 'メッセージの送信キー',
@@ -4656,6 +4601,19 @@ class Strings {
     passkeyCreateAccountButton: 'Start new with a passkey',
     passkeyCreateAccountNote:
         'Your Google or Apple account is not used. The passkey is saved on this device or in your password manager. If you decline the save prompt, you may be asked for a security key.',
+    passkeyCreateWarningTitle: 'If you lose your passkey, you lose access',
+    passkeyCreateWarningBody:
+        'This account can only be accessed with a passkey. If you lose it, '
+        'there is no way to recover the account (DaiDai holds neither an email '
+        'address nor a phone number). We recommend registering passkeys on '
+        'more than one device. If you lose them all, the account will be lost.',
+    passkeyCreateWarningCheckbox:
+        'I understand that I cannot get back in if I lose my passkey',
+    passkeyCreateWarningContinue: 'Continue',
+    passkeyManagementSingleCredentialNote:
+        'You have only one passkey. If you lose it, you will not be able to '
+        'get back into this account. We recommend registering one on another '
+        'device too.',
     passkeyCreateFailed: 'Could not create the passkey. Please try again.',
     passkeySignInButton: 'Sign in with Rhing Seed',
     passkeySignInDialogDescription:
@@ -4669,24 +4627,6 @@ class Strings {
     passkeySignInDialogErrorNoPasskey:
         'This account has no passkey registered. After signing in with '
         'Google, you can add one from Settings > Security.',
-    passkeyRecoveryLinkLabel: "Can't use your passkey?",
-    passkeyRecoveryDialogTitle: 'Recover account',
-    passkeyRecoveryDialogRhingSeedDescription:
-        'Enter your registered Rhing Seed.',
-    passkeyRecoveryDialogNextButton: 'Next',
-    passkeyRecoveryDialogAnswerDescription: 'Answer the questions below.',
-    passkeyRecoveryDialogSubmitButton: 'Recover account',
-    passkeyRecoveryErrorNotFound: 'No account was found for that Rhing Seed.',
-    passkeyRecoveryErrorNoQuestionsConfigured:
-        'This account has no recovery method set up.',
-    passkeyRecoveryErrorLocked: 'Too many attempts. Please try again later.',
-    passkeyRecoveryErrorWrongAnswers: "That doesn't match our records.",
-    passkeyRecoveryErrorGeneric: 'Account recovery failed.',
-    passkeyRecoveryAddNewPasskeyTitle: 'Register a new passkey?',
-    passkeyRecoveryAddNewPasskeyDescription:
-        'You can register a new passkey on this device to replace the one '
-        'you lost.',
-    passkeyRecoveryAddNewPasskeyConfirmButton: 'Register now',
     qrLoginScanConfirmTitle: 'Allow sign-in on this device?',
     qrLoginScanConfirmMessage: "If you don't recognise this, don't allow it.",
     qrLoginScanConfirmButton: 'Allow',
@@ -4726,26 +4666,14 @@ class Strings {
         "You won't be able to sign in with this device's passkey anymore.",
     passkeyManagementDeleteConfirmButton: 'Yes',
     passkeyManagementLastCredentialWarning:
-        "This is your last passkey. Without secret questions set up, you "
-        "won't be able to recover this account if you lose it.",
+        'This is your last passkey. If you delete it, you will not be able to '
+        'get back into this account (there is no way to recover it).',
     passkeyManagementAddError: 'Failed to add the passkey.',
     passkeyManagementDeleteError: 'Failed to delete the passkey.',
     passkeyManagementRenameError: 'Failed to rename the passkey.',
     passkeyManagementNameDialogTitle: 'Passkey name',
     passkeyManagementNameDialogHint: 'e.g. MacBook passkey (optional)',
     passkeyManagementRenameTooltip: 'Rename',
-    secretQuestionsSectionTitle: 'Secret questions',
-    secretQuestionsSectionDescription:
-        'If you lose access to your passkey, you can recover your account '
-        'with these questions.',
-    secretQuestionsStatusConfigured: 'Set up',
-    secretQuestionsStatusNotConfigured: 'Not set up',
-    secretQuestionsEditButton: 'Set up / change',
-    secretQuestionsQuestionLabel: 'Question',
-    secretQuestionsAnswerLabel: 'Answer',
-    secretQuestionsSaveButton: 'Save',
-    secretQuestionsSavedMessage: 'Secret questions saved.',
-    secretQuestionsSaveError: 'Failed to save.',
     settingsQrLogin: 'Sign in with a QR code',
     settingsDeleteAccount: 'Delete account',
     settingsSendKeyTitle: 'Message send key',

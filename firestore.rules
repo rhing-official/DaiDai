@@ -246,20 +246,6 @@ service cloud.firestore {
         allow write: if false;
       }
 
-      // users/{userId}/secretQuestions/config・users/{userId}/recoveryLockout/state:
-      // パスキー紛失時の復旧用の秘密の質問（bcryptハッシュ）と、復旧試行の
-      // ロックアウト状態（2026-09-16追加）。bcryptハッシュは本人であっても
-      // クライアントに返す必要が無く、passkeyCredentialsより厳格に
-      // 読み取りも含めて一切禁止する（setSecretQuestions/
-      // getSecretQuestionsStatus/beginPasskeyRecovery/finishPasskeyRecovery、
-      // いずれもCloud Functions・Admin SDK経由）。
-      match /secretQuestions/{docId} {
-        allow read, write: if false;
-      }
-      match /recoveryLockout/{docId} {
-        allow read, write: if false;
-      }
-
       // users/{userId}/switchSessions/{sessionId}: 複数アカウントの切り替え用の合言葉の
       // ハッシュと、許可した極みのアカウント（2026-11-11）。発行・検証・失効は全て
       // Cloud Functions（createSwitchSession/redeemSwitchSession/revokeSwitchSession、
@@ -1780,14 +1766,6 @@ service cloud.firestore {
     // ドキュメントIDはチケットのハッシュ。createSwitchTicket/createSwitchSession
     // （Admin SDK）だけが読み書きし、クライアントからは一切許可しない。
     match /switchTickets/{ticketHash} {
-      allow read, write: if false;
-    }
-
-    // passkeyRecoverySessions/{sessionId}: パスキー紛失時、秘密の質問による
-    // 復旧フローの一時セッション（2026-09-16追加）。passkeyChallengesと同じ
-    // 理由でクライアントからの読み書きは一切許可しない（beginPasskeyRecovery/
-    // finishPasskeyRecovery、いずれもAdmin SDK経由）。
-    match /passkeyRecoverySessions/{sessionId} {
       allow read, write: if false;
     }
 
