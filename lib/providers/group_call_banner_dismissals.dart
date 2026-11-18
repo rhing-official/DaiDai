@@ -17,17 +17,18 @@ final groupCallBannerDismissalsProvider =
     );
 
 /// バナーを出すかどうか（純粋な判定、テスト用）。進行中の通話があり、自分が
-/// まだその通話に参加しておらず、閉じていない時だけ出す。
+/// まだその通話に参加しておらず、閉じておらず、参加者が1人以上いる時だけ出す。
 bool shouldShowGroupCallBanner({
   required String? activeGroupCallId,
   required String? joinedGroupCallId,
   required Set<String> dismissedIds,
-  int? liveParticipantCount,
+  required int? liveParticipantCount,
 }) {
   if (activeGroupCallId == null) return false;
-  // 誰も入っていない通話（キャンセル・全員退出の直後で終わろうとしている）には、参加を促さない。
-  // 読み込み中（null）は従来どおり出す（2026-11-18）。
-  if (liveParticipantCount == 0) return false;
+  // 参加者が読み込み済みで、1人以上が入っている通話にだけ出す（2026-11-18）。読み込み中
+  // （null、通話を掛けた直後で自分の参加もまだ）や、誰も入っていない通話（キャンセル・全員
+  // 退出の直後）には、参加を促さない。
+  if (liveParticipantCount == null || liveParticipantCount == 0) return false;
   if (joinedGroupCallId == activeGroupCallId) return false;
   return !dismissedIds.contains(activeGroupCallId);
 }

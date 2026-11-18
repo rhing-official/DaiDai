@@ -119,6 +119,7 @@ class WebrtcCallController extends ChangeNotifier {
   bool _establishingTooLong = false;
   bool get establishingTooLong => _establishingTooLong;
   Timer? _establishingTimer;
+  Timer? _giveUpTimer;
 
   void _startEstablishingTimer() {
     if (_mediaConnected || _establishingTimer != null) return;
@@ -127,12 +128,23 @@ class WebrtcCallController extends ChangeNotifier {
       if (_mediaConnected || _state == CallConnectionState.ended) return;
       _establishingTooLong = true;
       notifyListeners();
+      // さらに15秒（計30秒）つながらなければ、自分から終える。相手が先に居なくなって、誰もいない
+      // 通話に居続けるのを防ぐ保険（2026-11-18）。
+      _giveUpTimer?.cancel();
+      _giveUpTimer = Timer(const Duration(seconds: 15), () {
+        _giveUpTimer = null;
+        if (_mediaConnected || _state == CallConnectionState.ended) return;
+        callLog('1:1 establishing timed out; hanging up');
+        unawaited(hangUp());
+      });
     });
   }
 
   void _markMediaConnected() {
     _establishingTimer?.cancel();
     _establishingTimer = null;
+    _giveUpTimer?.cancel();
+    _giveUpTimer = null;
     if (_mediaConnected) return;
     _mediaConnected = true;
     _establishingTooLong = false;
@@ -1024,10 +1036,16 @@ class WebrtcCallController extends ChangeNotifier {
     final answer = await _peerConnection!.createAnswer();
     await _peerConnection!.setLocalDescription(answer);
     _pendingLocalAnswerSdp = answer.sdp;
-    await _callRepository.setAnswer(call.callId, {
+    final written = await _callRepository.setAnswer(call.callId, {
       'sdp': answer.sdp,
       'type': answer.type,
     });
+    // 通話が既に終わっていた（発信側がキャンセルした）。終了を上書きせず、こちらも終える。
+    if (written == false) {
+      callLog('1:1 answer not written: call already ended');
+      _finish();
+      return;
+    }
     if (_state != CallConnectionState.active) {
       _state = CallConnectionState.active;
       _cancelRingTimeout();
@@ -1092,6 +1110,11 @@ class WebrtcCallController extends ChangeNotifier {
       _finish();
       return;
     }
+    // 応答の準備中（マイク取得・オファー待ち）に発信側が切っても見逃さない。通話の状態の購読は
+    // [_startPerpetualWatcher]が始まるまで止まっていたため、終了だけを見る軽い購読を張る。
+    _callSub = _callRepository.watchCall(call.callId).listen((updated) {
+      if (updated == null || _isTerminal(updated.status)) _finish();
+    });
     try {
       // 応答操作（ユーザー操作）の中で自分のカメラ・マイクを取得する。カメラが
       // 使えなければ音声のみで応答する。
@@ -1116,6 +1139,7 @@ class WebrtcCallController extends ChangeNotifier {
   }
 
   Future<void> _startAsCallee() async {
+    if (_state == CallConnectionState.ended) return;
     var offer = call.offer;
     offer ??= await _callRepository
         .watchCall(call.callId)
@@ -1126,6 +1150,7 @@ class WebrtcCallController extends ChangeNotifier {
     // 適用前にキーを記録しておく。
     _lastAppliedOfferSdp = offer!['sdp'] as String;
     callLog('1:1 accept: offer ready');
+    if (_state == CallConnectionState.ended) return;
     await _applyRemoteOfferAndAnswer(offer);
     callLog('1:1 accept: answer sent');
     _startPerpetualWatcher();
@@ -1898,6 +1923,7 @@ class WebrtcCallController extends ChangeNotifier {
     _cancelRingTimeout();
     _disconnectGrace.cancel();
     _establishingTimer?.cancel();
+    _giveUpTimer?.cancel();
     _callSub?.cancel();
     _candidatesSub?.cancel();
     _videoFailedTimer?.cancel();

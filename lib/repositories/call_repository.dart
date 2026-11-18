@@ -29,7 +29,10 @@ abstract class CallRepository {
   Stream<List<Call>> watchMyActiveCalls(String userId);
 
   Future<void> setOffer(String callId, Map<String, dynamic> offer);
-  Future<void> setAnswer(String callId, Map<String, dynamic> answer);
+
+  /// 応答（SDP）を書く。通話が既に終わっている（発信側のキャンセル等）時は書かず`false`を返す
+  /// （終了を`active`で上書きして、応答側だけが残るのを防ぐ、2026-11-18）。
+  Future<bool> setAnswer(String callId, Map<String, dynamic> answer);
   Future<void> updateStatus(String callId, CallStatus status);
 
   /// 応答する端末を1台に決める。まだ誰も応答していなければ[sessionId]を記録してtrue、
@@ -57,6 +60,11 @@ abstract class CallRepository {
     required bool isCaller,
   });
 }
+
+/// 応答・応答の更新を書いてよい通話の状態か（2026-11-18）。呼び出し中、または通話中（音声⇔ビデオの
+/// 再ネゴシエーション）だけ。終了（`ended`・`declined`・`missed`）には書かない。
+bool canWriteAnswer(CallStatus status) =>
+    status == CallStatus.ringing || status == CallStatus.active;
 
 class FirestoreCallRepository implements CallRepository {
   FirestoreCallRepository({FirebaseFirestore? firestore})
@@ -169,12 +177,23 @@ class FirestoreCallRepository implements CallRepository {
   }
 
   @override
-  Future<void> setAnswer(String callId, Map<String, dynamic> answer) {
-    return _calls.doc(callId).update({
-      'answer': answer,
-      'status': CallStatus.active.name,
-      // 応答時刻。通話の記録（Cloud Functions）の通話時間に使う（2026-11-17）。
-      'connectedAt': FieldValue.serverTimestamp(),
+  Future<bool> setAnswer(String callId, Map<String, dynamic> answer) {
+    final ref = _calls.doc(callId);
+    return _firestore.runTransaction((tx) async {
+      final snap = await tx.get(ref);
+      final status = snap.data()?['status'] as String?;
+      if (!snap.exists ||
+          status == null ||
+          !canWriteAnswer(CallStatus.fromName(status))) {
+        return false;
+      }
+      tx.update(ref, {
+        'answer': answer,
+        'status': CallStatus.active.name,
+        // 応答時刻。通話の記録（Cloud Functions）の通話時間に使う（2026-11-17）。
+        'connectedAt': FieldValue.serverTimestamp(),
+      });
+      return true;
     });
   }
 
@@ -193,6 +212,12 @@ class FirestoreCallRepository implements CallRepository {
     final ref = _calls.doc(callId);
     return _firestore.runTransaction((tx) async {
       final snap = await tx.get(ref);
+      // 既に終わっている通話には応答しない（発信側がキャンセルした直後など、2026-11-18）。
+      final status = snap.data()?['status'] as String?;
+      if (!snap.exists ||
+          (status != null && !canWriteAnswer(CallStatus.fromName(status)))) {
+        return false;
+      }
       final current = snap.data()?['answeredBy'] as String?;
       if (current != null && current != sessionId) return false;
       tx.update(ref, {'answeredBy': sessionId});

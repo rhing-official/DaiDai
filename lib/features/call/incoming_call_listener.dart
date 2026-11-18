@@ -32,6 +32,11 @@ class IncomingCallListener extends ConsumerStatefulWidget {
 }
 
 class _IncomingCallListenerState extends ConsumerState<IncomingCallListener> {
+  /// 既にセッションを始めた着信の通話id。Firestoreは同じ着信を続けて2回届けることがある（キャッシュと
+  /// サーバーの通知など）ため、同じ通話の2回目は何もしない（2026-11-18、冪等だが、ログと無駄な処理が
+  /// 二重になっていた）。着信が無くなったら（応答・終了）忘れる。
+  String? _handledCallId;
+
   @override
   Widget build(BuildContext context) {
     ref.listen(_incomingCallProvider(widget.currentUserId), (previous, next) {
@@ -39,7 +44,11 @@ class _IncomingCallListenerState extends ConsumerState<IncomingCallListener> {
         callLog('incoming: watch error ${next.error}');
       }
       final call = next.asData?.value;
-      if (call == null) return;
+      if (call == null) {
+        _handledCallId = null;
+        return;
+      }
+      if (call.callId == _handledCallId) return;
       callLog('incoming: ringing call ${call.callId}');
       // ブロック中の相手からの着信は無視する（2026-10-11）。拒否は書き込先ず、
       // 発信側にはブロックが分からないまま呼び出し中として終わる。
@@ -73,6 +82,7 @@ class _IncomingCallListenerState extends ConsumerState<IncomingCallListener> {
       // アプリも統一）。startOneToOne自体が同じ通話への重複アタッチを防ぐ
       // （active_call_session.dart参照）。
       callLog('incoming: startOneToOne');
+      _handledCallId = call.callId;
       ref
           .read(activeCallSessionProvider.notifier)
           .startOneToOne(

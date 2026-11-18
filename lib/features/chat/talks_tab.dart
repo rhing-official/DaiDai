@@ -4570,16 +4570,20 @@ class _ConversationIconTile extends StatelessWidget {
                         conversationCallProvider(conversationId),
                       );
                       if (presence == null) return const SizedBox.shrink();
+                      // 白い丸に黒いアイコン（他の通話中の標と同じ、2026-11-18）。
                       return Container(
                         padding: const EdgeInsets.all(3),
                         decoration: BoxDecoration(
-                          color: colorScheme.primary,
+                          color: Colors.white,
                           shape: BoxShape.circle,
+                          border: Border.all(
+                            color: Colors.black.withValues(alpha: 0.3),
+                          ),
                         ),
                         child: Icon(
                           presence.isVideo ? Icons.videocam : Icons.call,
                           size: 12,
-                          color: colorScheme.onPrimary,
+                          color: Colors.black,
                         ),
                       );
                     },

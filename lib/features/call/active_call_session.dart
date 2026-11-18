@@ -45,6 +45,10 @@ sealed class ActiveCallSession {
   final bool minimized;
 
   Listenable get controllerListenable;
+
+  /// 通話の実体（コントローラー）。ミニ表示の切り替え（[copyWithMinimized]）でセッションの
+  /// オブジェクトは入れ替わるが、これは同じ通話の間は変わらない。同じ通話かの判定に使う。
+  Object get controllerKey;
   bool get isVideoLocallyOn;
   bool get hasAnyRemoteVideoOn;
   bool get hasEnded;
@@ -68,6 +72,9 @@ class OneToOneCallSession extends ActiveCallSession {
 
   @override
   Listenable get controllerListenable => controller;
+
+  @override
+  Object get controllerKey => controller;
 
   @override
   bool get isVideoLocallyOn => controller.isVideo;
@@ -106,6 +113,9 @@ class GroupCallSession extends ActiveCallSession {
   Listenable get controllerListenable => controller;
 
   @override
+  Object get controllerKey => controller;
+
+  @override
   bool get isVideoLocallyOn => controller.isVideo;
 
   @override
@@ -126,6 +136,12 @@ class GroupCallSession extends ActiveCallSession {
     minimized: value,
   );
 }
+
+/// 2つのセッションが同じ通話か（コントローラーが同一か、2026-11-18）。ミニ表示にすると
+/// セッションのオブジェクトが入れ替わる（[ActiveCallSession.copyWithMinimized]）ため、
+/// オブジェクトの同一では判定できない。
+bool isSameCallSession(ActiveCallSession? a, ActiveCallSession? b) =>
+    a != null && b != null && identical(a.controllerKey, b.controllerKey);
 
 class ActiveCallSessionNotifier extends Notifier<ActiveCallSession?> {
   CachedIceServersLoader? _iceServersLoader;
@@ -279,12 +295,12 @@ class ActiveCallSessionNotifier extends Notifier<ActiveCallSession?> {
   void _onControllerChanged(ActiveCallSession session) {
     // 通話が既に別のセッションへ入れ替わっている（＝このリスナーは古い
     // コントローラーのもの）場合は何もしない。
-    if (!identical(state, session) && state != session) return;
+    if (!isSameCallSession(state, session)) return;
     if (session.hasEnded) _teardown(session);
   }
 
   Future<void> _teardown(ActiveCallSession session) async {
-    if (state == session) state = null;
+    if (isSameCallSession(state, session)) state = null;
     switch (session) {
       case OneToOneCallSession(:final controller):
         // 停止の完了を待ってから破棄する（2026-09-12変更）。以前は
