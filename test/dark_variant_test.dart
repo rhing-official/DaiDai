@@ -2,8 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:daidai/models/dark_variant.dart';
-import 'package:daidai/providers/on_accent_color_provider.dart';
-import 'package:daidai/providers/text_color_provider.dart';
+import 'package:daidai/providers/appearance_colors_provider.dart';
 import 'package:daidai/theme/app_theme.dart';
 import 'package:daidai/theme/block/block_theme.dart';
 import 'package:daidai/theme/glass/glass_theme.dart';
@@ -53,11 +52,10 @@ void main() {
   });
 
   test('文字色の既定は外観ごと', () {
-    expect(DarkVariant.standard.defaultTextColor, const Color(0xFFAAAAAA));
+    expect(DarkVariant.standard.defaultTextColor, const Color(0xFFD5D5D5));
     expect(DarkVariant.soft.defaultTextColor, const Color(0xFFD5D5D5));
-    expect(DarkVariant.black.defaultTextColor, const Color(0xFFAAAAAA));
+    expect(DarkVariant.black.defaultTextColor, const Color(0xFFD5D5D5));
     expect(kDefaultTextColorLight, const Color(0xFF71727B));
-    expect(kDefaultOnAccentColorLight, const Color(0xFFEFEFF1));
-    expect(kDefaultOnAccentColorDark, const Color(0xFFEFEFF1));
+    expect(kDefaultOnAccentColor, const Color(0xFFEFEFF1));
   });
 }

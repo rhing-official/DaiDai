@@ -8,6 +8,7 @@ import '../../providers/app_ui_style_provider.dart';
 import '../../providers/camera_availability_provider.dart';
 import '../../providers/repository_providers.dart';
 import '../../utils/platform_info.dart';
+import '../../providers/locked_call_providers.dart';
 import 'active_call_session.dart';
 import 'call_audio_sinks.dart';
 import 'call_avatar.dart';
@@ -108,7 +109,19 @@ class _GroupCallScreenState extends ConsumerState<GroupCallScreen> {
     if (mounted) _dockCall();
   }
 
+  /// 通話画面から出る操作（下スワイプ・Esc・戻る）。端末がロックされたままの通話中は、先に端末の
+  /// 認証（生体認証など）を求め、成功したらミニ表示にする（2026-11-18）。
   void _dockCall() {
+    if (ref.read(lockedCallModeProvider)) {
+      requestDeviceUnlock().then((ok) {
+        if (ok && mounted) _dock();
+      });
+      return;
+    }
+    _dock();
+  }
+
+  void _dock() {
     ref.read(activeCallSessionProvider.notifier).setMinimized(true);
     _popIntentionally();
   }
@@ -135,6 +148,8 @@ class _GroupCallScreenState extends ConsumerState<GroupCallScreen> {
 
   @override
   Widget build(BuildContext context) {
+    // ロック中に戻るボタンで端末の認証に成功したら、通常の戻る操作を行う。
+    ref.listen(lockedBackUnlockedProvider, (_, _) => _onBack());
     // 表示領域（映像 or その代役のプレースホルダー）は常に固定のグレー、
     // それ以外（Scaffold自体の背景）は常にテーマの背景色（2026-08-30更新、
     // 「映像表示領域以外は背景色、音声通話の表示領域内は外観に関わらず
@@ -205,14 +220,13 @@ class _GroupCallScreenState extends ConsumerState<GroupCallScreen> {
     );
   }
 
-  /// モバイルで下スワイプした時にドックする（2026-08-19追加）。音声のみの
-  /// 通話ではミニ化しても得るものが無いため無効、PCはこの全画面ビュー自体を
-  /// 使わないため無効（ユーザー確認済み）。フォーカス中タイル表示は独自の
+  /// モバイルで下スワイプした時にドックする（2026-08-19追加）。PCはこの全画面
+  /// ビュー自体を使わないため無効（ユーザー確認済み）。音声のみの通話でも有効
+  /// （2026-11-18、以前は映像がある通話だけだった）。フォーカス中タイル表示は独自の
   /// 下スワイプ（グリッドへ戻る）を持つため対象外にする（呼び出し元参照）。
   Widget _dockable(Widget child) {
     final dockEnabled =
         isMobileCallPlatform &&
-        _anyVideo &&
         _controller.state == GroupCallConnectionState.active;
     if (!dockEnabled) return child;
     // 生のポインターで判定する（`SwipeDownDock`、ウィンドウのタップに負けて効かなかった）。

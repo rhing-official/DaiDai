@@ -9,6 +9,7 @@ import '../../models/sound_preset.dart';
 import '../../providers/bgm_preferences_provider.dart';
 import 'bgm/bgm_queue.dart';
 import '../../providers/join_video_camera_on_provider.dart';
+import '../../providers/call_sound_enabled_provider.dart';
 import '../../providers/calling_sound_provider.dart';
 import '../../providers/chat_navigation_providers.dart';
 import '../../providers/repository_providers.dart';
@@ -203,11 +204,13 @@ class ActiveCallSessionNotifier extends Notifier<ActiveCallSession?> {
     controller.addListener(() => _onControllerChanged(session));
     controller.initialize();
     if (isCaller) {
-      final callingSource = SoundCategory.calling.resolveSource(
-        ref.read(callingSoundProvider),
-      );
-      controller.soundPlayer.startCallingLoop(callingSource);
-    } else {
+      if (ref.read(callRingbackEnabledProvider)) {
+        final callingSource = SoundCategory.calling.resolveSource(
+          ref.read(callingSoundProvider),
+        );
+        controller.soundPlayer.startCallingLoop(callingSource);
+      }
+    } else if (ref.read(callRingtoneEnabledProvider)) {
       final ringtoneSource = SoundCategory.ringtone.resolveSource(
         ref.read(ringtoneSoundProvider),
       );

@@ -15,6 +15,7 @@ import '../../widgets/swipe_gestures.dart';
 import 'active_call_session.dart';
 import 'call_audio_sinks.dart';
 import 'call_avatar.dart';
+import 'call_ring_ripple.dart';
 import '../../providers/call_bgm_provider.dart';
 import 'bgm/call_bgm_bindings.dart';
 import 'screen_share_menu.dart';
@@ -412,7 +413,16 @@ class _OneToOneStageState extends ConsumerState<_OneToOneStage> {
                     fullFit: pinned,
                   )
                 : Center(
-                    child: _avatar(remote: remote, radius: pinned ? 56 : 28),
+                    // まだ繋がっていない間（呼び出し中・確立待ち）は、相手のアイコンの周りに
+                    // 波紋を出す（2026-11-18、スマホの`CallScreen`と同じ）。
+                    child: CallRingingAvatar(
+                      ringing:
+                          remote &&
+                          !controller.mediaConnected &&
+                          controller.state != CallConnectionState.ended,
+                      radius: pinned ? 56 : 28,
+                      avatar: _avatar(remote: remote, radius: pinned ? 56 : 28),
+                    ),
                   ),
             Positioned(
               left: 8,

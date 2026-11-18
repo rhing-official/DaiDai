@@ -9,6 +9,7 @@ import '../../providers/app_ui_style_provider.dart';
 import '../../providers/camera_availability_provider.dart';
 import '../../providers/repository_providers.dart';
 import '../../utils/platform_info.dart';
+import '../../providers/locked_call_providers.dart';
 import 'active_call_session.dart';
 import 'call_audio_sinks.dart';
 import 'call_avatar.dart';
@@ -17,6 +18,7 @@ import 'call_tile_layout.dart';
 import 'pip_controller.dart' show enterCallPip;
 import 'screen_share.dart' show ScreenShareCapture;
 import 'screen_share_menu.dart';
+import 'call_ring_ripple.dart';
 import 'swipe_down_dock.dart';
 import 'call_control_bar.dart';
 import 'camera_availability.dart';
@@ -121,7 +123,19 @@ class _CallScreenState extends ConsumerState<CallScreen> {
 
   /// モバイルで下スワイプした時、通話を切らずに右上ピン留めミニ表示へ
   /// ドックする（2026-08-19追加）。
+  /// 通話画面から出る操作（下スワイプ・Esc・戻る）。端末がロックされたままの通話中は、先に端末の
+  /// 認証（生体認証など）を求め、成功したらミニ表示にする（2026-11-18）。
   void _dockCall() {
+    if (ref.read(lockedCallModeProvider)) {
+      requestDeviceUnlock().then((ok) {
+        if (ok && mounted) _dock();
+      });
+      return;
+    }
+    _dock();
+  }
+
+  void _dock() {
     ref.read(activeCallSessionProvider.notifier).setMinimized(true);
     _popIntentionally();
   }
@@ -186,6 +200,8 @@ class _CallScreenState extends ConsumerState<CallScreen> {
 
   @override
   Widget build(BuildContext context) {
+    // ロック中に戻るボタンで端末の認証に成功したら、通常の戻る操作を行う。
+    ref.listen(lockedBackUnlockedProvider, (_, _) => _onBack());
     final colorScheme = Theme.of(context).colorScheme;
     final anyVideo =
         _myIsVideo ||
@@ -194,9 +210,9 @@ class _CallScreenState extends ConsumerState<CallScreen> {
         _controller.isScreenSharing;
     final ended = _controller.state == CallConnectionState.ended;
     if (anyVideo && !ended) _hadVideo = true;
-    // 下スワイプでのドックは、映像がある通話が実際に繋がってから、かつ
-    // モバイルでのみ有効にする（音声のみはミニ化しても得るものが無いため
-    // 無効、PCはこの全画面ビュー自体を使わないため無効、ユーザー確認済み）。
+    // 下スワイプでのドックは、通話が実際に繋がってから、かつモバイルでのみ
+    // 有効にする（PCはこの全画面ビュー自体を使わないため無効、ユーザー確認済み）。
+    // 音声のみの通話でも有効（2026-11-18、以前は映像がある通話だけだった）。
     // 発信中（呼び出し中）は、映像・音声を問わずミニ表示にできる（2026-11-13追加、
     // 呼び出しを続けたまま他の画面を見たい）。戻る操作もミニ表示になる。
     final dialing =
@@ -206,7 +222,6 @@ class _CallScreenState extends ConsumerState<CallScreen> {
     final dockEnabled =
         dialing ||
         (isMobileCallPlatform &&
-            anyVideo &&
             _controller.state == CallConnectionState.active);
 
     // 表示領域（映像 or その代役のプレースホルダー）は常に固定のグレー、
@@ -296,9 +311,18 @@ class _CallScreenState extends ConsumerState<CallScreen> {
                     fullFit: pinned,
                   )
                 : Center(
-                    child: _placeholderAvatar(
-                      remote: remote,
+                    // まだ繋がっていない間（呼び出し中・応答後の確立待ち）は、相手のアイコンの周りに
+                    // 同心円状の波紋を出す（2026-11-18）。
+                    child: CallRingingAvatar(
+                      ringing:
+                          remote &&
+                          !_controller.mediaConnected &&
+                          _controller.state != CallConnectionState.ended,
                       radius: pinned ? 56 : 28,
+                      avatar: _placeholderAvatar(
+                        remote: remote,
+                        radius: pinned ? 56 : 28,
+                      ),
                     ),
                   ),
             Positioned(

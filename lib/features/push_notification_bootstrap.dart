@@ -7,7 +7,9 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../providers/call_answer_providers.dart';
+import '../providers/locked_call_providers.dart';
 import '../providers/repository_providers.dart';
+import '../providers/ring_launch_provider.dart';
 import '../push_notifications.dart';
 
 /// ログイン済みユーザーが判明した時点で、プッシュ通知の権限リクエスト・
@@ -48,12 +50,25 @@ class _PushNotificationBootstrapState
     if (kIsWeb || !Platform.isAndroid) return;
     _callActionChannel.setMethodCallHandler((call) async {
       if (call.method == 'answer') _setAnswer(call.arguments);
+      if (call.method == 'ringLaunch') _setRingLaunch(call.arguments);
+      if (call.method == 'lockedBackUnlocked' && mounted) {
+        ref.read(lockedBackUnlockedProvider.notifier).bump();
+      }
     });
     try {
+      // 起動時に溜まっている分。着信の全画面インテント由来の情報は、通話のセッションが始まる前に
+      // 全画面の応答/拒否を出すために、先に受け取る（2026-11-18）。
+      _setRingLaunch(await _callActionChannel.invokeMethod('takePendingRing'));
       _setAnswer(await _callActionChannel.invokeMethod('takePendingAction'));
     } on MissingPluginException {
       // 想定外の環境。何もしない。
     }
+  }
+
+  void _setRingLaunch(Object? arguments) {
+    if (!mounted) return;
+    final ring = RingLaunch.fromChannel(arguments);
+    if (ring != null) ref.read(ringLaunchProvider.notifier).set(ring);
   }
 
   void _setAnswer(Object? arguments) {

@@ -10,6 +10,7 @@ import '../../models/sound_preset.dart';
 import '../../providers/call_answer_providers.dart';
 import '../../providers/group_call_providers.dart';
 import '../../providers/repository_providers.dart';
+import '../../providers/call_sound_enabled_provider.dart';
 import '../../providers/ringtone_sound_provider.dart';
 import '../../router/app_router.dart';
 import '../../utils/auto_dismiss_banner.dart';
@@ -184,10 +185,12 @@ class _GroupIncomingCallListenerState
             _expireBanner(call.groupCallId);
           }
         }, onError: (_) {});
-    final ringtoneSource = SoundCategory.ringtone.resolveSource(
-      ref.read(ringtoneSoundProvider),
-    );
-    unawaited(_soundPlayer.playRingtoneTimes(3, ringtoneSource));
+    if (ref.read(callRingtoneEnabledProvider)) {
+      final ringtoneSource = SoundCategory.ringtone.resolveSource(
+        ref.read(ringtoneSoundProvider),
+      );
+      unawaited(_soundPlayer.playRingtoneTimes(3, ringtoneSource));
+    }
   }
 
   /// 応答が無今ま[kCallRingTimeout]が経ったバナーを閉じ、他に出ているバナーが

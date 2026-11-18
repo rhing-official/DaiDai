@@ -31,6 +31,12 @@ import java.net.URL
  */
 object CallNotifications {
     const val CHANNEL_ID = "incoming_call"
+
+    /** 音・振動なしの着信チャンネル（設定で着信音をオフにした端末用、2026-11-18）。 */
+    const val SILENT_CHANNEL_ID = "incoming_call_silent"
+    const val EXTRA_CALLER_NAME = "daidai_call_caller_name"
+    const val EXTRA_ICON_URL = "daidai_call_icon_url"
+    const val EXTRA_IS_VIDEO = "daidai_call_is_video"
     const val EXTRA_ACTION = "daidai_call_action"
     const val EXTRA_KIND = "daidai_call_kind"
     const val EXTRA_CALL_ID = "daidai_call_id"
@@ -55,9 +61,30 @@ object CallNotifications {
         }
     }
 
+    /**
+     * 設定>着信音・呼出音の「着信音を鳴らす」（端末ごと、既定オン）。DartのSharedPreferences
+     * （`flutter.`が付く同じファイル）から読む。
+     */
+    fun ringtoneEnabled(context: Context): Boolean =
+        context.getSharedPreferences("FlutterSharedPreferences", Context.MODE_PRIVATE)
+            .getBoolean("flutter.callRingtoneEnabled", true)
+
     private fun ensureChannel(context: Context) {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return
         val manager = context.getSystemService(NotificationManager::class.java)
+        if (manager.getNotificationChannel(SILENT_CHANNEL_ID) == null) {
+            val silent = NotificationChannel(
+                SILENT_CHANNEL_ID,
+                "通話の着信（音なし）",
+                NotificationManager.IMPORTANCE_HIGH,
+            ).apply {
+                description = "着信音をオフにしている時の、通話の着信の表示です"
+                setSound(null, null)
+                enableVibration(false)
+                lockscreenVisibility = android.app.Notification.VISIBILITY_PUBLIC
+            }
+            manager.createNotificationChannel(silent)
+        }
         if (manager.getNotificationChannel(CHANNEL_ID) != null) return
         val channel = NotificationChannel(CHANNEL_ID, "通話の着信", NotificationManager.IMPORTANCE_HIGH).apply {
             description = "通話の着信を知らせます"
@@ -143,10 +170,18 @@ object CallNotifications {
         val fullScreenIntent = PendingIntent.getActivity(
             context,
             id + 1,
-            Intent(context, MainActivity::class.java).apply {
-                this.flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP
-                putExtra(EXTRA_RING, true)
-            },
+            intentExtras(
+                Intent(context, MainActivity::class.java).apply {
+                    this.flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP
+                    putExtra(EXTRA_RING, true)
+                    putExtra(EXTRA_CALLER_NAME, if (kind == KIND_GROUP) data["title"].orEmpty() else callerName)
+                    putExtra(EXTRA_ICON_URL, data["iconUrl"])
+                    putExtra(EXTRA_IS_VIDEO, isVideo)
+                },
+                kind,
+                callId,
+                groupId,
+            ),
             flags,
         )
 
@@ -160,7 +195,8 @@ object CallNotifications {
             if (isVideo) "ビデオ通話の着信" else "音声通話の着信"
         }
         val title = if (kind == KIND_GROUP) data["title"].orEmpty() else callerName
-        val notification = NotificationCompat.Builder(context, CHANNEL_ID)
+        val ringEnabled = ringtoneEnabled(context)
+        val builder = NotificationCompat.Builder(context, if (ringEnabled) CHANNEL_ID else SILENT_CHANNEL_ID)
             .setSmallIcon(R.drawable.ic_notification)
             .setContentTitle(title)
             .setContentText(text)
@@ -172,9 +208,13 @@ object CallNotifications {
             .setFullScreenIntent(fullScreenIntent, true)
             .setStyle(NotificationCompat.CallStyle.forIncomingCall(person, declineIntent, answerIntent))
             .addPerson(person)
-            .build()
+        // 着信音をオフにしている端末は、音も振動も出さない（Android 8未満はここで止める）。
+        if (!ringEnabled) builder.setSilent(true)
+        val notification = builder.build()
         // 呼び出し音を、応答・拒否・取消しまで繰り返す。
-        notification.flags = notification.flags or android.app.Notification.FLAG_INSISTENT
+        if (ringEnabled) {
+            notification.flags = notification.flags or android.app.Notification.FLAG_INSISTENT
+        }
         try {
             manager.notify(id, notification)
         } catch (e: SecurityException) {

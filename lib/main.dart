@@ -18,6 +18,8 @@ import 'package:google_fonts/google_fonts.dart';
 import 'features/guide/tutorial/tutorial_overlay.dart';
 import 'features/call/call_overlay.dart';
 import 'features/call/incoming_call_banner.dart';
+import 'features/call/lock_screen_guard.dart';
+import 'features/call/ring_launch_overlay.dart';
 import 'features/call/pinned_call_overlay.dart';
 import 'features/call/group_incoming_call_listener.dart';
 import 'features/call/pip_controller.dart';
@@ -59,8 +61,8 @@ import 'providers/ringtone_sound_provider.dart';
 import 'providers/send_key_mode_provider.dart';
 import 'providers/sticker_send_mode_provider.dart';
 import 'providers/talks_list_layout_style_provider.dart';
-import 'providers/on_accent_color_provider.dart';
-import 'providers/text_color_provider.dart';
+import 'providers/appearance_colors_provider.dart';
+import 'providers/call_sound_enabled_provider.dart';
 import 'providers/dark_variant_provider.dart';
 import 'providers/theme_mode_provider.dart';
 import 'router/app_router.dart';
@@ -169,8 +171,7 @@ Future<void> main() async {
 Future<void> _launchApp({required bool firstLaunch}) async {
   final initialAccentColor = await loadInitialAccentColor();
   final initialAccentColorsByStyle = await loadInitialAccentColorsByStyle();
-  final initialTextColorLight = await loadInitialTextColorLight();
-  final initialTextColorDark = await loadInitialTextColorDark();
+  final initialAppearanceColors = await loadInitialAppearanceColors();
   final initialCustomAccentColors = await loadInitialCustomAccentColors();
   final initialCustomFontColors = await loadInitialCustomFontColors();
   final initialRemovedDefaultColorPresets =
@@ -198,6 +199,8 @@ Future<void> _launchApp({required bool firstLaunch}) async {
   final initialLastOpenedRooms = await loadInitialLastOpenedRooms();
   final initialAppThemeMode = await loadInitialAppThemeMode();
   final initialDarkVariant = await loadInitialDarkVariant();
+  final initialCallRingtoneEnabled = await loadInitialCallRingtoneEnabled();
+  final initialCallRingbackEnabled = await loadInitialCallRingbackEnabled();
   final initialAppUiStyle = await loadInitialAppUiStyle();
   final initialConversationSortOrder = await loadInitialConversationSortOrder();
   final initialFontDesign = await loadInitialFontDesign();
@@ -226,8 +229,9 @@ Future<void> _launchApp({required bool firstLaunch}) async {
         initialAccentColorsByStyleProvider.overrideWithValue(
           initialAccentColorsByStyle,
         ),
-        initialTextColorLightProvider.overrideWithValue(initialTextColorLight),
-        initialTextColorDarkProvider.overrideWithValue(initialTextColorDark),
+        initialAppearanceColorsProvider.overrideWithValue(
+          initialAppearanceColors,
+        ),
         initialCustomAccentColorsProvider.overrideWithValue(
           initialCustomAccentColors,
         ),
@@ -292,6 +296,12 @@ Future<void> _launchApp({required bool firstLaunch}) async {
         ),
         initialAppThemeModeProvider.overrideWithValue(initialAppThemeMode),
         initialDarkVariantProvider.overrideWithValue(initialDarkVariant),
+        initialCallRingtoneEnabledProvider.overrideWithValue(
+          initialCallRingtoneEnabled,
+        ),
+        initialCallRingbackEnabledProvider.overrideWithValue(
+          initialCallRingbackEnabled,
+        ),
         initialAppUiStyleProvider.overrideWithValue(initialAppUiStyle),
         initialConversationSortOrderProvider.overrideWithValue(
           initialConversationSortOrder,
@@ -335,8 +345,8 @@ class DaiDaiApp extends ConsumerWidget {
     final accentColor = ref.watch(accentColorProvider);
     final textColorLight = ref.watch(effectiveTextColorLightProvider);
     final textColorDark = ref.watch(effectiveTextColorDarkProvider);
-    final onAccentColorLight = ref.watch(onAccentColorLightProvider);
-    final onAccentColorDark = ref.watch(onAccentColorDarkProvider);
+    final onAccentColorLight = ref.watch(effectiveOnAccentColorLightProvider);
+    final onAccentColorDark = ref.watch(effectiveOnAccentColorDarkProvider);
     final gekigaBackgroundColor = ref.watch(gekigaBackgroundColorProvider);
     final appLocale = ref.watch(appLocaleProvider);
     final themeMode = ref.watch(appThemeModeProvider);
@@ -455,6 +465,11 @@ class DaiDaiApp extends ConsumerWidget {
                 const CallOverlay(),
                 // 一対の着信（PC・Web）はバナーで知らせる（2026-10-23）。
                 const IncomingCallBannerOverlay(),
+                // 着信の全画面インテントで開かれた時、セッションの開始を待たずに全画面で出す
+                // （2026-11-18）。
+                const RingLaunchOverlay(),
+                // ロック画面の上の通話・着信の安全（終了後の認証・通話中の操作制限、2026-11-18）。
+                const LockScreenCallGuard(),
                 // 広場の通話開始バナーは全ルート・ボタン・ミニ表示より最前面に出す。
                 const GroupCallBannerOverlay(),
                 // 操作を促すガイドの案内の層（2026-10-17追加）。実行中だけ全ルートの

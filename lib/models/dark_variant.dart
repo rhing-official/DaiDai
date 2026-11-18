@@ -13,7 +13,7 @@ enum DarkVariant {
     surface: Color(0xFF1E1E1E),
     glassBackground: Color(0xFF0E0E12),
     glassSurface: Color(0xFF1C1C22),
-    defaultTextColor: Color(0xFFAAAAAA),
+    defaultTextColor: Color(0xFFD5D5D5),
   ),
 
   /// 鈍色（Slate）。少し明るく柔らかいダーク（Ash相当）。
@@ -32,7 +32,7 @@ enum DarkVariant {
     surface: Color(0xFF0D0D0D),
     glassBackground: Color(0xFF000000),
     glassSurface: Color(0xFF0B0B0E),
-    defaultTextColor: Color(0xFFAAAAAA),
+    defaultTextColor: Color(0xFFD5D5D5),
     outline: Color(0xFF2E2E2E),
   );
 

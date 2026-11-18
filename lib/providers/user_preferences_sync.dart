@@ -41,8 +41,7 @@ import 'ringtone_sound_provider.dart';
 import 'message_time_format_provider.dart';
 import 'send_key_mode_provider.dart';
 import 'sticker_send_mode_provider.dart';
-import 'on_accent_color_provider.dart';
-import 'text_color_provider.dart';
+import 'appearance_colors_provider.dart';
 import 'theme_mode_provider.dart';
 
 /// ログイン直後、Firestoreに保存されている表示設定（[AppUserPreferences]）で
@@ -84,29 +83,12 @@ void applyRemoteUserPreferences(WidgetRef ref, AppUserPreferences preferences) {
         .read(gekigaBackgroundColorProvider.notifier)
         .syncFromRemote(Color(preferences.gekigaBackgroundColorArgb!));
   }
-  if (preferences.textColorLightArgb != null) {
+  // 外観（胡粉・墨・鈍色・漆黒）ごとのフォントカラー・アクセント上の色とプリセット（2026-11-18）。
+  // 以前のライト用・ダーク用の保存値（textColor…・onAccentColor…）は引き継がない。
+  if (preferences.appearanceColors != null) {
     ref
-        .read(textColorLightProvider.notifier)
-        .syncFromRemote(Color(preferences.textColorLightArgb!));
-  }
-  if (preferences.textColorDarkArgb != null) {
-    ref
-        .read(textColorDarkProvider.notifier)
-        .syncFromRemote(Color(preferences.textColorDarkArgb!));
-  }
-  // 旧版の1色（0は自動）は、新しい2色が無い時だけ、両方へ引き継ぐ。
-  final legacyOnAccent = preferences.onAccentColorArgb;
-  final onAccentLight =
-      preferences.onAccentColorLightArgb ??
-      (legacyOnAccent != null && legacyOnAccent != 0 ? legacyOnAccent : null);
-  final onAccentDark =
-      preferences.onAccentColorDarkArgb ??
-      (legacyOnAccent != null && legacyOnAccent != 0 ? legacyOnAccent : null);
-  if (onAccentLight != null) {
-    ref.read(onAccentColorLightProvider.notifier).syncFromRemote(onAccentLight);
-  }
-  if (onAccentDark != null) {
-    ref.read(onAccentColorDarkProvider.notifier).syncFromRemote(onAccentDark);
+        .read(appearanceColorsProvider.notifier)
+        .syncFromRemote(appearanceColorsFromJson(preferences.appearanceColors));
   }
   if (preferences.themeMode != null) {
     final mode = ThemeMode.values.firstWhereOrNull(

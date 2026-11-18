@@ -8,6 +8,7 @@ import 'package:pointer_interceptor/pointer_interceptor.dart';
 
 import '../../l10n/strings.dart';
 import '../../providers/call_answer_providers.dart';
+import '../../providers/ring_launch_provider.dart';
 import '../../router/app_router.dart';
 import '../../utils/platform_info.dart';
 import '../../widgets/nav_chip.dart';
@@ -15,6 +16,7 @@ import 'active_call_session.dart';
 import 'call_avatar.dart';
 import 'call_banner_card.dart';
 import 'call_log.dart';
+import 'call_ring_ripple.dart';
 import 'webrtc_call_controller.dart';
 
 /// 一対の着信（応答前）を出すバナー（2026-10-23、以前は右上の縦長
@@ -58,6 +60,14 @@ class IncomingCallBannerOverlay extends ConsumerWidget {
             !controller.accepting &&
             controller.state == CallConnectionState.connecting;
         if (!ringing) {
+          // 応答・拒否・終了で着信が終わったら、着信の全画面インテント由来の表示も終える。
+          if (ref.read(ringLaunchProvider)?.callId == session.call.callId) {
+            WidgetsBinding.instance.addPostFrameCallback((_) {
+              if (ref.read(ringLaunchProvider)?.callId == session.call.callId) {
+                ref.read(ringLaunchProvider.notifier).clear();
+              }
+            });
+          }
           callLog(
             'incoming banner hidden: isCaller=${controller.isCaller} '
             'accepting=${controller.accepting} state=${controller.state} '
@@ -100,21 +110,42 @@ class IncomingCallBannerOverlay extends ConsumerWidget {
           });
         }
 
-        // ロック中の着信は、バナーではなく全画面で出す（2026-11-15）。
+        // ロック中の着信、および着信の全画面インテントで開かれた着信は、バナーではなく全画面で
+        // 出す（2026-11-15、ringで開かれた場合は2026-11-18）。
         final locked =
             ref.watch(_lockedAtRingProvider(session.call.callId)).value ??
             false;
-        if (locked) {
+        final ringLaunched =
+            ref.watch(ringLaunchProvider)?.callId == session.call.callId;
+        if (locked || ringLaunched) {
           final call = session.call;
           final me = session.currentUserId;
+          final otherId = call.otherUserId(me);
+          final otherSeed = call.otherRhingSeed(me);
           return Positioned.fill(
             child: PointerInterceptor(
-              child: _FullScreenIncomingCall(
-                userId: call.otherUserId(me),
-                rhingSeed: call.otherRhingSeed(me),
-                conversationId: call.dmId,
+              child: IncomingCallFullScreen(
+                avatar: CallParticipantAvatar(
+                  userId: otherId,
+                  rhingSeed: otherSeed,
+                  conversationId: call.dmId,
+                  radius: 64,
+                ),
+                title: CallParticipantNameLabel(
+                  userId: otherId,
+                  rhingSeed: otherSeed,
+                  conversationId: call.dmId,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 28,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
                 isVideo: call.isVideo,
-                onDecline: controller.decline,
+                onDecline: () {
+                  ref.read(ringLaunchProvider.notifier).clear();
+                  controller.decline();
+                },
                 onAccept: controller.accepting ? null : accept,
               ),
             ),
@@ -167,11 +198,17 @@ class _IncomingCallBanner extends ConsumerWidget {
       isVideo: call.isVideo,
       onAccept: accepting ? null : onAccept,
       onDecline: onDecline,
-      avatarBuilder: (_) => CallParticipantAvatar(
-        userId: otherId,
-        rhingSeed: otherSeed,
-        conversationId: call.dmId,
+      // 呼び出し中は、アイコンの周りに波紋を出す（2026-11-18、PC・Webの着信バナーも同じ）。
+      avatarBuilder: (_) => CallRingingAvatar(
+        ringing: true,
         radius: 20,
+        reachFactor: 1.3,
+        avatar: CallParticipantAvatar(
+          userId: otherId,
+          rhingSeed: otherSeed,
+          conversationId: call.dmId,
+          radius: 20,
+        ),
       ),
       titleBuilder: (style) => CallParticipantNameLabel(
         userId: otherId,
@@ -183,20 +220,25 @@ class _IncomingCallBanner extends ConsumerWidget {
   }
 }
 
-/// ロック画面で受ける着信の全画面表示（相手のアイコン・呼び名・拒否と応答の大きな丸いボタン）。
-class _FullScreenIncomingCall extends ConsumerWidget {
-  const _FullScreenIncomingCall({
-    required this.userId,
-    required this.rhingSeed,
-    required this.conversationId,
+/// 着信の全画面表示（相手のアイコン・呼び名・拒否と応答の大きな丸いボタン）。ロック画面で受ける時と、
+/// 着信の全画面インテントで開かれた時に出す（2026-11-18、アイコン・呼び名は呼び出し元が渡す。
+/// 通話のセッションが始まる前は、通知から受け取った情報で出すため）。アイコンの周りには、
+/// 呼び出し中を示す波紋を出す。
+class IncomingCallFullScreen extends ConsumerWidget {
+  const IncomingCallFullScreen({
+    required this.avatar,
+    required this.title,
     required this.isVideo,
     required this.onDecline,
     required this.onAccept,
+    super.key,
   });
 
-  final String userId;
-  final String rhingSeed;
-  final String conversationId;
+  /// アイコン（半径64）。
+  final Widget avatar;
+
+  /// 呼び名（白・28pxの太字）。
+  final Widget title;
   final bool isVideo;
   final VoidCallback onDecline;
   final VoidCallback? onAccept;
@@ -237,27 +279,14 @@ class _FullScreenIncomingCall extends ConsumerWidget {
           child: Column(
             children: [
               const Spacer(flex: 2),
-              CallParticipantAvatar(
-                userId: userId,
-                rhingSeed: rhingSeed,
-                conversationId: conversationId,
-                radius: 64,
-              ),
+              CallRingRipple(radius: 64, child: avatar),
               const SizedBox(height: 24),
               DefaultTextStyle(
                 style: textStyle.copyWith(
                   fontSize: 28,
                   fontWeight: FontWeight.bold,
                 ),
-                child: CallParticipantNameLabel(
-                  userId: userId,
-                  rhingSeed: rhingSeed,
-                  conversationId: conversationId,
-                  style: textStyle.copyWith(
-                    fontSize: 28,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
+                child: title,
               ),
               const SizedBox(height: 8),
               Text(

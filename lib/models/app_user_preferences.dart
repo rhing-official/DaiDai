@@ -13,6 +13,7 @@ class AppUserPreferences {
     this.gekigaBackgroundColorArgb,
     this.themeMode,
     this.darkVariant,
+    this.appearanceColors,
     this.localeCode,
     this.sendKeyMode,
     this.stickerSendMode,
@@ -61,6 +62,9 @@ class AppUserPreferences {
 
   /// ダークの種類（standard/soft/black、2026-11-17追加、null=標準）。
   final String? darkVariant;
+
+  /// 外観ごとのフォントカラー・アクセント上の色とプリセット（2026-11-18、構造は`appearance_colors_provider.dart`）。
+  final Map<String, dynamic>? appearanceColors;
   final String? localeCode;
   final String? sendKeyMode;
   final String? stickerSendMode;
@@ -166,6 +170,7 @@ class AppUserPreferences {
       gekigaBackgroundColorArgb: json['gekigaBackgroundColorArgb'] as int?,
       themeMode: json['themeMode'] as String?,
       darkVariant: json['darkVariant'] as String?,
+      appearanceColors: json['appearanceColors'] as Map<String, dynamic>?,
       localeCode: json['localeCode'] as String?,
       sendKeyMode: json['sendKeyMode'] as String?,
       stickerSendMode: json['stickerSendMode'] as String?,
@@ -218,6 +223,7 @@ class AppUserPreferences {
         'gekigaBackgroundColorArgb': gekigaBackgroundColorArgb,
       if (themeMode != null) 'themeMode': themeMode,
       if (darkVariant != null) 'darkVariant': darkVariant,
+      if (appearanceColors != null) 'appearanceColors': appearanceColors,
       if (localeCode != null) 'localeCode': localeCode,
       if (sendKeyMode != null) 'sendKeyMode': sendKeyMode,
       if (stickerSendMode != null) 'stickerSendMode': stickerSendMode,

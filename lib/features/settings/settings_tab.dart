@@ -50,6 +50,7 @@ import '../../providers/calling_sound_provider.dart';
 import '../../providers/custom_accent_colors_provider.dart';
 import '../../providers/app_locale_provider.dart';
 import '../../providers/app_ui_style_provider.dart';
+import '../../providers/call_sound_enabled_provider.dart';
 import '../../providers/dark_variant_provider.dart';
 import '../../providers/font_design_provider.dart';
 import '../../providers/block_providers.dart';
@@ -81,8 +82,7 @@ import '../../providers/notification_sound_provider.dart';
 import '../../providers/ringtone_sound_provider.dart';
 import '../../providers/send_key_mode_provider.dart';
 import '../../providers/sticker_send_mode_provider.dart';
-import '../../providers/on_accent_color_provider.dart';
-import '../../providers/text_color_provider.dart';
+import '../../providers/appearance_colors_provider.dart';
 import '../../providers/theme_mode_provider.dart';
 import '../../providers/user_providers.dart';
 import '../../services/google_calendar_auth_service.dart';
@@ -3379,224 +3379,17 @@ class _AccentColorFolderState extends ConsumerState<AccentColorFolder> {
   }
 }
 
-/// フォントカラー（旧称: 文字色、`colorScheme.onSurface`相当）をライト/
-/// ダークそれぞれカラーコードで指定する設定（2026-09-14追加）。アクセント
-/// カラーと違い背景とのコントラストが直接可読性に関わる為、
-/// `accentColorProvider`のようなライト/ダーク共通の1色ではなく、
-/// `textColorLightProvider`/`textColorDarkProvider`の2つを別々に持つ
-/// （ユーザー確認済み）。設定画面上は「UIスタイル」と「フォントデザイン」の
-/// 間に独立したセクションとして表示する（`_ApplicationPage`参照、
-/// 以前は`_DesignFolder`内に埋め込まれていた）。
-class _TextColorFolder extends ConsumerStatefulWidget {
+/// フォントカラー（旧称: 文字色、`colorScheme.onSurface`相当）と、アクセント上の文字色の設定
+/// （2026-09-14追加、2026-11-18に外観ごとのプリセットへ変更）。外観（胡粉・墨・鈍色・漆黒）ごとに、
+/// 適用した色とプリセット（標準の色＋自分で登録した最大3つ）を別々に保存する。今の外観の分だけを
+/// 表示・編集する。設定画面上は「UIスタイル」と「フォントデザイン」の間に独立したセクションとして
+/// 表示する（`_ApplicationPage`参照）。
+class _TextColorFolder extends ConsumerWidget {
   const _TextColorFolder();
 
   @override
-  ConsumerState<_TextColorFolder> createState() => _TextColorFolderState();
-}
-
-class _TextColorFolderState extends ConsumerState<_TextColorFolder> {
-  late final TextEditingController _lightController;
-  late final TextEditingController _darkController;
-  String? _lightErrorText;
-  String? _darkErrorText;
-
-  @override
-  void initState() {
-    super.initState();
-    _lightController = TextEditingController(
-      text: ref
-          .read(effectiveTextColorLightProvider)
-          .toHexString()
-          .replaceFirst('#', ''),
-    );
-    _darkController = TextEditingController(
-      text: ref
-          .read(effectiveTextColorDarkProvider)
-          .toHexString()
-          .replaceFirst('#', ''),
-    );
-  }
-
-  @override
-  void dispose() {
-    _lightController.dispose();
-    _darkController.dispose();
-    super.dispose();
-  }
-
-  void _applyLight() {
-    final color = tryParseHexColor(_lightController.text);
-    if (color == null) {
-      setState(
-        () => _lightErrorText = ref
-            .read(appStringsProvider)
-            .settingsHexColorFormatError,
-      );
-      return;
-    }
-    setState(() => _lightErrorText = null);
-    ref.read(textColorLightProvider.notifier).setColor(color);
-  }
-
-  void _applyDark() {
-    final color = tryParseHexColor(_darkController.text);
-    if (color == null) {
-      setState(
-        () => _darkErrorText = ref
-            .read(appStringsProvider)
-            .settingsHexColorFormatError,
-      );
-      return;
-    }
-    setState(() => _darkErrorText = null);
-    ref.read(textColorDarkProvider.notifier).setColor(color);
-  }
-
-  void _resetLight() {
-    setState(() {
-      _lightErrorText = null;
-      _lightController.text = kDefaultTextColorLight.toHexString().replaceFirst(
-        '#',
-        '',
-      );
-    });
-    ref.read(textColorLightProvider.notifier).setColor(null);
-  }
-
-  void _resetDark() {
-    setState(() {
-      _darkErrorText = null;
-      _darkController.text = defaultTextColorDarkFor(
-        ref.read(darkVariantProvider),
-      ).toHexString().replaceFirst('#', '');
-    });
-    ref.read(textColorDarkProvider.notifier).setColor(null);
-  }
-
-  Widget _colorRow({
-    required Color color,
-    required String label,
-    required TextEditingController controller,
-    required String? errorText,
-    required VoidCallback onApply,
-    required VoidCallback onReset,
-  }) {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 4, 16, 16),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Container(
-            width: 48,
-            height: 48,
-            margin: EdgeInsets.only(
-              top: 4 + (label.isEmpty ? 0 : _blockLabelOffset(context)),
-            ),
-            decoration: BoxDecoration(
-              color: color,
-              shape: BoxShape.circle,
-              border: Border.all(color: Colors.black12),
-            ),
-          ),
-          const SizedBox(width: 16),
-          Flexible(
-            // 入力した文字の長さに合わせて欄の横幅を変える（2026-11-06）。
-            child: ListenableBuilder(
-              listenable: controller,
-              builder: (context, child) => Align(
-                alignment: Alignment.centerLeft,
-                child: SizedBox(
-                  width: _colorFieldWidth(context, controller.text, label),
-                  child: child,
-                ),
-              ),
-              child: BlockFieldFrame(
-                label: label.isEmpty ? null : label,
-                child: TextField(
-                  controller: controller,
-                  textCapitalization: TextCapitalization.characters,
-                  inputFormatters: [
-                    FilteringTextInputFormatter.allow(RegExp('[0-9a-fA-F]')),
-                    LengthLimitingTextInputFormatter(8),
-                  ],
-                  decoration: InputDecoration(
-                    labelText: (isBlockTheme(context) || label.isEmpty)
-                        ? null
-                        : label,
-                    prefixText: '#',
-                    hintText: '1C1C1C',
-                    errorText: errorText,
-                    counterText: '',
-                    // アクセントカラーの入力欄と同じ、ガラスUI風の見た目に揃える
-                    // （2026-09-14変更、`_DesignFolderState`のアクセントカラー欄参照）。
-                    // 塗り色は`GlassColors`の固定値を直接参照し、フラット/ガラスで
-                    // 常に同じ色になるようにする（2026-09-15修正、理由は
-                    // アクセントカラー欄側のコメント参照）。
-                    filled: !isBlockTheme(context),
-                    fillColor:
-                        (Theme.of(context).brightness == Brightness.dark
-                                ? ref.watch(darkVariantProvider).glassSurface
-                                : GlassColors.lightSurfaceBase)
-                            .withValues(alpha: 0.65),
-                    border: isBlockTheme(context)
-                        ? InputBorder.none
-                        : OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(16),
-                            borderSide: BorderSide(
-                              color: color.withValues(alpha: 0.3),
-                            ),
-                          ),
-                    suffixIcon: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        HoneycombColorButton(
-                          current: tryParseHexColor(controller.text),
-                          onPicked: (picked) {
-                            controller.text = picked.toHexString().replaceFirst(
-                              '#',
-                              '',
-                            );
-                            onApply();
-                          },
-                        ),
-                        CopyIconButton(
-                          textBuilder: () => _hexText(controller.text),
-                        ),
-                        IconButton(
-                          icon: const Icon(Icons.refresh),
-                          tooltip: '',
-                          onPressed: onReset,
-                        ),
-                      ],
-                    ),
-                  ),
-                  // 6桁・8桁を入力し終えたら、決定ボタン無しで即時反映する（2026-10-31）。
-                  onChanged: (text) {
-                    final length = text.replaceFirst('#', '').length;
-                    if (length == 6 || length == 8) onApply();
-                  },
-                  onSubmitted: (_) => onApply(),
-                ),
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final strings = ref.watch(appStringsProvider);
-    final textColorLight = ref.watch(effectiveTextColorLightProvider);
-    final textColorDark = ref.watch(effectiveTextColorDarkProvider);
-    // 外観の種類を変えた時など、実効値が変わったら入力欄の文字も合わせる。
-    ref.listen<Color>(effectiveTextColorLightProvider, (_, next) {
-      _lightController.text = next.toHexString().replaceFirst('#', '');
-    });
-    ref.listen<Color>(effectiveTextColorDarkProvider, (_, next) {
-      _darkController.text = next.toHexString().replaceFirst('#', '');
-    });
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       mainAxisSize: MainAxisSize.min,
@@ -3613,33 +3406,292 @@ class _TextColorFolderState extends ConsumerState<_TextColorFolder> {
           ),
         ),
         const SizedBox(height: 8),
-        // 今の外観（ライト/ダーク、「端末に合わせる」の場合は端末の設定）の
-        // 欄だけを表示する（2026-11-06）。もう一方の値は保持したまま。
-        if (Theme.of(context).brightness == Brightness.light)
-          _colorRow(
-            color: textColorLight,
-            label: strings.settingsTextColorLightLabel,
-            controller: _lightController,
-            errorText: _lightErrorText,
-            onApply: _applyLight,
-            onReset: _resetLight,
-          )
-        else
-          _colorRow(
-            color: textColorDark,
-            label: strings.settingsTextColorDarkLabel,
-            controller: _darkController,
-            errorText: _darkErrorText,
-            onApply: _applyDark,
-            onReset: _resetDark,
-          ),
+        _AppearanceColorEditor(
+          kind: AppearanceColorKind.text,
+          strings: strings,
+          label: '',
+        ),
         // アクセントで塗った面の上に乗る文字色（劇画はアクセントを使わないため出さない）。
         if (ref.watch(appUiStyleProvider) != AppUiStyle.gekiga)
-          Padding(
-            padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-            child: _OnAccentColorField(strings: strings),
+          _AppearanceColorEditor(
+            kind: AppearanceColorKind.onAccent,
+            strings: strings,
+            label: strings.settingsOnAccentColorLabel,
           ),
       ],
+    );
+  }
+}
+
+/// 今の外観の、フォントカラー（[AppearanceColorKind.text]）またはアクセント上
+/// （[AppearanceColorKind.onAccent]）の色の編集欄とプリセット一覧（2026-11-18）。
+/// プリセットは、先頭が標準の色（削除可）、続いて自分で登録した色（最大
+/// [kMaxAppearancePresets]）。タップで適用、長押しで削除、「＋」で今の色を登録する
+/// （アクセントカラーと同じ操作）。
+class _AppearanceColorEditor extends ConsumerStatefulWidget {
+  const _AppearanceColorEditor({
+    required this.kind,
+    required this.strings,
+    required this.label,
+  });
+
+  final AppearanceColorKind kind;
+  final Strings strings;
+
+  /// 入力欄のラベル（空なら出さない）。
+  final String label;
+
+  @override
+  ConsumerState<_AppearanceColorEditor> createState() =>
+      _AppearanceColorEditorState();
+}
+
+class _AppearanceColorEditorState
+    extends ConsumerState<_AppearanceColorEditor> {
+  late final TextEditingController _controller;
+
+  bool get _isOnAccent => widget.kind == AppearanceColorKind.onAccent;
+
+  /// アクセント上は6桁（不透明）、フォントカラーは透明度つきの8桁も受け付ける。
+  int get _maxLength => _isOnAccent ? 6 : 8;
+
+  String _hexOf(Color color) {
+    final hex = color.toHexString().replaceFirst('#', '');
+    return _isOnAccent ? hex.substring(0, 6) : hex;
+  }
+
+  AppearanceSlot get _slot => ref.read(currentAppearanceSlotProvider);
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = TextEditingController(
+      text: _hexOf(
+        ref.read(effectiveAppearanceColorProvider((_slot, widget.kind))),
+      ),
+    );
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  void _apply(Color color) => ref
+      .read(appearanceColorsProvider.notifier)
+      .apply(_slot, widget.kind, color);
+
+  /// 6桁（フォントカラーは8桁も）そろった時だけ反映する（途中の入力では何もしない）。
+  void _applyHexIfComplete(String text) {
+    final length = text.replaceFirst('#', '').length;
+    if (length != 6 && !(length == 8 && !_isOnAccent)) return;
+    final color = tryParseHexColor(text);
+    if (color != null) _apply(color);
+  }
+
+  Future<void> _register(Color current) async {
+    final added = await ref
+        .read(appearanceColorsProvider.notifier)
+        .addPreset(_slot, widget.kind, current);
+    if (!added && mounted) {
+      showAutoDismissBanner(
+        context,
+        message: widget.strings.settingsCustomColorLimitReachedTemplate(
+          kMaxAppearancePresets,
+        ),
+      );
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final slot = ref.watch(currentAppearanceSlotProvider);
+    final effective = ref.watch(
+      effectiveAppearanceColorProvider((slot, widget.kind)),
+    );
+    final kindColors = ref.watch(
+      appearanceColorsProvider.select(
+        (s) => s[slot]?[widget.kind] ?? const KindColors(),
+      ),
+    );
+    // 外観の切り替え・端末間の同期などで実効値が変わったら、入力欄の文字も合わせる。
+    ref.listen<Color>(effectiveAppearanceColorProvider((slot, widget.kind)), (
+      _,
+      next,
+    ) {
+      final text = _hexOf(next);
+      if (_controller.text != text &&
+          tryParseHexColor(_controller.text) != next) {
+        _controller.text = text;
+      }
+    });
+    // 外観の区分そのものが変わった時（実効値が同じでも別の外観）に、欄を合わせる。
+    ref.listen<AppearanceSlot>(currentAppearanceSlotProvider, (_, next) {
+      _controller.text = _hexOf(
+        ref.read(effectiveAppearanceColorProvider((next, widget.kind))),
+      );
+    });
+
+    final accent = Theme.of(context).colorScheme.primary;
+    final label = widget.label;
+    final defaultColor = slot.defaultFor(widget.kind);
+    bool same(Color a, Color b) =>
+        _isOnAccent ? a.withAlpha(0xFF) == b.withAlpha(0xFF) : a == b;
+    final presetColors = [
+      if (!kindColors.defaultRemoved) (color: defaultColor, isDefault: true),
+      for (final c in kindColors.presets) (color: c, isDefault: false),
+    ];
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 4, 16, 16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // 見本の丸。アクセント上は、アクセントの面に今の文字色で「Aa」を載せる。
+              Container(
+                width: 48,
+                height: 48,
+                margin: EdgeInsets.only(
+                  top: 4 + (label.isEmpty ? 0 : _blockLabelOffset(context)),
+                ),
+                alignment: Alignment.center,
+                decoration: BoxDecoration(
+                  color: _isOnAccent ? accent : effective,
+                  shape: BoxShape.circle,
+                  border: Border.all(color: Colors.black12),
+                ),
+                child: _isOnAccent
+                    ? Text(
+                        'Aa',
+                        style: TextStyle(
+                          color: effective,
+                          fontWeight: FontWeight.bold,
+                          fontSize: 16,
+                        ),
+                      )
+                    : null,
+              ),
+              const SizedBox(width: 16),
+              Flexible(
+                // 入力した文字の長さに合わせて欄の横幅を変える。
+                child: ListenableBuilder(
+                  listenable: _controller,
+                  builder: (context, child) => Align(
+                    alignment: Alignment.centerLeft,
+                    child: SizedBox(
+                      width: _colorFieldWidth(context, _controller.text, label),
+                      child: child,
+                    ),
+                  ),
+                  child: BlockFieldFrame(
+                    label: label.isEmpty ? null : label,
+                    child: TextField(
+                      controller: _controller,
+                      textCapitalization: TextCapitalization.characters,
+                      inputFormatters: [
+                        FilteringTextInputFormatter.allow(
+                          RegExp('[0-9a-fA-F]'),
+                        ),
+                        LengthLimitingTextInputFormatter(_maxLength),
+                      ],
+                      decoration: InputDecoration(
+                        labelText: (isBlockTheme(context) || label.isEmpty)
+                            ? null
+                            : label,
+                        prefixText: '#',
+                        hintText: _hexOf(defaultColor),
+                        counterText: '',
+                        filled: !isBlockTheme(context),
+                        fillColor:
+                            (Theme.of(context).brightness == Brightness.dark
+                                    ? ref
+                                          .watch(darkVariantProvider)
+                                          .glassSurface
+                                    : GlassColors.lightSurfaceBase)
+                                .withValues(alpha: 0.65),
+                        border: isBlockTheme(context)
+                            ? InputBorder.none
+                            : OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(16),
+                                borderSide: BorderSide(
+                                  color: accent.withValues(alpha: 0.3),
+                                ),
+                              ),
+                        suffixIcon: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            HoneycombColorButton(
+                              current: tryParseHexColor(_controller.text),
+                              onPicked: (picked) {
+                                _controller.text = _hexOf(picked);
+                                _apply(picked);
+                              },
+                            ),
+                            CopyIconButton(
+                              textBuilder: () => _hexText(_controller.text),
+                            ),
+                            // 今の色をプリセットへ登録する。
+                            IconButton(
+                              icon: const Icon(Icons.add),
+                              tooltip: '',
+                              onPressed: () => _register(effective),
+                            ),
+                          ],
+                        ),
+                      ),
+                      onChanged: _applyHexIfComplete,
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Text(
+            widget.strings.settingsColorPresets,
+            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+          ),
+          const SizedBox(height: 8),
+          Wrap(
+            spacing: 12,
+            runSpacing: 12,
+            children: [
+              for (final entry in presetColors)
+                PresetColorSwatch(
+                  hex: _hexOf(entry.color),
+                  selected: same(entry.color, effective),
+                  onTap: () {
+                    _controller.text = _hexOf(entry.color);
+                    _apply(entry.color);
+                  },
+                  onLongPress: () async {
+                    final confirmed = await confirmDeletePresetColor(
+                      context,
+                      widget.strings,
+                    );
+                    if (!confirmed) return;
+                    final notifier = ref.read(
+                      appearanceColorsProvider.notifier,
+                    );
+                    if (entry.isDefault) {
+                      await notifier.removeDefault(slot, widget.kind);
+                    } else {
+                      await notifier.removePreset(
+                        slot,
+                        widget.kind,
+                        entry.color,
+                      );
+                    }
+                  },
+                ),
+            ],
+          ),
+        ],
+      ),
     );
   }
 }
@@ -5601,6 +5653,22 @@ class _NotificationsPage extends ConsumerWidget {
           ),
         const Divider(height: 24),
         _SectionHeader(strings.settingsSubSound),
+        // 着信音・呼出音を鳴らすか（端末ごと、2026-11-18）。
+        AppSwitchListTile(
+          contentPadding: EdgeInsets.zero,
+          value: ref.watch(callRingtoneEnabledProvider),
+          title: Text(strings.settingsRingtoneEnabledTitle),
+          subtitle: Text(strings.settingsRingEnabledSubtitle),
+          onChanged: (v) =>
+              ref.read(callRingtoneEnabledProvider.notifier).set(v),
+        ),
+        AppSwitchListTile(
+          contentPadding: EdgeInsets.zero,
+          value: ref.watch(callRingbackEnabledProvider),
+          title: Text(strings.settingsRingbackEnabledTitle),
+          onChanged: (v) =>
+              ref.read(callRingbackEnabledProvider.notifier).set(v),
+        ),
         _SectionHeader(strings.settingsSoundRingtoneTitle),
         _SoundSettingsFolder(
           strings: strings,
@@ -6186,186 +6254,6 @@ class _SlidePickSwitch extends ConsumerWidget {
       title: Text(strings.settingsSlidePickTitle),
       subtitle: Text(strings.settingsSlidePickSubtitle),
       onChanged: setEnabled,
-    );
-  }
-}
-
-/// アクセントで塗った面（選択中のチップ・ボタンなど）の上に乗る文字・アイコンの色の入力欄
-/// （2026-11-06）。空欄なら自動（ライトは黒・ダークは白）。6桁のRRGGBBだけ受け付ける。
-class _OnAccentColorField extends ConsumerStatefulWidget {
-  const _OnAccentColorField({required this.strings});
-
-  final Strings strings;
-
-  @override
-  ConsumerState<_OnAccentColorField> createState() =>
-      _OnAccentColorFieldState();
-}
-
-/// アクセント上の文字色。文字色（ライト用・ダーク用）と同じく、今の外観の欄だけを出し、
-/// もう一方の値は保持する（2026-11-14に2色へ分けた）。
-class _OnAccentColorFieldState extends ConsumerState<_OnAccentColorField> {
-  late final TextEditingController _lightController;
-  late final TextEditingController _darkController;
-
-  String _hexOf(Color color) =>
-      color.toHexString().replaceFirst('#', '').substring(0, 6);
-
-  @override
-  void initState() {
-    super.initState();
-    _lightController = TextEditingController(
-      text: _hexOf(ref.read(onAccentColorLightProvider)),
-    );
-    _darkController = TextEditingController(
-      text: _hexOf(ref.read(onAccentColorDarkProvider)),
-    );
-  }
-
-  @override
-  void dispose() {
-    _lightController.dispose();
-    _darkController.dispose();
-    super.dispose();
-  }
-
-  void _setColor(bool dark, Color color) {
-    if (dark) {
-      ref.read(onAccentColorDarkProvider.notifier).setColor(color);
-    } else {
-      ref.read(onAccentColorLightProvider.notifier).setColor(color);
-    }
-  }
-
-  /// 6桁そろった時だけ反映する（途中の入力では何もしない）。
-  void _apply(bool dark, String text) {
-    final hex = text.replaceFirst('#', '');
-    if (hex.length != 6) return;
-    final color = tryParseHexColor(hex);
-    if (color != null) _setColor(dark, color);
-  }
-
-  void _syncController(TextEditingController controller, Color next) {
-    final text = _hexOf(next);
-    if (controller.text != text && tryParseHexColor(controller.text) != next) {
-      controller.text = text;
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    // 端末間の同期などで値が変わったら、入力欄にも反映する。
-    ref.listen<Color>(
-      onAccentColorLightProvider,
-      (_, next) => _syncController(_lightController, next),
-    );
-    ref.listen<Color>(
-      onAccentColorDarkProvider,
-      (_, next) => _syncController(_darkController, next),
-    );
-    final accent = Theme.of(context).colorScheme.primary;
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final effective = ref.watch(
-      isDark ? onAccentColorDarkProvider : onAccentColorLightProvider,
-    );
-    final controller = isDark ? _darkController : _lightController;
-    final defaultColor = isDark
-        ? kDefaultOnAccentColorDark
-        : kDefaultOnAccentColorLight;
-    final label = widget.strings.settingsOnAccentColorLabel;
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        // アクセントの面に、今の文字色で「Aa」を載せた見本。
-        Container(
-          width: 48,
-          height: 48,
-          margin: EdgeInsets.only(top: 4 + _blockLabelOffset(context)),
-          alignment: Alignment.center,
-          decoration: BoxDecoration(
-            color: accent,
-            shape: BoxShape.circle,
-            border: Border.all(color: Colors.black12),
-          ),
-          child: Text(
-            'Aa',
-            style: TextStyle(
-              color: effective,
-              fontWeight: FontWeight.bold,
-              fontSize: 16,
-            ),
-          ),
-        ),
-        const SizedBox(width: 16),
-        Flexible(
-          // ライト用・ダーク用の欄と同じく、文字の長さに合わせて横幅を変える。
-          child: ListenableBuilder(
-            listenable: controller,
-            builder: (context, child) => Align(
-              alignment: Alignment.centerLeft,
-              child: SizedBox(
-                width: _colorFieldWidth(context, controller.text, label),
-                child: child,
-              ),
-            ),
-            child: BlockFieldFrame(
-              label: label,
-              child: TextField(
-                controller: controller,
-                textCapitalization: TextCapitalization.characters,
-                inputFormatters: [
-                  FilteringTextInputFormatter.allow(RegExp('[0-9a-fA-F]')),
-                  LengthLimitingTextInputFormatter(6),
-                ],
-                decoration: InputDecoration(
-                  labelText: isBlockTheme(context) ? null : label,
-                  prefixText: '#',
-                  hintText: _hexOf(defaultColor),
-                  counterText: '',
-                  filled: !isBlockTheme(context),
-                  fillColor:
-                      (Theme.of(context).brightness == Brightness.dark
-                              ? ref.watch(darkVariantProvider).glassSurface
-                              : GlassColors.lightSurfaceBase)
-                          .withValues(alpha: 0.65),
-                  border: isBlockTheme(context)
-                      ? InputBorder.none
-                      : OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(16),
-                          borderSide: BorderSide(
-                            color: accent.withValues(alpha: 0.3),
-                          ),
-                        ),
-                  suffixIcon: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      HoneycombColorButton(
-                        current: tryParseHexColor(controller.text),
-                        onPicked: (picked) {
-                          controller.text = _hexOf(picked);
-                          _apply(isDark, controller.text);
-                        },
-                      ),
-                      CopyIconButton(
-                        textBuilder: () => _hexText(controller.text),
-                      ),
-                      IconButton(
-                        icon: const Icon(Icons.refresh),
-                        tooltip: '',
-                        onPressed: () {
-                          controller.text = _hexOf(defaultColor);
-                          _setColor(isDark, defaultColor);
-                        },
-                      ),
-                    ],
-                  ),
-                ),
-                onChanged: (text) => _apply(isDark, text),
-              ),
-            ),
-          ),
-        ),
-      ],
     );
   }
 }

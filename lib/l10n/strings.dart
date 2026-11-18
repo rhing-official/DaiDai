@@ -188,6 +188,9 @@ class Strings {
     required this.settingsSubSound,
     required this.settingsSoundRingtoneTitle,
     required this.settingsSoundCallingTitle,
+    required this.settingsRingtoneEnabledTitle,
+    required this.settingsRingbackEnabledTitle,
+    required this.settingsRingEnabledSubtitle,
     required this.settingsSoundNotificationTitle,
     required this.soundPresetRetroLabel,
     required this.soundPresetMarimbaLabel,
@@ -1502,6 +1505,9 @@ class Strings {
   final String settingsSubSound;
   final String settingsSoundRingtoneTitle;
   final String settingsSoundCallingTitle;
+  final String settingsRingtoneEnabledTitle;
+  final String settingsRingbackEnabledTitle;
+  final String settingsRingEnabledSubtitle;
   final String settingsSoundNotificationTitle;
   final String soundPresetRetroLabel;
   final String soundPresetMarimbaLabel;
@@ -3147,6 +3153,10 @@ class Strings {
     settingsSubSound: 'サウンド',
     settingsSoundRingtoneTitle: '着信音',
     settingsSoundCallingTitle: '呼出音',
+    settingsRingtoneEnabledTitle: '着信音を鳴らす',
+    settingsRingbackEnabledTitle: '呼出音を鳴らす',
+    settingsRingEnabledSubtitle:
+        'この端末だけの設定です。オフにすると、音が出ません（Androidの着信通知は振動も止まります）',
     settingsSoundNotificationTitle: '通知音',
     soundPresetRetroLabel: 'レトロ',
     soundPresetMarimbaLabel: 'マリンバ',
@@ -4541,6 +4551,10 @@ class Strings {
     settingsSubSound: 'Sound',
     settingsSoundRingtoneTitle: 'Ringtone',
     settingsSoundCallingTitle: 'Calling tone',
+    settingsRingtoneEnabledTitle: 'Play the ringtone',
+    settingsRingbackEnabledTitle: 'Play the calling tone',
+    settingsRingEnabledSubtitle:
+        'This setting applies to this device only. When off, no sound plays (Android call notifications also stop vibrating)',
     settingsSoundNotificationTitle: 'Notification sound',
     soundPresetRetroLabel: 'Retro',
     soundPresetMarimbaLabel: 'Marimba',

@@ -37,7 +37,6 @@ import 'package:daidai/providers/send_key_mode_provider.dart';
 import 'package:daidai/models/talks_list_layout_style.dart';
 import 'package:daidai/providers/sticker_send_mode_provider.dart';
 import 'package:daidai/providers/talks_list_layout_style_provider.dart';
-import 'package:daidai/providers/text_color_provider.dart';
 import 'package:daidai/providers/theme_mode_provider.dart';
 import 'package:daidai/providers/repository_providers.dart';
 import 'package:daidai/theme/gekiga/gekiga_theme.dart';
@@ -118,12 +117,6 @@ void main() {
               initialAppLocaleProvider.overrideWithValue(AppLocale.japanese),
               initialAccentColorProvider.overrideWithValue(
                 const Color(0xFFF08300),
-              ),
-              initialTextColorLightProvider.overrideWithValue(
-                kDefaultTextColorLight,
-              ),
-              initialTextColorDarkProvider.overrideWithValue(
-                null,
               ),
               initialCustomAccentColorsProvider.overrideWithValue(const []),
               initialRemovedDefaultColorPresetsProvider.overrideWithValue(

@@ -211,6 +211,10 @@ final Strings _stringsFr = Strings._(
   profileFontDesignDialogEditTitle: 'Modifier la police',
   settingsSubSound: 'Son',
   settingsSoundRingtoneTitle: 'Sonnerie',
+  settingsRingtoneEnabledTitle: 'Jouer la sonnerie',
+  settingsRingbackEnabledTitle: 'Jouer la tonalité d’appel',
+  settingsRingEnabledSubtitle:
+      'Ce réglage ne s’applique qu’à cet appareil. Désactivé, aucun son n’est joué (les notifications d’appel Android ne vibrent plus non plus)',
   settingsSoundCallingTitle: 'Tonalité d’appel',
   settingsSoundNotificationTitle: 'Son de notification',
   soundPresetRetroLabel: 'Rétro',

@@ -22,6 +22,7 @@ import '../../widgets/glass/glass_surface.dart';
 import 'active_call_session.dart';
 import 'call_audio_sinks.dart';
 import 'call_avatar.dart';
+import 'call_ring_ripple.dart';
 import 'camera_availability.dart';
 import 'pinned_call_position.dart';
 import 'webrtc_call_controller.dart';
@@ -314,12 +315,24 @@ class _PinnedCallBubble extends ConsumerWidget {
           )
         else
           Center(
-            child: CallParticipantAvatar(
-              userId: placeholder.userId,
-              rhingSeed: placeholder.rhingSeed,
-              conversationId: placeholder.conversationId,
+            // 一対でまだ繋がっていない間（呼び出し中・確立待ち）は、相手のアイコンの周りに
+            // 波紋を出す（2026-11-18、通話画面と同じ）。
+            child: CallRingingAvatar(
+              ringing: switch (session) {
+                OneToOneCallSession(:final controller) =>
+                  !controller.mediaConnected &&
+                      controller.state != CallConnectionState.ended,
+                _ => false,
+              },
               radius: 36,
-              fontSize: 28,
+              reachFactor: 1.5,
+              avatar: CallParticipantAvatar(
+                userId: placeholder.userId,
+                rhingSeed: placeholder.rhingSeed,
+                conversationId: placeholder.conversationId,
+                radius: 36,
+                fontSize: 28,
+              ),
             ),
           ),
         // 通話画面（CallControlBar）と同じ相対順序（マイク→カメラ→

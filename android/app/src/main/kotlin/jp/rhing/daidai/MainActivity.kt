@@ -39,8 +39,75 @@ class MainActivity : FlutterFragmentActivity() {
     /** 着信通知の「応答」で開かれた時の、Dart側がまだ受け取っていない操作。 */
     private var pendingCallAction: Map<String, String?>? = null
 
+    /** 着信の全画面インテントで開かれた時の、Dart側がまだ受け取っていない着信の情報。 */
+    private var pendingRingLaunch: Map<String, Any?>? = null
+
+    /**
+     * 着信・応答の操作でロック画面の上に表示している間はtrue（2026-11-18）。通話・着信が終わったら
+     * [releaseOverLock]で外し、端末の認証を求める。
+     */
+    private var shownOverLock = false
+
+    /**
+     * ロック画面の上の通話中は、戻る操作でアプリの他の画面へ移る前に、端末の認証（生体認証など）を
+     * 求める（Dartが切り替える）。認証に成功したら、Dartへ知らせて通常の戻る操作をさせる。
+     */
+    private val lockedCallBackBlocker = object : androidx.activity.OnBackPressedCallback(false) {
+        override fun handleOnBackPressed() {
+            requestUnlock { unlocked ->
+                if (unlocked) callActionChannel?.invokeMethod("lockedBackUnlocked", null)
+            }
+        }
+    }
+
+    /**
+     * OS標準の端末の認証画面（生体認証・PIN・パターン）を出す。成功したら[onResult]にtrue、
+     * キャンセル・失敗はfalse。画面ロックを使っていない端末はそのままtrue（ロック中ではない）。
+     */
+    private fun requestUnlock(onResult: (Boolean) -> Unit) {
+        val keyguard = getSystemService(android.content.Context.KEYGUARD_SERVICE)
+            as android.app.KeyguardManager
+        if (!keyguard.isKeyguardLocked) {
+            onResult(true)
+            return
+        }
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) {
+            onResult(false)
+            return
+        }
+        keyguard.requestDismissKeyguard(
+            this,
+            object : android.app.KeyguardManager.KeyguardDismissCallback() {
+                override fun onDismissSucceeded() = onResult(true)
+                override fun onDismissCancelled() = onResult(false)
+                override fun onDismissError() = onResult(false)
+            },
+        )
+    }
+
+    private fun isKeyguardLocked(): Boolean {
+        val keyguard = getSystemService(android.content.Context.KEYGUARD_SERVICE)
+            as android.app.KeyguardManager
+        return keyguard.isKeyguardLocked
+    }
+
+    /**
+     * ロック画面の上の表示をやめる。端末がまだロック中なら、ロック画面（認証）が前面に戻り、
+     * 認証するまでアプリは操作できない。ユーザーが自分で解除済みなら何もしない。
+     */
+    private fun releaseOverLock() {
+        lockedCallBackBlocker.isEnabled = false
+        if (!shownOverLock) return
+        shownOverLock = false
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O_MR1) {
+            setShowWhenLocked(false)
+            setTurnScreenOn(false)
+        }
+    }
+
     override fun onCreate(savedInstanceState: android.os.Bundle?) {
         super.onCreate(savedInstanceState)
+        onBackPressedDispatcher.addCallback(this, lockedCallBackBlocker)
         handleCallIntent(intent, deliver = false)
     }
 
@@ -63,6 +130,28 @@ class MainActivity : FlutterFragmentActivity() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O_MR1) {
             setShowWhenLocked(true)
             setTurnScreenOn(true)
+        }
+        // ロック中に開かれた時だけ、終了後に認証を求める対象にする。
+        if (isKeyguardLocked()) shownOverLock = true
+        if (ring) {
+            // 全画面の応答/拒否を、Firestoreの検知を待たずに出すための情報（2026-11-18）。
+            val callId = intent.getStringExtra(CallNotifications.EXTRA_CALL_ID)
+            if (callId != null) {
+                val ringMap = mapOf<String, Any?>(
+                    "kind" to intent.getStringExtra(CallNotifications.EXTRA_KIND),
+                    "callId" to callId,
+                    "groupId" to intent.getStringExtra(CallNotifications.EXTRA_GROUP_ID),
+                    "callerName" to intent.getStringExtra(CallNotifications.EXTRA_CALLER_NAME),
+                    "iconUrl" to intent.getStringExtra(CallNotifications.EXTRA_ICON_URL),
+                    "isVideo" to intent.getBooleanExtra(CallNotifications.EXTRA_IS_VIDEO, false),
+                )
+                intent.removeExtra(CallNotifications.EXTRA_RING)
+                if (deliver && callActionChannel != null) {
+                    callActionChannel?.invokeMethod("ringLaunch", ringMap)
+                } else {
+                    pendingRingLaunch = ringMap
+                }
+            }
         }
         if (action != CallNotifications.ACTION_ANSWER) return
         val callId = intent.getStringExtra(CallNotifications.EXTRA_CALL_ID) ?: return
@@ -174,6 +263,17 @@ class MainActivity : FlutterFragmentActivity() {
             if (call.method == "takePendingAction") {
                 result.success(pendingCallAction)
                 pendingCallAction = null
+            } else if (call.method == "takePendingRing") {
+                result.success(pendingRingLaunch)
+                pendingRingLaunch = null
+            } else if (call.method == "releaseOverLock") {
+                releaseOverLock()
+                result.success(null)
+            } else if (call.method == "requestUnlock") {
+                requestUnlock { unlocked -> result.success(unlocked) }
+            } else if (call.method == "setLockedCallMode") {
+                lockedCallBackBlocker.isEnabled = call.argument<Boolean>("on") ?: false
+                result.success(null)
             } else if (call.method == "isDeviceLocked") {
                 // 画面がロックされているか（着信を全画面で出すかの判断に使う）。
                 val keyguard = getSystemService(android.content.Context.KEYGUARD_SERVICE)
