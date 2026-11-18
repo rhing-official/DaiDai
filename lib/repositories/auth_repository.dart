@@ -312,6 +312,13 @@ class FirebaseAuthRepository implements AuthRepository {
     // iOS/macOSはApple審査ガイドライン(4.8)によりネイティブのSign in with Apple
     // （sign_in_with_appleパッケージ）への切り替えが将来必要になる可能性がある
     // （フェーズ1の優先実装順ではWeb/Android/Windows/Linuxが先のため現状は未対応）。
+    // 本番ドメインのWebは、Googleと同じく同じタブのリダイレクトで行う（2026-11-18）。
+    // 戻った後の結果は[awaitWebRedirectResult]が受け取り、この呼び出しは画面が離れるまで
+    // 完了しない。再認証はポップアップのまま。
+    if (kIsWeb && useWebRedirectSignIn) {
+      await _auth.signInWithRedirect(provider);
+      return Completer<User>().future;
+    }
     final userCredential = kIsWeb
         ? await _auth.signInWithPopup(provider)
         : await _auth.signInWithProvider(provider);
