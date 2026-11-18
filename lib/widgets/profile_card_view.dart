@@ -451,6 +451,10 @@ class SnsLinksInline extends StatelessWidget {
     if (links.isEmpty && placeholder == null) {
       return const SizedBox.shrink();
     }
+    // 文字色が明るければ背景は暗い。文字色が未指定なら、周囲のテーマの明るさで決める。
+    final onDark = color != null
+        ? color!.computeLuminance() > 0.5
+        : Theme.of(context).brightness == Brightness.dark;
     final content = links.isEmpty
         ? Row(
             mainAxisSize: MainAxisSize.min,
@@ -471,7 +475,9 @@ class SnsLinksInline extends StatelessWidget {
             children: [
               // 主要サービスはアイコンだけ（ドメインの文字は出さない）を横に並べ、
               // 一覧に無いサイトはドメインの文字を縦に並べる（2026-10-31）。
-              if (links.any((l) => snsIconAssetFor(l.url) != null))
+              if (links.any(
+                (l) => snsIconAssetFor(l.url, onDark: onDark) != null,
+              ))
                 Padding(
                   padding: const EdgeInsets.only(top: 2),
                   child: Wrap(
@@ -484,7 +490,8 @@ class SnsLinksInline extends StatelessWidget {
                     },
                     children: [
                       for (final link in links)
-                        if (snsIconAssetFor(link.url) case final asset?)
+                        if (snsIconAssetFor(link.url, onDark: onDark)
+                            case final asset?)
                           _TappableLinkRow(
                             onTap: onOpenLink == null
                                 ? null
@@ -494,13 +501,12 @@ class SnsLinksInline extends StatelessWidget {
                                 vertical: 4,
                                 horizontal: 2,
                               ),
+                              // 公式のロゴは色を変えない（各社の規定）。背景の明るさに
+                              // 合わせた公式の黒／白の版を選ぶだけ。
                               child: SvgPicture.asset(
                                 asset,
                                 width: fontSize * 1.5,
                                 height: fontSize * 1.5,
-                                colorFilter: color == null
-                                    ? null
-                                    : ColorFilter.mode(color!, BlendMode.srcIn),
                               ),
                             ),
                           ),
@@ -508,7 +514,7 @@ class SnsLinksInline extends StatelessWidget {
                   ),
                 ),
               for (final link in links)
-                if (snsIconAssetFor(link.url) == null)
+                if (snsIconAssetFor(link.url, onDark: onDark) == null)
                   Padding(
                     padding: const EdgeInsets.only(top: 2),
                     child: _TappableLinkRow(

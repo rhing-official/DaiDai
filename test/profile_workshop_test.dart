@@ -751,8 +751,8 @@ void main() {
     // 単一の呼び出しになり（`_FakeUserRepository.saveProfileCard`参照）、
     // 「削除→追加」の2手順自体が無くなったためこの競合は構造的に起こり得ない。
     // 連続して保存しても最終的に1件に収束することを確認する。
-    const link1 = SnsLink(id: 'l1', url: 'https://www.instagram.com/taro');
-    const link2 = SnsLink(id: 'l2', url: 'https://pixiv.net/taro');
+    const link1 = SnsLink(id: 'l1', url: 'https://bsky.app/profile/taro');
+    const link2 = SnsLink(id: 'l2', url: 'https://github.com/taro');
     const card = ProfileCard(id: 'c1', name: '既存カード');
     const user = AppUser(
       userId: 'u1',
@@ -831,8 +831,8 @@ void main() {
   });
 
   testWidgets('工房の縮小表示（ズームアウト状態）のカードにもSNSのURLが表示される', (tester) async {
-    const link1 = SnsLink(id: 'l1', url: 'https://www.instagram.com/taro');
-    const link2 = SnsLink(id: 'l2', url: 'https://pixiv.net/taro');
+    const link1 = SnsLink(id: 'l1', url: 'https://bsky.app/profile/taro');
+    const link2 = SnsLink(id: 'l2', url: 'https://github.com/taro');
     const card = ProfileCard(id: 'c1', name: '既存カード', snsLinkIds: ['l1', 'l2']);
     const user = AppUser(
       userId: 'u1',
@@ -849,11 +849,11 @@ void main() {
     // 編集画面を開かなくても、縮小表示のカードの時点でURLが見えている。カード上
     // ではドメイン部分だけに短縮して表示する（`displaySnsLinkUrl`、2026-09-24変更。
     // 保存するURL自体はフルパスのまま）。
-    // 主要サービス（Instagram・Pixiv）は、ドメインの文字ではなくアイコンだけが出る
-    // （2026-10-31）。
+    // 公式ロゴを同梱するサービス（Bluesky・GitHub）は、ドメインの文字ではなくロゴだけが出る
+    // （2026-10-31、公式ロゴへ変更2026-11-18）。
     expect(find.byType(SvgPicture), findsNWidgets(2));
-    expect(find.text('instagram.com'), findsNothing);
-    expect(find.text('pixiv.net'), findsNothing);
+    expect(find.text('bsky.app'), findsNothing);
+    expect(find.text('github.com'), findsNothing);
   });
 
   testWidgets('狭い画面のドリルダウン中に左スワイプで次のカテゴリへ切り替え、右スワイプで一覧へ戻る（回帰テスト）', (
