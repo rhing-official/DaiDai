@@ -318,6 +318,11 @@ class ActiveCallSessionNotifier extends Notifier<ActiveCallSession?> {
   }
 }
 
+/// 通話中の通知のタップで、通話画面を開き直すか（2026-11-18）。通話が続いていて、ミニ表示の間
+/// だけ。通話画面が既に開いている時は、二重に開かない。
+bool shouldReopenCallFromNotification(ActiveCallSession? session) =>
+    session != null && !session.hasEnded && session.minimized;
+
 final activeCallSessionProvider =
     NotifierProvider<ActiveCallSessionNotifier, ActiveCallSession?>(
       ActiveCallSessionNotifier.new,

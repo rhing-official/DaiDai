@@ -18,8 +18,13 @@ class CallPresenceMark extends ConsumerWidget {
     this.roomId,
     this.unplacedAmong,
     this.tappable = true,
+    this.badge = false,
     super.key,
   });
+
+  /// 白い丸に黒いアイコン・人数で出す（語らいの箱・寄合のブロック・寄合タブ用、2026-11-18）。
+  /// アクセントで塗られた選択中の面や、同じ色の面でも見えるようにする。[color]は使わない。
+  final bool badge;
 
   final String conversationId;
 
@@ -53,7 +58,8 @@ class CallPresenceMark extends ConsumerWidget {
     // 2026-11-18）。
     final canReopen =
         tappable && presence.isMine && session != null && !session.hasEnded;
-    final mark = Tooltip(
+    final fg = badge ? Colors.black : color;
+    Widget mark = Tooltip(
       message: strings.callPresenceChipLabel,
       child: Row(
         mainAxisSize: MainAxisSize.min,
@@ -61,14 +67,14 @@ class CallPresenceMark extends ConsumerWidget {
           Icon(
             presence.isVideo ? Icons.videocam : Icons.call,
             size: size,
-            color: color,
+            color: fg,
           ),
           if (count > 0) ...[
             const SizedBox(width: 2),
             Text(
               '$count',
               style: TextStyle(
-                color: color,
+                color: fg,
                 fontSize: size - 4,
                 fontWeight: FontWeight.bold,
               ),
@@ -78,12 +84,26 @@ class CallPresenceMark extends ConsumerWidget {
             const SizedBox(width: 4),
             Text(
               strings.callPresenceChipLabel,
-              style: TextStyle(color: color, fontSize: size - 3),
+              style: TextStyle(color: fg, fontSize: size - 3),
             ),
           ],
         ],
       ),
     );
+    if (badge) {
+      mark = DecoratedBox(
+        decoration: ShapeDecoration(
+          color: Colors.white,
+          shape: StadiumBorder(
+            side: BorderSide(color: Colors.black.withValues(alpha: 0.3)),
+          ),
+        ),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
+          child: mark,
+        ),
+      );
+    }
     if (!canReopen) return mark;
     return GestureDetector(
       behavior: HitTestBehavior.opaque,

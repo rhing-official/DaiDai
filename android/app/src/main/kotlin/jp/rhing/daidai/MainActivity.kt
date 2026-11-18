@@ -130,6 +130,13 @@ class MainActivity : FlutterFragmentActivity() {
         val ring = intent.getBooleanExtra(CallNotifications.EXTRA_RING, false)
         val action = intent.getStringExtra(CallNotifications.EXTRA_ACTION)
         if (!ring && action == null) return
+        // 通話中の通知のタップ: 今の画面に重ねて通話画面を開く（2026-11-18）。画面は変えず、
+        // ロック画面の上に出す設定もしない。起動直後（まだ通話が無い）は何もしない。
+        if (action == CallNotifications.ACTION_OPEN_CALL) {
+            intent.removeExtra(CallNotifications.EXTRA_ACTION)
+            if (deliver) callActionChannel?.invokeMethod("openCall", null)
+            return
+        }
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O_MR1) {
             setShowWhenLocked(true)
             setTurnScreenOn(true)

@@ -214,7 +214,7 @@ final Strings _stringsFr = Strings._(
   settingsSubCallDisplay: 'Appels',
   settingsCallMiniTitle: 'Affichage réduit après avoir quitté l’écran d’appel',
   settingsCallMiniVideoLabel: 'Petite fenêtre avec la vidéo',
-  settingsCallMiniBarLabel: 'Pastille « En appel » seulement',
+  settingsCallMiniBarLabel: 'Pastille',
   settingsCallMiniNoneLabel: 'Ne rien afficher',
   settingsCallMiniNoneHint:
       'Ce réglage ne s’applique qu’à cet appareil. Si rien n’est affiché, touchez l’icône d’appel du salon pour revenir à l’appel (sur téléphone, la notification fonctionne aussi)',

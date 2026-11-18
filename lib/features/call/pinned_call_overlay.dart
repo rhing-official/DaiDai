@@ -676,42 +676,88 @@ class _PinnedCallLight extends ConsumerWidget {
       OneToOneCallSession(:final controller) => controller.muted,
       GroupCallSession(:final controller) => controller.muted,
     };
+    // ドラッグで動かせる（小窓と同じ位置の状態を共用、2026-11-18）。動かすまでは右上。
+    final screen = MediaQuery.sizeOf(context);
+    final topInset = MediaQuery.paddingOf(context).top;
+    final offset = ref.watch(pinnedCallOffsetProvider);
+    final position = offset == null
+        ? null
+        : clampPinnedCallOffset(
+            offset: offset,
+            screen: screen,
+            topInset: topInset,
+            bubble: kPinnedChipSize,
+          );
     return Positioned(
-      top: MediaQuery.paddingOf(context).top + 8,
-      right: 8,
+      top: position?.dy ?? topInset + kPinnedCallMargin,
+      left: position?.dx,
+      right: position == null ? kPinnedCallMargin : null,
       child: PointerInterceptor(
-        child: Material(
-          color: bg,
-          shape: const StadiumBorder(),
-          clipBehavior: Clip.antiAlias,
-          child: InkWell(
-            onTap: () => reopenActiveCall(ref.read, session),
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-              child: Stack(
-                clipBehavior: Clip.none,
-                children: [
-                  Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(
-                        muted ? Icons.mic_off : Icons.call,
-                        size: 16,
-                        color: fg,
-                      ),
-                      const SizedBox(width: 6),
-                      Text(
-                        strings.callPresenceChipLabel,
-                        style: TextStyle(
-                          color: fg,
-                          fontSize: 13,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                    ],
+        child: _PinnedCallDragSurface(
+          currentOffset: () {
+            // 右上の既定の位置で掴んだ時は、そこからの相対で動かす（チップの幅は概算）。
+            final current = ref.read(pinnedCallOffsetProvider);
+            return clampPinnedCallOffset(
+              offset:
+                  current ??
+                  Offset(
+                    screen.width - kPinnedChipSize.width - kPinnedCallMargin,
+                    topInset + kPinnedCallMargin,
                   ),
-                  Positioned(left: 0, top: 0, child: sinkWidget),
-                ],
+              screen: screen,
+              topInset: topInset,
+              bubble: kPinnedChipSize,
+            );
+          },
+          onPointerMoved: (grab, pointer) {
+            ref
+                .read(pinnedCallOffsetProvider.notifier)
+                .set(
+                  pinnedCallOffsetForPointer(
+                    pointer: pointer,
+                    grab: grab,
+                    screen: screen,
+                    topInset: topInset,
+                    bubble: kPinnedChipSize,
+                  ),
+                );
+          },
+          child: Material(
+            color: bg,
+            shape: const StadiumBorder(),
+            clipBehavior: Clip.antiAlias,
+            child: InkWell(
+              onTap: () => reopenActiveCall(ref.read, session),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 6,
+                ),
+                child: Stack(
+                  clipBehavior: Clip.none,
+                  children: [
+                    Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(
+                          muted ? Icons.mic_off : Icons.call,
+                          size: 16,
+                          color: fg,
+                        ),
+                        const SizedBox(width: 6),
+                        Text(
+                          strings.callPresenceChipLabel,
+                          style: TextStyle(
+                            color: fg,
+                            fontSize: 13,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ],
+                    ),
+                    Positioned(left: 0, top: 0, child: sinkWidget),
+                  ],
+                ),
               ),
             ),
           ),

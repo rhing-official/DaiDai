@@ -44,6 +44,9 @@ object CallNotifications {
     const val EXTRA_RING = "daidai_call_ring"
     const val ACTION_ANSWER = "answer"
     const val ACTION_DECLINE = "decline"
+
+    /** 通話中の通知（前面サービス）のタップ。今の画面に重ねて通話画面を開く（2026-11-18）。 */
+    const val ACTION_OPEN_CALL = "open_call"
     const val KIND_DM = "dm"
     const val KIND_GROUP = "group"
 

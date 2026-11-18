@@ -117,4 +117,16 @@ void main() {
       Offset.zero,
     );
   });
+
+  test('チップの大きさで、画面外へはみ出す位置は画面内に収める', () {
+    expect(
+      clampPinnedCallOffset(
+        offset: const Offset(999, 999),
+        screen: screen,
+        topInset: 24,
+        bubble: kPinnedChipSize,
+      ),
+      Offset(400 - kPinnedChipSize.width, 800 - kPinnedChipSize.height),
+    );
+  });
 }

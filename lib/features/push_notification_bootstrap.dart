@@ -7,6 +7,8 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../providers/call_answer_providers.dart';
+import 'call/active_call_session.dart';
+import 'call/pinned_call_overlay.dart' show reopenActiveCall;
 import '../providers/locked_call_providers.dart';
 import '../providers/repository_providers.dart';
 import '../providers/ring_launch_provider.dart';
@@ -51,6 +53,7 @@ class _PushNotificationBootstrapState
     _callActionChannel.setMethodCallHandler((call) async {
       if (call.method == 'answer') _setAnswer(call.arguments);
       if (call.method == 'ringLaunch') _setRingLaunch(call.arguments);
+      if (call.method == 'openCall') _openCall();
       if (call.method == 'lockedBackUnlocked' && mounted) {
         ref.read(lockedBackUnlockedProvider.notifier).bump();
       }
@@ -62,6 +65,15 @@ class _PushNotificationBootstrapState
       _setAnswer(await _callActionChannel.invokeMethod('takePendingAction'));
     } on MissingPluginException {
       // 想定外の環境。何もしない。
+    }
+  }
+
+  /// 通話中の通知のタップ。ミニ表示中の通話を、今の画面の上に通話画面として開く（2026-11-18）。
+  void _openCall() {
+    if (!mounted) return;
+    final session = ref.read(activeCallSessionProvider);
+    if (shouldReopenCallFromNotification(session)) {
+      reopenActiveCall(ref.read, session!);
     }
   }
 

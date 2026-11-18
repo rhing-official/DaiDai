@@ -232,6 +232,8 @@ class _RoomListPaneState extends ConsumerState<RoomListPane> {
               conversationId: conversationId,
               roomId: room.roomId,
               color: fg,
+              badge: true,
+              size: 14,
             ),
           if (unread) ...[
             const SizedBox(width: 6),

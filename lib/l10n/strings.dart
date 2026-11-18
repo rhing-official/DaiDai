@@ -3178,7 +3178,7 @@ class Strings {
     settingsSubCallDisplay: '通話',
     settingsCallMiniTitle: '通話画面を出た時のミニ表示',
     settingsCallMiniVideoLabel: '映像つきの小窓',
-    settingsCallMiniBarLabel: '「通話中」のチップだけ',
+    settingsCallMiniBarLabel: 'チップ',
     settingsCallMiniNoneLabel: '何も出さない',
     settingsCallMiniNoneHint:
         'この端末だけの設定です。「何も出さない」にした時は、通話中の寄合の標（電話のアイコン）をタップすると通話画面へ戻れます（スマホは通知からも戻れます）',
@@ -4588,7 +4588,7 @@ class Strings {
     settingsSubCallDisplay: 'Calls',
     settingsCallMiniTitle: 'Mini display after leaving the call screen',
     settingsCallMiniVideoLabel: 'Small window with video',
-    settingsCallMiniBarLabel: '“In a call” chip only',
+    settingsCallMiniBarLabel: 'Chip',
     settingsCallMiniNoneLabel: 'Show nothing',
     settingsCallMiniNoneHint:
         'This setting applies to this device only. If you show nothing, tap the call mark on the room to return to the call (on a phone, you can also use the notification)',

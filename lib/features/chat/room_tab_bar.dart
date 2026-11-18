@@ -216,7 +216,6 @@ class _RoomTabBarState extends ConsumerState<RoomTabBar> {
     final conversationId = widget.conversationId;
     final showUnread = !selected && room.unreadCount > 0;
     if (!showUnread && conversationId == null) return label;
-    final scheme = Theme.of(context).colorScheme;
     return Stack(
       clipBehavior: Clip.none,
       alignment: Alignment.center,
@@ -227,22 +226,12 @@ class _RoomTabBarState extends ConsumerState<RoomTabBar> {
           Positioned(
             top: -10,
             left: -14,
-            child: DecoratedBox(
-              decoration: BoxDecoration(
-                color: widget.isGekiga ? GekigaColors.onPanel : scheme.primary,
-                borderRadius: BorderRadius.circular(10),
-              ),
-              child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 4),
-                child: CallPresenceMark(
-                  conversationId: conversationId,
-                  roomId: room.roomId,
-                  color: widget.isGekiga
-                      ? GekigaColors.panel
-                      : scheme.onPrimary,
-                  size: 14,
-                ),
-              ),
+            child: CallPresenceMark(
+              conversationId: conversationId,
+              roomId: room.roomId,
+              color: Colors.black,
+              badge: true,
+              size: 12,
             ),
           ),
         if (showUnread)

@@ -108,6 +108,8 @@ class CallForegroundService : Service() {
             0,
             Intent(this, MainActivity::class.java).apply {
                 this.flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP
+                // タップで、今の画面の上に通話画面を重ねて開く（`MainActivity`→Dartの`openCall`）。
+                putExtra(CallNotifications.EXTRA_ACTION, CallNotifications.ACTION_OPEN_CALL)
             },
             PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
         )

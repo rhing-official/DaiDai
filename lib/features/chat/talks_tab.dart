@@ -4728,6 +4728,8 @@ class _ConversationTrailing extends ConsumerWidget {
         ? null
         : CallPresenceMark(
             conversationId: callMarkId,
+            badge: true,
+            size: 14,
             color: isGekiga
                 ? gekigaFg
                 : Theme.of(context).colorScheme.onSurface,

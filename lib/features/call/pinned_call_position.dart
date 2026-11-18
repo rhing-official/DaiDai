@@ -6,6 +6,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 /// 通話ミニ表示（`PinnedCallOverlay`）の大きさ。
 const kPinnedCallSize = Size(140, 200);
 
+/// 通話中のチップ（ミニ表示を「チップ」にした時）の概算の大きさ。ドラッグの画面内への補正用。
+const kPinnedChipSize = Size(112, 34);
+
 /// 画面の端との既定の余白。
 const kPinnedCallMargin = 8.0;
 
