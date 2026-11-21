@@ -1,4 +1,5 @@
 import 'dart:math' as math;
+import 'dart:ui' show PointerDeviceKind;
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -28,11 +29,15 @@ class StickerSuggestionStrip extends ConsumerWidget {
   const StickerSuggestionStrip({
     required this.stickers,
     required this.onStickerTap,
+    this.selectedStickerId,
     super.key,
   });
 
   final List<Sticker> stickers;
   final void Function(Sticker sticker) onStickerTap;
+
+  /// 拡大表示中の候補（枠で強調する）。
+  final String? selectedStickerId;
 
   static const _stickerSize = 160.0;
   static const _gap = 8.0;
@@ -54,9 +59,20 @@ class StickerSuggestionStrip extends ConsumerWidget {
     Widget tile(Sticker sticker) => InkWell(
       borderRadius: BorderRadius.circular(8),
       onTap: () => onStickerTap(sticker),
-      child: SizedBox(
+      child: Container(
         width: _stickerSize,
         height: _stickerSize,
+        decoration: sticker.stickerId == selectedStickerId
+            ? BoxDecoration(
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(
+                  color: isGekiga
+                      ? GekigaColors.onPanel
+                      : colorScheme.onSurface,
+                  width: 2,
+                ),
+              )
+            : null,
         child: StickerImage(
           sticker.imageUrl,
           fit: BoxFit.contain,
@@ -126,6 +142,106 @@ class StickerSuggestionStrip extends ConsumerWidget {
           child: SizedBox(width: width, child: panel),
         );
       },
+    );
+  }
+}
+
+/// 提案ぺったんの拡大表示（2026-11-21）。横スワイプで候補を切り替え、
+/// タップで送信する。ぺったんの送信方法がLINE型の時だけ使う。
+class StickerSuggestionPreview extends ConsumerStatefulWidget {
+  const StickerSuggestionPreview({
+    required this.stickers,
+    required this.index,
+    required this.onIndexChanged,
+    required this.onSend,
+    super.key,
+  });
+
+  final List<Sticker> stickers;
+  final int index;
+  final void Function(int index) onIndexChanged;
+  final void Function(Sticker sticker) onSend;
+
+  @override
+  ConsumerState<StickerSuggestionPreview> createState() =>
+      _StickerSuggestionPreviewState();
+}
+
+class _StickerSuggestionPreviewState
+    extends ConsumerState<StickerSuggestionPreview> {
+  late final PageController _controller = PageController(
+    initialPage: widget.index,
+  );
+
+  @override
+  void didUpdateWidget(StickerSuggestionPreview oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    // 下の一覧のタップなど外からの切り替えにページを追従させる。
+    if (_controller.hasClients && _controller.page?.round() != widget.index) {
+      _controller.animateToPage(
+        widget.index,
+        duration: const Duration(milliseconds: 200),
+        curve: Curves.easeOut,
+      );
+    }
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final isGekiga = ref.watch(appUiStyleProvider) == AppUiStyle.gekiga;
+    final colorScheme = Theme.of(context).colorScheme;
+    return Align(
+      alignment: Alignment.centerLeft,
+      child: SizedBox(
+        width: 240,
+        height: 240,
+        child: Material(
+          color: isGekiga
+              ? colorScheme.surface
+              : colorScheme.surfaceContainerHigh,
+          shape: isGekiga
+              ? Border.all(color: GekigaColors.onPanel, width: 3)
+              : RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(16),
+                  side: BorderSide(color: colorScheme.outlineVariant),
+                ),
+          clipBehavior: Clip.antiAlias,
+          child: ScrollConfiguration(
+            // マウスでも横にドラッグして切り替えられるようにする。
+            behavior: ScrollConfiguration.of(context).copyWith(
+              dragDevices: {
+                PointerDeviceKind.touch,
+                PointerDeviceKind.mouse,
+                PointerDeviceKind.trackpad,
+                PointerDeviceKind.stylus,
+              },
+            ),
+            child: PageView.builder(
+              controller: _controller,
+              itemCount: widget.stickers.length,
+              onPageChanged: widget.onIndexChanged,
+              itemBuilder: (context, i) => InkWell(
+                onTap: () => widget.onSend(widget.stickers[i]),
+                child: Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: StickerImage(
+                    widget.stickers[i].imageUrl,
+                    fit: BoxFit.contain,
+                    errorBuilder: (_, _, _) =>
+                        const Icon(Icons.broken_image_outlined),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
     );
   }
 }

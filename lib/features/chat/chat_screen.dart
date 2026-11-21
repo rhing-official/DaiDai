@@ -39,6 +39,10 @@ import '../../models/note.dart';
 import '../../models/send_key_mode.dart';
 import '../../models/sticker.dart';
 import '../../models/sticker_role.dart';
+import '../../models/sticker_send_mode.dart';
+import '../../utils/item_visibility.dart';
+import '../../utils/trim_message.dart';
+import '../../providers/sticker_send_mode_provider.dart';
 import '../../providers/app_locale_provider.dart';
 import '../../router/back_stack.dart';
 import '../../providers/app_ui_style_provider.dart';
@@ -523,6 +527,9 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   final List<MentionCandidate> _selectedMentions = [];
 
   List<Sticker> _stickerSuggestions = const [];
+
+  /// 提案ぺったんの拡大表示中の候補（`_stickerSuggestions`の添字）。nullなら非表示。
+  int? _suggestionPreviewIndex;
   StreamSubscription<List<StickerRole>>? _stickerRolesSub;
   StreamSubscription<List<StickerPack>>? _ownedStickerPacksSub;
   Timer? _suggestionDebounceTimer;
@@ -906,7 +913,10 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     if (text.trim().isEmpty) {
       _suggestionDebounceTimer = null;
       if (_stickerSuggestions.isNotEmpty) {
-        setState(() => _stickerSuggestions = const []);
+        setState(() {
+          _stickerSuggestions = const [];
+          _suggestionPreviewIndex = null;
+        });
       }
       return;
     }
@@ -917,17 +927,45 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
         roles: _stickerRoles,
         candidates: _ownedStickers,
       );
-      setState(() => _stickerSuggestions = suggestions);
+      setState(() {
+        _stickerSuggestions = suggestions;
+        _suggestionPreviewIndex = null;
+      });
     });
   }
 
-  /// ぺったん提案ストリップ（[StickerSuggestionStrip]）のタップ処理
-  /// （2026-09-05追加）。通常のピッカーが持つ`stickerSendMode`の2タップ
-  /// プレビュー挙動は使わず即送信する（`StickerSuggestionStrip`のdoc
-  /// コメント参照）。
+  /// ぺったん提案ストリップ（[StickerSuggestionStrip]）のタップ処理。
+  /// 設定の送信方法（`stickerSendMode`）に従う（2026-11-21）。Discord型は
+  /// 1タップで送信、LINE型は1回目で拡大表示、同じ候補の2回目で送信する。
   void _handleSuggestionTap(Sticker sticker) {
-    setState(() => _stickerSuggestions = const []);
-    _handleStickerPicked(sticker);
+    if (ref.read(stickerSendModeProvider) == StickerSendMode.discord) {
+      _sendSuggestedSticker(sticker);
+      return;
+    }
+    final index = _stickerSuggestions.indexWhere(
+      (s) => s.stickerId == sticker.stickerId,
+    );
+    if (index < 0) return;
+    if (_suggestionPreviewIndex == index) {
+      _sendSuggestedSticker(sticker);
+      return;
+    }
+    setState(() => _suggestionPreviewIndex = index);
+  }
+
+  /// 提案から送ったら、入力欄の文字と下書きも消す（2026-11-21）。
+  /// 送信に失敗した時は、文字を残して再送できるようにする。
+  Future<void> _sendSuggestedSticker(Sticker sticker) async {
+    setState(() {
+      _stickerSuggestions = const [];
+      _suggestionPreviewIndex = null;
+    });
+    final sent = await _handleStickerPicked(sticker);
+    if (!sent || !mounted) return;
+    _suppressDraftSync = true;
+    _textController.clear();
+    _suppressDraftSync = false;
+    _clearDraftNow();
   }
 
   /// 送信直後など、下書きを即座に消したい時に呼ぶ（デバウンス待ちを挟まない）。
@@ -1047,15 +1085,58 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   StickerDockStage _stickerDockStage = StickerDockStage.closed;
   String? _stickerDockPackId;
 
+  /// ドックを縦ドラッグしている間の高さ（下の安全領域を含む）。nullなら段の高さに
+  /// 従う。ドックは本体の外に重ねて置き、この高さの分だけ本体を平行移動する
+  /// （[KeyboardStableBody.extraShift]、2026-11-21）。
+  double? _dockDragHeight;
+
+  double _dockStageHeight(StickerDockStage stage, double screenHeight) =>
+      switch (stage) {
+        StickerDockStage.closed => 0,
+        StickerDockStage.half => StickerPickerDock.halfHeight(screenHeight),
+        StickerDockStage.expanded => StickerPickerDock.expandedHeight(
+          screenHeight,
+        ),
+      };
+
+  void _onDockDragUpdate(double dy) {
+    final screenHeight = MediaQuery.sizeOf(context).height;
+    final safeBottom = MediaQuery.viewPaddingOf(context).bottom;
+    final max = StickerPickerDock.expandedHeight(screenHeight) + safeBottom;
+    final current =
+        _dockDragHeight ??
+        _dockStageHeight(_stickerDockStage, screenHeight) + safeBottom;
+    setState(() => _dockDragHeight = (current - dy).clamp(0.0, max));
+  }
+
+  void _onDockDragEnd(double velocity) {
+    final screenHeight = MediaQuery.sizeOf(context).height;
+    final safeBottom = MediaQuery.viewPaddingOf(context).bottom;
+    final current =
+        _dockDragHeight ??
+        _dockStageHeight(_stickerDockStage, screenHeight) + safeBottom;
+    final stage = StickerPickerDock.snap(
+      height: math.max(0, current - safeBottom),
+      velocity: velocity,
+      screenHeight: screenHeight,
+    );
+    setState(() => _dockDragHeight = null);
+    _setStickerDockStage(stage);
+  }
+
   void _setStickerDockStage(StickerDockStage stage, {String? packId}) {
     if (!mounted) return;
     setState(() {
-      _stickerDockStage = stage;
-      if (stage == StickerDockStage.closed) {
-        _stickerDockPackId = null;
-      } else if (packId != null) {
+      // 絞り込むパックは、閉じる時ではなく開く時に決める（2026-11-21）。閉じる時に
+      // 変えると、ドック内の一覧の`key`が変わって閉じ始めに作り直され、その重さで
+      // 閉じるアニメーションが飛んで一瞬で閉じていた。
+      if (_stickerDockStage == StickerDockStage.closed &&
+          stage != StickerDockStage.closed) {
+        _stickerDockPackId = packId;
+      } else if (stage != StickerDockStage.closed && packId != null) {
         _stickerDockPackId = packId;
       }
+      _stickerDockStage = stage;
     });
   }
 
@@ -1360,7 +1441,12 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
       return false;
     }
 
-    _itemScrollController.jumpTo(index: index, alignment: 0.5);
+    // 既に見えている行は動かさず、揺れだけを再生する（2026-11-21）。最新付近の行を
+    // 中央へ寄せようとすると置き切れず、次のフレームの位置補正で一覧が跳ねていた。
+    final fullyVisible = _isItemFullyVisible(index);
+    if (!fullyVisible) {
+      _itemScrollController.jumpTo(index: index, alignment: 0.5);
+    }
 
     setState(() => _highlightedMessageId = messageId);
     Future.delayed(const Duration(milliseconds: 1200), () {
@@ -1368,6 +1454,29 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
       setState(() => _highlightedMessageId = null);
     });
     return true;
+  }
+
+  /// 一覧の[index]行が、上部バー・入力欄の裏を除いた見える範囲に完全に収まって
+  /// いるか（[isItemFullyVisible]）。
+  bool _isItemFullyVisible(int index) {
+    final box = _autoScrollAreaKey.currentContext?.findRenderObject();
+    if (box is! RenderBox || !box.hasSize) return false;
+    for (final position in _itemPositionsListener.itemPositions.value) {
+      if (position.index != index) continue;
+      final topInset = widget.banner == null
+          ? kToolbarHeight + MediaQuery.paddingOf(context).top
+          : 0.0;
+      return isItemFullyVisible(
+        leadingEdge: position.itemLeadingEdge,
+        trailingEdge: position.itemTrailingEdge,
+        viewportHeight: box.size.height,
+        bottomInset: widget.onSend != null
+            ? _composerAreaHeight + _stickerPanelHeight
+            : 0,
+        topInset: topInset,
+      );
+    }
+    return false;
   }
 
   /// [_jumpToMessage]で返信元メッセージが見つからなかった場合の通知。参加者
@@ -2397,7 +2506,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
 
   Future<void> _send({bool silent = false}) async {
     if (widget.onSend == null || widget.disabled) return;
-    final content = _textController.text.trim();
+    final content = trimMessage(_textController.text);
     // 送信前のトレイがあれば、入力欄の文字（空ならなし）を添えた1つのメッセージとして
     // 送る（2026-11-01、以前は添付と文字を別メッセージで送っていた）。編集中は対象外。
     final sendingTray =
@@ -2683,12 +2792,12 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   /// ぺったん（スタンプ）選択時の送信処理。バイトデータのアップロードを
   /// 伴わないため添付ファイルより単純だが、失敗時のバナー表示・再送導線は
   /// [_handleAttachmentPicked]と同じパターンを踏襲する（2026-08-11追加）。
-  Future<void> _handleStickerPicked(
+  Future<bool> _handleStickerPicked(
     Sticker sticker, {
     DateTime? resendAt,
   }) async {
     final onSendSticker = widget.onSendSticker;
-    if (onSendSticker == null) return;
+    if (onSendSticker == null) return false;
     // 送信予定の日時が設定されていれば、このぺったんを予定にする（再送では同じ日時を使う）。
     final sendAt = resendAt ?? _takeScheduledAt();
     try {
@@ -2696,8 +2805,9 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
       unawaited(
         ref.read(recentStickersProvider.notifier).record(sticker.stickerId),
       );
+      return true;
     } catch (_) {
-      if (!mounted) return;
+      if (!mounted) return false;
       final strings = ref.read(appStringsProvider);
       _bannerTimer = showAutoDismissBanner(
         context,
@@ -2713,6 +2823,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
           ),
         ],
       );
+      return false;
     }
   }
 
@@ -2835,7 +2946,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
 
   /// キーボード（Alt+Enter）での送信予約。送信予定の日時が未設定なら選び、決まったら送る。
   Future<void> _scheduleSendByKeyboard() async {
-    if (_textController.text.trim().isEmpty &&
+    if (trimMessage(_textController.text).isEmpty &&
         _pendingAttachments.isEmpty &&
         _scheduledAt == null) {
       return;
@@ -3275,10 +3386,60 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
       // キーボードの開閉でメッセージが跳ねる、2026-11-12）。
       resizeToAvoidBottomInset: !KeyboardStableBody.enabledOnPlatform,
       appBar: appBar,
-      body: KeyboardStableBody(
-        // キーボードが出ている間、上部バーの裏にずらしたメッセージが透けないようにする。
-        topClip:
-            appBar.preferredSize.height + MediaQuery.paddingOf(context).top,
+      body: TweenAnimationBuilder<double>(
+        // ぺったんドックの高さ（下の安全領域を含む）。段の切り替えは滑らかに、
+        // ドラッグ中は指に追従させる。本体は縮めず、この高さの分だけ平行移動する
+        // （一覧のビューポートと入力欄の高さが変わらない為、メッセージが跳ねない）。
+        tween: Tween<double>(
+          end:
+              _dockDragHeight ??
+              (_stickerDockStage == StickerDockStage.closed
+                  ? 0
+                  : _dockStageHeight(
+                          _stickerDockStage,
+                          MediaQuery.sizeOf(context).height,
+                        ) +
+                        MediaQuery.viewPaddingOf(context).bottom),
+        ),
+        duration: _dockDragHeight == null
+            ? const Duration(milliseconds: 180)
+            : Duration.zero,
+        curve: Curves.easeOut,
+        builder: (context, dockHeight, bodyChild) {
+          final safeBottom = MediaQuery.viewPaddingOf(context).bottom;
+          return Stack(
+            fit: StackFit.expand,
+            children: [
+              KeyboardStableBody(
+                // キーボードが出ている間、上部バーの裏にずらしたメッセージが透けないようにする。
+                topClip:
+                    appBar.preferredSize.height +
+                    MediaQuery.paddingOf(context).top,
+                extraShift: math.max(dockHeight - safeBottom, 0),
+                child: bodyChild!,
+              ),
+              Positioned(
+                left: 0,
+                right: 0,
+                bottom: 0,
+                height: dockHeight,
+                child: StickerPickerDock(
+                  key: const ValueKey('stickerDock'),
+                  stage: _stickerDockStage,
+                  height: dockHeight,
+                  bottomInset: safeBottom,
+                  initialPackId: _stickerDockPackId,
+                  conversationKey: _stickerTabKey,
+                  onStageChanged: _setStickerDockStage,
+                  onDragUpdate: _onDockDragUpdate,
+                  onDragEnd: _onDockDragEnd,
+                  // 送信後も開いたまま（続けて送れる）。
+                  onStickerSelected: _handleStickerPicked,
+                ),
+              ),
+            ],
+          );
+        },
         child: Column(
           // 幅を常に画面いっぱいにする（2026-11-08）。指定しないと、Columnは一番幅の広い
           // 子の幅になり、メッセージ一覧がまだ無い最初の数フレーム（読み込み表示だけ）は
@@ -3630,7 +3791,11 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                                   _screenshotSelecting ||
                                   _stickerDockStage ==
                                       StickerDockStage.expanded)
-                              ? 0
+                              ? (_stickerDockStage == StickerDockStage.expanded
+                                    // 拡大中は入力欄が無く、本体をずらした分だけ最新の行が
+                                    // ドックの裏へ入る為、下の安全領域ぶんを空ける。
+                                    ? MediaQuery.viewPaddingOf(context).bottom
+                                    : 0)
                               : _composerAreaHeight + _stickerPanelHeight,
                         ),
                         // 滑らかに動かすのは、入力中（フォーカス中）の伸び縮みと
@@ -3724,10 +3889,9 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                               ),
                             SafeArea(
                               top: false,
-                              // ぺったんドックが下に出ている間は、ドック側が下端の
-                              // 安全領域を持つため二重に空けない。
-                              bottom:
-                                  _stickerDockStage == StickerDockStage.closed,
+                              // ドックが出ている間も下端の安全領域は外さない（入力欄の高さが
+                              // 変わると、メッセージが跳ねる。本体をずらす量は「ドックの高さ
+                              // − 下の安全領域」で、入力欄の下端がドックの上端に付く）。
                               child: Padding(
                                 padding: const EdgeInsets.all(8),
                                 child: Row(
@@ -4172,6 +4336,27 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                         key: _stickerPanelKey,
                         stickers: _stickerSuggestions,
                         onStickerTap: _handleSuggestionTap,
+                        selectedStickerId: _suggestionPreviewIndex == null
+                            ? null
+                            : _stickerSuggestions[_suggestionPreviewIndex!]
+                                  .stickerId,
+                      ),
+                    ),
+                  if (!_selecting &&
+                      !_screenshotSelecting &&
+                      widget.onSend != null &&
+                      _suggestionPreviewIndex != null &&
+                      _suggestionPreviewIndex! < _stickerSuggestions.length)
+                    Positioned(
+                      left: 8,
+                      right: 8,
+                      bottom: _composerAreaHeight + 8 + _stickerPanelHeight,
+                      child: StickerSuggestionPreview(
+                        stickers: _stickerSuggestions,
+                        index: _suggestionPreviewIndex!,
+                        onIndexChanged: (i) =>
+                            setState(() => _suggestionPreviewIndex = i),
+                        onSend: _sendSuggestedSticker,
                       ),
                     ),
                   // 引用から返信先へ飛んだ後、元のメッセージへ戻るブロック（2026-11-06）。
@@ -4214,15 +4399,6 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                     ),
                 ],
               ),
-            ),
-            StickerPickerDock(
-              key: const ValueKey('stickerDock'),
-              stage: _stickerDockStage,
-              initialPackId: _stickerDockPackId,
-              conversationKey: _stickerTabKey,
-              onStageChanged: _setStickerDockStage,
-              // 送信後も開いたまま（続けて送れる）。
-              onStickerSelected: _handleStickerPicked,
             ),
           ],
         ),

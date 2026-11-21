@@ -10,6 +10,9 @@ import android.os.Looper
 import android.os.PowerManager
 import android.util.Rational
 import androidx.core.content.FileProvider
+import androidx.core.view.ViewCompat
+import androidx.core.view.WindowInsetsAnimationCompat
+import androidx.core.view.WindowInsetsCompat
 import io.flutter.embedding.android.FlutterFragmentActivity
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodChannel
@@ -180,8 +183,38 @@ class MainActivity : FlutterFragmentActivity() {
         }
     }
 
+    /**
+     * ソフトキーボードの開閉の途中の高さ（dp）を、毎フレームDartへ送る（2026-11-21）。
+     * FlutterのviewInsetsは、この端末（Android 16）では動きが終わった後に1回だけ最終値で届き、
+     * メッセージ一覧・入力欄がキーボードより遅れて動いていた（lib/utils/ime_progress.dart）。
+     */
+    private fun setUpImeProgress(flutterEngine: FlutterEngine) {
+        val channel = MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "jp.rhing.daidai/ime")
+        val imeType = WindowInsetsCompat.Type.ime()
+        ViewCompat.setWindowInsetsAnimationCallback(
+            window.decorView,
+            object : WindowInsetsAnimationCompat.Callback(DISPATCH_MODE_CONTINUE_ON_SUBTREE) {
+                override fun onProgress(
+                    insets: WindowInsetsCompat,
+                    runningAnimations: List<WindowInsetsAnimationCompat>,
+                ): WindowInsetsCompat {
+                    if (runningAnimations.any { it.typeMask and imeType != 0 }) {
+                        val px = insets.getInsets(imeType).bottom
+                        channel.invokeMethod("progress", px / resources.displayMetrics.density.toDouble())
+                    }
+                    return insets
+                }
+
+                override fun onEnd(animation: WindowInsetsAnimationCompat) {
+                    if (animation.typeMask and imeType != 0) channel.invokeMethod("end", null)
+                }
+            },
+        )
+    }
+
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
+        setUpImeProgress(flutterEngine)
         // 新しいエンジンには通話が無い。前の画面（エンジン）が終わった後も前面サービスだけが
         // 残っていた場合（通話の終了を伝える相手が居なくなった時）に、ここで止める（2026-11-16）。
         callActive = false
