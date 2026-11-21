@@ -528,6 +528,29 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
 
   List<Sticker> _stickerSuggestions = const [];
 
+  /// 提案パネルの外側をクリックして閉じた時の入力文字（2026-11-21）。入力欄の文字が
+  /// これと同じ間は、提案パネルを出さない。文字を打ち直すと、再び出る。提案そのもの
+  /// （[_stickerSuggestions]）と入力欄の文字は消さない。
+  String? _suggestionsDismissedForText;
+
+  bool get _suggestionPanelVisible =>
+      _stickerSuggestions.isNotEmpty &&
+      _suggestionsDismissedForText != _textController.text;
+
+  /// 画面のどこかを押した時、提案パネルの外側なら閉じる。パネルの中は閉じない。
+  void _dismissSuggestionsOnOutsidePointer(PointerDownEvent event) {
+    if (!_suggestionPanelVisible) return;
+    final box = _stickerPanelKey.currentContext?.findRenderObject();
+    if (box is RenderBox && box.hasSize) {
+      final rect = box.localToGlobal(Offset.zero) & box.size;
+      if (rect.contains(event.position)) return;
+    }
+    setState(() {
+      _suggestionsDismissedForText = _textController.text;
+      _suggestionPreviewIndex = null;
+    });
+  }
+
   /// 提案ぺったんの拡大表示中の候補（`_stickerSuggestions`の添字）。nullなら非表示。
   int? _suggestionPreviewIndex;
   StreamSubscription<List<StickerRole>>? _stickerRolesSub;
@@ -1400,6 +1423,17 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   Future<void> _jumpToReplyTarget(String targetId, String fromMessageId) async {
     final jumped = await _jumpToMessage(targetId);
     if (!mounted || !jumped) return;
+    // 一覧の位置の通知はレイアウトの後に届く。ジャンプ後の位置になるまで待つ。
+    await WidgetsBinding.instance.endOfFrame;
+    await WidgetsBinding.instance.endOfFrame;
+    if (!mounted) return;
+    // 元のメッセージが画面内に見えているなら、戻るブロックは出さない（2026-11-21）。
+    // 出すかどうかはこの時点で1回だけ決める。後でスクロールして画面外へ出ても出さない。
+    final fromIndex = _messageIndexById[fromMessageId];
+    if (fromIndex != null && _isItemFullyVisible(fromIndex)) {
+      setState(() => _returnToMessageId = null);
+      return;
+    }
     setState(() => _returnToMessageId = fromMessageId);
   }
 
@@ -4327,36 +4361,21 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                   if (!_selecting &&
                       !_screenshotSelecting &&
                       widget.onSend != null &&
-                      _stickerSuggestions.isNotEmpty)
+                      _suggestionPanelVisible)
                     Positioned(
                       left: 8,
                       right: 8,
                       bottom: _composerAreaHeight + 8,
                       child: StickerSuggestionStrip(
-                        key: _stickerPanelKey,
+                        panelKey: _stickerPanelKey,
                         stickers: _stickerSuggestions,
                         onStickerTap: _handleSuggestionTap,
-                        selectedStickerId: _suggestionPreviewIndex == null
-                            ? null
-                            : _stickerSuggestions[_suggestionPreviewIndex!]
-                                  .stickerId,
-                      ),
-                    ),
-                  if (!_selecting &&
-                      !_screenshotSelecting &&
-                      widget.onSend != null &&
-                      _suggestionPreviewIndex != null &&
-                      _suggestionPreviewIndex! < _stickerSuggestions.length)
-                    Positioned(
-                      left: 8,
-                      right: 8,
-                      bottom: _composerAreaHeight + 8 + _stickerPanelHeight,
-                      child: StickerSuggestionPreview(
-                        stickers: _stickerSuggestions,
-                        index: _suggestionPreviewIndex!,
-                        onIndexChanged: (i) =>
+                        previewIndex: _suggestionPreviewIndex,
+                        onPreviewIndexChanged: (i) =>
                             setState(() => _suggestionPreviewIndex = i),
-                        onSend: _sendSuggestedSticker,
+                        onPreviewClose: () =>
+                            setState(() => _suggestionPreviewIndex = null),
+                        onPreviewSend: _sendSuggestedSticker,
                       ),
                     ),
                   // 引用から返信先へ飛んだ後、元のメッセージへ戻るブロック（2026-11-06）。
@@ -4369,13 +4388,33 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                       bottom:
                           (widget.onSend != null ? _composerAreaHeight : 0) +
                           12,
-                      child: Center(
-                        child: _ReturnToMessageBlock(
-                          uiStyle: uiStyle,
-                          label: strings.chatReturnToOriginalMessage,
-                          onPressed: _returnToOriginalMessage,
-                          onClose: () =>
-                              setState(() => _returnToMessageId = null),
+                      // 出した後に、スクロールで元のメッセージが画面内（上部バー・入力欄の
+                      // 裏を除いた範囲に完全に収まる）に入ったら、役目を終えたものとして
+                      // 閉じる（2026-11-21）。一覧の位置の通知だけを購読して、ブロックの部分だけを
+                      // 作り直す。
+                      child: ValueListenableBuilder<Iterable<ItemPosition>>(
+                        valueListenable: _itemPositionsListener.itemPositions,
+                        builder: (context, _, child) {
+                          final originalIndex =
+                              _messageIndexById[_returnToMessageId];
+                          if (originalIndex != null &&
+                              _isItemFullyVisible(originalIndex)) {
+                            WidgetsBinding.instance.addPostFrameCallback((_) {
+                              if (mounted) {
+                                setState(() => _returnToMessageId = null);
+                              }
+                            });
+                          }
+                          return child!;
+                        },
+                        child: Center(
+                          child: _ReturnToMessageBlock(
+                            uiStyle: uiStyle,
+                            label: strings.chatReturnToOriginalMessage,
+                            onPressed: _returnToOriginalMessage,
+                            onClose: () =>
+                                setState(() => _returnToMessageId = null),
+                          ),
                         ),
                       ),
                     ),
@@ -4442,7 +4481,12 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
             onPopInvokedWithResult: (didPop, _) {
               if (!didPop) _setStickerDockStage(StickerDockStage.closed);
             },
-            child: Focus(autofocus: true, child: scaffold),
+            child: Listener(
+              // 提案パネルの外側のクリックで、パネルを閉じる（タップ自体は妨げない）。
+              behavior: HitTestBehavior.translucent,
+              onPointerDown: _dismissSuggestionsOnOutsidePointer,
+              child: Focus(autofocus: true, child: scaffold),
+            ),
           ),
         ),
       ),
@@ -10225,10 +10269,78 @@ class _GekigaComposerFieldPainter extends CustomPainter {
 /// 「最新メッセージへジャンプ」の下矢印ボタン（2026-10-04追加）。UIスタイル毎に
 /// 見た目を変える（影は使わない）。フラット: アクセントカラー塗り＋反対色の
 /// アイコン、ガラス: 不透明のガラス丸ボタン、劇画: モノクロのパネルボタン。
+/// 「元のメッセージに戻る」ブロック本体（[_ReturnToMessageBlockBody]）に、下スワイプで
+/// 閉じる動きを足したもの（2026-11-21）。指に合わせて下へ動いて薄くなり、一定量（または
+/// 速い下向きのフリング）で閉じる。足りなければ元の位置へ戻る。
+class _ReturnToMessageBlock extends StatefulWidget {
+  const _ReturnToMessageBlock({
+    required this.uiStyle,
+    required this.label,
+    required this.onPressed,
+    required this.onClose,
+  });
+
+  final AppUiStyle uiStyle;
+  final String label;
+  final VoidCallback onPressed;
+  final VoidCallback onClose;
+
+  @override
+  State<_ReturnToMessageBlock> createState() => _ReturnToMessageBlockState();
+}
+
+class _ReturnToMessageBlockState extends State<_ReturnToMessageBlock> {
+  static const _closeDistance = 36.0;
+  static const _closeVelocity = 400.0;
+  double _dy = 0;
+  bool _dragging = false;
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onVerticalDragStart: (_) => setState(() => _dragging = true),
+      onVerticalDragUpdate: (details) {
+        setState(() => _dy = (_dy + details.delta.dy).clamp(0.0, 120.0));
+      },
+      onVerticalDragEnd: (details) {
+        final close =
+            _dy >= _closeDistance ||
+            (details.primaryVelocity ?? 0) >= _closeVelocity;
+        if (close) {
+          widget.onClose();
+          return;
+        }
+        setState(() {
+          _dragging = false;
+          _dy = 0;
+        });
+      },
+      onVerticalDragCancel: () => setState(() {
+        _dragging = false;
+        _dy = 0;
+      }),
+      child: AnimatedContainer(
+        duration: _dragging ? Duration.zero : const Duration(milliseconds: 150),
+        curve: Curves.easeOut,
+        transform: Matrix4.translationValues(0, _dy, 0),
+        child: Opacity(
+          opacity: (1 - _dy / 120).clamp(0.2, 1.0),
+          child: _ReturnToMessageBlockBody(
+            uiStyle: widget.uiStyle,
+            label: widget.label,
+            onPressed: widget.onPressed,
+            onClose: widget.onClose,
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 /// 「元のメッセージに戻る」ブロック（引用から返信先へ飛んだ後、画面の下に出す）。
 /// 押すと元のメッセージへ戻り、×で閉じる。UIスタイル毎に既存のボタンの配色へ揃える。
-class _ReturnToMessageBlock extends StatelessWidget {
-  const _ReturnToMessageBlock({
+class _ReturnToMessageBlockBody extends StatelessWidget {
+  const _ReturnToMessageBlockBody({
     required this.uiStyle,
     required this.label,
     required this.onPressed,

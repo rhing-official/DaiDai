@@ -29,15 +29,27 @@ class StickerSuggestionStrip extends ConsumerWidget {
   const StickerSuggestionStrip({
     required this.stickers,
     required this.onStickerTap,
-    this.selectedStickerId,
+    this.previewIndex,
+    this.onPreviewIndexChanged,
+    this.onPreviewClose,
+    this.onPreviewSend,
+    this.panelKey,
     super.key,
   });
+
+  /// パネル本体（実際に見えている枠）に付けるキー。外側のクリックの判定と、パネルの
+  /// 高さの計測に使う。
+  final Key? panelKey;
 
   final List<Sticker> stickers;
   final void Function(Sticker sticker) onStickerTap;
 
-  /// 拡大表示中の候補（枠で強調する）。
-  final String? selectedStickerId;
+  /// 拡大表示中の候補の添字（[stickers]の中）。nullなら一覧を見せる（2026-11-21）。
+  /// LINEの「おすすめスタンプ」と同じく、パネルはその場で拡大表示に切り替わる。
+  final int? previewIndex;
+  final void Function(int index)? onPreviewIndexChanged;
+  final VoidCallback? onPreviewClose;
+  final void Function(Sticker sticker)? onPreviewSend;
 
   static const _stickerSize = 160.0;
   static const _gap = 8.0;
@@ -59,20 +71,9 @@ class StickerSuggestionStrip extends ConsumerWidget {
     Widget tile(Sticker sticker) => InkWell(
       borderRadius: BorderRadius.circular(8),
       onTap: () => onStickerTap(sticker),
-      child: Container(
+      child: SizedBox(
         width: _stickerSize,
         height: _stickerSize,
-        decoration: sticker.stickerId == selectedStickerId
-            ? BoxDecoration(
-                borderRadius: BorderRadius.circular(8),
-                border: Border.all(
-                  color: isGekiga
-                      ? GekigaColors.onPanel
-                      : colorScheme.onSurface,
-                  width: 2,
-                ),
-              )
-            : null,
         child: StickerImage(
           sticker.imageUrl,
           fit: BoxFit.contain,
@@ -108,6 +109,38 @@ class StickerSuggestionStrip extends ConsumerWidget {
             ),
           );
 
+    final previewing = previewIndex != null && previewIndex! < stickers.length;
+    // 一覧は拡大中も透明で残す。パネルの大きさが一覧で決まるので、拡大表示に
+    // 切り替わっても位置・幅・高さが変わらない（LINEと同じクロスフェード）。
+    final Widget content = Stack(
+      children: [
+        IgnorePointer(
+          ignoring: previewing,
+          child: AnimatedOpacity(
+            opacity: previewing ? 0 : 1,
+            duration: const Duration(milliseconds: 150),
+            child: list,
+          ),
+        ),
+        if (previewing)
+          Positioned.fill(
+            child: TweenAnimationBuilder<double>(
+              tween: Tween<double>(begin: 0, end: 1),
+              duration: const Duration(milliseconds: 150),
+              builder: (context, opacity, child) =>
+                  Opacity(opacity: opacity, child: child),
+              child: StickerSuggestionPreview(
+                stickers: stickers,
+                index: previewIndex!,
+                onIndexChanged: onPreviewIndexChanged ?? (_) {},
+                onSend: onPreviewSend ?? (_) {},
+                onClose: onPreviewClose ?? () {},
+              ),
+            ),
+          ),
+      ],
+    );
+
     return LayoutBuilder(
       builder: (context, constraints) {
         // 候補の数に合わせた内容幅（左寄せ）。入り切らない分は横スクロール。
@@ -119,13 +152,13 @@ class StickerSuggestionStrip extends ConsumerWidget {
           panel = GlassSurface(
             variant: GlassVariant.floating,
             borderRadius: radius,
-            child: Material(type: MaterialType.transparency, child: list),
+            child: Material(type: MaterialType.transparency, child: content),
           );
         } else if (isGekiga) {
           panel = Material(
             color: GekigaColors.panel,
             shape: Border.all(color: GekigaColors.onPanel, width: 3),
-            child: list,
+            child: content,
           );
         } else {
           panel = Material(
@@ -134,26 +167,29 @@ class StickerSuggestionStrip extends ConsumerWidget {
               borderRadius: radius,
               side: BorderSide(color: colorScheme.outlineVariant),
             ),
-            child: list,
+            child: content,
           );
         }
         return Align(
           alignment: Alignment.centerLeft,
-          child: SizedBox(width: width, child: panel),
+          child: SizedBox(key: panelKey, width: width, child: panel),
         );
       },
     );
   }
 }
 
-/// 提案ぺったんの拡大表示（2026-11-21）。横スワイプで候補を切り替え、
-/// タップで送信する。ぺったんの送信方法がLINE型の時だけ使う。
+/// 提案ぺったんの拡大表示（2026-11-21、LINEの「おすすめスタンプ」と同じ見せ方）。
+/// 選んだぺったんを中央に大きく出し、左右に隣の候補を小さく薄く覗かせる。横スワイプで
+/// 隣が中央へ来て切り替わる。中央のタップで送信、隣のタップでその候補へ寄る、右上の
+/// ×で一覧へ戻る。ぺったんの送信方法がLINE型の時だけ使う。
 class StickerSuggestionPreview extends ConsumerStatefulWidget {
   const StickerSuggestionPreview({
     required this.stickers,
     required this.index,
     required this.onIndexChanged,
     required this.onSend,
+    required this.onClose,
     super.key,
   });
 
@@ -161,6 +197,7 @@ class StickerSuggestionPreview extends ConsumerStatefulWidget {
   final int index;
   final void Function(int index) onIndexChanged;
   final void Function(Sticker sticker) onSend;
+  final VoidCallback onClose;
 
   @override
   ConsumerState<StickerSuggestionPreview> createState() =>
@@ -169,16 +206,40 @@ class StickerSuggestionPreview extends ConsumerStatefulWidget {
 
 class _StickerSuggestionPreviewState
     extends ConsumerState<StickerSuggestionPreview> {
-  late final PageController _controller = PageController(
-    initialPage: widget.index,
-  );
+  static const _maxSize = 240.0;
+  static const _verticalPadding = 12.0;
+  static const _neighbourScale = 0.55;
+  static const _neighbourOpacity = 0.45;
+
+  PageController? _controller;
+  double _fraction = 0;
+
+  /// 中央のぺったんの幅に合わせて、隣が覗く`viewportFraction`でコントローラーを作る。
+  /// 幅が変わった時だけ作り直す。
+  PageController _ensureController(double fraction) {
+    final current = _controller;
+    if (current != null && (fraction - _fraction).abs() < 0.005) return current;
+    _fraction = fraction;
+    final next = PageController(
+      initialPage: widget.index,
+      viewportFraction: fraction,
+    );
+    _controller = next;
+    if (current != null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) => current.dispose());
+    }
+    return next;
+  }
 
   @override
   void didUpdateWidget(StickerSuggestionPreview oldWidget) {
     super.didUpdateWidget(oldWidget);
-    // 下の一覧のタップなど外からの切り替えにページを追従させる。
-    if (_controller.hasClients && _controller.page?.round() != widget.index) {
-      _controller.animateToPage(
+    final controller = _controller;
+    // 外からの切り替えにページを追従させる。
+    if (controller != null &&
+        controller.hasClients &&
+        controller.page?.round() != widget.index) {
+      controller.animateToPage(
         widget.index,
         duration: const Duration(milliseconds: 200),
         curve: Curves.easeOut,
@@ -188,7 +249,7 @@ class _StickerSuggestionPreviewState
 
   @override
   void dispose() {
-    _controller.dispose();
+    _controller?.dispose();
     super.dispose();
   }
 
@@ -196,52 +257,97 @@ class _StickerSuggestionPreviewState
   Widget build(BuildContext context) {
     final isGekiga = ref.watch(appUiStyleProvider) == AppUiStyle.gekiga;
     final colorScheme = Theme.of(context).colorScheme;
-    return Align(
-      alignment: Alignment.centerLeft,
-      child: SizedBox(
-        width: 240,
-        height: 240,
-        child: Material(
-          color: isGekiga
-              ? colorScheme.surface
-              : colorScheme.surfaceContainerHigh,
-          shape: isGekiga
-              ? Border.all(color: GekigaColors.onPanel, width: 3)
-              : RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(16),
-                  side: BorderSide(color: colorScheme.outlineVariant),
+    final iconColor = isGekiga ? GekigaColors.onPanel : colorScheme.onSurface;
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final size = math.min(
+          constraints.maxHeight - _verticalPadding * 2,
+          _maxSize,
+        );
+        // 隣が覗くよう、中央の幅より少し広い間隔でページを並べる。
+        final fraction = constraints.maxWidth <= 0
+            ? 1.0
+            : ((size + 32) / constraints.maxWidth).clamp(0.3, 1.0);
+        final controller = _ensureController(fraction);
+        return Stack(
+          children: [
+            Positioned.fill(
+              // マウスでも横にドラッグして切り替えられるようにする。
+              child: ScrollConfiguration(
+                behavior: ScrollConfiguration.of(context).copyWith(
+                  dragDevices: {
+                    PointerDeviceKind.touch,
+                    PointerDeviceKind.mouse,
+                    PointerDeviceKind.trackpad,
+                    PointerDeviceKind.stylus,
+                  },
                 ),
-          clipBehavior: Clip.antiAlias,
-          child: ScrollConfiguration(
-            // マウスでも横にドラッグして切り替えられるようにする。
-            behavior: ScrollConfiguration.of(context).copyWith(
-              dragDevices: {
-                PointerDeviceKind.touch,
-                PointerDeviceKind.mouse,
-                PointerDeviceKind.trackpad,
-                PointerDeviceKind.stylus,
-              },
-            ),
-            child: PageView.builder(
-              controller: _controller,
-              itemCount: widget.stickers.length,
-              onPageChanged: widget.onIndexChanged,
-              itemBuilder: (context, i) => InkWell(
-                onTap: () => widget.onSend(widget.stickers[i]),
-                child: Padding(
-                  padding: const EdgeInsets.all(16),
-                  child: StickerImage(
-                    widget.stickers[i].imageUrl,
-                    fit: BoxFit.contain,
-                    errorBuilder: (_, _, _) =>
-                        const Icon(Icons.broken_image_outlined),
+                child: PageView.builder(
+                  controller: controller,
+                  itemCount: widget.stickers.length,
+                  onPageChanged: widget.onIndexChanged,
+                  itemBuilder: (context, i) => AnimatedBuilder(
+                    animation: controller,
+                    builder: (context, child) {
+                      final page =
+                          controller.hasClients &&
+                              controller.position.haveDimensions
+                          ? (controller.page ?? widget.index.toDouble())
+                          : widget.index.toDouble();
+                      final delta = (page - i).abs().clamp(0.0, 1.0);
+                      return Center(
+                        child: Opacity(
+                          opacity: 1 - (1 - _neighbourOpacity) * delta,
+                          child: Transform.scale(
+                            scale: 1 - (1 - _neighbourScale) * delta,
+                            child: child,
+                          ),
+                        ),
+                      );
+                    },
+                    child: InkWell(
+                      borderRadius: BorderRadius.circular(12),
+                      onTap: () {
+                        if (i == widget.index) {
+                          widget.onSend(widget.stickers[i]);
+                        } else {
+                          controller.animateToPage(
+                            i,
+                            duration: const Duration(milliseconds: 200),
+                            curve: Curves.easeOut,
+                          );
+                        }
+                      },
+                      child: SizedBox(
+                        width: size,
+                        height: size,
+                        child: StickerImage(
+                          widget.stickers[i].imageUrl,
+                          fit: BoxFit.contain,
+                          errorBuilder: (_, _, _) =>
+                              const Icon(Icons.broken_image_outlined),
+                        ),
+                      ),
+                    ),
                   ),
                 ),
               ),
             ),
-          ),
-        ),
-      ),
+            Positioned(
+              top: 2,
+              right: 2,
+              child: IconButton(
+                tooltip: MaterialLocalizations.of(context).closeButtonTooltip,
+                iconSize: 20,
+                visualDensity: VisualDensity.compact,
+                color: iconColor,
+                icon: const Icon(Icons.close),
+                onPressed: widget.onClose,
+              ),
+            ),
+          ],
+        );
+      },
     );
   }
 }
