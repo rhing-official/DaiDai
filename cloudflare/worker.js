@@ -130,7 +130,8 @@ async function linkPreview(request, url, env) {
     `<meta name="twitter:card" content="${image ? 'summary_large_image' : 'summary'}">`,
   ].filter(Boolean).join('\n    ');
 
-  html = html.replace('</head>', `    ${ogTags}\n  </head>`);
+  // 置換文字列に`$`が含まれると特殊パターン（`$&`・`$\``等）として展開され、ページが壊れる為、関数で渡す（2026-11-21、Strixの指摘）
+  html = html.replace('</head>', () => `    ${ogTags}\n  </head>`);
   return new Response(html, {
     status: 200,
     headers: { 'Content-Type': 'text/html; charset=utf-8' },

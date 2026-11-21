@@ -14,6 +14,7 @@ import { snsIconDataUri, snsIconNameFor } from "./snsIcons";
 const { ImageResponse } = require("@vercel/og");
 
 const FIRESTORE_PROJECT_ID = 'daidai-rhing';
+const STORAGE_BUCKET = 'daidai-rhing.firebasestorage.app';
 // 4:5比率を維持したまま解像度を引き上げている（2026-09-25、800x1000から
 // 1.5倍。埋め込みカードの表示幅自体は各SNS側のレイアウトに依存し
 // 強制はできないが、iMessage等の画像実解像度に応じてカードサイズを
@@ -322,11 +323,43 @@ function rememberInCache(cache: Map<string, any>, key: string, value: any) {
   cache.set(key, value);
 }
 
+/** 取得してよい画像の上限（バイト）と待ち時間（ミリ秒）。 */
+const MAX_IMAGE_BYTES = 8 * 1024 * 1024;
+const IMAGE_FETCH_TIMEOUT_MS = 8000;
+
+/**
+ * 画像のURLが、このプロジェクトのFirebase Storageのダウンロード URL かを確認する。
+ * 招待の`iconUrl`・`backgroundImageUrl`は住人が自由に書けるため、任意のホスト・内部の
+ * アドレスへ取りに行かないよう、https・Storageのホスト・自分のバケットだけを許す
+ * （2026-11-21、Strixの指摘のSSRF）。
+ */
+function isAllowedImageUrl(raw: string): boolean {
+  let parsed: URL;
+  try {
+    parsed = new URL(raw);
+  } catch {
+    return false;
+  }
+  if (parsed.protocol !== 'https:' || parsed.hostname !== 'firebasestorage.googleapis.com') {
+    return false;
+  }
+  if (parsed.username || parsed.password || (parsed.port && parsed.port !== '443')) return false;
+  const match = parsed.pathname.match(/^\/v0\/b\/([^/]+)\/o\//);
+  return !!match && match[1] === STORAGE_BUCKET;
+}
+
 async function toPngDataUri(url: string): Promise<string | null> {
   if (pngCache.has(url)) return pngCache.get(url);
-  const res = await fetch(url);
+  if (!isAllowedImageUrl(url)) return null;
+  const res = await fetch(url, {
+    redirect: 'error',
+    signal: AbortSignal.timeout(IMAGE_FETCH_TIMEOUT_MS),
+  });
   if (!res.ok) return null;
+  const declared = Number(res.headers.get('content-length') ?? 0);
+  if (declared > MAX_IMAGE_BYTES) return null;
   const buffer = Buffer.from(await res.arrayBuffer());
+  if (buffer.length > MAX_IMAGE_BYTES) return null;
   const png = await sharp(buffer).png().toBuffer();
   const dataUri = `data:image/png;base64,${png.toString('base64')}`;
   rememberInCache(pngCache, url, dataUri);

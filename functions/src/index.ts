@@ -285,6 +285,14 @@ export const deleteAccountImmediately = onCall(
     if (!userDoc.exists) {
       throw new HttpsError("not-found", "ユーザーが見つかりません");
     }
+    // 停止中のアカウントが、削除で停止を逃れないようにする（2026-11-21、Strixの指摘）。
+    // 運営が停止を解除するか、管理者が削除する。
+    if (userDoc.data()?.accountStatus === "suspended") {
+      throw new HttpsError(
+        "failed-precondition",
+        "アカウントが停止されている間は削除できません",
+      );
+    }
     // クライアント側（設定＞アカウント）が削除操作の前に長を務める広場の
     // 譲渡を求めるが、直接この関数を呼び出すことでバイパスされうるため
     // サーバー側でも同じ制約を強制する（2026-08-02追加）。
@@ -1749,7 +1757,7 @@ interface StickerInput {
 }
 
 /** stickersフィールドの形式（配列・各要素のstickerId/name/imageUrl/roles）を検証する。 */
-function assertValidStickers(value: unknown, minCount: number): StickerInput[] {
+function assertValidStickers(value: unknown, minCount: number, creatorId: string): StickerInput[] {
   if (!Array.isArray(value) || value.length < minCount) {
     throw new HttpsError(
       "invalid-argument",
@@ -1768,6 +1776,14 @@ function assertValidStickers(value: unknown, minCount: number): StickerInput[] {
       throw new HttpsError(
         "invalid-argument",
         `stickers[${index}]の形式が不正です（stickerId/name/imageUrlの文字列が必要）`,
+      );
+    }
+    // 外部のURL・他人の画像を指せないよう、出品者自身のstickerPackAssets配下のURLだけを受ける
+    // （2026-11-21、Strixの指摘。`replaceStickerImage`と同じ検証を作成・追加にも適用）
+    if (!storagePathFromDownloadUrl(s.imageUrl, creatorId)) {
+      throw new HttpsError(
+        "invalid-argument",
+        `stickers[${index}]のimageUrlが正しくありません`,
       );
     }
     const roles = Array.isArray(s.roles)
@@ -1864,7 +1880,7 @@ export const createStickerPack = onCall(
     if (price > 0 && !PAID_PACKS_ENABLED) {
       throw new HttpsError("failed-precondition", PAID_PACKS_DISABLED_MESSAGE);
     }
-    const stickers = assertValidStickers(request.data?.stickers, MIN_STICKERS_PER_PACK);
+    const stickers = assertValidStickers(request.data?.stickers, MIN_STICKERS_PER_PACK, uid);
     const category = typeof request.data?.category === "string" ? request.data.category : "";
     const tags: string[] = Array.isArray(request.data?.tags)
       ? request.data.tags.filter((t: unknown): t is string => typeof t === "string")
@@ -1999,7 +2015,7 @@ export const addStickersToStickerPack = onCall(
     }
     // パック全体の下限4件はcreateStickerPack側で保証済みのため、
     // 追加時は1件以上あればよい。
-    const stickers = assertValidStickers(request.data?.stickers, 1);
+    const stickers = assertValidStickers(request.data?.stickers, 1, uid);
 
     const ref = db.collection("stickerPacks").doc(packId);
     const doc = await ref.get();
@@ -3045,7 +3061,38 @@ export const stripeWebhook = onRequest(
           ? session.subscription
           : session.subscription?.id;
       const userRef = uid ? db.collection("users").doc(uid) : null;
-      if (!uid || !userRef || !customerId || !(await userRef.get()).exists) {
+      // 決済リンクの`client_reference_id`は誰でも書き換えられる為、他人のuidを指して自分の
+      // 支払いを結び付けられる（2026-11-21、Strixの指摘）。支払い済みでない決済は扱わず、
+      // 別の顧客で有効な契約が既にある住人の紐付けは上書きしない（運営が確認する）。
+      const existingRef = uid ? db.collection("kiwamiSubscriptions").doc(uid) : null;
+      const existing = existingRef ? await existingRef.get() : null;
+      const existingData = existing?.exists ? existing.data() : null;
+      let conflictsWithActive = false;
+      if (
+        existingData &&
+        existingData.customerId &&
+        existingData.customerId !== customerId &&
+        typeof existingData.subscriptionId === "string"
+      ) {
+        try {
+          const current = await getStripeClient().subscriptions.retrieve(
+            existingData.subscriptionId,
+          );
+          conflictsWithActive = ["active", "trialing", "past_due"].includes(current.status);
+        } catch (err) {
+          // 確認できない時は安全側（上書きしない）に倒す
+          logger.error("Webhook: 既存の契約の状態を確認できません", err);
+          conflictsWithActive = true;
+        }
+      }
+      if (session.payment_status === "unpaid") {
+        logger.error("Webhook: 未払いの極みの決済は扱いません", { uid, sessionId: session.id });
+      } else if (conflictsWithActive) {
+        logger.error("Webhook: 別の顧客で有効な極みの契約がある住人への紐付けは上書きしません", {
+          uid,
+          sessionId: session.id,
+        });
+      } else if (!uid || !userRef || !customerId || !(await userRef.get()).exists) {
         logger.error("Webhook: 極みの購入に紐づく住人が見つかりません", {
           uid,
           sessionId: session.id,
@@ -3086,6 +3133,9 @@ export const stripeWebhook = onRequest(
         .where("customerId", "==", customerId)
         .get();
       for (const doc of found.docs) {
+        // 同じ顧客でも、記録した契約と別の契約の終了では解除しない（2026-11-21、Strixの指摘）
+        const recorded = doc.data().subscriptionId;
+        if (typeof recorded === "string" && recorded !== subscription.id) continue;
         await db.collection("users").doc(doc.id).update({ subscriptionPlan: "free" });
         logger.info(`極みを解除（契約終了）: ${doc.id}`);
       }
@@ -3118,6 +3168,20 @@ export const stripeWebhook = onRequest(
 // ---------------------------------------------------------------------
 
 /**
+ * 停止・解除に合わせて、Firebase Authのアカウントも無効化・有効化する（2026-11-21）。
+ * `revokeRefreshTokens`だけでは、停止中でも再ログイン（Google・パスキー・QR）で全ての
+ * 機能が使えてしまう為（Strixの指摘）。無効化すると、新しいログインとIDトークンの
+ * 更新が拒否される（発行済みのIDトークンは最長1時間有効）。失敗は警告に留める。
+ */
+async function setAuthDisabled(userId: string, disabled: boolean): Promise<void> {
+  await getAuth()
+    .updateUser(userId, { disabled })
+    .catch((error) => {
+      logger.warn(`Authの${disabled ? "無効化" : "有効化"}に失敗: ${userId}`, error);
+    });
+}
+
+/**
  * 指定ユーザーのアカウントを停止/解除する（管理者のみ）。停止時は
  * 既存セッションを即座に無効化するため`revokeRefreshTokens`も呼ぶ
  * （AuthGateのaccountStatusチェックは次回のFirestore読み込み待ちに
@@ -3141,6 +3205,7 @@ export const suspendUserAccount = onCall(
     await db.collection("users").doc(targetUserId).update({
       accountStatus: suspend ? "suspended" : "active",
     });
+    await setAuthDisabled(targetUserId, suspend);
     if (suspend) {
       await getAuth()
         .revokeRefreshTokens(targetUserId)
@@ -3493,6 +3558,7 @@ export const suspendUserAccounts = onCall(
       changed.push(id);
     }
     await writer.commit();
+    await Promise.all(changed.map((id) => setAuthDisabled(id, suspend)));
     if (suspend) {
       await Promise.all(
         changed.map((id) =>
@@ -6423,6 +6489,7 @@ export const onSpamViolationCreated = onDocumentCreated(
       accountStatus: "suspended",
       autoSuspendedUntil,
     });
+    await setAuthDisabled(userId, true);
     await getAuth()
       .revokeRefreshTokens(userId)
       .catch((error) => {
@@ -6462,6 +6529,7 @@ export const reactivateExpiredSuspensions = onSchedule(
       });
     }
     await writer.commit();
+    await Promise.all(snapshot.docs.map((doc) => setAuthDisabled(doc.id, false)));
     logger.info(`期限付き自動停止を解除: ${snapshot.size}件`);
   },
 );

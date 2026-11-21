@@ -75,6 +75,16 @@ class _SignInScreenState extends ConsumerState<SignInScreen>
     }
   }
 
+  /// 停止中のアカウントは、Firebase Authが無効化されていてログイン自体が拒否される
+  /// （`user-disabled`、2026-11-21。サーバー側でも停止を効かせるため）。通常の失敗の
+  /// 文言ではなく、停止中であることを伝える。
+  String _signInErrorText(Strings strings, Object e) {
+    if (e is FirebaseAuthException && e.code == 'user-disabled') {
+      return '${strings.accountSuspendedTitle}\n${strings.accountSuspendedMessage}';
+    }
+    return strings.signInFailedTemplate(e);
+  }
+
   /// Googleのリダイレクトから戻ってきた時の、2段階認証の要求・失敗を受け取る
   /// （成功は認証状態に反映済みで、この画面は閉じられる、2026-11-14）。
   Future<void> _receiveRedirectResult() async {
@@ -87,7 +97,7 @@ class _SignInScreenState extends ConsumerState<SignInScreen>
     } catch (e) {
       if (!mounted) return;
       setState(() {
-        _errorMessage = ref.read(appStringsProvider).signInFailedTemplate(e);
+        _errorMessage = _signInErrorText(ref.read(appStringsProvider), e);
       });
     }
   }
@@ -128,7 +138,7 @@ class _SignInScreenState extends ConsumerState<SignInScreen>
         // 例外の中身（`Instance of ...`）をそのまま出さない。メッセージを持つ例外だけ渡す。
         _errorMessage =
             (e is FirebaseAuthException || e is AppFunctionsException)
-            ? strings.signInFailedTemplate(e)
+            ? _signInErrorText(strings, e)
             : strings.passkeyCreateFailed;
       });
     } finally {
@@ -159,6 +169,8 @@ class _SignInScreenState extends ConsumerState<SignInScreen>
       setState(() {
         _errorMessage = e.code == 'invalid-verification-code'
             ? strings.twoFactorInvalidCodeError
+            : e.code == 'user-disabled'
+            ? _signInErrorText(strings, e)
             : strings.signInFailedTemplate(e.message ?? e.code);
       });
     } finally {
