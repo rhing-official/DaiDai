@@ -1,5 +1,7 @@
 import 'dart:math' as math;
 
+import 'package:flutter/foundation.dart' show ValueListenable;
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -7,6 +9,8 @@ import '../../l10n/strings.dart';
 import '../../models/app_ui_style.dart';
 import '../../models/sticker.dart';
 import '../../widgets/sticker_image.dart';
+import '../../widgets/transitioned_overlay.dart';
+import 'sticker_carousel.dart';
 import '../../providers/app_ui_style_provider.dart';
 import '../../models/sticker_send_mode.dart';
 import '../../providers/last_sticker_tab_provider.dart';
@@ -33,6 +37,7 @@ class StickerPickerContent extends ConsumerStatefulWidget {
     this.onGridVerticalDragUpdate,
     this.onGridVerticalDragEnd,
     this.onGridOverscrollTop,
+    this.dismissing,
     super.key,
   });
 
@@ -52,6 +57,10 @@ class StickerPickerContent extends ConsumerStatefulWidget {
   /// グリッドが先頭にいる状態でさらに下へ引かれ、一定量たまった時（ドックが
   /// 拡大から半分へ縮む合図）。
   final VoidCallback? onGridOverscrollTop;
+
+  /// trueになったら、ポップアップが閉じ始めた合図（2026-11-21）。拡大プレビューは別の
+  /// オーバーレイなので、閉じる動きの間も残らないよう、すぐ消す。
+  final ValueListenable<bool>? dismissing;
 
   /// モバイル（レールが下）かどうか。横スワイプでタブを移動出来る。
   bool get _swipeTabs => railAxis == Axis.horizontal;
@@ -96,6 +105,8 @@ class _StickerPickerContentState extends ConsumerState<StickerPickerContent> {
   }
 
   void _selectTab(String? packId) {
+    // 別のぺったんのパック（タブ）を開いたら、拡大表示は閉じる（2026-11-21）。
+    _removePreview();
     setState(() {
       _tabChosen = true;
       _chosenPackId = packId;
@@ -169,20 +180,46 @@ class _StickerPickerContentState extends ConsumerState<StickerPickerContent> {
   Sticker? _pendingPreviewSticker;
   Offset? _pendingTapGlobalPos;
   Offset? _lastTapDownGlobalPos;
-  OverlayEntry? _previewEntry;
+  TransitionedOverlayHandle? _previewEntry;
+
+  // 拡大プレビューの中で、スクロール（ホイール・横スワイプ）で隣のぺったんへ切り替える
+  // ための、プレビュー元の一覧（表示順、2026-11-21）。切り替えの動きは提案パネルの拡大と
+  // 同じ[StickerCarousel]で行う。
+  List<Sticker> _previewSource = const [];
+
+  /// 直近の押下が、一覧のぺったん自体の上だったか。ポップアップの他の場所を押した時に
+  /// 拡大表示を閉じる為の判定（2026-11-21）。
+  bool _pointerOnSticker = false;
+
+  void _onDismissing() {
+    if (widget.dismissing?.value ?? false) _removePreview();
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    widget.dismissing?.addListener(_onDismissing);
+  }
 
   @override
   void dispose() {
+    widget.dismissing?.removeListener(_onDismissing);
     // ピッカー自体が閉じられた（ボトムシートのスワイプ・ポップアップ外
     // タップ等）際に、挿入済みのOverlayEntryがルートOverlayに残り続ける
-    // リークを防ぐ。
-    _previewEntry?.remove();
+    // リークを防ぐ。残ると、拡大表示だけが残る上、閉じた後の`State`の`context`を
+    // 触ってエラーになる。
+    _previewEntry?.removeNow();
+    _previewEntry = null;
     _pageController?.dispose();
     _railController.dispose();
     super.dispose();
   }
 
-  void _handleStickerTap(Sticker sticker, StickerSendMode mode) {
+  void _handleStickerTap(
+    Sticker sticker,
+    StickerSendMode mode, [
+    List<Sticker>? source,
+  ]) {
     if (mode == StickerSendMode.discord) {
       widget.onStickerSelected(sticker);
       return;
@@ -194,18 +231,34 @@ class _StickerPickerContentState extends ConsumerState<StickerPickerContent> {
       return;
     }
     // 1回目のタップ、又は別のぺったんへの差し替え。
+    if (source != null) _previewSource = source;
     _pendingPreviewSticker = sticker;
     _pendingTapGlobalPos = _lastTapDownGlobalPos;
     if (_previewEntry == null) {
-      _previewEntry = OverlayEntry(builder: (_) => _buildPreviewOverlay());
-      Overlay.of(context).insert(_previewEntry!);
+      // 拡大表示も、アプリの画面遷移の設定に従って出し入れする（2026-11-21）。
+      late final TransitionedOverlayHandle handle;
+      Widget? last;
+      handle = showTransitionedOverlayHandle(
+        Overlay.of(context),
+        builder: (_, _) {
+          // 閉じる動きの間は、直前の見た目を保つ（状態は既に片付いている）。閉じ始めた後の
+          // 再描画では、閉じた後の`State`を触らない。
+          if (identical(_previewEntry, handle) &&
+              _pendingPreviewSticker != null) {
+            last = Stack(children: [_buildPreviewOverlay()]);
+          }
+          return last ?? const SizedBox.shrink();
+        },
+      );
+      _previewEntry = handle;
     } else {
       _previewEntry!.markNeedsBuild();
     }
   }
 
   void _removePreview() {
-    _previewEntry?.remove();
+    // 閉じる動きを再生してから取り除く。
+    _previewEntry?.close();
     _previewEntry = null;
     _pendingPreviewSticker = null;
     _pendingTapGlobalPos = null;
@@ -232,15 +285,20 @@ class _StickerPickerContentState extends ConsumerState<StickerPickerContent> {
         : pickerRect.top - screenPad * 2 - 8;
     final above = roomAbove >= 160;
     final previewSize = above ? math.min(320.0, roomAbove) : 240.0;
+    // 左右に隣のぺったんが覗くよう、プレビューは横に広いカードにする。
+    final cardWidth = math.min(
+      previewSize * 1.9,
+      screenSize.width - screenPad * 2,
+    );
     final maxLeft = math.max(
       screenPad,
-      screenSize.width - previewSize - screenPad,
+      screenSize.width - cardWidth - screenPad,
     );
     final maxTop = math.max(
       screenPad,
       screenSize.height - previewSize - screenPad,
     );
-    final left = ((above ? pickerRect!.center.dx : anchor.dx) - previewSize / 2)
+    final left = ((above ? pickerRect!.center.dx : anchor.dx) - cardWidth / 2)
         .clamp(screenPad, maxLeft);
     final top =
         (above
@@ -248,32 +306,38 @@ class _StickerPickerContentState extends ConsumerState<StickerPickerContent> {
                 : anchor.dy - previewSize - 24)
             .clamp(screenPad, maxTop);
 
+    final source = _previewSource.isEmpty ? [sticker] : _previewSource;
+    final currentIndex = source
+        .indexWhere((s) => s.stickerId == sticker.stickerId)
+        .clamp(0, source.length - 1);
     return Positioned(
       left: left,
       top: top,
-      width: previewSize,
+      width: cardWidth,
       height: previewSize,
-      child: GestureDetector(
-        // 拡大プレビュー自体をタップ＝「同じぺったんをもう一度タップ」と同義。
-        onTap: () => _handleStickerTap(sticker, StickerSendMode.line),
-        child: Material(
-          // 劇画UIでは、黒ではなく劇画の背景色（アクセント）にする（2026-10-29）。
-          color: ref.watch(appUiStyleProvider) == AppUiStyle.gekiga
-              ? Theme.of(context).colorScheme.surface
-              : Theme.of(context).colorScheme.surfaceContainerHigh,
-          elevation: 8,
-          shadowColor: Theme.of(context).colorScheme.shadow,
-          borderRadius: BorderRadius.circular(16),
-          clipBehavior: Clip.antiAlias,
-          child: Padding(
-            padding: const EdgeInsets.all(16),
-            child: StickerImage(
-              sticker.imageUrl,
-              fit: BoxFit.contain,
-              errorBuilder: (_, _, _) =>
-                  const Icon(Icons.broken_image_outlined),
-            ),
-          ),
+      child: Material(
+        // 劇画UIでは、黒ではなく劇画の背景色（アクセント）にする（2026-10-29）。
+        color: ref.watch(appUiStyleProvider) == AppUiStyle.gekiga
+            ? Theme.of(context).colorScheme.surface
+            : Theme.of(context).colorScheme.surfaceContainerHigh,
+        elevation: 8,
+        shadowColor: Theme.of(context).colorScheme.shadow,
+        borderRadius: BorderRadius.circular(16),
+        clipBehavior: Clip.antiAlias,
+        // 提案パネルの拡大と同じカルーセル（2026-11-21）。中央が大きく、左右に隣が覗き、
+        // 横スワイプ・ホイールで切り替わる。中央のタップ＝「同じぺったんをもう一度タップ」
+        // と同義で送信する。
+        child: StickerCarousel(
+          stickers: source,
+          index: currentIndex,
+          onIndexChanged: (i) {
+            _pendingPreviewSticker = source[i];
+            _previewEntry?.markNeedsBuild();
+          },
+          onSend: (sticker) {
+            _removePreview();
+            widget.onStickerSelected(sticker);
+          },
         ),
       ),
     );
@@ -288,74 +352,82 @@ class _StickerPickerContentState extends ConsumerState<StickerPickerContent> {
     ref.watch(recentStickersProvider);
     ref.watch(lastStickerTabProvider);
 
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        _withDockDragAlways(
-          Padding(
-            padding: const EdgeInsets.fromLTRB(12, 12, 12, 8),
-            child: TextField(
-              decoration: InputDecoration(
-                isDense: true,
-                prefixIcon: const Icon(Icons.search, size: 20),
-                hintText: strings.stickerSearchHint,
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(20),
+    return Listener(
+      // ポップアップのぺったん以外（検索欄・レール・余白）を押したら、拡大表示を閉じる。
+      behavior: HitTestBehavior.translucent,
+      onPointerDown: (_) {
+        if (!_pointerOnSticker) _removePreview();
+        _pointerOnSticker = false;
+      },
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _withDockDragAlways(
+            Padding(
+              padding: const EdgeInsets.fromLTRB(12, 12, 12, 8),
+              child: TextField(
+                decoration: InputDecoration(
+                  isDense: true,
+                  prefixIcon: const Icon(Icons.search, size: 20),
+                  hintText: strings.stickerSearchHint,
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(20),
+                  ),
                 ),
+                onChanged: (value) => setState(() => _query = value),
               ),
-              onChanged: (value) => setState(() => _query = value),
             ),
           ),
-        ),
-        Expanded(
-          child: currentUserId == null
-              ? const SizedBox.shrink()
-              : Builder(
-                  builder: (context) {
-                    // 所持パックは共有の1本の購読から読む（再ビルドで取り直さない）。
-                    final packs =
-                        ref
-                            .watch(ownedStickerPacksProvider(currentUserId))
-                            .value ??
-                        const <StickerPack>[];
-                    _ownedPackIds = {for (final pack in packs) pack.packId};
-                    if (packs.isEmpty) {
-                      return _buildGrid(strings, packs, sendMode, null);
-                    }
-                    final Widget content;
-                    if (widget._swipeTabs) {
-                      content = _buildPager(strings, packs, sendMode);
-                    } else {
-                      content = _buildGrid(
-                        strings,
-                        packs,
-                        sendMode,
-                        _selectedPackId,
-                      );
-                    }
-                    final rail = _buildRail(packs);
-                    return widget.railAxis == Axis.vertical
-                        ? Row(
-                            crossAxisAlignment: CrossAxisAlignment.stretch,
-                            children: [
-                              rail,
-                              const VerticalDivider(width: 1),
-                              Expanded(child: content),
-                            ],
-                          )
-                        : Column(
-                            crossAxisAlignment: CrossAxisAlignment.stretch,
-                            children: [
-                              Expanded(child: content),
-                              const Divider(height: 1),
-                              rail,
-                            ],
-                          );
-                  },
-                ),
-        ),
-      ],
+          Expanded(
+            child: currentUserId == null
+                ? const SizedBox.shrink()
+                : Builder(
+                    builder: (context) {
+                      // 所持パックは共有の1本の購読から読む（再ビルドで取り直さない）。
+                      final packs =
+                          ref
+                              .watch(ownedStickerPacksProvider(currentUserId))
+                              .value ??
+                          const <StickerPack>[];
+                      _ownedPackIds = {for (final pack in packs) pack.packId};
+                      if (packs.isEmpty) {
+                        return _buildGrid(strings, packs, sendMode, null);
+                      }
+                      final Widget content;
+                      if (widget._swipeTabs) {
+                        content = _buildPager(strings, packs, sendMode);
+                      } else {
+                        content = _buildGrid(
+                          strings,
+                          packs,
+                          sendMode,
+                          _selectedPackId,
+                        );
+                      }
+                      final rail = _buildRail(packs);
+                      return widget.railAxis == Axis.vertical
+                          ? Row(
+                              crossAxisAlignment: CrossAxisAlignment.stretch,
+                              children: [
+                                rail,
+                                const VerticalDivider(width: 1),
+                                Expanded(child: content),
+                              ],
+                            )
+                          : Column(
+                              crossAxisAlignment: CrossAxisAlignment.stretch,
+                              children: [
+                                Expanded(child: content),
+                                const Divider(height: 1),
+                                rail,
+                              ],
+                            );
+                    },
+                  ),
+          ),
+        ],
+      ),
     );
   }
 
@@ -562,16 +634,22 @@ class _StickerPickerContentState extends ConsumerState<StickerPickerContent> {
       itemCount: stickers.length,
       itemBuilder: (context, index) {
         final sticker = stickers[index];
-        return InkWell(
-          onTapDown: (details) =>
-              _lastTapDownGlobalPos = details.globalPosition,
-          onTap: () => _handleStickerTap(sticker, mode),
-          child: StickerImage(
-            sticker.imageUrl,
-            // 原寸のままデコードすると、多数並ぶ一覧で重いため縮小して読む。
-            cacheWidth: 256,
-            fit: BoxFit.contain,
-            errorBuilder: (_, _, _) => const Icon(Icons.broken_image_outlined),
+        return Listener(
+          // ぺったん自体の操作は、拡大表示の切り替え・送信に使うので、ポップアップをクリック
+          // した時に拡大表示を閉じる処理の対象外にする（印を付ける。深い方が先に呼ばれる）。
+          onPointerDown: (_) => _pointerOnSticker = true,
+          child: InkWell(
+            onTapDown: (details) =>
+                _lastTapDownGlobalPos = details.globalPosition,
+            onTap: () => _handleStickerTap(sticker, mode, stickers),
+            child: StickerImage(
+              sticker.imageUrl,
+              // 原寸のままデコードすると、多数並ぶ一覧で重いため縮小して読む。
+              cacheWidth: 256,
+              fit: BoxFit.contain,
+              errorBuilder: (_, _, _) =>
+                  const Icon(Icons.broken_image_outlined),
+            ),
           ),
         );
       },

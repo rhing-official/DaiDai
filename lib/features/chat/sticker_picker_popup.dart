@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../models/app_ui_style.dart';
 import '../../models/sticker.dart';
 import '../../providers/app_ui_style_provider.dart';
+import '../../widgets/transitioned_overlay.dart';
 import 'sticker_picker_content.dart';
 
 /// デスクトップ幅（`kTalksSplitBreakpoint`以上）でのぺったん送信アイコン
@@ -52,16 +53,21 @@ Future<Sticker?> showStickerPickerPopup(
   );
 
   final completer = Completer<Sticker?>();
-  late final OverlayEntry entry;
+  late final TransitionedOverlayHandle handle;
+  // 閉じ始めの合図。拡大プレビュー（別のオーバーレイ）を、閉じる動きを待たずに消す。
+  final dismissing = ValueNotifier<bool>(false);
 
+  // 閉じる動き（アプリの画面遷移の設定に従う、2026-11-21）を再生してから取り除く。
   void close(Sticker? sticker) {
     if (completer.isCompleted) return;
-    entry.remove();
+    dismissing.value = true;
+    handle.close();
     completer.complete(sticker);
   }
 
-  entry = OverlayEntry(
-    builder: (_) => Stack(
+  handle = showTransitionedOverlayHandle(
+    Overlay.of(context),
+    builder: (_, _) => Stack(
       children: [
         Positioned.fill(
           child: GestureDetector(
@@ -91,6 +97,7 @@ Future<Sticker?> showStickerPickerPopup(
               railAxis: Axis.vertical,
               initialPackId: initialPackId,
               conversationKey: conversationKey,
+              dismissing: dismissing,
               onStickerSelected: close,
             ),
           ),
@@ -98,6 +105,5 @@ Future<Sticker?> showStickerPickerPopup(
       ],
     ),
   );
-  Overlay.of(context).insert(entry);
   return completer.future;
 }

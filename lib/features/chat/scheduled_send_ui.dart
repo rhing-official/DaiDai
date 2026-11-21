@@ -14,6 +14,7 @@ import '../../providers/repository_providers.dart';
 import '../../utils/auto_dismiss_banner.dart';
 import '../../widgets/app_dialog.dart';
 import '../../widgets/sticker_image.dart';
+import '../../widgets/transitioned_overlay.dart';
 import '../calendar/date_time_pick.dart';
 import '../../theme/block/block_theme.dart';
 import '../../theme/gekiga/gekiga_colors.dart';
@@ -129,12 +130,17 @@ SendOptionsMenuHandle showSendOptionsMenu({
   final choices = [SendOptionChoice.silent, SendOptionChoice.schedule];
   final highlighted = ValueNotifier<int>(-1);
   final completer = Completer<SendOptionChoice?>();
-  late final OverlayEntry entry;
+  late final TransitionedOverlayHandle handle;
 
+  // 閉じる動き（アプリの画面遷移の設定に従う、2026-11-21）を再生してから取り除く。動きの間も
+  // 項目の強調を描くので、強調の通知は動きが終わった頃に捨てる。
   void close([SendOptionChoice? value]) {
     if (completer.isCompleted) return;
-    entry.remove();
-    highlighted.dispose();
+    handle.close();
+    Future<void>.delayed(
+      const Duration(milliseconds: 400),
+      highlighted.dispose,
+    );
     completer.complete(value);
   }
 
@@ -174,8 +180,9 @@ SendOptionsMenuHandle showSendOptionsMenu({
     );
   }
 
-  entry = OverlayEntry(
-    builder: (_) => Stack(
+  handle = showTransitionedOverlayHandle(
+    overlayState,
+    builder: (_, _) => Stack(
       children: [
         Positioned.fill(
           child: GestureDetector(
@@ -215,7 +222,6 @@ SendOptionsMenuHandle showSendOptionsMenu({
       ],
     ),
   );
-  overlayState.insert(entry);
   return SendOptionsMenuHandle._(
     completer.future,
     (global) {

@@ -76,6 +76,8 @@ void main() {
       final gesture = await tester.startGesture(button);
       await tester.pump(const Duration(milliseconds: 300));
       expect(menu, isNotNull);
+      // 出現の動き（画面遷移の設定に従う）が終わってから、項目の位置を測る。
+      await tester.pump(const Duration(milliseconds: 400));
       // 1つ目の項目（通知なしで送信）へなぞる。
       final target = tester.getCenter(find.text('通知なしで送信'));
       await gesture.moveTo(target);

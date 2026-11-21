@@ -1,3 +1,4 @@
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -16,7 +17,6 @@ const _stickers = [
 Widget _host({
   required int? previewIndex,
   required void Function(int) onIndex,
-  required VoidCallback onClose,
   required void Function(Sticker) onSend,
 }) {
   return ProviderScope(
@@ -32,7 +32,6 @@ Widget _host({
               onStickerTap: (_) {},
               previewIndex: previewIndex,
               onPreviewIndexChanged: onIndex,
-              onPreviewClose: onClose,
               onPreviewSend: onSend,
             ),
           ),
@@ -43,30 +42,10 @@ Widget _host({
 }
 
 void main() {
-  testWidgets('拡大中は×で閉じるコールバックが呼ばれる', (tester) async {
-    var closed = 0;
-    await tester.pumpWidget(
-      _host(
-        previewIndex: 1,
-        onIndex: (_) {},
-        onClose: () => closed++,
-        onSend: (_) {},
-      ),
-    );
-    await tester.pumpAndSettle();
-    await tester.tap(find.byIcon(Icons.close));
-    expect(closed, 1);
-  });
-
   testWidgets('横スワイプで隣の候補へ切り替わる', (tester) async {
     final indexes = <int>[];
     await tester.pumpWidget(
-      _host(
-        previewIndex: 1,
-        onIndex: indexes.add,
-        onClose: () {},
-        onSend: (_) {},
-      ),
+      _host(previewIndex: 1, onIndex: indexes.add, onSend: (_) {}),
     );
     await tester.pumpAndSettle();
     await tester.fling(find.byType(PageView), const Offset(-300, 0), 1000);
@@ -81,7 +60,6 @@ void main() {
       _host(
         previewIndex: 1,
         onIndex: (_) {},
-        onClose: () {},
         onSend: (s) => sent.add(s.stickerId),
       ),
     );
@@ -92,14 +70,25 @@ void main() {
 
   testWidgets('拡大していない時は拡大表示が無い', (tester) async {
     await tester.pumpWidget(
-      _host(
-        previewIndex: null,
-        onIndex: (_) {},
-        onClose: () {},
-        onSend: (_) {},
-      ),
+      _host(previewIndex: null, onIndex: (_) {}, onSend: (_) {}),
     );
     await tester.pumpAndSettle();
     expect(find.byType(PageView), findsNothing);
+  });
+
+  testWidgets('ホイール（スクロール）で隣の候補へ切り替わる', (tester) async {
+    final indexes = <int>[];
+    await tester.pumpWidget(
+      _host(previewIndex: 1, onIndex: indexes.add, onSend: (_) {}),
+    );
+    await tester.pumpAndSettle();
+    final pointer = TestPointer(1, PointerDeviceKind.mouse);
+    await tester.sendEventToBinding(
+      pointer.hover(tester.getCenter(find.byType(PageView))),
+    );
+    await tester.sendEventToBinding(pointer.scroll(const Offset(0, 100)));
+    await tester.pumpAndSettle();
+    expect(indexes, isNotEmpty);
+    expect(indexes.last, 2);
   });
 }

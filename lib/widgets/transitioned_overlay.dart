@@ -16,22 +16,60 @@ VoidCallback showTransitionedOverlay(
   OverlayState overlay, {
   required Widget Function(BuildContext context, VoidCallback close) builder,
   Widget Function(Animation<double> animation, Widget child)? transitionBuilder,
+}) => showTransitionedOverlayHandle(
+  overlay,
+  builder: builder,
+  transitionBuilder: transitionBuilder,
+).close;
+
+/// [showTransitionedOverlay]の、閉じ方を2通り持つ版（2026-11-21）。[close]は閉じる動きを
+/// 再生してから取り除き、[removeNow]は動きなしで直ちに取り除く（ウィジェットの`dispose`の
+/// ように、動きを待てない場面用）。長押し・「＋」・ぺったん・送信のポップアップが使う。
+class TransitionedOverlayHandle {
+  TransitionedOverlayHandle._(this._entry, this._key);
+
+  final OverlayEntry _entry;
+  final GlobalKey<_TransitionedHostState> _key;
+  bool _removed = false;
+
+  /// 取り除く。二重に呼ばれても、一度だけ取り除く（閉じる動きの途中で[removeNow]された後に、
+  /// 動きの終了通知が来る場合がある）。
+  void _remove() {
+    if (_removed) return;
+    _removed = true;
+    _entry.remove();
+  }
+
+  /// 閉じる動きを再生してから取り除く（再生中の再呼び出しは無視）。
+  void close() => _key.currentState?.close();
+
+  /// 動きなしで、直ちに取り除く。
+  void removeNow() => _remove();
+
+  /// 中身（[showTransitionedOverlayHandle]の`builder`）を作り直す。
+  void markNeedsBuild() {
+    if (!_removed) _entry.markNeedsBuild();
+  }
+}
+
+TransitionedOverlayHandle showTransitionedOverlayHandle(
+  OverlayState overlay, {
+  required Widget Function(BuildContext context, VoidCallback close) builder,
+  Widget Function(Animation<double> animation, Widget child)? transitionBuilder,
 }) {
-  late final OverlayEntry entry;
+  late final TransitionedOverlayHandle handle;
   final key = GlobalKey<_TransitionedHostState>();
-  void close() => key.currentState?.close();
-  entry = OverlayEntry(
+  final entry = OverlayEntry(
     builder: (context) => _TransitionedHost(
       key: key,
-      onRemoved: () {
-        if (entry.mounted) entry.remove();
-      },
+      onRemoved: () => handle._remove(),
       builder: builder,
       transitionBuilder: transitionBuilder ?? buildDialogTransition,
     ),
   );
+  handle = TransitionedOverlayHandle._(entry, key);
   overlay.insert(entry);
-  return close;
+  return handle;
 }
 
 class _TransitionedHost extends StatefulWidget {

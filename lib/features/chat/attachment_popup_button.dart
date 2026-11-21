@@ -19,6 +19,7 @@ import '../../utils/attachment_upload.dart';
 import '../../utils/camera_presence/camera_presence.dart';
 import '../../utils/audio_only_mp4.dart';
 import '../../utils/drag_menu_geometry.dart';
+import '../../widgets/transitioned_overlay.dart';
 import '../../widgets/gekiga/gekiga_icon_badge.dart';
 import 'camera_capture_screen.dart';
 
@@ -85,7 +86,7 @@ class AttachmentPopupButton extends StatefulWidget {
 
 class _AttachmentPopupButtonState extends State<AttachmentPopupButton> {
   final _highlightIndex = ValueNotifier<int>(-1);
-  OverlayEntry? _overlayEntry;
+  TransitionedOverlayHandle? _overlay;
   DragMenuGeometry? _geometry;
   List<({_AttachmentMenuItem item, String label, IconData icon})> _items =
       const [];
@@ -116,15 +117,23 @@ class _AttachmentPopupButtonState extends State<AttachmentPopupButton> {
 
   @override
   void dispose() {
-    _removeOverlay();
+    _removeOverlay(immediate: true);
     _highlightIndex.dispose();
     super.dispose();
   }
 
-  void _removeOverlay() {
-    _overlayEntry?.remove();
-    _overlayEntry = null;
+  /// メニューを閉じる。閉じる動き（アプリの画面遷移の設定に従う、2026-11-21）を再生して
+  /// から取り除く。`dispose`の中など、動きを待てない時は[immediate]で直ちに取り除く。
+  void _removeOverlay({bool immediate = false}) {
     _geometry = null;
+    if (immediate) {
+      // 動き中のメニューが、破棄した強調の通知を触らないよう、直ちに外す。
+      _overlay?.removeNow();
+      _overlay = null;
+    } else {
+      // 閉じ始めても参照は保つ（動きの間に破棄された時、直ちに外す為）。
+      _overlay?.close();
+    }
   }
 
   List<({_AttachmentMenuItem item, String label, IconData icon})> _buildItems(
@@ -307,8 +316,9 @@ class _AttachmentPopupButtonState extends State<AttachmentPopupButton> {
         ? GekigaColors.onPanel.withValues(alpha: 0.2)
         : colorScheme.primary.withValues(alpha: 0.15);
 
-    _overlayEntry = OverlayEntry(
-      builder: (overlayContext) => Stack(
+    _overlay = showTransitionedOverlayHandle(
+      Overlay.of(context),
+      builder: (overlayContext, _) => Stack(
         children: [
           Positioned.fill(
             child: GestureDetector(
@@ -386,7 +396,6 @@ class _AttachmentPopupButtonState extends State<AttachmentPopupButton> {
         ],
       ),
     );
-    Overlay.of(context).insert(_overlayEntry!);
   }
 
   void _onPointerMove(PointerMoveEvent event) {

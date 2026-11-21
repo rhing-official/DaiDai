@@ -28,13 +28,14 @@ void main() {
     expect(closed.height, 800);
 
     tester.view.viewInsets = const FakeViewPadding(bottom: 300);
-    await tester.pump();
+    // ずらす量は250msで補間される（Androidで途中の高さが届かない場合）。
+    await tester.pumpAndSettle();
     final open = tester.getRect(find.byKey(key));
     expect(open.height, 800);
     expect(open.top, -300);
 
     tester.view.resetViewInsets();
-    await tester.pump();
+    await tester.pumpAndSettle();
     expect(tester.getRect(find.byKey(key)), closed);
     debugDefaultTargetPlatformOverride = null;
   });
@@ -48,13 +49,13 @@ void main() {
     final key = GlobalKey();
     await tester.pumpWidget(_app(SizedBox.expand(key: key)));
     tester.view.viewInsets = const FakeViewPadding(bottom: 324);
-    await tester.pump();
+    await tester.pumpAndSettle();
     // Scaffoldが縮める時と同じ位置（キーボードの上端に入力欄の下端が付く）になる。
     expect(tester.getRect(find.byKey(key)).top, -300);
 
     // キーボードが安全領域より低い間は動かさない。
     tester.view.viewInsets = const FakeViewPadding(bottom: 10);
-    await tester.pump();
+    await tester.pumpAndSettle();
     expect(tester.getRect(find.byKey(key)).top, 0);
     debugDefaultTargetPlatformOverride = null;
   });

@@ -1,5 +1,4 @@
 import 'dart:math' as math;
-import 'dart:ui' show PointerDeviceKind;
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -11,6 +10,7 @@ import '../../theme/gekiga/gekiga_colors.dart';
 import '../../utils/platform_info.dart';
 import '../../widgets/glass/glass_surface.dart';
 import '../../widgets/sticker_image.dart';
+import 'sticker_carousel.dart';
 
 /// メッセージ内容に応じたぺったん提案のパネル（2026-09-05追加、
 /// `lib/utils/sticker_suggestion.dart`の`suggestStickers`が返す候補を
@@ -31,7 +31,6 @@ class StickerSuggestionStrip extends ConsumerWidget {
     required this.onStickerTap,
     this.previewIndex,
     this.onPreviewIndexChanged,
-    this.onPreviewClose,
     this.onPreviewSend,
     this.panelKey,
     super.key,
@@ -48,10 +47,18 @@ class StickerSuggestionStrip extends ConsumerWidget {
   /// LINEの「おすすめスタンプ」と同じく、パネルはその場で拡大表示に切り替わる。
   final int? previewIndex;
   final void Function(int index)? onPreviewIndexChanged;
-  final VoidCallback? onPreviewClose;
   final void Function(Sticker sticker)? onPreviewSend;
 
-  static const _stickerSize = 160.0;
+  /// 一覧のぺったんの大きさ。スマホは画面を占めすぎないよう小さく、PC・タブレットは
+  /// 大きく出す（2026-11-21、スマホを160→112に縮小）。
+  static const _phoneStickerSize = 112.0;
+  static const _wideStickerSize = 160.0;
+
+  /// 拡大表示の時の、パネルの最低の高さ。スマホは一覧が小さいので、拡大ではパネルを
+  /// 上へ広げる。PC・タブレットは一覧（2行）と同じ高さで、ぺったんのボタンから出す
+  /// 拡大プレビュー（最大320）と同じ大きさになる。
+  static const _phonePreviewMinHeight = 232.0;
+  static const _widePreviewMinHeight = 344.0;
   static const _gap = 8.0;
   static const _padding = 8.0;
   static const _maxRows = 2;
@@ -67,13 +74,14 @@ class StickerSuggestionStrip extends ConsumerWidget {
     // スマホは横1行（最大10件）で横スクロール、PC・タブレットは左に固めて
     // 最大2行に折り返し（ぺったんを68→160に拡大、2026-11-19）、入り切らない分は縦スクロール（2026-10-29）。
     final isPhone = classifyDevice(context) == DeviceClass.phone;
+    final stickerSize = isPhone ? _phoneStickerSize : _wideStickerSize;
     final shown = isPhone ? stickers.take(10).toList() : stickers;
     Widget tile(Sticker sticker) => InkWell(
       borderRadius: BorderRadius.circular(8),
       onTap: () => onStickerTap(sticker),
       child: SizedBox(
-        width: _stickerSize,
-        height: _stickerSize,
+        width: stickerSize,
+        height: stickerSize,
         child: StickerImage(
           sticker.imageUrl,
           fit: BoxFit.contain,
@@ -83,7 +91,7 @@ class StickerSuggestionStrip extends ConsumerWidget {
     );
     final Widget list = isPhone
         ? SizedBox(
-            height: _stickerSize + _padding * 2,
+            height: stickerSize + _padding * 2,
             child: ListView.separated(
               scrollDirection: Axis.horizontal,
               padding: const EdgeInsets.all(_padding),
@@ -93,11 +101,9 @@ class StickerSuggestionStrip extends ConsumerWidget {
             ),
           )
         : ConstrainedBox(
-            constraints: const BoxConstraints(
+            constraints: BoxConstraints(
               maxHeight:
-                  _maxRows * _stickerSize +
-                  (_maxRows - 1) * _gap +
-                  _padding * 2,
+                  _maxRows * stickerSize + (_maxRows - 1) * _gap + _padding * 2,
             ),
             child: SingleChildScrollView(
               padding: const EdgeInsets.all(_padding),
@@ -112,7 +118,7 @@ class StickerSuggestionStrip extends ConsumerWidget {
     final previewing = previewIndex != null && previewIndex! < stickers.length;
     // 一覧は拡大中も透明で残す。パネルの大きさが一覧で決まるので、拡大表示に
     // 切り替わっても位置・幅・高さが変わらない（LINEと同じクロスフェード）。
-    final Widget content = Stack(
+    final Widget stack = Stack(
       children: [
         IgnorePointer(
           ignoring: previewing,
@@ -129,24 +135,45 @@ class StickerSuggestionStrip extends ConsumerWidget {
               duration: const Duration(milliseconds: 150),
               builder: (context, opacity, child) =>
                   Opacity(opacity: opacity, child: child),
-              child: StickerSuggestionPreview(
+              child: StickerCarousel(
                 stickers: stickers,
                 index: previewIndex!,
                 onIndexChanged: onPreviewIndexChanged ?? (_) {},
                 onSend: onPreviewSend ?? (_) {},
-                onClose: onPreviewClose ?? () {},
               ),
             ),
           ),
       ],
     );
 
+    // 拡大表示の間は、パネルを最低の高さまで広げる（スマホは上へ伸びる）。
+    final Widget content = AnimatedSize(
+      duration: const Duration(milliseconds: 150),
+      alignment: Alignment.bottomCenter,
+      child: ConstrainedBox(
+        constraints: BoxConstraints(
+          minHeight: previewing
+              ? (isPhone ? _phonePreviewMinHeight : _widePreviewMinHeight)
+              : 0,
+        ),
+        child: stack,
+      ),
+    );
+
     return LayoutBuilder(
       builder: (context, constraints) {
         // 候補の数に合わせた内容幅（左寄せ）。入り切らない分は横スクロール。
         final contentWidth =
-            shown.length * (_stickerSize + _gap) - _gap + _padding * 2;
-        final width = math.min(contentWidth, constraints.maxWidth);
+            shown.length * (stickerSize + _gap) - _gap + _padding * 2;
+        // 拡大表示の間は、隣のぺったんが左右に見えるよう、パネルを広げる（隣の中心が0.85倍、隣の半幅が約0.275倍で、片側に約1.13倍要る）。
+        final previewHeight = isPhone
+            ? _phonePreviewMinHeight
+            : _widePreviewMinHeight;
+        final previewMinWidth = (previewHeight - 24).clamp(0.0, 320.0) * 2.4;
+        final width = math.min(
+          previewing ? math.max(contentWidth, previewMinWidth) : contentWidth,
+          constraints.maxWidth,
+        );
         final Widget panel;
         if (isGlass) {
           panel = GlassSurface(
@@ -173,179 +200,6 @@ class StickerSuggestionStrip extends ConsumerWidget {
         return Align(
           alignment: Alignment.centerLeft,
           child: SizedBox(key: panelKey, width: width, child: panel),
-        );
-      },
-    );
-  }
-}
-
-/// 提案ぺったんの拡大表示（2026-11-21、LINEの「おすすめスタンプ」と同じ見せ方）。
-/// 選んだぺったんを中央に大きく出し、左右に隣の候補を小さく薄く覗かせる。横スワイプで
-/// 隣が中央へ来て切り替わる。中央のタップで送信、隣のタップでその候補へ寄る、右上の
-/// ×で一覧へ戻る。ぺったんの送信方法がLINE型の時だけ使う。
-class StickerSuggestionPreview extends ConsumerStatefulWidget {
-  const StickerSuggestionPreview({
-    required this.stickers,
-    required this.index,
-    required this.onIndexChanged,
-    required this.onSend,
-    required this.onClose,
-    super.key,
-  });
-
-  final List<Sticker> stickers;
-  final int index;
-  final void Function(int index) onIndexChanged;
-  final void Function(Sticker sticker) onSend;
-  final VoidCallback onClose;
-
-  @override
-  ConsumerState<StickerSuggestionPreview> createState() =>
-      _StickerSuggestionPreviewState();
-}
-
-class _StickerSuggestionPreviewState
-    extends ConsumerState<StickerSuggestionPreview> {
-  static const _maxSize = 240.0;
-  static const _verticalPadding = 12.0;
-  static const _neighbourScale = 0.55;
-  static const _neighbourOpacity = 0.45;
-
-  PageController? _controller;
-  double _fraction = 0;
-
-  /// 中央のぺったんの幅に合わせて、隣が覗く`viewportFraction`でコントローラーを作る。
-  /// 幅が変わった時だけ作り直す。
-  PageController _ensureController(double fraction) {
-    final current = _controller;
-    if (current != null && (fraction - _fraction).abs() < 0.005) return current;
-    _fraction = fraction;
-    final next = PageController(
-      initialPage: widget.index,
-      viewportFraction: fraction,
-    );
-    _controller = next;
-    if (current != null) {
-      WidgetsBinding.instance.addPostFrameCallback((_) => current.dispose());
-    }
-    return next;
-  }
-
-  @override
-  void didUpdateWidget(StickerSuggestionPreview oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    final controller = _controller;
-    // 外からの切り替えにページを追従させる。
-    if (controller != null &&
-        controller.hasClients &&
-        controller.page?.round() != widget.index) {
-      controller.animateToPage(
-        widget.index,
-        duration: const Duration(milliseconds: 200),
-        curve: Curves.easeOut,
-      );
-    }
-  }
-
-  @override
-  void dispose() {
-    _controller?.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final isGekiga = ref.watch(appUiStyleProvider) == AppUiStyle.gekiga;
-    final colorScheme = Theme.of(context).colorScheme;
-    final iconColor = isGekiga ? GekigaColors.onPanel : colorScheme.onSurface;
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final size = math.min(
-          constraints.maxHeight - _verticalPadding * 2,
-          _maxSize,
-        );
-        // 隣が覗くよう、中央の幅より少し広い間隔でページを並べる。
-        final fraction = constraints.maxWidth <= 0
-            ? 1.0
-            : ((size + 32) / constraints.maxWidth).clamp(0.3, 1.0);
-        final controller = _ensureController(fraction);
-        return Stack(
-          children: [
-            Positioned.fill(
-              // マウスでも横にドラッグして切り替えられるようにする。
-              child: ScrollConfiguration(
-                behavior: ScrollConfiguration.of(context).copyWith(
-                  dragDevices: {
-                    PointerDeviceKind.touch,
-                    PointerDeviceKind.mouse,
-                    PointerDeviceKind.trackpad,
-                    PointerDeviceKind.stylus,
-                  },
-                ),
-                child: PageView.builder(
-                  controller: controller,
-                  itemCount: widget.stickers.length,
-                  onPageChanged: widget.onIndexChanged,
-                  itemBuilder: (context, i) => AnimatedBuilder(
-                    animation: controller,
-                    builder: (context, child) {
-                      final page =
-                          controller.hasClients &&
-                              controller.position.haveDimensions
-                          ? (controller.page ?? widget.index.toDouble())
-                          : widget.index.toDouble();
-                      final delta = (page - i).abs().clamp(0.0, 1.0);
-                      return Center(
-                        child: Opacity(
-                          opacity: 1 - (1 - _neighbourOpacity) * delta,
-                          child: Transform.scale(
-                            scale: 1 - (1 - _neighbourScale) * delta,
-                            child: child,
-                          ),
-                        ),
-                      );
-                    },
-                    child: InkWell(
-                      borderRadius: BorderRadius.circular(12),
-                      onTap: () {
-                        if (i == widget.index) {
-                          widget.onSend(widget.stickers[i]);
-                        } else {
-                          controller.animateToPage(
-                            i,
-                            duration: const Duration(milliseconds: 200),
-                            curve: Curves.easeOut,
-                          );
-                        }
-                      },
-                      child: SizedBox(
-                        width: size,
-                        height: size,
-                        child: StickerImage(
-                          widget.stickers[i].imageUrl,
-                          fit: BoxFit.contain,
-                          errorBuilder: (_, _, _) =>
-                              const Icon(Icons.broken_image_outlined),
-                        ),
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-            ),
-            Positioned(
-              top: 2,
-              right: 2,
-              child: IconButton(
-                tooltip: MaterialLocalizations.of(context).closeButtonTooltip,
-                iconSize: 20,
-                visualDensity: VisualDensity.compact,
-                color: iconColor,
-                icon: const Icon(Icons.close),
-                onPressed: widget.onClose,
-              ),
-            ),
-          ],
         );
       },
     );

@@ -127,6 +127,7 @@ import '../../widgets/sticker_image.dart';
 import '../../widgets/toggles/app_checkbox.dart';
 import '../../widgets/delayed_spinner.dart';
 import '../../widgets/keyboard_stable_body.dart';
+import '../../widgets/transitioned_overlay.dart';
 
 /// 劇画UIの吹き出し・入力欄の枠取りの太さ（[MonochromeBoxPainter]の
 /// thicknessBase）。以前は`size.shortestSide`（箱の短辺）に比例させて
@@ -4373,8 +4374,6 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                         previewIndex: _suggestionPreviewIndex,
                         onPreviewIndexChanged: (i) =>
                             setState(() => _suggestionPreviewIndex = i),
-                        onPreviewClose: () =>
-                            setState(() => _suggestionPreviewIndex = null),
                         onPreviewSend: _sendSuggestedSticker,
                       ),
                     ),
@@ -8409,22 +8408,30 @@ class _MessageBubbleTapArea extends StatefulWidget {
 
 class _MessageBubbleTapAreaState extends State<_MessageBubbleTapArea> {
   final _highlightIndex = ValueNotifier<int>(-1);
-  OverlayEntry? _overlayEntry;
+  TransitionedOverlayHandle? _overlay;
   DragMenuGeometry? _dragMenuGeometry;
   List<({_MessageMenuAction action, String label, IconData icon})>
   _dragMenuItems = const [];
 
   @override
   void dispose() {
-    _removeOverlay();
+    _removeOverlay(immediate: true);
     _highlightIndex.dispose();
     super.dispose();
   }
 
-  void _removeOverlay() {
-    _overlayEntry?.remove();
-    _overlayEntry = null;
+  /// 長押しメニューを閉じる。閉じる動き（アプリの画面遷移の設定に従う、2026-11-21）を
+  /// 再生してから取り除く。`dispose`の中など、動きを待てない時は[immediate]で直ちに外す。
+  void _removeOverlay({bool immediate = false}) {
     _dragMenuGeometry = null;
+    if (immediate) {
+      // 動き中のメニューが、破棄した強調の通知を触らないよう、直ちに外す。
+      _overlay?.removeNow();
+      _overlay = null;
+    } else {
+      // 閉じ始めても参照は保つ（動きの間に破棄された時、直ちに外す為）。
+      _overlay?.close();
+    }
   }
 
   /// メニュー項目の並び（`onReact`/`onEdit`/`onUnsend`のnull有無・
@@ -8644,8 +8651,9 @@ class _MessageBubbleTapAreaState extends State<_MessageBubbleTapArea> {
     _dragMenuGeometry = geometry;
     _highlightIndex.value = -1;
 
-    _overlayEntry = OverlayEntry(
-      builder: (_) => Stack(
+    _overlay = showTransitionedOverlayHandle(
+      Overlay.of(context),
+      builder: (_, _) => Stack(
         children: [
           // メニュー表示中、下のメッセージ一覧が誤って反応しないようにする
           // バリア（showMenuのルートが持つ効果に近づける）。
@@ -8701,7 +8709,6 @@ class _MessageBubbleTapAreaState extends State<_MessageBubbleTapArea> {
         ],
       ),
     );
-    Overlay.of(context).insert(_overlayEntry!);
   }
 
   void _onLongPressMoveUpdate(LongPressMoveUpdateDetails details) {
