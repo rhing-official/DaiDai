@@ -1900,6 +1900,10 @@ class _TalksTabState extends ConsumerState<TalksTab>
                                 // 両方向常時有効にする修正をしていたが、それでも
                                 // 一対→広場方向が反応しない場合が残っていた）。
                                 controller: _categoryPageController,
+                                // 一対・広場の端でそれ以上横に動かない
+                                // ようにする（2026-11-23追加、iOS/macOSの
+                                // 既定のバウンス＝ゴムのような跳ね返りを止める）。
+                                physics: const ClampingScrollPhysics(),
                                 onPageChanged: _handleCategoryPageChanged,
                                 children: [
                                   _buildDirectMessages(
@@ -2680,6 +2684,9 @@ class _TalksTabState extends ConsumerState<TalksTab>
                   )
                 : PageView(
                     controller: _categoryPageController,
+                    // 上の通常レイアウトと同じく、端での跳ね返りを止める
+                    // （2026-11-23追加）。
+                    physics: const ClampingScrollPhysics(),
                     onPageChanged: _handleCategoryPageChanged,
                     children: [
                       buildCategoryTiles(_TalksCategory.dm),
