@@ -165,6 +165,7 @@ class Strings {
     required this.kiwamiOnlyFontBody,
     required this.kiwamiOnlyReadReceiptsBody,
     required this.kiwamiOnlyClose,
+    required this.kiwamiUnavailableOnStore,
     required this.kiwamiOnlyProfileLimitBody,
     required this.workshopMoreWithKiwami,
     required this.workshopMoveEarlier,
@@ -406,6 +407,29 @@ class Strings {
     required this.chatPartialCopyAction,
     required this.chatSelectAction,
     required this.chatPinAction,
+    required this.reportAction,
+    required this.reportUserAction,
+    required this.reportGroupAction,
+    required this.reportTitleMessage,
+    required this.reportTitleUser,
+    required this.reportTitleGroup,
+    required this.reportIntro,
+    required this.reportReasonLabel,
+    required this.reportReasonHarassment,
+    required this.reportReasonSpam,
+    required this.reportReasonSexual,
+    required this.reportReasonViolence,
+    required this.reportReasonIllegal,
+    required this.reportReasonImpersonation,
+    required this.reportReasonOther,
+    required this.reportNoteHint,
+    required this.reportSubmit,
+    required this.reportSentTitle,
+    required this.reportSentBody,
+    required this.reportAlreadySentBody,
+    required this.reportFailed,
+    required this.reportTooMany,
+    required this.reportClose,
     required this.chatUnpinAction,
     required this.chatPinnedMessagesTooltip,
     required this.chatPinnedMessagesEmpty,
@@ -1471,6 +1495,7 @@ class Strings {
   final String kiwamiOnlyFontBody;
   final String kiwamiOnlyReadReceiptsBody;
   final String kiwamiOnlyClose;
+  final String kiwamiUnavailableOnStore;
   final String kiwamiOnlyProfileLimitBody;
   final String workshopMoreWithKiwami;
   final String workshopMoveEarlier;
@@ -1759,6 +1784,29 @@ class Strings {
   final String chatPartialCopyAction;
   final String chatSelectAction;
   final String chatPinAction;
+  final String reportAction;
+  final String reportUserAction;
+  final String reportGroupAction;
+  final String reportTitleMessage;
+  final String reportTitleUser;
+  final String reportTitleGroup;
+  final String reportIntro;
+  final String reportReasonLabel;
+  final String reportReasonHarassment;
+  final String reportReasonSpam;
+  final String reportReasonSexual;
+  final String reportReasonViolence;
+  final String reportReasonIllegal;
+  final String reportReasonImpersonation;
+  final String reportReasonOther;
+  final String reportNoteHint;
+  final String reportSubmit;
+  final String reportSentTitle;
+  final String reportSentBody;
+  final String reportAlreadySentBody;
+  final String reportFailed;
+  final String reportTooMany;
+  final String reportClose;
   final String chatUnpinAction;
   final String chatPinnedMessagesTooltip;
   final String chatPinnedMessagesEmpty;
@@ -3113,6 +3161,7 @@ class Strings {
     kiwamiOnlyFontBody: 'このフォントは、有料プラン「極み」で使えます。購入の方法は準備中です。',
     kiwamiOnlyReadReceiptsBody: '既読を隠す機能は、有料プラン「極み」で使えます。購入の方法は準備中です。',
     kiwamiOnlyClose: '閉じる',
+    kiwamiUnavailableOnStore: 'この機能は、このアプリでは使えません。',
     kiwamiOnlyProfileLimitBody:
         '極みでは、プロフィールカードを10枚まで作れ、蔵のSNSのURLは7件まで、カード1枚に載せるURLは5件まで使えます。',
     workshopMoreWithKiwami: '極みでカードをもっと作る（最大10枚）',
@@ -3375,6 +3424,29 @@ class Strings {
     chatPartialCopyAction: '部分コピー',
     chatSelectAction: 'メッセージを削除',
     chatPinAction: 'ピン留め',
+    reportAction: '通報',
+    reportUserAction: 'この住人を通報',
+    reportGroupAction: 'この広場を通報',
+    reportTitleMessage: 'メッセージを通報',
+    reportTitleUser: '住人を通報',
+    reportTitleGroup: '広場を通報',
+    reportIntro: '通報は運営だけが確認します。相手には知らされません。',
+    reportReasonLabel: '理由',
+    reportReasonHarassment: '嫌がらせ・誹謗中傷',
+    reportReasonSpam: 'スパム・宣伝',
+    reportReasonSexual: '性的な内容',
+    reportReasonViolence: '暴力・自傷をあおる内容',
+    reportReasonIllegal: '違法な内容',
+    reportReasonImpersonation: 'なりすまし',
+    reportReasonOther: 'その他',
+    reportNoteHint: '補足（任意）',
+    reportSubmit: '通報する',
+    reportSentTitle: '通報を受け付けました',
+    reportSentBody: '運営が内容を確認します。ご協力ありがとうございます。',
+    reportAlreadySentBody: 'この通報は、既に受け付けています。運営が確認します。',
+    reportFailed: '通報を送れませんでした。時間をおいて、もう一度お試しください。',
+    reportTooMany: '通報の回数が多すぎます。しばらくしてから、もう一度お試しください。',
+    reportClose: '閉じる',
     chatUnpinAction: 'ピン留め解除',
     chatPinnedMessagesTooltip: 'ピン留め',
     chatPinnedMessagesEmpty: 'ピン留めされたメッセージは有りません',
@@ -4503,6 +4575,7 @@ class Strings {
     kiwamiOnlyReadReceiptsBody:
         'Hiding read receipts is available with the paid Premium plan. How to subscribe is coming soon.',
     kiwamiOnlyClose: 'Close',
+    kiwamiUnavailableOnStore: 'This feature is not available in this app.',
     kiwamiOnlyProfileLimitBody:
         'With Premium you can make up to 10 profile cards, save up to 7 social links, and show up to 5 links on each card.',
     workshopMoreWithKiwami: 'Make more cards with Premium (up to 10)',
@@ -4812,6 +4885,32 @@ class Strings {
     chatPartialCopyAction: 'Partial copy',
     chatSelectAction: 'Delete messages',
     chatPinAction: 'Pin',
+    reportAction: 'Report',
+    reportUserAction: 'Report this resident',
+    reportGroupAction: 'Report this plaza',
+    reportTitleMessage: 'Report this message',
+    reportTitleUser: 'Report this resident',
+    reportTitleGroup: 'Report this plaza',
+    reportIntro:
+        'Only our team will see your report. The other person won\'t be told.',
+    reportReasonLabel: 'Reason',
+    reportReasonHarassment: 'Harassment or abuse',
+    reportReasonSpam: 'Spam or advertising',
+    reportReasonSexual: 'Sexual content',
+    reportReasonViolence: 'Violence or self-harm',
+    reportReasonIllegal: 'Illegal content',
+    reportReasonImpersonation: 'Impersonation',
+    reportReasonOther: 'Something else',
+    reportNoteHint: 'Details (optional)',
+    reportSubmit: 'Report',
+    reportSentTitle: 'Report received',
+    reportSentBody: 'Our team will review it. Thank you for letting us know.',
+    reportAlreadySentBody:
+        'You\'ve already reported this. Our team will review it.',
+    reportFailed: 'Couldn\'t send the report. Please try again in a while.',
+    reportTooMany:
+        'You\'ve sent too many reports. Please try again in a while.',
+    reportClose: 'Close',
     chatUnpinAction: 'Unpin',
     chatPinnedMessagesTooltip: 'Pins',
     chatPinnedMessagesEmpty: 'No pinned messages',

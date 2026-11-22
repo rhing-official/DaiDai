@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../l10n/strings.dart';
 import '../../models/app_user.dart';
+import '../report/report_dialog.dart';
 import '../../models/direct_message.dart';
 import '../../models/dm_room.dart';
 import '../../models/friend_request.dart';
@@ -602,6 +603,24 @@ class _UserProfileCardDialogState extends ConsumerState<UserProfileCardDialog> {
                                   ),
                                   iconSize: 30,
                                   onPressed: _editAlias,
+                                ),
+                              ),
+                              const SizedBox(width: 8),
+                              // 住人の通報（2026-11-22、Apple App Reviewのガイドライン1.2）。
+                              Material(
+                                color: Colors.black.withValues(alpha: 0.35),
+                                shape: const CircleBorder(),
+                                child: IconButton(
+                                  tooltip: strings.reportUserAction,
+                                  icon: const Icon(
+                                    Icons.flag_outlined,
+                                    color: Colors.white,
+                                  ),
+                                  iconSize: 30,
+                                  onPressed: () => showReportDialog(
+                                    context,
+                                    ReportUserTarget(user.userId),
+                                  ),
                                 ),
                               ),
                               const SizedBox(width: 8),

@@ -57,6 +57,16 @@ import {
   validateDeletionText,
   validateStickerRemoval,
 } from "./packDeletion";
+import {
+  REPORT_CONTEXT_AFTER,
+  REPORT_CONTEXT_BEFORE,
+  type EvidenceMessage,
+  isOverDailyLimit,
+  parseReportInput,
+  parseResolution,
+  reportTargetKey,
+  toEvidenceMessage,
+} from "./reports";
 import { parseRoleUpdates } from "./stickerRoles";
 import {
   SWITCH_MAX_SESSIONS_PER_USER,
@@ -716,7 +726,7 @@ export const claimQrLoginSession = onCall(
 /**
  * 複数アカウントの切り替え（2026-11-11、極みの特典）。端末に保存した「切り替え用の合言葉」を
  * サーバーが検証してカスタムトークンを発行する。判定は`switchSession.ts`（純関数）。
- * 設計は`文書/複数アカウント.md`。保存先は`users/{uid}/switchSessions/{sessionId}`と
+ * 設計は`文書/直近/複数アカウント.md`。保存先は`users/{uid}/switchSessions/{sessionId}`と
  * `switchTickets/{ticketHash}`（どちらもクライアントから読み書き不可、Admin SDKのみ）。
  */
 
@@ -1529,7 +1539,7 @@ export const cleanupPasskeyChallenges = onSchedule(
 // 秘密の質問によるパスキー紛失時の復旧は、2026-11-18に廃止した（推測されやすく、
 // バックアップコードも採用しないため）。パスキーを失った場合の復旧手段は、事前に
 // 登録した別のパスキーか、後から連携するGoogle・Appleのログインのみで、どちらも
-// 無ければ復旧できない（`文書/バックアップコード.md`）。
+// 無ければ復旧できない（`文書/検討/バックアップコード.md`）。
 // -----------------------------------------------------------------------
 
 /**
@@ -3497,7 +3507,8 @@ async function writeAdminAuditLog(entry: {
     | "scheduleDeleteAccount"
     | "approvePackDeletion"
     | "rejectPackDeletion"
-    | "cancelPackDeletion";
+    | "cancelPackDeletion"
+    | "resolveReport";
   targetUserIds: string[];
   reason?: string;
   note?: string;
@@ -6618,5 +6629,286 @@ export const urlFetchRelay = onRequest(
       logger.warn("取得中継に失敗しました:", String(err));
       res.status(200).json({ status: 0, text: "" });
     }
+  },
+);
+
+// ---------------------------------------------------------------------
+// 住人による通報（メッセージ・住人・広場、2026-11-22追加）。Apple App Reviewの
+// ガイドライン1.2（ユーザー生成コンテンツ）が求める通報の導線と、運営の処理の記録。
+// 通報は`reports/{reportId}`に保存し、書き込みはここ（Admin SDK）だけ、クライアント
+// からは読み書きできない（firestore.rulesに許可が無く既定で拒否）。純粋なロジックは
+// `reports.ts`（単体テストあり）。
+// ---------------------------------------------------------------------
+
+/** 通報の文書idを、通報者と対象から決める（同じ通報者が同じ対象を重ねて通報できない）。 */
+function reportDocId(reporterId: string, targetKey: string): string {
+  const digest = createHash("sha256").update(targetKey).digest("hex").slice(0, 32);
+  return `${reporterId}_${digest}`;
+}
+
+/**
+ * 通報する（ログイン済みの住人）。対象は、メッセージ・住人・広場のいずれか。
+ * メッセージの場合は、対象と前後のメッセージをサーバーが複写して証拠にする
+ * （クライアントの申告は信用しない）。同じ対象を同じ人が重ねて通報した場合は、
+ * 新しく作らず`alreadyReported: true`を返す。
+ */
+export const submitReport = onCall(
+  { region: "asia-northeast1" },
+  async (request) => {
+    const reporterId = request.auth?.uid;
+    if (!reporterId) {
+      throw new HttpsError("unauthenticated", "ログインが必要です");
+    }
+    const parsed = parseReportInput(request.data);
+    if (!parsed.ok) {
+      throw new HttpsError("invalid-argument", parsed.reason);
+    }
+    const input = parsed.input;
+
+    // 通報者の情報（呼び名ではなく、Rhing Seedだけを控える）。
+    const reporterDoc = await db.collection("users").doc(reporterId).get();
+    if (!reporterDoc.exists) {
+      throw new HttpsError("failed-precondition", "アカウントが見つかりません");
+    }
+    const reporterSeed: string | null = reporterDoc.data()?.rhingSeed ?? null;
+
+    const docId = reportDocId(reporterId, reportTargetKey(input));
+    const reportRef = db.collection("reports").doc(docId);
+    if ((await reportRef.get()).exists) {
+      return { alreadyReported: true };
+    }
+
+    // 乱用の抑止: 24時間の通報の件数。
+    const recent = await db
+      .collection("reports")
+      .where("reporterId", "==", reporterId)
+      .limit(100)
+      .get();
+    const createdAtMillis = recent.docs
+      .map((d) => (d.data().createdAt as Timestamp | undefined)?.toMillis())
+      .filter((t): t is number => typeof t === "number");
+    if (isOverDailyLimit(createdAtMillis, Date.now())) {
+      throw new HttpsError(
+        "resource-exhausted",
+        "通報の回数が多すぎます。しばらくしてからもう一度お試しください",
+      );
+    }
+
+    let targetUserId: string | null = null;
+    let targetSeed: string | null = null;
+    let evidence: Record<string, unknown> = {};
+
+    if (input.targetType === "user") {
+      if (input.targetUserId === reporterId) {
+        throw new HttpsError("invalid-argument", "自分は通報できません");
+      }
+      const target = await db.collection("users").doc(input.targetUserId!).get();
+      if (!target.exists) {
+        throw new HttpsError("not-found", "住人が見つかりません");
+      }
+      targetUserId = input.targetUserId!;
+      targetSeed = target.data()?.rhingSeed ?? null;
+    } else if (input.targetType === "group") {
+      const group = await db.collection("groups").doc(input.groupId!).get();
+      const g = group.data();
+      if (!group.exists || !g) {
+        throw new HttpsError("not-found", "広場が見つかりません");
+      }
+      const memberIds: string[] = g.memberIds ?? [];
+      if (!memberIds.includes(reporterId)) {
+        throw new HttpsError("permission-denied", "参加している広場だけ通報できます");
+      }
+      if (g.ownerId === reporterId) {
+        throw new HttpsError("invalid-argument", "自分が長の広場は通報できません");
+      }
+      targetUserId = typeof g.ownerId === "string" ? g.ownerId : null;
+      evidence = {
+        group: {
+          groupId: group.id,
+          name: typeof g.name === "string" ? g.name : "",
+          ownerId: targetUserId,
+          memberCount: memberIds.length,
+        },
+      };
+    } else {
+      // メッセージ。会話の参加者だけが通報できる。
+      const isDm = input.dmId !== undefined;
+      const conversationRef = db
+        .collection(isDm ? "directMessages" : "groups")
+        .doc((isDm ? input.dmId : input.groupId)!);
+      const conversation = await conversationRef.get();
+      const c = conversation.data();
+      if (!conversation.exists || !c) {
+        throw new HttpsError("not-found", "会話が見つかりません");
+      }
+      const members: string[] = (isDm ? c.participants : c.memberIds) ?? [];
+      if (!members.includes(reporterId)) {
+        throw new HttpsError("permission-denied", "参加している会話だけ通報できます");
+      }
+      const messagesRef = conversationRef
+        .collection("rooms")
+        .doc(input.roomId!)
+        .collection("messages");
+      const targetDoc = await messagesRef.doc(input.messageId!).get();
+      const targetData = targetDoc.data();
+      if (!targetDoc.exists || !targetData) {
+        throw new HttpsError("not-found", "メッセージが見つかりません");
+      }
+      if (targetData.senderId === reporterId) {
+        throw new HttpsError("invalid-argument", "自分のメッセージは通報できません");
+      }
+      if (typeof targetData.senderId !== "string" || targetData.senderId.startsWith("system:")) {
+        throw new HttpsError("invalid-argument", "このメッセージは通報できません");
+      }
+      targetUserId = targetData.senderId;
+      targetSeed = typeof targetData.senderRhingSeed === "string" ? targetData.senderRhingSeed : null;
+
+      // 前後のメッセージ（送信日時順）。複合インデックスが要らない単一フィールドの並べ替え。
+      const sentAt = targetData.sentAt;
+      const [beforeSnap, afterSnap] = await Promise.all([
+        sentAt
+          ? messagesRef
+              .orderBy("sentAt", "desc")
+              .startAfter(sentAt)
+              .limit(REPORT_CONTEXT_BEFORE)
+              .get()
+          : Promise.resolve(null),
+        sentAt
+          ? messagesRef
+              .orderBy("sentAt", "asc")
+              .startAfter(sentAt)
+              .limit(REPORT_CONTEXT_AFTER)
+              .get()
+          : Promise.resolve(null),
+      ]);
+      const messages: EvidenceMessage[] = [
+        ...(beforeSnap?.docs ?? [])
+          .reverse()
+          .map((d) => toEvidenceMessage(d.id, d.data(), false)),
+        toEvidenceMessage(targetDoc.id, targetData, true),
+        ...(afterSnap?.docs ?? []).map((d) => toEvidenceMessage(d.id, d.data(), false)),
+      ];
+      // 送信者のRhing Seedが無い古いメッセージは、住人の文書から補う。
+      const missing = [
+        ...new Set(messages.filter((m) => !m.senderRhingSeed && m.senderId).map((m) => m.senderId)),
+      ].filter((id) => !id.startsWith("system:"));
+      if (missing.length > 0) {
+        const users = await db.getAll(...missing.map((id) => db.collection("users").doc(id)));
+        const seeds = new Map(users.map((u) => [u.id, u.data()?.rhingSeed as string | undefined]));
+        for (const m of messages) {
+          if (!m.senderRhingSeed) m.senderRhingSeed = seeds.get(m.senderId) ?? null;
+        }
+      }
+      evidence = {
+        conversation: {
+          kind: isDm ? "dm" : "group",
+          conversationId: conversation.id,
+          roomId: input.roomId,
+          ...(isDm ? {} : { groupName: typeof c.name === "string" ? c.name : "" }),
+        },
+        messages,
+      };
+    }
+
+    try {
+      await reportRef.create({
+        targetType: input.targetType,
+        reason: input.reason,
+        note: input.note,
+        reporterId,
+        reporterSeed,
+        targetUserId,
+        targetSeed,
+        messageId: input.messageId ?? null,
+        evidence,
+        status: "open",
+        createdAt: FieldValue.serverTimestamp(),
+      });
+    } catch (error) {
+      // 同時に2回送られた場合は、先に作られた方を残す。
+      if ((error as { code?: number }).code === 6) {
+        return { alreadyReported: true };
+      }
+      throw error;
+    }
+    logger.info(`通報を受付: ${input.targetType} ${reportRef.id}`);
+    return { alreadyReported: false };
+  },
+);
+
+/** 通報の一覧（管理者のみ）。新しい順に最大200件。未対応・対応済みの絞り込みは画面側。 */
+export const listReports = onCall(
+  { region: "asia-northeast1" },
+  async (request) => {
+    assertAdmin(request);
+    const snapshot = await db
+      .collection("reports")
+      .orderBy("createdAt", "desc")
+      .limit(200)
+      .get();
+    const iso = (value: unknown): string | null =>
+      value instanceof Timestamp ? value.toDate().toISOString() : null;
+    return {
+      reports: snapshot.docs.map((doc) => {
+        const d = doc.data();
+        return {
+          reportId: doc.id,
+          targetType: d.targetType ?? "",
+          reason: d.reason ?? "",
+          note: d.note ?? "",
+          reporterId: d.reporterId ?? "",
+          reporterSeed: d.reporterSeed ?? null,
+          targetUserId: d.targetUserId ?? null,
+          targetSeed: d.targetSeed ?? null,
+          messageId: d.messageId ?? null,
+          evidence: d.evidence ?? {},
+          status: d.status ?? "open",
+          createdAt: iso(d.createdAt),
+          resolution: d.resolution ?? null,
+          resolutionNote: d.resolutionNote ?? null,
+          resolvedBy: d.resolvedBy ?? null,
+          resolvedAt: iso(d.resolvedAt),
+        };
+      }),
+    };
+  },
+);
+
+/**
+ * 通報を処理済みにする（管理者のみ）。`dismissed`＝問題なし、`actioned`＝対応済み
+ * （停止などの対応は、既存の`suspendUserAccount`等で別に行う）。監査ログに残す。
+ */
+export const resolveReport = onCall(
+  { region: "asia-northeast1" },
+  async (request) => {
+    assertAdmin(request);
+    const reportId = request.data?.reportId;
+    if (typeof reportId !== "string" || !reportId) {
+      throw new HttpsError("invalid-argument", "reportIdが必要です");
+    }
+    const parsed = parseResolution(request.data);
+    if (!parsed.ok) {
+      throw new HttpsError("invalid-argument", parsed.reason);
+    }
+    const ref = db.collection("reports").doc(reportId);
+    const doc = await ref.get();
+    if (!doc.exists) {
+      throw new HttpsError("not-found", "通報が見つかりません");
+    }
+    await ref.update({
+      status: "resolved",
+      resolution: parsed.value.resolution,
+      resolutionNote: parsed.value.note,
+      resolvedBy: request.auth!.uid,
+      resolvedAt: FieldValue.serverTimestamp(),
+    });
+    const targetUserId = doc.data()?.targetUserId;
+    await writeAdminAuditLog({
+      adminUid: request.auth!.uid,
+      action: "resolveReport",
+      targetUserIds: typeof targetUserId === "string" ? [targetUserId] : [],
+      reason: parsed.value.resolution,
+      ...(parsed.value.note ? { note: parsed.value.note } : {}),
+    });
   },
 );

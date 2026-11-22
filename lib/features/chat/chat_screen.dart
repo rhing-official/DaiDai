@@ -69,6 +69,7 @@ import '../../widgets/always_animated_image.dart';
 import '../../widgets/gekiga/monochrome_box.dart';
 import '../../widgets/media_preview_frame.dart';
 import '../album/album_picker_sheet.dart';
+import '../report/report_dialog.dart';
 import '../calendar/calendar_event_detail_dialog.dart';
 import '../calendar/schedule_coordination_detail_dialog.dart';
 import '../poll/poll_detail_dialog.dart';
@@ -1745,6 +1746,21 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
       roomId: widget.roomId!,
       message: message,
       currentUserId: widget.currentUserId,
+    );
+  }
+
+  /// 他の住人のメッセージを通報する（2026-11-22追加）。`widget.conversationId`/
+  /// `widget.roomId`が非nullの場合のみ呼び出し元（`_MessageRow.onReportMessage`）から渡される。
+  /// 一対の会話はdmId、広場の会話はgroupIdとして送る。
+  void _reportMessage(Message message) {
+    showReportDialog(
+      context,
+      ReportMessageTarget(
+        dmId: widget.isDm ? widget.conversationId! : null,
+        groupId: widget.isDm ? null : widget.conversationId!,
+        roomId: widget.roomId!,
+        messageId: message.messageId,
+      ),
     );
   }
 
@@ -3774,6 +3790,11 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                                     widget.roomId != null
                                 ? _addToAlbum
                                 : null,
+                            onReportMessage:
+                                widget.conversationId != null &&
+                                    widget.roomId != null
+                                ? _reportMessage
+                                : null,
                             onOpenCalendarEvent:
                                 widget.conversationId != null &&
                                     widget.roomId != null
@@ -5140,6 +5161,7 @@ class _MessageRow extends ConsumerWidget {
     this.onDeleteAfterAccountDeletion,
     this.vocabulary,
     this.onAddToAlbum,
+    this.onReportMessage,
     this.onOpenCalendarEvent,
     this.onOpenScheduleCoordination,
     this.onOpenPoll,
@@ -5228,6 +5250,10 @@ class _MessageRow extends ConsumerWidget {
   /// nullなら（会話種別がお知らせ画面等でroomId未確定の場合）メニュー
   /// 項目自体を出さない。
   final void Function(Message message)? onAddToAlbum;
+
+  /// 他の住人のメッセージを通報する（2026-11-22追加）。`onAddToAlbum`と同じく、
+  /// 会話が確定していない画面（お知らせ等）ではnullで、メニュー項目自体を出さない。
+  final void Function(Message message)? onReportMessage;
 
   /// 予定追加通知メッセージ（`contentType: 'calendarEventCreated'`）をタップ
   /// した際に呼ぶ（2026-09-04追加）。`onAddToAlbum`と同じくnullなら
@@ -6346,6 +6372,13 @@ class _MessageRow extends ConsumerWidget {
           : null,
       onForward: canForwardMessage(message)
           ? () => _forward(context, ref, strings)
+          : null,
+      // 自分のメッセージと、運営・システムが送ったものは通報できない。
+      onReport:
+          (!isMe &&
+              onReportMessage != null &&
+              !message.senderId.startsWith('system:'))
+          ? () => onReportMessage!(message)
           : null,
       child: child,
     );
@@ -8221,6 +8254,7 @@ enum _MessageMenuAction {
   addToAlbum,
   share,
   forward,
+  report,
 }
 
 /// 長押し/右クリック位置に開く各種メニューの位置決め（[_MessageBubbleTapArea]・
@@ -8359,6 +8393,7 @@ class _MessageBubbleTapArea extends StatefulWidget {
     this.onAddToAlbum,
     this.onShare,
     this.onForward,
+    this.onReport,
   });
 
   final Widget child;
@@ -8401,6 +8436,9 @@ class _MessageBubbleTapArea extends StatefulWidget {
   /// 添付付きのメッセージだけ渡される、添付の共有（2026-10-31追加）。
   final VoidCallback? onShare;
   final VoidCallback? onForward;
+
+  /// 他の住人のメッセージの通報（2026-11-22追加）。自分のメッセージ等ではnull。
+  final VoidCallback? onReport;
 
   @override
   State<_MessageBubbleTapArea> createState() => _MessageBubbleTapAreaState();
@@ -8512,6 +8550,12 @@ class _MessageBubbleTapAreaState extends State<_MessageBubbleTapArea> {
           label: strings.mediaForwardTooltip,
           icon: Icons.forward_outlined,
         ),
+      if (widget.onReport != null)
+        (
+          action: _MessageMenuAction.report,
+          label: strings.reportAction,
+          icon: Icons.flag_outlined,
+        ),
     ];
   }
 
@@ -8554,6 +8598,8 @@ class _MessageBubbleTapAreaState extends State<_MessageBubbleTapArea> {
         widget.onShare?.call();
       case _MessageMenuAction.forward:
         widget.onForward?.call();
+      case _MessageMenuAction.report:
+        widget.onReport?.call();
       case null:
         break;
     }

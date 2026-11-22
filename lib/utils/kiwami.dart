@@ -11,8 +11,20 @@ const kKiwamiBillingEnabled = true;
 
 /// [user]が極みを使えるか。ユーザー情報が未取得（`null`）の間は、課金が有効なら
 /// 極みでないものとして扱う。
-bool isKiwami(AppUser? user) =>
+bool hasKiwamiPlan(AppUser? user) =>
     !kKiwamiBillingEnabled || user?.subscriptionPlan == SubscriptionPlan.kiwami;
+
+/// [user]が、この端末で極みの機能を使えるか（2026-11-22）。契約状態（[hasKiwamiPlan]）に
+/// 加えて、iOSのストア版（[PurchaseChannel.appStore]）では常に使えない。アプリ内課金を
+/// 持たない方針で、外で買った物の解禁にはアプリ内課金の併設が要る（Appleの3.1.3(b)）為。
+/// 他の人の既読の設定を守る判定には[hasKiwamiPlan]を使う。
+bool isKiwami(AppUser? user, {PurchaseChannel? channel}) =>
+    hasKiwamiPlan(user) && kiwamiPurchaseAllowed(channel: channel);
+
+/// 極みの購入導線を出してよいか、極みの機能を解禁してよいか（2026-11-22）。
+/// iOSのストア版だけ不可。Web・デスクトップ・APK・Google Playは従来どおり。
+bool kiwamiPurchaseAllowed({PurchaseChannel? channel}) =>
+    (channel ?? currentPurchaseChannel()) != PurchaseChannel.appStore;
 
 /// 購入経路（2026-10-20）。ストア版のモバイル（iOS App Store・Google Play）では、アプリ内の
 /// リンクから決済するとストアの手数料がかかる為、その分を上乗せした金額の決済リンクを

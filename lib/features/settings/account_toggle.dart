@@ -35,7 +35,7 @@ String switchAccountFailureMessage(
 /// アカウントの切り替えスイッチ（2026-11-11）。保存したアカウントの数だけ区画を並べ、
 /// 各区画はアイコンの下に`@seed`を出す。押すとそのアカウントへ切り替える。保存数が上限
 /// （[AccountSwitcher.maxAccounts]）に満たなければ、末尾に「追加」の区画を出す。取り外しは
-/// 下の「管理」から行う。設計は`文書/複数アカウント.md`。
+/// 下の「管理」から行う。設計は`文書/直近/複数アカウント.md`。
 class AccountToggle extends ConsumerStatefulWidget {
   const AccountToggle({
     required this.strings,

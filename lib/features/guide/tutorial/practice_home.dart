@@ -83,6 +83,7 @@ class _PracticeHomeState extends ConsumerState<PracticeHome> {
         ),
         friendRepositoryProvider.overrideWithValue(PracticeFriendRepository()),
         blockRepositoryProvider.overrideWithValue(PracticeBlockRepository()),
+        reportRepositoryProvider.overrideWithValue(PracticeReportRepository()),
         contactAliasRepositoryProvider.overrideWithValue(
           PracticeContactAliasRepository(),
         ),

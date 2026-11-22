@@ -5,7 +5,7 @@ import 'dart:io' show Platform;
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../services/app_functions.dart';
 import '../services/google_desktop_sign_in.dart';
-import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:flutter/foundation.dart' show debugPrint, kIsWeb;
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:passkeys/authenticator.dart';
@@ -16,6 +16,21 @@ import 'package:passkeys_platform_interface/passkeys_platform_interface.dart';
 
 import '../utils/google_sign_in_bootstrap.dart';
 import '../utils/web_redirect_sign_in.dart';
+
+/// [AuthRepository.revokeAppleAuthorization]の再認証を、利用者が取り消した（Appleの画面を
+/// 閉じた）かどうか。取り消しなら削除を静かに中止し、それ以外の失敗は伝える。
+bool isAppleReauthCancelled(Object error) {
+  if (error is! FirebaseAuthException) return false;
+  return const {
+    'canceled',
+    'cancelled',
+    'web-context-canceled',
+    'web-context-cancelled',
+    'popup-closed-by-user',
+    'cancelled-popup-request',
+    'user-cancelled',
+  }.contains(error.code);
+}
 
 /// 登録済みパスキー1件のメタ情報（設定画面の一覧表示用、2026-09-16追加）。
 class PasskeyCredentialInfo {
@@ -90,6 +105,17 @@ abstract class AuthRepository {
   /// 現在ログイン中のプロバイダ（Google/Apple）で再認証し、Firebase側の
   /// 「直近ログイン」判定を更新する（2026-08-09追加）。
   Future<void> reauthenticate();
+
+  /// アカウント削除の前に、Apple側のサインイン許可を取り消す（2026-11-22、Apple App Reviewの
+  /// ガイドライン5.1.1(v)）。「Appleでサインイン」で作ったアカウントだけが対象で、
+  /// Google・パスキーの人、Web、Windows・Linuxでは何もしない（Webは`firebase_auth_web`に
+  /// 取り消しが無い為、別タスク）。Appleの再認証が要る為、削除の操作の最中に1回、Appleの
+  /// 認証画面が出る。
+  ///
+  /// 再認証を利用者が取り消した・失敗した場合は例外を投げる（呼び出し側は削除を中止する。
+  /// 取り消しが中止かどうかは[isAppleReauthCancelled]で見分ける）。取り消しのAPIそのものが
+  /// 失敗しても例外にしない（取り消せない事で本人が削除できなくなるのを避ける）。
+  Future<void> revokeAppleAuthorization();
 
   /// QRコードログイン（2026-08-09追加）。未ログイン端末が`qrLoginSessions`に
   /// pendingなセッションを作成し、sessionIdを返す。QRコードには
@@ -367,6 +393,37 @@ class FirebaseAuthRepository implements AuthRepository {
     }
     final credential = GoogleAuthProvider.credential(idToken: idToken);
     await user.reauthenticateWithCredential(credential);
+  }
+
+  @override
+  Future<void> revokeAppleAuthorization() async {
+    // Web・Windows・Linuxは取り消しの手段が無い（Webは別タスク）。`Platform`はWebで使えない為、
+    // 先に`kIsWeb`で外す。
+    if (kIsWeb) return;
+    if (!(Platform.isAndroid || Platform.isIOS || Platform.isMacOS)) return;
+    final user = _auth.currentUser;
+    if (user == null) return;
+    final usesApple = user.providerData.any((p) => p.providerId == 'apple.com');
+    if (!usesApple) return;
+
+    // 取り消しには、Appleの新しい資格情報が要る。再認証の結果から取る。
+    final result = await user.reauthenticateWithProvider(
+      OAuthProvider('apple.com'),
+    );
+    try {
+      if (Platform.isAndroid) {
+        final accessToken =
+            (result.credential as OAuthCredential?)?.accessToken;
+        if (accessToken != null) await _auth.revokeAccessToken(accessToken);
+      } else {
+        // iOS・macOSは、ネイティブのSign in with Appleが返す認可コードで取り消す。
+        final code = result.additionalUserInfo?.authorizationCode;
+        if (code != null) await _auth.revokeTokenWithAuthorizationCode(code);
+      }
+    } catch (error) {
+      // 取り消せなくても削除は続ける（上の説明のとおり）。
+      debugPrint('Appleの許可の取り消しに失敗しました: $error');
+    }
   }
 
   CollectionReference<Map<String, dynamic>> get _qrLoginSessions =>

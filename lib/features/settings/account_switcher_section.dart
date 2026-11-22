@@ -10,7 +10,7 @@ export 'account_toggle.dart' show switchAccountFailureMessage;
 
 /// 設定>アカウントの「アカウントの切り替え」（2026-11-11、極みの特典。2026-11-12にWeb以外へも拡大）。
 /// この端末に保存したアカウントを切り替えスイッチ（[AccountToggle]）で並べる。
-/// 設計は`文書/複数アカウント.md`。
+/// 設計は`文書/直近/複数アカウント.md`。
 class AccountSwitcherSection extends ConsumerWidget {
   const AccountSwitcherSection({
     required this.strings,

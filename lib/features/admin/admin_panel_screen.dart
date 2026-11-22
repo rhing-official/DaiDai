@@ -17,6 +17,7 @@ import '../../router/back_stack.dart';
 import '../../widgets/nav_chip.dart';
 import '../chat/chat_screen.dart';
 import '../settings/settings_tab.dart';
+import 'admin_report_list.dart';
 import 'admin_user_list.dart';
 import 'icon_crop_dialog.dart';
 
@@ -40,6 +41,7 @@ class _AdminPanelScreenState extends ConsumerState<AdminPanelScreen> {
 
   static const _icons = [
     Icons.people_outline,
+    Icons.flag_outlined,
     Icons.campaign_outlined,
     Icons.face_outlined,
     Icons.settings_outlined,
@@ -47,9 +49,9 @@ class _AdminPanelScreenState extends ConsumerState<AdminPanelScreen> {
 
   /// [_icons]の各グリフの見た目の密度差を補正する表示サイズ
   /// （ホーム画面の`_iconSizes`と同じ考え方）。
-  static const _iconSizes = [24.0, 24.0, 28.0, 28.0];
+  static const _iconSizes = [24.0, 24.0, 24.0, 28.0, 28.0];
 
-  static const _labels = ['住人一覧', 'お便り', '身だしなみ', '設定'];
+  static const _labels = ['住人一覧', '通報', 'お便り', '身だしなみ', '設定'];
 
   @override
   Widget build(BuildContext context) {
@@ -67,6 +69,7 @@ class _AdminPanelScreenState extends ConsumerState<AdminPanelScreen> {
             index: _selectedIndex,
             children: [
               AdminUserListSection(currentUserId: widget.currentUser.userId),
+              const AdminReportListSection(),
               _AnnouncementSection(currentUser: widget.currentUser),
               const _OfficialProfileSection(),
               const ApplicationSettingsView(),

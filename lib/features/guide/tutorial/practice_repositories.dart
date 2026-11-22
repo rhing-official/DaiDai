@@ -14,8 +14,10 @@ import '../../../models/group.dart';
 import '../../../models/group_join_request.dart';
 import '../../../models/message.dart';
 import '../../../models/note.dart';
+import '../../../models/report.dart';
 import '../../../repositories/album_repository.dart';
 import '../../../repositories/block_repository.dart';
+import '../../../repositories/report_repository.dart';
 import '../../../repositories/contact_alias_repository.dart';
 import '../../../repositories/calendar_category_repository.dart';
 import '../../../repositories/calendar_event_repository.dart';
@@ -296,6 +298,36 @@ class PracticeBlockRepository implements BlockRepository {
   @override
   Stream<Set<String>> watchBlockedUserIds(String userId) =>
       Stream.value(const <String>{});
+
+  @override
+  dynamic noSuchMethod(Invocation invocation) => _lenient(invocation);
+}
+
+/// 練習用の`ReportRepository`。通報は送らない（練習の中では何も起きない）。
+class PracticeReportRepository implements ReportRepository {
+  @override
+  Future<bool> reportMessage({
+    String? dmId,
+    String? groupId,
+    required String roomId,
+    required String messageId,
+    required ReportReason reason,
+    String note = '',
+  }) async => false;
+
+  @override
+  Future<bool> reportUser({
+    required String targetUserId,
+    required ReportReason reason,
+    String note = '',
+  }) async => false;
+
+  @override
+  Future<bool> reportGroup({
+    required String groupId,
+    required ReportReason reason,
+    String note = '',
+  }) async => false;
 
   @override
   dynamic noSuchMethod(Invocation invocation) => _lenient(invocation);

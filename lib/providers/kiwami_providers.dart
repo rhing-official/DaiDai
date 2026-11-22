@@ -9,6 +9,12 @@ final isKiwamiProvider = Provider.family<bool, String>(
   (ref, userId) => isKiwami(ref.watch(watchedUserProvider(userId)).value),
 );
 
+/// [userId]の住人が極みを契約しているか。この端末での解禁可否に関わらない。
+/// 他の参加者が既読を隠している設定を、iOSでも尊重する為に使う。
+final hasKiwamiPlanProvider = Provider.family<bool, String>(
+  (ref, userId) => hasKiwamiPlan(ref.watch(watchedUserProvider(userId)).value),
+);
+
 /// 会話の参加者（[idsKey]はuserIdをカンマで連ねた文字列、Familyのキーとして
 /// 値比較出来るよう呼び出し側でソートして渡す）に、1人でも極みがいるか。
 /// 既読機能の無効化は、極みの人がいる間だけ効く（2026-10-17）。
@@ -18,7 +24,7 @@ final conversationHasKiwamiProvider = Provider.family<bool, String>((
 ) {
   for (final id in idsKey.split(',')) {
     if (id.isEmpty) continue;
-    if (ref.watch(isKiwamiProvider(id))) return true;
+    if (ref.watch(hasKiwamiPlanProvider(id))) return true;
   }
   return false;
 });

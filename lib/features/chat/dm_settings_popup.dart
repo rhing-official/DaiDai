@@ -10,6 +10,7 @@ import '../../models/conversation_prefs.dart';
 import '../../models/direct_message.dart';
 import '../../models/dm_room.dart';
 import '../../providers/block_providers.dart';
+import '../report/report_dialog.dart';
 import '../../providers/conversation_prefs_providers.dart';
 import '../../providers/direct_message_providers.dart';
 import '../../providers/repository_providers.dart';
@@ -279,6 +280,12 @@ class DmSettingsPopup extends ConsumerWidget {
                     );
                   }
                 },
+              ),
+              // 住人の通報（2026-11-22、Apple App Reviewのガイドライン1.2）。
+              ListTile(
+                title: Text(strings.reportUserAction),
+                onTap: () =>
+                    showReportDialog(context, ReportUserTarget(otherUserId)),
               ),
               ListTile(
                 title: Text(

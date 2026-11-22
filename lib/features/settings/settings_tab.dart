@@ -96,6 +96,7 @@ import '../../services/google_calendar_link_coordinator.dart';
 import '../../theme/gekiga/gekiga_colors.dart';
 import '../../theme/glass/glass_colors.dart';
 import '../../utils/auto_dismiss_banner.dart';
+import '../../repositories/auth_repository.dart' show isAppleReauthCancelled;
 import '../../utils/color_presets.dart';
 import '../../utils/color_hex.dart';
 import '../../utils/platform_info.dart';
@@ -2134,7 +2135,8 @@ class _AccountPage extends ConsumerWidget {
         _GoogleCalendarSyncRow(strings: strings, currentUser: currentUser),
         const Divider(height: 24),
         _SectionHeader(strings.kiwamiSectionTitle),
-        _KiwamiRow(strings: strings, currentUser: currentUser),
+        if (kiwamiPurchaseAllowed())
+          _KiwamiRow(strings: strings, currentUser: currentUser),
         const Divider(height: 24),
         _SectionHeader(strings.settingsStickersSection),
         _ActionRow(
@@ -2188,6 +2190,18 @@ class _AccountPage extends ConsumerWidget {
             if (!context.mounted) return;
             final choice = await _showDeleteAccountDialog(context, strings);
             if (choice == null || !context.mounted) return;
+            // Appleでログインした人だけ、削除の前にAppleの許可を取り消す（2026-11-22、
+            // ガイドライン5.1.1(v)。通常削除の申請時にも行う）。Appleの画面を閉じたら、
+            // 何も削除せずに戻る。それ以外の再認証の失敗は伝えて中止する。
+            try {
+              await ref.read(authRepositoryProvider).revokeAppleAuthorization();
+            } catch (error) {
+              if (context.mounted && !isAppleReauthCancelled(error)) {
+                showAutoDismissBanner(context, message: '$error');
+              }
+              return;
+            }
+            if (!context.mounted) return;
             switch (choice) {
               case _DeleteAccountChoice.grace:
                 await ref

@@ -213,5 +213,19 @@ void _channelTests() {
       expect(old.channel, isNull);
       expect(old.monthlyAmount, isNull);
     });
+
+    test('iOSのストア版では、契約していても極みの機能を使えない（他は契約どおり）', () {
+      final member = _user('a', plan: SubscriptionPlan.kiwami);
+      expect(isKiwami(member, channel: PurchaseChannel.appStore), isFalse);
+      expect(hasKiwamiPlan(member), isTrue);
+      expect(isKiwami(member, channel: PurchaseChannel.googlePlay), isTrue);
+      expect(isKiwami(member, channel: PurchaseChannel.standard), isTrue);
+      expect(isKiwami(_user('b'), channel: PurchaseChannel.standard), isFalse);
+      expect(kiwamiPurchaseAllowed(channel: PurchaseChannel.appStore), isFalse);
+      expect(
+        kiwamiPurchaseAllowed(channel: PurchaseChannel.googlePlay),
+        isTrue,
+      );
+    });
   });
 }

@@ -8,7 +8,7 @@ import '../repositories/saved_accounts_store.dart';
 import '../repositories/switch_session_repository.dart';
 
 /// 複数アカウントの切り替え（2026-11-11、極みの特典）の流れをまとめたもの。設計は
-/// `文書/複数アカウント.md`。極みの判定はサーバー（`createSwitchTicket`・
+/// `文書/直近/複数アカウント.md`。極みの判定はサーバー（`createSwitchTicket`・
 /// `createSwitchSession`・`redeemSwitchSession`）が行い、ここは端末の保存と流れだけを持つ。
 class AccountSwitcher {
   AccountSwitcher({

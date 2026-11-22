@@ -64,7 +64,7 @@ app.*.map.json
 /android/build/
 
 # Claude Code（ローカル設定・スキル・エージェント。公開リポジトリには含めない、2026-10-10）
-.claude/
+.claude
 
 # 非公開の文書（2026-10-10、ユーザー指示。OSの制約・実装内容チェックリスト・課題だけ公開）
 CLAUDE.md

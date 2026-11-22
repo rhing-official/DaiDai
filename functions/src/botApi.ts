@@ -4,7 +4,7 @@ import { createHash, randomBytes, timingSafeEqual } from "crypto";
  * bot API（AIが寄合のメッセージを読み、返信できる、2026-11-09追加・段階2a）の
  * 純粋なロジック。Firestore・HTTPには依存させず、単体テスト（`botApi.test.ts`）
  * できる形にしてある（自前化の方針: Firebase固有の層と処理本体を分ける）。
- * 設計は`文書/botAPI設計.md`。
+ * 設計は`文書/将来/botAPI設計.md`。
  */
 
 /** 住人1人が作れるbotの最大数。 */

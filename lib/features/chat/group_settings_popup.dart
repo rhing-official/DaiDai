@@ -26,6 +26,7 @@ import 'group_member_list_screen.dart';
 import 'group_profile_card_screen.dart';
 import 'group_permission_manage_popup.dart';
 import 'group_role_list_popup.dart';
+import '../report/report_dialog.dart';
 import 'webhook_management_popup.dart';
 import '../../widgets/app_dialog.dart';
 import '../../widgets/toggles/app_switch.dart';
@@ -459,6 +460,16 @@ class GroupSettingsPopup extends ConsumerWidget {
                     groupId: liveGroup.groupId,
                     enabled: value,
                   ),
+      ),
+      const Divider(),
+      // 広場の通報（2026-11-22、Apple App Reviewのガイドライン1.2）。自分が長の広場は
+      // 通報できない。ハンバーガーメニュー・サイドバーの歯車のどちらからも、この
+      // ポップアップへ到達できるため、ここだけで両方の画面幅・モードを賄える。
+      ListTile(
+        title: Center(child: Text(strings.reportGroupAction)),
+        enabled: liveGroup.ownerId != userId,
+        onTap: () =>
+            showReportDialog(context, ReportGroupTarget(liveGroup.groupId)),
       ),
       const Divider(),
       // 寄合機能オフ（単一モード）の広場ではハンバーガーメニュー

@@ -17,17 +17,18 @@ Future<void> showKiwamiOnlyDialog(
   final userId = ProviderScope.containerOf(
     context,
   ).read(authStateProvider).value?.uid;
+  final canBuy = kiwamiPurchaseAllowed();
   return showAppDialog<void>(
     context: context,
     builder: (dialogContext) => AlertDialog(
       title: Text(strings.kiwamiOnlyTitle),
-      content: Text(body),
+      content: Text(canBuy ? body : strings.kiwamiUnavailableOnStore),
       actions: [
         TextButton(
           onPressed: () => Navigator.of(dialogContext).pop(),
           child: Text(strings.kiwamiOnlyClose),
         ),
-        if (userId != null)
+        if (canBuy && userId != null)
           FilledButton(
             onPressed: () {
               launchUrl(
