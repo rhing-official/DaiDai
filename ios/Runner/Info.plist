@@ -37,6 +37,12 @@
 	</array>
 	<key>CFBundleVersion</key>
 	<string>$(FLUTTER_BUILD_NUMBER)</string>
+	<key>GIDClientID</key>
+	<!-- GoogleService-Info.plistのCLIENT_ID。google_sign_in（ネイティブSDK）が
+	     GoogleSignIn.instance.initialize()で読む為必須（2026-11-22追加、これが無いと
+	     Googleでログインが非Firebase例外で失敗し、誤って「パスキーを作れませんでした」と
+	     表示されていた）。 -->
+	<string>380243513330-aj4lkc5tg1p9jl729tlok7afj483ui5f.apps.googleusercontent.com</string>
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
 	<key>NSCameraUsageDescription</key>

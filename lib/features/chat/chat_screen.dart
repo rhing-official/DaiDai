@@ -6669,28 +6669,35 @@ class _MessageRow extends ConsumerWidget {
           color: onBubbleColor,
         ),
         const SizedBox(width: 8),
-        Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              cancelled
-                  ? strings.callCancelledLabel
-                  : (missed ? strings.callMissedLabel : message.content),
-              style: TextStyle(color: onBubbleColor),
-            ),
-            if (!missed && startedAt != null && durationSeconds != null)
+        // Columnをそのまま非flexの子要素にすると、Row内で幅の制約を受けず
+        // 中のTextが折り返されずあふれる（2026-11-23修正。iPadの3ペイン表示で
+        // メッセージ領域が狭くなった際にピクセルオーバーフローが発生した）。
+        // テキストメッセージの折り返し（本ファイルのFlexible、L6028付近）と
+        // 同じ考え方でFlexibleに包み、吹き出し幅に合わせて折り返させる。
+        Flexible(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
               Text(
-                strings.callSummaryStartedAtTemplate(
-                  formatMessageTime(startedAt, timeFormat),
-                  _formatCallDuration(strings, durationSeconds),
-                ),
-                style: TextStyle(
-                  fontSize: 12,
-                  color: onBubbleColor.withValues(alpha: 0.7),
-                ),
+                cancelled
+                    ? strings.callCancelledLabel
+                    : (missed ? strings.callMissedLabel : message.content),
+                style: TextStyle(color: onBubbleColor),
               ),
-          ],
+              if (!missed && startedAt != null && durationSeconds != null)
+                Text(
+                  strings.callSummaryStartedAtTemplate(
+                    formatMessageTime(startedAt, timeFormat),
+                    _formatCallDuration(strings, durationSeconds),
+                  ),
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: onBubbleColor.withValues(alpha: 0.7),
+                  ),
+                ),
+            ],
+          ),
         ),
       ],
     );

@@ -118,7 +118,14 @@ class _SignInScreenState extends ConsumerState<SignInScreen>
     super.dispose();
   }
 
-  Future<void> _signIn(Future<dynamic> Function(AuthRepository) signIn) async {
+  /// [isPasskey]はパスキー作成（`registerWithPasskey`）の呼び出し時だけtrueにする。
+  /// Google・Appleのサインインもこの関数を共用しており、Firebase/AppFunctions以外の
+  /// 例外を一律「パスキーを作れませんでした」と表示していた為、Googleでの失敗が
+  /// パスキーのバグに見えてしまっていた（2026-11-22修正）。
+  Future<void> _signIn(
+    Future<dynamic> Function(AuthRepository) signIn, {
+    bool isPasskey = false,
+  }) async {
     setState(() {
       _isSigningIn = true;
       _errorMessage = null;
@@ -136,10 +143,11 @@ class _SignInScreenState extends ConsumerState<SignInScreen>
       final strings = ref.read(appStringsProvider);
       setState(() {
         // 例外の中身（`Instance of ...`）をそのまま出さない。メッセージを持つ例外だけ渡す。
-        _errorMessage =
-            (e is FirebaseAuthException || e is AppFunctionsException)
+        _errorMessage = (e is FirebaseAuthException || e is AppFunctionsException)
             ? _signInErrorText(strings, e)
-            : strings.passkeyCreateFailed;
+            : isPasskey
+            ? strings.passkeyCreateFailed
+            : strings.signInFailedTemplate(e);
       });
     } finally {
       if (mounted) {
@@ -475,7 +483,10 @@ class _SignInScreenState extends ConsumerState<SignInScreen>
               : () async {
                   final ok = await PasskeyCreateWarningDialog.show(context);
                   if (!ok || !mounted) return;
-                  await _signIn((repo) => repo.registerWithPasskey());
+                  await _signIn(
+                    (repo) => repo.registerWithPasskey(),
+                    isPasskey: true,
+                  );
                 },
           child: Text(strings.passkeyCreateAccountButton),
         ),

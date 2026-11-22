@@ -431,6 +431,8 @@ class _RoomListPaneState extends ConsumerState<RoomListPane> {
         Expanded(
           child: isGekiga && widget.onReorderRooms == null
               ? SingleChildScrollView(
+                  // 上下端で跳ね返らないようにする（2026-11-23追加）。
+                  physics: const ClampingScrollPhysics(),
                   // ヘッダー行と同じ左右の余白に揃える（2026-08-04追加）。
                   // 上にも余白を入れ、区切り線に一覧の箱が接して被って
                   // 見える不具合を解消する（2026-08-04追加）。
@@ -451,6 +453,8 @@ class _RoomListPaneState extends ConsumerState<RoomListPane> {
                 )
               : !isGekiga && widget.onReorderRooms == null
               ? ListView(
+                  // 上下端で跳ね返らないようにする（2026-11-23追加）。
+                  physics: const ClampingScrollPhysics(),
                   // 選択中タイルの塗り潰し（selectedTileColor）が、左右は
                   // カラム間のVerticalDividerに（2026-08-12追加）、上は
                   // ヘッダー直下のDividerに（同日追加）接して重なって
@@ -471,6 +475,8 @@ class _RoomListPaneState extends ConsumerState<RoomListPane> {
                   // 独立した箱になる＝`ReorderableListView`の1行として個別に
                   // ドラッグ出来る）。
                   buildDefaultDragHandles: false,
+                  // 上下端で跳ね返らないようにする（2026-11-23追加）。
+                  physics: const ClampingScrollPhysics(),
                   padding: EdgeInsets.fromLTRB(8, widget.listTopPadding, 8, 0),
                   onReorderItem: _handleReorder,
                   proxyDecorator: (child, index, animation) =>
