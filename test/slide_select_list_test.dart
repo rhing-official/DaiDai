@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:daidai/providers/category_list_alignment_provider.dart';
 import 'package:daidai/providers/home_shell_providers.dart';
 import 'package:daidai/widgets/slide_select_list.dart';
 
@@ -105,12 +106,12 @@ void main() {
 }
 
 void _bottomAlignTests() {
-  Widget host({required bool bottom}) => MaterialApp(
+  Widget host({required CategoryListVertical vertical}) => MaterialApp(
     home: Scaffold(
       body: alignCategoryList(
-        bottom: bottom,
+        vertical: vertical,
         ListView(
-          shrinkWrap: bottom,
+          shrinkWrap: true,
           children: [
             for (var i = 0; i < 3; i++)
               SizedBox(height: 60, child: Text('item $i')),
@@ -121,7 +122,7 @@ void _bottomAlignTests() {
   );
 
   testWidgets('下寄せにすると、項目が画面の下端に寄る（並びは変わらない）', (tester) async {
-    await tester.pumpWidget(host(bottom: true));
+    await tester.pumpWidget(host(vertical: CategoryListVertical.bottom));
     final screenHeight =
         tester.view.physicalSize.height / tester.view.devicePixelRatio;
     expect(
@@ -136,7 +137,22 @@ void _bottomAlignTests() {
   });
 
   testWidgets('上寄せ（標準）は、項目が上から並ぶ', (tester) async {
-    await tester.pumpWidget(host(bottom: false));
+    await tester.pumpWidget(host(vertical: CategoryListVertical.top));
     expect(tester.getTopLeft(find.text('item 0')).dy, lessThan(20));
+  });
+
+  testWidgets('中央寄せは、項目が上端・下端どちらからも離れた位置に来る', (tester) async {
+    await tester.pumpWidget(host(vertical: CategoryListVertical.center));
+    final screenHeight =
+        tester.view.physicalSize.height / tester.view.devicePixelRatio;
+    final top = tester.getTopLeft(find.text('item 0')).dy;
+    final bottom = tester.getBottomLeft(find.text('item 2')).dy;
+    // 上寄せ・下寄せそれぞれの位置より内側（画面の上端にも下端にも寄っていない）。
+    expect(top, greaterThan(20));
+    expect(bottom, lessThan(screenHeight - 20));
+    // 上下の余白がおおよそ等しい（中央揃えらしさの検証）。
+    final topGap = top;
+    final bottomGap = screenHeight - bottom;
+    expect((topGap - bottomGap).abs(), lessThan(20));
   });
 }

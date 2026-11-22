@@ -2,6 +2,7 @@ import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../providers/category_list_alignment_provider.dart';
 import '../providers/home_shell_providers.dart';
 import '../providers/slide_pick_enabled_provider.dart';
 import 'pane_visibility.dart';
@@ -260,10 +261,19 @@ class _SlideSelectListState extends ConsumerState<SlideSelectList>
   }
 }
 
-/// スマホの項目一覧（設定・身だしなみ）を、上（標準）か下（メニューチップのすぐ上）へ
-/// 置く（2026-11-07）。[bottom]が偽なら従来どおりそのまま返す。下寄せは左揃え（中央にしない）。
-/// （2026-11-07、劇画UIだけにあった左・中央・右の揃えは廃止した。）
-Widget alignCategoryList(Widget child, {bool bottom = false}) {
-  if (!bottom) return child;
-  return Align(alignment: Alignment.bottomLeft, child: child);
+/// 項目一覧（設定・身だしなみ）を、上・中央・下のどこに置くか決める（2026-11-07、
+/// 2026-11-23に中央を追加）。[Align]は子へ渡す制約を必ず緩める（最小0へ）ため、
+/// 呼び出し元がタイトな高さ制約（広い画面のサイドバー）の中にいても、[child]側が
+/// 内容量まで縮んでさえいれば指定位置へ動く。狭い画面・広い画面のどちらでも同じ
+/// 設定が効く。下寄せ・中央寄せは左揃え（横方向は中央にしない）。
+Widget alignCategoryList(
+  Widget child, {
+  CategoryListVertical vertical = CategoryListVertical.top,
+}) {
+  final alignment = switch (vertical) {
+    CategoryListVertical.top => Alignment.topLeft,
+    CategoryListVertical.center => Alignment.centerLeft,
+    CategoryListVertical.bottom => Alignment.bottomLeft,
+  };
+  return Align(alignment: alignment, child: child);
 }

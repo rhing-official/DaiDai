@@ -43,6 +43,7 @@ class Strings {
     required this.settingsNavChipsAlignTop,
     required this.settingsCategoryListVerticalTitle,
     required this.settingsCategoryListVerticalTop,
+    required this.settingsCategoryListVerticalCenter,
     required this.settingsCategoryListVerticalBottom,
     required this.settingsNavChipsAlignBottom,
     required this.settingsNavChipsOrderTitle,
@@ -1354,6 +1355,7 @@ class Strings {
   final String settingsNavChipsAlignTop;
   final String settingsCategoryListVerticalTitle;
   final String settingsCategoryListVerticalTop;
+  final String settingsCategoryListVerticalCenter;
   final String settingsCategoryListVerticalBottom;
   final String settingsNavChipsAlignBottom;
   final String settingsNavChipsOrderTitle;
@@ -3025,6 +3027,7 @@ class Strings {
     settingsNavChipsAlignTop: '上揃え',
     settingsCategoryListVerticalTitle: '設定・身だしなみの項目の位置',
     settingsCategoryListVerticalTop: '上',
+    settingsCategoryListVerticalCenter: '中央',
     settingsCategoryListVerticalBottom: '下',
     settingsNavChipsAlignBottom: '下揃え',
     settingsNavChipsOrderTitle: '並び',
@@ -4426,6 +4429,7 @@ class Strings {
     settingsCategoryListVerticalTitle:
         'Position of the Settings and Profile lists',
     settingsCategoryListVerticalTop: 'Top',
+    settingsCategoryListVerticalCenter: 'Centre',
     settingsCategoryListVerticalBottom: 'Bottom',
     settingsNavChipsAlignBottom: 'Bottom',
     settingsNavChipsOrderTitle: 'Order (drag to rearrange)',

@@ -988,10 +988,9 @@ class _ProfileCategoryList extends ConsumerWidget {
     final isGekiga = ref.watch(appUiStyleProvider) == AppUiStyle.gekiga;
     // 設定タブの`_CategoryList`と同じく、縦になぞって選べる（2026-11-02）。
     final narrow = large;
-    // 縦表示で項目一覧を下（メニューチップのすぐ上）へ寄せる設定（全スタイル）。
-    final bottom =
-        narrow &&
-        ref.watch(categoryListVerticalProvider) == CategoryListVertical.bottom;
+    // 項目一覧の縦の位置（上・中央・下）。2026-11-23に、狭い画面（スマホ）だけでなく
+    // 広い画面（サイドバー表示＝タブレット・PC）にも同じ設定を適用するよう変更した。
+    final vertical = ref.watch(categoryListVerticalProvider);
     return SlideSelectList(
       itemCount: categories.length,
       onSlide: narrow ? null : (i) => onSelect(categories[i]),
@@ -1002,17 +1001,11 @@ class _ProfileCategoryList extends ConsumerWidget {
             : categories[i].section == selectedSection;
         if (isGekiga) {
           return alignCategoryList(
-            bottom: bottom,
-            SingleChildScrollView(
-              // 下寄せの時は逆向きのスクロールにして、内容が短くても下に寄せる
-              // （並びは変わらない。長ければこれまでどおりスクロールする）。
-              reverse: bottom,
-              // 一覧自体はスクロールさせない（2026-11-11、2026-11-23に画面の
-              // 広さを問わず常時適用へ変更。以前は狭い画面＝滑らせて選ぶ操作
-              // 専用だったが、広い画面でも「滑らせて選ぶ」をOFFにした時に
-              // 一覧がスクロールできてしまっていた為、ON/OFF・画面幅を
-              // 問わず統一した）。
-              physics: const NeverScrollableScrollPhysics(),
+            vertical: vertical,
+            // スクロールは2026-11-23にNeverScrollableScrollPhysicsで止めた為、
+            // SingleChildScrollViewの代わりにPaddingで足りる（内容量どおりに
+            // 縮むので、alignCategoryListのAlignで上下左右へ動かせる）。
+            Padding(
               padding: const EdgeInsets.symmetric(horizontal: 8),
               child: GekigaJointedTileList(
                 seeds: [
@@ -1040,13 +1033,15 @@ class _ProfileCategoryList extends ConsumerWidget {
           );
         }
         return alignCategoryList(
-          bottom: bottom,
+          vertical: vertical,
           ListView(
-            shrinkWrap: bottom,
+            // 内容量どおりに縮め、alignCategoryListのAlignで上下左右へ動かせる
+            // ようにする（2026-11-23、画面の広さを問わず常時true）。
+            shrinkWrap: true,
             // 一覧自体はスクロールさせない（2026-11-11、2026-11-23に画面の
             // 広さを問わず常時適用へ変更。上のGekiga版と同じ理由）。
             physics: const NeverScrollableScrollPhysics(),
-            padding: EdgeInsets.fromLTRB(8, 0, 8, bottom ? 8 : 0),
+            padding: const EdgeInsets.fromLTRB(8, 0, 8, 8),
             children: [
               for (var i = 0; i < categories.length; i++)
                 KeyedSubtree(

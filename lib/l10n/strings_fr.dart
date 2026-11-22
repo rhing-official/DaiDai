@@ -40,6 +40,7 @@ final Strings _stringsFr = Strings._(
   settingsNavChipsAlignTop: "En haut",
   settingsCategoryListVerticalTitle: 'Position des listes Réglages et Profil',
   settingsCategoryListVerticalTop: 'Haut',
+  settingsCategoryListVerticalCenter: 'Centre',
   settingsCategoryListVerticalBottom: 'Bas',
   settingsNavChipsAlignBottom: "En bas",
   settingsNavChipsOrderTitle: "Ordre (glisser pour réorganiser)",
