@@ -85,6 +85,15 @@ Future<void> initializeLocalNotifications() async {
       android: // 通知の小アイコンは白いシルエット（`drawable-*/ic_notification.png`、単色版の絵から作成、
           // 2026-11-12）。アダプティブアイコンの`@mipmap/ic_launcher`は小アイコンに使えない。
           AndroidInitializationSettings('ic_notification'),
+      // iOS/macOSでは設定無しだと初期化自体が例外で落ちる為必須（2026-11-22追加）。
+      // 許可リクエストはここでは行わず、Androidと同様に
+      // push_notification_repository.dartのrequestPermissionAndRegister（
+      // FirebaseMessaging.instance.requestPermission()）側で制御されたタイミングに任せる。
+      iOS: DarwinInitializationSettings(
+        requestAlertPermission: false,
+        requestSoundPermission: false,
+        requestBadgePermission: false,
+      ),
     ),
     onDidReceiveNotificationResponse: (response) {
       if (kDebugMode) {

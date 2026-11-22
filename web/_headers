@@ -1,0 +1,7 @@
+# Cloudflare Pagesのレスポンスヘッダー設定。flutter build web実行時にweb/配下は
+# そのままbuild/web/へコピーされる為、ここに置けばデプロイ時にそのまま効く。
+
+# iOSネイティブのパスキー（Associated Domains、webcredentials）用。拡張子が無い為
+# 既定のContent-Typeだと正しく配信されない可能性が有り、明示的に指定する（2026-11-22追加）。
+/.well-known/apple-app-site-association
+  Content-Type: application/json

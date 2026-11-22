@@ -22,10 +22,31 @@
 	<string>$(FLUTTER_BUILD_NAME)</string>
 	<key>CFBundleSignature</key>
 	<string>????</string>
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleTypeRole</key>
+			<string>Editor</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<!-- GoogleService-Info.plistのREVERSED_CLIENT_ID。GoogleサインインのOAuthコールバックを
+				     アプリへ戻す為に必須（2026-11-22追加、これが無いと[firebase_auth/canceled]になる）。 -->
+				<string>com.googleusercontent.apps.380243513330-aj4lkc5tg1p9jl729tlok7afj483ui5f</string>
+			</array>
+		</dict>
+	</array>
 	<key>CFBundleVersion</key>
 	<string>$(FLUTTER_BUILD_NUMBER)</string>
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
+	<key>NSCameraUsageDescription</key>
+	<string>ビデオ通話でカメラを使用します</string>
+	<key>NSFaceIDUsageDescription</key>
+	<string>パスコードロックの解除にFace IDを使用します</string>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>音声通話でマイクを使用します</string>
+	<key>NSPhotoLibraryAddUsageDescription</key>
+	<string>スクリーンショットを写真に保存するために使用します</string>
 	<key>UIApplicationSceneManifest</key>
 	<dict>
 		<key>UIApplicationSupportsMultipleScenes</key>
@@ -49,6 +70,10 @@
 	</dict>
 	<key>UIApplicationSupportsIndirectInputEvents</key>
 	<true/>
+	<key>UIBackgroundModes</key>
+	<array>
+		<string>remote-notification</string>
+	</array>
 	<key>UILaunchStoryboardName</key>
 	<string>LaunchScreen</string>
 	<key>UIMainStoryboardFile</key>
@@ -66,13 +91,5 @@
 		<string>UIInterfaceOrientationLandscapeLeft</string>
 		<string>UIInterfaceOrientationLandscapeRight</string>
 	</array>
-	<key>NSMicrophoneUsageDescription</key>
-	<string>音声通話でマイクを使用します</string>
-	<key>NSCameraUsageDescription</key>
-	<string>ビデオ通話でカメラを使用します</string>
-	<key>NSFaceIDUsageDescription</key>
-	<string>パスコードロックの解除にFace IDを使用します</string>
-	<key>NSPhotoLibraryAddUsageDescription</key>
-	<string>スクリーンショットを写真に保存するために使用します</string>
 </dict>
 </plist>
