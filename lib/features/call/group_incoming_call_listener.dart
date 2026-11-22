@@ -248,6 +248,21 @@ class _GroupIncomingCallListenerState
     }
 
     if (!mounted) return;
+    // セッションは先に作っておく（2026-11-23、画面遷移の前。モバイルで
+    // `/group-call`をpushした直後の`GroupCallScreen.initState`内で作ると、
+    // ウィジェット構築中の書き込みになりRiverpodの「ビルド中にプロバイダーを
+    // 変更しようとした」というエラーで落ちる。`startGroup`は同じ通話になら
+    // 冪等なので、ここで作っておけば`initState`側は既存のセッションを
+    // 読むだけになり安全）。
+    ref
+        .read(activeCallSessionProvider.notifier)
+        .startGroup(
+          groupCallId: call.groupCallId,
+          groupId: call.groupId,
+          currentUser: widget.currentUser,
+          isVideo: call.isVideo,
+          groupCallRepository: groupCallRepository,
+        );
     // モバイルのみ全画面の/group-callへpushする。PCでは全画面ルートを
     // 使わず、通話セッションを直接開始するだけにする（2026-08-19変更）。
     // 参加と同時に`CallOverlay`が今の画面の上に通話画面を重ねて表示し、
@@ -264,17 +279,7 @@ class _GroupIncomingCallListenerState
               isVideo: call.isVideo,
             ),
           );
-      return;
     }
-    ref
-        .read(activeCallSessionProvider.notifier)
-        .startGroup(
-          groupCallId: call.groupCallId,
-          groupId: call.groupId,
-          currentUser: widget.currentUser,
-          isVideo: call.isVideo,
-          groupCallRepository: groupCallRepository,
-        );
   }
 }
 

@@ -5869,6 +5869,19 @@ class _DmDetailWithRoomsState extends ConsumerState<_DmDetailWithRooms> {
       isVideo: isVideo,
       roomId: roomId,
     );
+    // セッションは先に作っておく（2026-11-23、画面遷移の前。モバイルで
+    // `/call`をpushした直後の`CallScreen.initState`内で作ると、ウィジェット
+    // 構築中の書き込みになりRiverpodの「ビルド中にプロバイダーを変更
+    // しようとした」というエラーで落ちる。`startOneToOne`は同じ通話になら
+    // 冪等なので、ここで作っておけば`initState`側は既存のセッションを
+    // 読むだけになり安全）。
+    ref
+        .read(activeCallSessionProvider.notifier)
+        .startOneToOne(
+          call: call,
+          isCaller: true,
+          callRepository: callRepository,
+        );
     if (isMobileCallPlatform) {
       ref
           .read(goRouterProvider)
@@ -5880,15 +5893,7 @@ class _DmDetailWithRoomsState extends ConsumerState<_DmDetailWithRooms> {
               currentUserId: currentUser.userId,
             ),
           );
-      return;
     }
-    ref
-        .read(activeCallSessionProvider.notifier)
-        .startOneToOne(
-          call: call,
-          isCaller: true,
-          callRepository: callRepository,
-        );
   }
 
   @override
