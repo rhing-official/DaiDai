@@ -561,6 +561,45 @@ class _TalksTabState extends ConsumerState<TalksTab>
         ..maxDrag =
             kIconSplitCollapseWidth; // 拡大率に応じて[_buildIconSplitPane]で更新する。
 
+  /// `standard`レイアウト（タブレット横画面等の固定幅分割）で、語らい
+  /// 一覧を畳んでメッセージ画面を全画面表示にする進行度（2026-11-23追加、
+  /// ユーザー指示で「アイコン+寄合一覧」の[_iconSplitCollapse]と全く
+  /// 同じスライドアニメーション方式に統一した）。0=一覧+区切り線+
+  /// メッセージ画面の通常表示、1=メッセージ画面のみの全画面表示。
+  final ValueNotifier<double> _chatExpandCollapse = ValueNotifier(0);
+
+  /// [_chatExpandCollapse]をドラッグ終了後に0/1へ収束させるアニメーション
+  /// （[_iconSplitCollapseAnimController]と同じ設計）。
+  late final AnimationController _chatExpandAnimController =
+      AnimationController(vsync: this);
+
+  /// ドラッグ中の累積移動量（px）。[_iconSplitCollapseDragCumulative]と同じ。
+  double _chatExpandDragCumulative = 0;
+
+  /// 今回のドラッグジェスチャーで[_chatExpandCollapse]の変更を許可するか
+  /// （[_iconSplitDragEnabled]と同じ設計）。「畳む」操作はメッセージ画面の
+  /// タップ専用にしたため、既に全開（値0）の状態から始まるドラッグは無視し、
+  /// 「開く」方向（既に畳まれている状態からの右ドラッグ）だけを受け付ける。
+  bool _chatExpandDragEnabled = false;
+
+  /// `standard`レイアウトで、メッセージ画面を全画面表示にした後、メッセージ
+  /// 吹き出しの上で右スワイプしても戻れない不具合（2026-11-23、ユーザー
+  /// 報告）の対応。[_iconSplitSwipeBackController]と全く同じ理由
+  /// （`_MessageInteractions`が返信/編集用の横ドラッグをジェスチャー
+  /// アリーナ上で先に受理し、外側の`GestureDetector`まで伝播しない）で、
+  /// `InteractiveSwipeBackScope`を提供してメッセージ吹き出し上のドラッグを
+  /// ここへ中継させる。ルートをpopするジェスチャーではない為、
+  /// `notifyNavigator: false`にする（2026-10-07の教訓と同じ）。実際の状態
+  /// 変更は`initState`で登録する`progress`のリスナー経由で
+  /// [_chatExpandCollapse]へ反映するため、[onCommit]は空でよい
+  /// （[_iconSplitSwipeBackController]と同じ）。
+  late final InteractiveSwipeBackController _chatExpandedSwipeBackController =
+      InteractiveSwipeBackController(
+        vsync: this,
+        onCommit: () {},
+        notifyNavigator: false,
+      );
+
   // 一覧の購読。`build()`のたびに`watchGroups`/`watchDirectMessages`を呼ぶと
   // 毎回別のStreamになり、`StreamBuilder`が再購読して一覧が点滅していた
   // （2026-10-12に点滅の根本原因として発見）。ユーザーが変わらない限り同じ
@@ -591,6 +630,11 @@ class _TalksTabState extends ConsumerState<TalksTab>
     _iconSplitSwipeBackController.progress.addListener(() {
       final controller = _iconSplitSwipeBackController;
       _iconSplitCollapse.value =
+          (1 - controller.progress.value / controller.maxDrag).clamp(0.0, 1.0);
+    });
+    _chatExpandedSwipeBackController.progress.addListener(() {
+      final controller = _chatExpandedSwipeBackController;
+      _chatExpandCollapse.value =
           (1 - controller.progress.value / controller.maxDrag).clamp(0.0, 1.0);
     });
     // 起動直後の招待リンク・通知タップ（cold start）では、`pending…`の値が
@@ -833,6 +877,9 @@ class _TalksTabState extends ConsumerState<TalksTab>
     _iconSplitCollapse.dispose();
     _iconSplitCollapseAnimController.dispose();
     _iconSplitSwipeBackController.dispose();
+    _chatExpandCollapse.dispose();
+    _chatExpandAnimController.dispose();
+    _chatExpandedSwipeBackController.dispose();
     super.dispose();
   }
 
@@ -913,17 +960,83 @@ class _TalksTabState extends ConsumerState<TalksTab>
     );
   }
 
+  /// [_setIconSplitCollapse]と同じ設計（2026-11-23追加）。[_chatExpandCollapse]
+  /// を明示的に変更する箇所は、必ずこのメソッドを経由して
+  /// [_chatExpandedSwipeBackController]の`progress`も同じ状態に同期させる。
+  void _setChatExpandCollapse(double value) {
+    final clamped = value.clamp(0.0, 1.0);
+    _chatExpandCollapse.value = clamped;
+    _chatExpandedSwipeBackController.progress.value =
+        (1 - clamped) * _chatExpandedSwipeBackController.maxDrag;
+  }
+
+  /// [_handleIconSplitDragStart]/[_handleIconSplitDragUpdate]/
+  /// [_handleIconSplitDragEnd]と同じ設計（2026-11-23追加）。`standard`
+  /// レイアウトの会話ペイン全体をドラッグして、語らい一覧の表示・全画面
+  /// 表示を指の位置にリアルタイムに追従させる。「畳む」操作自体はメッセージ
+  /// 画面のタップ専用（[_showIconSplitExpandOnTap]）にした為、
+  /// [_chatExpandDragEnabled]が立っている（＝既に畳まれている）時しか
+  /// 反応しない。
+  void _handleChatExpandDragStart(DragStartDetails details) {
+    _chatExpandDragEnabled = _chatExpandCollapse.value > 0;
+    if (!_chatExpandDragEnabled) return;
+    _chatExpandAnimController.stop();
+    _chatExpandDragCumulative =
+        _chatExpandCollapse.value * _lastComputerListWidth;
+  }
+
+  void _handleChatExpandDragUpdate(DragUpdateDetails details) {
+    if (!_chatExpandDragEnabled) return;
+    // 左ドラッグ（dx負）で畳む＝progress増加、右ドラッグ（dx正）で開く＝
+    // progress減少という向きにする為、dxを引く（[_handleIconSplitDragUpdate]
+    // と同じ向き）。
+    _chatExpandDragCumulative -= details.delta.dx;
+    _setChatExpandCollapse(_chatExpandDragCumulative / _lastComputerListWidth);
+  }
+
+  void _handleChatExpandDragEnd(DragEndDetails details) {
+    if (!_chatExpandDragEnabled) return;
+    final velocity = details.primaryVelocity ?? 0;
+    final bool collapse;
+    if (velocity <= -kSwipeGestureVelocityThreshold) {
+      collapse = true;
+    } else if (velocity >= kSwipeGestureVelocityThreshold) {
+      collapse = false;
+    } else {
+      collapse = _chatExpandCollapse.value >= 0.5;
+    }
+    _animateChatExpandCollapse(collapse ? 1.0 : 0.0);
+  }
+
+  /// [_animateIconSplitCollapse]と同じ設計。
+  void _animateChatExpandCollapse(double target) {
+    final start = _chatExpandCollapse.value;
+    final fraction = (target - start).abs();
+    final duration = Duration(
+      milliseconds: (popSlideDuration.inMilliseconds * fraction).round().clamp(
+        120,
+        popSlideDuration.inMilliseconds,
+      ),
+    );
+    _chatExpandAnimController
+      ..duration = duration
+      ..value = 0;
+    final animation = Tween<double>(begin: start, end: target).animate(
+      CurvedAnimation(parent: _chatExpandAnimController, curve: popSlideCurve),
+    );
+    void listener() => _setChatExpandCollapse(animation.value);
+    animation.addListener(listener);
+    _chatExpandAnimController.forward().whenCompleteOrCancel(
+      () => animation.removeListener(listener),
+    );
+  }
+
   /// 承認待ちの一対・広場を選択中の場合の会話ペイン（2026-08-05追加）。
   /// `_selectedDm`/`_selectedGroup`と異なり、選択した時点で組み立てた
   /// `ChatScreen`（`disabled: true`）そのものをそのまま保持する。承認待ちの
   /// 間は実データが読めず、内容が更新されることも無い為、`_selectedDm`/
   /// `_selectedGroup`のような「最新スナップショットへの再解決」は不要。
   Widget? _selectedPendingScreen;
-
-  /// 左右分割表示（[_isSplit]）の時、会話ペインを横いっぱいに広げて
-  /// 一覧ペインを隠すか。横長のタブレット等で、固定幅の一覧に会話ペインの
-  /// 幅を圧迫されず全画面で読みたい時の為の切り替え。
-  bool _chatExpanded = false;
 
   /// モバイルに限らず、縦表示（幅より高さの方が大きい）の場合は常に
   /// 横スクロールタブバー（[RoomTabBar]）でのドリルダウン表示にする
@@ -1985,30 +2098,6 @@ class _TalksTabState extends ConsumerState<TalksTab>
                     return listPane;
                   }
 
-                  // 会話ペインでの横スワイプで一覧の表示/非表示を切り替える
-                  // （一覧側のスワイプは既に一対⇄広場の切り替えに使っている為、
-                  // ここは会話ペインのみに閉じたジェスチャーにする）。
-                  // 左スワイプ＝広げる、右スワイプ＝戻す、という他画面と同じ
-                  // 「進む/戻る」の向きに合わせている。
-                  final detailPane = SwipeBackDetector(
-                    onBack: () => setState(() => _chatExpanded = false),
-                    onNext: () => setState(() => _chatExpanded = true),
-                    child: _SearchInsetScope(
-                      inset: _searchInset,
-                      roomHeaderZone: _searchWide
-                          ? _roomHeaderZoneFor(
-                              talksControlHeight(
-                                context,
-                                ref.watch(appUiStyleProvider),
-                              ),
-                            )
-                          : null,
-                      child: _buildDetailPane(directMessages, groups),
-                    ),
-                  );
-
-                  if (_chatExpanded) return detailPane;
-
                   // 標準は260px。「幅を調整する」モードの間だけ区切り線で変えられる
                   // （2026-11-05）。メッセージ画面側が狭くなりすぎない範囲に収める。
                   // 標準の幅は設定・身だしなみと同じ（フォントサイズ別、2026-11-06）。
@@ -2032,40 +2121,93 @@ class _TalksTabState extends ConsumerState<TalksTab>
                     ref.watch(iconSplitDragProvider);
                     ref.watch(appTextSizeProvider);
                   }
-                  return Row(
-                    children: [
-                      // 260px: 語らい一覧のブロック（アイコン＋名前＋ピン/ミュート
-                      // アイコン）が重ならない範囲で出来るだけ狭め、メッセージ画面
-                      // 側に幅を譲っている（2026-08-05再変更、360→300→240。2026-08-13に
-                      // 一旦300へ戻したのは、240だとEnglish表示時の一対/広場切り替え
-                      // タブ（"Private N"/"Plaza N"）＋追加ボタンが収まりきらなかった
-                      // ため。2026-08-14、区切り線の位置を設定サイドバー
-                      // （`_kSettingsSidebarWidth`）・身だしなみサイドバー
-                      // （`_kProfileSidebarWidth`）と揃える目的で一旦240へ戻したところ、
-                      // 劇画UIで一対/広場タブ（`GekigaJointedPair`、横スクロール式で
-                      // 折り返せない）が「+」ボタン手前でクリップされ欠けて見える
-                      // 不具合が発生したため260へ広げ（250へ微調整後、再度260へ
-                      // 戻した）、3画面とも同じ値で揃える。
-                      SizedBox(width: computerListWidth, child: listPane),
-                      // 検索欄の下で区切り線を切る（検索欄の分は線を引かない）。
-                      Padding(
-                        padding: EdgeInsets.only(top: _searchInset),
-                        child: SplitDivider(
+
+                  // 語らい一覧を畳んでメッセージ画面を全画面表示にするアニメーション
+                  // （2026-11-23、ユーザー指示）。「アイコン+寄合一覧」の3ブロック
+                  // 表示（[_buildIconSplitPane]）と全く同じ方式に統一した：
+                  // [_chatExpandCollapse]の進行度に[_CollapsibleWidthPanel]/
+                  // [_CollapsibleDivider]で一覧+区切り線を追従させ、メッセージ画面
+                  // タップでの全画面化は[buildExpandableChatPane]、メッセージ
+                  // 吹き出し上の右スワイプでの中継は[InteractiveSwipeBackScope]
+                  // （[_chatExpandedSwipeBackController]）、一覧側の余白からの
+                  // ドラッグは外側の[GestureDetector]（[_handleChatExpandDragStart]等）
+                  // がそれぞれ担う。
+                  _chatExpandedSwipeBackController.maxDrag = computerListWidth;
+                  final chatContent = InteractiveSwipeBackScope(
+                    controller: _chatExpandedSwipeBackController,
+                    child: _SearchInsetScope(
+                      inset: _searchInset,
+                      roomHeaderZone: _searchWide
+                          ? _roomHeaderZoneFor(
+                              talksControlHeight(
+                                context,
+                                ref.watch(appUiStyleProvider),
+                              ),
+                            )
+                          : null,
+                      child: _buildDetailPane(directMessages, groups),
+                    ),
+                  );
+                  final detailPane = buildExpandableChatPane(
+                    collapseProgress: _chatExpandCollapse,
+                    onExpandTap: _showIconSplitExpandOnTap
+                        ? () => _animateChatExpandCollapse(1.0)
+                        : null,
+                    chatPane: chatContent,
+                  );
+
+                  return GestureDetector(
+                    behavior: HitTestBehavior.translucent,
+                    onHorizontalDragStart: _handleChatExpandDragStart,
+                    onHorizontalDragUpdate: _handleChatExpandDragUpdate,
+                    onHorizontalDragEnd: _handleChatExpandDragEnd,
+                    // キャンセル時も、途中の位置に残さず最寄りの開閉へ収束させる
+                    // （[_buildIconSplitPane]と同じ、2026-10-07）。
+                    onHorizontalDragCancel: () => _handleChatExpandDragEnd(
+                      DragEndDetails(primaryVelocity: 0),
+                    ),
+                    child: Row(
+                      children: [
+                        // 260px: 語らい一覧のブロック（アイコン＋名前＋ピン/ミュート
+                        // アイコン）が重ならない範囲で出来るだけ狭め、メッセージ画面
+                        // 側に幅を譲っている（2026-08-05再変更、360→300→240。2026-08-13に
+                        // 一旦300へ戻したのは、240だとEnglish表示時の一対/広場切り替え
+                        // タブ（"Private N"/"Plaza N"）＋追加ボタンが収まりきらなかった
+                        // ため。2026-08-14、区切り線の位置を設定サイドバー
+                        // （`_kSettingsSidebarWidth`）・身だしなみサイドバー
+                        // （`_kProfileSidebarWidth`）と揃える目的で一旦240へ戻したところ、
+                        // 劇画UIで一対/広場タブ（`GekigaJointedPair`、横スクロール式で
+                        // 折り返せない）が「+」ボタン手前でクリップされ欠けて見える
+                        // 不具合が発生したため260へ広げ（250へ微調整後、再度260へ
+                        // 戻した）、3画面とも同じ値で揃える。
+                        _CollapsibleWidthPanel(
+                          progress: _chatExpandCollapse,
                           width: computerListWidth,
-                          mirrored: false,
-                          onChanged: (w) => ref
-                              .read(iconSplitLayoutProvider.notifier)
-                              .setComputerList(w),
-                          onDragEnd: () => ref
-                              .read(iconSplitLayoutProvider.notifier)
-                              .persist(),
-                          onReset: () => ref
-                              .read(iconSplitLayoutProvider.notifier)
-                              .resetComputerList(),
+                          child: listPane,
                         ),
-                      ),
-                      Expanded(child: detailPane),
-                    ],
+                        // 検索欄の下で区切り線を切る（検索欄の分は線を引かない）。
+                        _CollapsibleDivider(
+                          progress: _chatExpandCollapse,
+                          dragHandle: Padding(
+                            padding: EdgeInsets.only(top: _searchInset),
+                            child: SplitDivider(
+                              width: computerListWidth,
+                              mirrored: false,
+                              onChanged: (w) => ref
+                                  .read(iconSplitLayoutProvider.notifier)
+                                  .setComputerList(w),
+                              onDragEnd: () => ref
+                                  .read(iconSplitLayoutProvider.notifier)
+                                  .persist(),
+                              onReset: () => ref
+                                  .read(iconSplitLayoutProvider.notifier)
+                                  .resetComputerList(),
+                            ),
+                          ),
+                        ),
+                        Expanded(child: detailPane),
+                      ],
+                    ),
                   );
                 },
               );
@@ -2976,9 +3118,13 @@ class _TalksTabState extends ConsumerState<TalksTab>
   /// 寄合一覧の右端（区切り線）までの長さにして、
   /// 寄合一覧の上まで伸ばす（2026-11-09）。伸びた部分は寄合一覧に被らないよう、
   /// 寄合一覧の項目を検索欄の高さぶん下げる（[talksSearchInset]）。寄合
-  /// サイドバーが無い語らい・縦画面では、従来通りサイドバー幅の検索欄のまま。
-  /// 伸びた検索欄は`OverlayPortal`で描き、元の位置には同じ高さの透明な
-  /// 置き物を残して一覧の配置を保つ。
+  /// サイドバーが無い語らい（`roomsEnabled`がfalse）・縦画面では、「伸ばして
+  /// 寄合一覧に収める」という前提自体が成り立たない為、[_buildPopSearchField]
+  /// はこの浮いた検索欄自体を出さない（2026-11-23変更、ユーザー指示。以前は
+  /// 寄合一覧の無い語らいでもサイドバー幅の縮めた箱を浮かせていたが、
+  /// メッセージ画面を全画面表示にすると収め先が無いままメッセージ画面の上に
+  /// 被ってしまっていた）。伸びた検索欄は`OverlayPortal`で描き、元の位置には
+  /// 同じ高さの透明な置き物を残して一覧の配置を保つ。
   bool get _searchWide {
     if (!_isSplit) return false;
     return _category == _TalksCategory.dm
@@ -2987,23 +3133,25 @@ class _TalksTabState extends ConsumerState<TalksTab>
   }
 
   Widget _buildPopSearchField(Strings strings) {
-    // 横画面の間は、寄合一覧の有無にかかわらず常に同じ木（置き物＋浮いた検索欄）にし、
-    // 変えるのは浮いた検索欄の目標の幅だけにする（2026-11-09）。以前は寄合一覧が
-    // 出る時に木ごと入れ替えていた為、浮いた検索欄が出るまでの1フレームは検索欄が
-    // どこにも無く（一瞬消える）、入力中の文字・カーソルも途切れていた。
+    // 横画面かつ寄合一覧サイドバーがある語らいの間は、常に同じ木
+    // （置き物＋浮いた検索欄）にし、変えるのは浮いた検索欄の目標の幅だけに
+    // する（2026-11-09）。以前は寄合一覧が出る時に木ごと入れ替えていた為、
+    // 浮いた検索欄が出るまでの1フレームは検索欄がどこにも無く（一瞬消える）、
+    // 入力中の文字・カーソルも途切れていた。寄合一覧が無い語らい（`wide`が
+    // false）では、伸ばして収める先自体が無い為、浮いた検索欄は出さず
+    // 通常の（縦画面と同じ）検索欄のままにする（2026-11-23変更、ユーザー指示）。
     final split = _isSplit;
     final wide = _searchWide;
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
-      if (split) {
+      if (split && wide) {
         if (!_searchOverlay.isShowing) {
           _searchOverlay.show();
           // 置き物を透明にする為に、もう1度描き直す。
           setState(() {});
         }
         final box = _searchBoxKey.currentContext?.findRenderObject();
-        if (wide &&
-            box is RenderBox &&
+        if (box is RenderBox &&
             box.hasSize &&
             (box.size.height - _searchFieldHeight).abs() > 0.5) {
           // 検索欄の実際の高さ（UIスタイルで違う）を一度だけ測り直す。
@@ -3013,7 +3161,7 @@ class _TalksTabState extends ConsumerState<TalksTab>
         _searchOverlay.hide();
       }
     });
-    if (!split) return _buildSearchField(strings);
+    if (!split || !wide) return _buildSearchField(strings);
     return CompositedTransformTarget(
       key: _searchBoxKey,
       link: _searchLink,
@@ -3047,24 +3195,44 @@ class _TalksTabState extends ConsumerState<TalksTab>
                       kIconSplitHandleWidth / 2 -
                       _kSearchRightGap)
                   .clamp(200.0, avail);
-          // 寄合一覧が無い語らいでは、置き物と同じ幅（従来のサイドバー幅）。
-          final targetWidth = wide ? wideWidth : _searchPlaceholderWidth;
-          return CompositedTransformFollower(
-            link: _searchLink,
-            showWhenUnlinked: false,
-            child: Align(
-              alignment: Alignment.topLeft,
-              // 左端を固定して、右へスライドして伸びる・縮む。
-              child: AnimatedContainer(
-                duration: const Duration(milliseconds: 260),
-                curve: Curves.easeOutCubic,
-                width: targetWidth.toDouble(),
-                child: Material(
-                  type: MaterialType.transparency,
-                  child: _buildSearchField(strings),
+          return ValueListenableBuilder<double>(
+            valueListenable: _chatExpandCollapse,
+            builder: (context, chatExpand, _) {
+              // メッセージ画面の全画面化（[_chatExpandCollapse]）が進むほど、
+              // 語らい一覧が畳まれ寄合一覧が左へスライドしてくる（2026-11-23追加）。
+              // 置き物（検索欄の左端）自体はRowの最初の子として常に画面左端で
+              // 固定されたままな為、何もしないと検索欄の右端（元は語らい一覧＋
+              // 寄合一覧の幅）がそのまま残り、スライドしてきたメッセージ画面に
+              // 被って見えてしまう。全画面化が完了した時点で寄合一覧の左端も
+              // 画面左端まで来る為、幅を[wideWidth]（進行度0）から
+              // `roomListWidth - _kSearchRightGap`（進行度1、進行度0の時と同じ
+              // 右の余白ぶんだけ寄合一覧の右端の手前で止める）まで線形に縮めれば、
+              // 常に寄合一覧の右端の手前とぴったり揃う（2026-11-23、全画面化
+              // した状態でわずかにメッセージ画面側へはみ出していた不具合の修正）。
+              final collapsedWidth = roomListWidth - _kSearchRightGap;
+              final targetWidth =
+                  (wideWidth - (wideWidth - collapsedWidth) * chatExpand).clamp(
+                    collapsedWidth,
+                    avail,
+                  );
+              return CompositedTransformFollower(
+                link: _searchLink,
+                showWhenUnlinked: false,
+                child: Align(
+                  alignment: Alignment.topLeft,
+                  // 左端を固定して、右へスライドして伸びる・縮む。
+                  child: AnimatedContainer(
+                    duration: const Duration(milliseconds: 260),
+                    curve: Curves.easeOutCubic,
+                    width: targetWidth.toDouble(),
+                    child: Material(
+                      type: MaterialType.transparency,
+                      child: _buildSearchField(strings),
+                    ),
+                  ),
                 ),
-              ),
-            ),
+              );
+            },
           );
         },
         // 置き物: 高さ・幅を保つだけで、押せない。浮いた検索欄が出るまでの
