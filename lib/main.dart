@@ -197,6 +197,8 @@ Future<void> _launchApp({required bool firstLaunch}) async {
   final initialChatLayoutStyle = await loadInitialChatLayoutStyle();
   final initialSlideTransitionStyle = await loadInitialSlideTransitionStyle();
   final initialTalksListLayoutStyle = await loadInitialTalksListLayoutStyle();
+  final initialTalksListLayoutStyleWide =
+      await loadInitialTalksListLayoutStyleWide();
   final initialLastOpenedRooms = await loadInitialLastOpenedRooms();
   final initialAppThemeMode = await loadInitialAppThemeMode();
   final initialDarkVariant = await loadInitialDarkVariant();
@@ -293,6 +295,9 @@ Future<void> _launchApp({required bool firstLaunch}) async {
         ),
         initialTalksListLayoutStyleProvider.overrideWithValue(
           initialTalksListLayoutStyle,
+        ),
+        initialTalksListLayoutStyleWideProvider.overrideWithValue(
+          initialTalksListLayoutStyleWide,
         ),
         initialLastOpenedRoomsProvider.overrideWithValue(
           initialLastOpenedRooms,

@@ -144,6 +144,9 @@ void main() {
               initialTalksListLayoutStyleProvider.overrideWithValue(
                 TalksListLayoutStyle.standard,
               ),
+              initialTalksListLayoutStyleWideProvider.overrideWithValue(
+                TalksListLayoutStyle.standard,
+              ),
               initialAppThemeModeProvider.overrideWithValue(ThemeMode.system),
               initialCalendarWeekStartProvider.overrideWithValue(
                 CalendarWeekStart.sunday,

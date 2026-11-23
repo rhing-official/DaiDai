@@ -17,6 +17,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../../services/app_functions.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_riverpod/misc.dart' show ProviderListenable;
 import '../../providers/holiday_settings_provider.dart';
 import '../../providers/calendar_week_start_provider.dart';
 import '../../providers/calendar_system_provider.dart';
@@ -125,6 +126,7 @@ import '../chat/announcement_screen.dart';
 import '../chat/join_group_screen.dart';
 import '../../utils/community_group.dart';
 import '../chat/group_member_list_screen.dart';
+import '../chat/talks_tab.dart' show isTalksSplitLayout;
 import 'owned_sticker_packs_popup.dart';
 import 'ai_integration_dialog.dart';
 import 'passkey_management_dialog.dart';
@@ -4317,8 +4319,13 @@ class SlideTransitionFolder extends ConsumerWidget {
 /// 語らい一覧レイアウト（現在の実装UI／アイコン＋寄合一覧UI）の切り替え
 /// （2026-09-11追加）。コンピューター（`classifyDevice`が
 /// `DeviceClass.computer`）で`talks_tab.dart`の`kTalksSplitBreakpoint`以上
-/// かつ横長の広い画面（`_isSplit`）の場合はこの設定を無視し、常に固定の
-/// 左右分割表示になる（タブレットを横向きにした場合はこの設定が適用される）。
+/// かつ横長の広い画面（`isTalksSplitLayout`）の場合はこの設定を無視し、常に
+/// 固定の左右分割表示になる。**縦画面用・横画面用で別々に保存する**
+/// （2026-11-23追加、ナビチップの揃えと同じ考え方。タブレットは縦画面・
+/// 横画面で見た目の最適解が異なる為）。この設定画面を開いた時点の向きに
+/// 応じて、`talksListLayoutStyleProvider`（縦画面用）・
+/// `talksListLayoutStyleWideProvider`（横画面用）のどちらを読み書きするかを
+/// 自動で選ぶ（利用者が選ぶ項目は増やさない）。
 class TalksListLayoutFolder extends ConsumerWidget {
   const TalksListLayoutFolder({required this.strings});
 
@@ -4326,11 +4333,20 @@ class TalksListLayoutFolder extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final style = ref.watch(talksListLayoutStyleProvider);
+    final isWide = isTalksSplitLayout(context);
+    final ProviderListenable<TalksListLayoutStyle> styleProvider = isWide
+        ? talksListLayoutStyleWideProvider
+        : talksListLayoutStyleProvider;
+    final style = ref.watch(styleProvider);
     final isGekiga = ref.watch(appUiStyleProvider) == AppUiStyle.gekiga;
 
-    void select(TalksListLayoutStyle value) =>
+    void select(TalksListLayoutStyle value) {
+      if (isWide) {
+        ref.read(talksListLayoutStyleWideProvider.notifier).setStyle(value);
+      } else {
         ref.read(talksListLayoutStyleProvider.notifier).setStyle(value);
+      }
+    }
 
     final options = [
       (

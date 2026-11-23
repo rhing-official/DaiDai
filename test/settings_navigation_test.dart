@@ -93,6 +93,9 @@ Future<void> _pumpSettingsTab(WidgetTester tester) async {
         initialTalksListLayoutStyleProvider.overrideWithValue(
           TalksListLayoutStyle.standard,
         ),
+        initialTalksListLayoutStyleWideProvider.overrideWithValue(
+          TalksListLayoutStyle.standard,
+        ),
         initialAppThemeModeProvider.overrideWithValue(ThemeMode.system),
         initialCalendarWeekStartProvider.overrideWithValue(
           CalendarWeekStart.sunday,
@@ -160,6 +163,9 @@ Future<void> _pumpSettingsTabNarrow(WidgetTester tester) async {
           ChatLayoutStyle.sideBySide,
         ),
         initialTalksListLayoutStyleProvider.overrideWithValue(
+          TalksListLayoutStyle.standard,
+        ),
+        initialTalksListLayoutStyleWideProvider.overrideWithValue(
           TalksListLayoutStyle.standard,
         ),
         initialAppThemeModeProvider.overrideWithValue(ThemeMode.system),

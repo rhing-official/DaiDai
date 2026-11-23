@@ -129,6 +129,9 @@ void main() {
           initialTalksListLayoutStyleProvider.overrideWithValue(
             TalksListLayoutStyle.standard,
           ),
+          initialTalksListLayoutStyleWideProvider.overrideWithValue(
+            TalksListLayoutStyle.standard,
+          ),
           initialAppThemeModeProvider.overrideWithValue(ThemeMode.system),
           initialCalendarWeekStartProvider.overrideWithValue(
             CalendarWeekStart.sunday,
@@ -217,6 +220,9 @@ void main() {
             ChatLayoutStyle.sideBySide,
           ),
           initialTalksListLayoutStyleProvider.overrideWithValue(
+            TalksListLayoutStyle.standard,
+          ),
+          initialTalksListLayoutStyleWideProvider.overrideWithValue(
             TalksListLayoutStyle.standard,
           ),
           initialAppThemeModeProvider.overrideWithValue(ThemeMode.system),

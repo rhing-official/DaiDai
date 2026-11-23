@@ -167,6 +167,9 @@ Future<void> _pumpPractice(
         initialTalksListLayoutStyleProvider.overrideWithValue(
           TalksListLayoutStyle.standard,
         ),
+        initialTalksListLayoutStyleWideProvider.overrideWithValue(
+          TalksListLayoutStyle.standard,
+        ),
         initialConversationSortOrderProvider.overrideWithValue(
           ConversationSortOrder.recent,
         ),

@@ -18,6 +18,7 @@ import 'package:flutter/material.dart';
 import '../../theme/block/block_theme.dart';
 import 'talks_header_metrics.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_riverpod/misc.dart' show ProviderListenable;
 
 import '../../l10n/strings.dart';
 import '../../l10n/vocabulary.dart';
@@ -135,6 +136,17 @@ class _TalksLocation {
 /// （Discordのような「一覧は常に見えたまま、選んだ会話が右隣に開く」構成）。
 /// これ未満の狭い画面では、従来通り会話をフルスクリーンで開く。
 const kTalksSplitBreakpoint = 760.0;
+
+/// [_TalksTabState._isSplit]と同じ判定（幅[kTalksSplitBreakpoint]以上・かつ
+/// 横長）をウィジェット外から使うための公開関数（2026-11-23追加）。設定画面
+/// （`settings_tab.dart`の`TalksListLayoutFolder`）が、縦画面用・横画面用の
+/// どちらの語らい一覧レイアウト設定を読み書きするか判定するのに使う
+/// （タブレット横画面で縦画面と異なるレイアウトを選べるようにする為、
+/// ナビチップの揃え`alignment`/`wideAlignment`と同じ考え方で分離した）。
+bool isTalksSplitLayout(BuildContext context) {
+  final size = MediaQuery.sizeOf(context);
+  return size.width >= kTalksSplitBreakpoint && size.width > size.height;
+}
 
 /// 「アイコン+寄合一覧」レイアウト（[TalksListLayoutStyle.iconSplit]）で、
 /// 寄合一覧の右隣にメッセージ画面も同時表示するかどうかを判定する、論理サイズ
@@ -615,7 +627,7 @@ class _TalksTabState extends ConsumerState<TalksTab>
     if (!mounted) return;
     final inline =
         _isSplit ||
-        (ref.read(talksListLayoutStyleProvider) ==
+        (ref.read(_talksListLayoutStyleProviderForContext) ==
                 TalksListLayoutStyle.iconSplit &&
             (roomsEnabled || _showIconSplitPeek));
     if (kDebugMode) {
@@ -917,10 +929,17 @@ class _TalksTabState extends ConsumerState<TalksTab>
   /// 横スクロールタブバー（[RoomTabBar]）でのドリルダウン表示にする
   /// （2026-08-04追加。以前は幅のみで判定しており、幅が広いタブレット等を
   /// 縦持ちにしても分割表示のままになっていた）。
-  bool get _isSplit {
-    final size = MediaQuery.sizeOf(context);
-    return size.width >= kTalksSplitBreakpoint && size.width > size.height;
-  }
+  bool get _isSplit => isTalksSplitLayout(context);
+
+  /// [_isSplit]（横画面）かどうかで、縦画面用・横画面用のどちらの語らい
+  /// 一覧レイアウト設定（[TalksListLayoutStyle]）を読み書きするか選ぶ
+  /// （2026-11-23追加）。タブレットは縦画面・横画面で見た目の最適解が
+  /// 異なる為、ナビチップの揃え（`alignment`/`wideAlignment`）と同じ
+  /// 考え方で、画面幅いっぱいに見える向きごとに別々に保存する。
+  ProviderListenable<TalksListLayoutStyle>
+  get _talksListLayoutStyleProviderForContext => _isSplit
+      ? talksListLayoutStyleWideProvider
+      : talksListLayoutStyleProvider;
 
   /// [_buildIconSplitPane]（`TalksListLayoutStyle.iconSplit`）で、寄合一覧の
   /// 右隣にメッセージ画面本体も同時表示する「3ブロック表示」を使うか
@@ -959,7 +978,7 @@ class _TalksTabState extends ConsumerState<TalksTab>
   /// した時に全画面表示へ畳むか（2026-10-07追加）。メッセージ画面クリックでの
   /// 全画面化（[_showIconSplitExpandOnTap]）と同じくタブレットのみ。
   bool get _iconSplitExpandActive =>
-      ref.read(talksListLayoutStyleProvider) ==
+      ref.read(_talksListLayoutStyleProviderForContext) ==
           TalksListLayoutStyle.iconSplit &&
       _showIconSplitPeek &&
       _showIconSplitExpandOnTap;
@@ -1254,7 +1273,7 @@ class _TalksTabState extends ConsumerState<TalksTab>
       // 同じ見た目（寄合のタブバー無し）のチャット画面を開く。
       final iconSplit =
           dm.roomsEnabled &&
-          ref.read(talksListLayoutStyleProvider) ==
+          ref.read(_talksListLayoutStyleProviderForContext) ==
               TalksListLayoutStyle.iconSplit;
       if (iconSplit) {
         _setIconSplitCollapse(0);
@@ -1278,7 +1297,7 @@ class _TalksTabState extends ConsumerState<TalksTab>
     final useIconSplitSelection =
         !_isSplit &&
         (dm.roomsEnabled || _showIconSplitPeek) &&
-        ref.read(talksListLayoutStyleProvider) ==
+        ref.read(_talksListLayoutStyleProviderForContext) ==
             TalksListLayoutStyle.iconSplit;
     if (_isSplit || useIconSplitSelection) {
       // 既にこの一対が選択中（＝寄合一覧が表示済み）のアイコンを、モバイル幅
@@ -1384,7 +1403,7 @@ class _TalksTabState extends ConsumerState<TalksTab>
     if (fullscreen && !_isSplit && !_showIconSplitPeek) {
       final iconSplit =
           group.roomsEnabled &&
-          ref.read(talksListLayoutStyleProvider) ==
+          ref.read(_talksListLayoutStyleProviderForContext) ==
               TalksListLayoutStyle.iconSplit;
       if (iconSplit) {
         _setIconSplitCollapse(0);
@@ -1401,7 +1420,7 @@ class _TalksTabState extends ConsumerState<TalksTab>
     final useIconSplitSelection =
         !_isSplit &&
         (group.roomsEnabled || _showIconSplitPeek) &&
-        ref.read(talksListLayoutStyleProvider) ==
+        ref.read(_talksListLayoutStyleProviderForContext) ==
             TalksListLayoutStyle.iconSplit;
     if (_isSplit || useIconSplitSelection) {
       // [_openDirectMessage]と同じ理由（2026-09-12追加、2026-09-26に2回目
@@ -1484,7 +1503,7 @@ class _TalksTabState extends ConsumerState<TalksTab>
     final useIconSplitSelection =
         !_isSplit &&
         (roomsEnabled || _showIconSplitPeek) &&
-        ref.read(talksListLayoutStyleProvider) ==
+        ref.read(_talksListLayoutStyleProviderForContext) ==
             TalksListLayoutStyle.iconSplit;
 
     ref
@@ -1715,7 +1734,9 @@ class _TalksTabState extends ConsumerState<TalksTab>
         const [];
 
     final isSplit = _isSplit;
-    final talksListLayoutStyle = ref.watch(talksListLayoutStyleProvider);
+    final talksListLayoutStyle = ref.watch(
+      _talksListLayoutStyleProviderForContext,
+    );
     // PC（`classifyDevice`が[DeviceClass.computer]）かつ広い横画面（[isSplit]）
     // の場合のみ、[TalksListLayoutStyle.iconSplit]設定を無視して固定のRow
     // （260px一覧+会話ペイン）を使う（2026-09-24修正、当初の2026-09-11時点の

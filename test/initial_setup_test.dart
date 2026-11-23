@@ -72,6 +72,9 @@ Future<ProviderContainer> _pumpSetup(
       initialTalksListLayoutStyleProvider.overrideWithValue(
         TalksListLayoutStyle.standard,
       ),
+      initialTalksListLayoutStyleWideProvider.overrideWithValue(
+        TalksListLayoutStyle.standard,
+      ),
       initialAppThemeModeProvider.overrideWithValue(ThemeMode.system),
       initialAppUiStyleProvider.overrideWithValue(AppUiStyle.flat),
       initialFontDesignProvider.overrideWithValue(FontDesign.hannariMincho),

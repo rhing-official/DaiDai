@@ -3025,8 +3025,7 @@ class Strings {
     settingsNavChipsAlignmentTitle: '揃え',
     settingsNavChipsAlignmentNarrowTitle: '縦表示の揃え',
     settingsNavChipsAlignmentWideTitle: '横表示の揃え',
-    settingsNavChipsAlignmentSyncNote:
-        'この揃えは、設定・身だしなみの項目一覧の位置にも使われます。',
+    settingsNavChipsAlignmentSyncNote: 'この揃えは、設定・身だしなみの項目一覧の位置にも使われます。',
     settingsNavChipsAlignStart: '左揃え',
     settingsNavChipsAlignCenter: '中央揃え',
     settingsNavChipsAlignEnd: '右揃え',
@@ -3109,7 +3108,7 @@ class Strings {
     settingsSlideTransitionPop: 'ポップ',
     settingsTalksListLayoutTitle: '語らい一覧のレイアウト',
     settingsTalksListLayoutNote:
-        '縦画面で適用されます。\n横画面のコンピューターでは、この設定にかかわらず左右分割で表示されます。',
+        '縦画面・横画面でそれぞれ別に保存されます。\n横画面のコンピューターでは、この設定にかかわらず左右分割で表示されます。',
     settingsTextSizeTitle: 'フォントサイズ',
     settingsTextSizeSubtitle:
         'アプリ全体の文字の大きさを変えます。\n「アイコン＋寄合一覧」の幅とアイコンも一緒に大きくなります。\nこの端末だけに保存されます。',
@@ -4522,7 +4521,7 @@ class Strings {
     settingsSlideTransitionPop: 'Pop',
     settingsTalksListLayoutTitle: 'Talks list layout',
     settingsTalksListLayoutNote:
-        'Applies in portrait orientation. On a computer with a wide, landscape window, the list is always shown in a split view regardless of this setting.',
+        'Saved separately for portrait and landscape orientation. On a computer with a wide, landscape window, the list is always shown in a split view regardless of this setting.',
     settingsTextSizeTitle: 'Text size',
     settingsTextSizeSubtitle:
         'Changes the size of the text throughout the app. The width and icons of the icon and room list grow with it. Saved on this device only.',

@@ -87,6 +87,9 @@ Future<ProviderContainer> _pump(
         initialTalksListLayoutStyleProvider.overrideWithValue(
           TalksListLayoutStyle.standard,
         ),
+        initialTalksListLayoutStyleWideProvider.overrideWithValue(
+          TalksListLayoutStyle.standard,
+        ),
         initialConversationSortOrderProvider.overrideWithValue(
           ConversationSortOrder.recent,
         ),

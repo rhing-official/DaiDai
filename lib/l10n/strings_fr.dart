@@ -137,7 +137,7 @@ final Strings _stringsFr = Strings._(
   settingsTalksListMirrorSubtitle:
       "Avec « Icônes + liste des salons », place la colonne d’icônes à droite et les messages à gauche.",
   settingsTalksListLayoutNote:
-      'S’applique en orientation portrait. Sur un ordinateur avec une fenêtre large en paysage, la liste s’affiche toujours en vue partagée, quel que soit ce réglage.',
+      'Enregistré séparément pour les orientations portrait et paysage. Sur un ordinateur avec une fenêtre large en paysage, la liste s’affiche toujours en vue partagée, quel que soit ce réglage.',
   settingsTalksListLayoutTitle: 'Disposition de la liste des discussions',
   settingsTalksListLayoutStandard: 'Icônes seulement',
   settingsTalksListLayoutStandardDescription:
