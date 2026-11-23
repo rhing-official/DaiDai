@@ -59,3 +59,44 @@ Future<void> logIceStats(RTCPeerConnection? connection, String label) async {
     callLog('$label stats failed: $e');
   }
 }
+
+/// 自分が実際に送信出来ている音声・映像の量をログに出す（iOS実機で、権限は
+/// 許可したのに相手に音声・映像が届かない不具合の切り分け用、2026-11-23）。
+/// ICE接続後に数秒待ってから呼ぶこと（接続直後は送信量がまだ0のため）。
+Future<void> logOutboundMediaStats(
+  RTCPeerConnection? connection,
+  String label,
+) async {
+  if (connection == null) return;
+  try {
+    final reports = await connection.getStats();
+    for (final report in reports) {
+      if (report.type == 'outbound-rtp') {
+        final kind = report.values['kind'] ?? report.values['mediaType'];
+        final bytesSent = report.values['bytesSent'];
+        final packetsSent = report.values['packetsSent'];
+        if (kind == 'video') {
+          callLog(
+            '$label outbound video bytesSent=$bytesSent '
+            'packetsSent=$packetsSent '
+            'framesEncoded=${report.values['framesEncoded']} '
+            'size=${report.values['frameWidth']}x'
+            '${report.values['frameHeight']}',
+          );
+        } else if (kind == 'audio') {
+          callLog(
+            '$label outbound audio bytesSent=$bytesSent '
+            'packetsSent=$packetsSent',
+          );
+        }
+      } else if (report.type == 'media-source' &&
+          report.values['kind'] == 'audio') {
+        callLog(
+          '$label media-source audioLevel=${report.values['audioLevel']}',
+        );
+      }
+    }
+  } catch (e) {
+    callLog('$label outbound stats failed: $e');
+  }
+}

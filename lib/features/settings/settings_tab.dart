@@ -753,9 +753,17 @@ class _CategoryList extends ConsumerWidget {
     // サイドバーはなぞった先をその場で選び、狭い画面（[large]）はなぞっている間だけ
     // 強調して、指を離した項目を開く。
     final narrow = large;
-    // 項目一覧の縦の位置（上・中央・下）。2026-11-23に、狭い画面（スマホ）だけでなく
-    // 広い画面（サイドバー表示＝タブレット・PC）にも同じ設定を適用するよう変更した。
-    final vertical = ref.watch(categoryListVerticalProvider);
+    final chipLayout = ref.watch(navChipLayoutProvider);
+    // 項目一覧の縦の位置（上・中央・下）。狭い画面は専用の設定、広い画面は
+    // ナビチップの縦の揃え（`wideAlignment`）へ同期する（2026-11-23）。
+    final vertical = narrow
+        ? ref.watch(categoryListVerticalProvider)
+        : categoryListVerticalFromNavChipAlignment(chipLayout.wideAlignment);
+    // 横の揃えは狭い画面だけ、ナビチップの横の揃え（左/中央/右）へ同期する
+    // （2026-11-23）。広い画面はサイドバー自体に横の揃えという概念が無いため`null`
+    // のまま（幅いっぱい・左揃え固定）。
+    final horizontal = narrow ? chipLayout.alignment : null;
+    final tileHorizontal = horizontal ?? NavChipAlignment.start;
     return SlideSelectList(
       itemCount: categories.length,
       onSlide: narrow ? null : (i) => onSelect(categories[i]),
@@ -766,12 +774,14 @@ class _CategoryList extends ConsumerWidget {
         if (isGekiga) {
           return alignCategoryList(
             vertical: vertical,
+            horizontal: horizontal,
             // スクロールは2026-11-23にNeverScrollableScrollPhysicsで止めた為、
             // SingleChildScrollViewの代わりにPaddingで足りる（内容量どおりに
             // 縮むので、alignCategoryListのAlignで上下左右へ動かせる）。
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 8),
               child: GekigaJointedTileList(
+                horizontal: tileHorizontal,
                 seeds: [
                   for (final category in categories) category.title.hashCode,
                 ],
@@ -788,6 +798,7 @@ class _CategoryList extends ConsumerWidget {
                         selected: isSelected(i),
                         trailingChevron: false,
                         large: large,
+                        horizontal: tileHorizontal,
                         onTap: () => onSelect(categories[i]),
                       ),
                     ),
@@ -798,6 +809,7 @@ class _CategoryList extends ConsumerWidget {
         }
         return alignCategoryList(
           vertical: vertical,
+          horizontal: horizontal,
           ListView(
             // 内容量どおりに縮め、alignCategoryListのAlignで上下左右へ動かせる
             // ようにする（2026-11-23、画面の広さを問わず常時true）。
@@ -818,6 +830,7 @@ class _CategoryList extends ConsumerWidget {
                     title: categories[i].title,
                     selected: isSelected(i),
                     trailingChevron: false,
+                    horizontal: tileHorizontal,
                     onTap: () => onSelect(categories[i]),
                   ),
                 ),
@@ -837,6 +850,7 @@ class _FolderTile extends ConsumerWidget {
     this.selected = false,
     this.trailingChevron = true,
     this.large = false,
+    this.horizontal = NavChipAlignment.start,
   });
 
   final IconData icon;
@@ -848,6 +862,10 @@ class _FolderTile extends ConsumerWidget {
   /// 狭い画面でこの一覧が画面全体を占める時に行を大きくするか
   /// （2026-08-27追加、劇画UIのみ対象。[_CategoryList.large]参照）。
   final bool large;
+
+  /// 項目一覧の横の揃え（2026-11-23追加）。版画スタイルのタイルの箱を
+  /// 左・中央・右のどこへ寄せるか（[blockFitWidth]参照）。
+  final NavChipAlignment horizontal;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -913,6 +931,7 @@ class _FolderTile extends ConsumerWidget {
       return Padding(
         padding: const EdgeInsets.fromLTRB(2, 4, 6, 8),
         child: blockFitWidth(
+          horizontal: horizontal,
           blockMaterialBox(
             context,
             color: selected
@@ -4662,24 +4681,37 @@ class NavChipLayoutFolder extends ConsumerWidget {
           ),
           alignmentControl,
         ],
+        // この揃えは、設定・身だしなみの項目一覧の位置にも使う（2026-11-23。
+        // 広い画面は縦の位置、狭い画面は横の位置＋ブロックの幅に同期する）。
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 4, 16, 0),
+          child: Text(
+            strings.settingsNavChipsAlignmentSyncNote,
+            style: Theme.of(context).textTheme.bodySmall,
+          ),
+        ),
         Padding(
           padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
           child: GekigaSectionHeader(strings.settingsNavChipsOrderTitle),
         ),
         orderControl,
-        // 項目一覧の縦の位置は、2026-11-07に縦表示（幅600px未満）限定で追加したが、
-        // 2026-11-23に画面の広さを問わず常時出すへ変更した（設定自体も画面の広さを
-        // 問わず適用するようになった為）。
-        Padding(
-          padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
-          child: GekigaSectionHeader(strings.settingsCategoryListVerticalTitle),
-        ),
-        listVerticalControl,
-        const SizedBox(height: 8),
-        // 縦画面の「アカウント」のチップ表示切替は、このチップ自体が縦表示専用の
-        // 機能の為、引き続き幅600px未満でだけ出す（項目一覧の位置設定とは無関係）。
-        if (MediaQuery.sizeOf(context).width < kNavChipWideBreakpoint)
+        // 項目一覧の縦の位置は、2026-11-07に縦表示（幅600px未満）限定で追加し、
+        // 2026-11-23に一度画面の広さを問わず常時出す形へ変更したが、同日中に
+        // 広い画面は上の「揃え」（ナビチップの`wideAlignment`）へ同期する方式に
+        // 変更したため、専用の設定は狭い画面限定に戻した。
+        if (MediaQuery.sizeOf(context).width < kNavChipWideBreakpoint) ...[
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+            child: GekigaSectionHeader(
+              strings.settingsCategoryListVerticalTitle,
+            ),
+          ),
+          listVerticalControl,
+          const SizedBox(height: 8),
+          // 縦画面の「アカウント」のチップ表示切替も、このチップ自体が縦表示専用の
+          // 機能の為、同じ条件でだけ出す（項目一覧の位置設定とは無関係）。
           _AccountChipSwitch(strings: strings),
+        ],
       ],
     );
   }

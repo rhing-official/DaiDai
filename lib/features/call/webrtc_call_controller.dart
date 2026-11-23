@@ -8,6 +8,7 @@ import 'package:flutter_webrtc/flutter_webrtc.dart';
 import '../../models/call.dart';
 import '../../repositories/call_repository.dart';
 import 'call_log.dart';
+import 'camera_mirror_sync.dart';
 import 'ice_diagnostics.dart';
 import 'call_ring_timeout.dart';
 import 'call_sound_player.dart';
@@ -66,6 +67,12 @@ class WebrtcCallController extends ChangeNotifier {
 
   RTCPeerConnection? _peerConnection;
   MediaStream? _localStream;
+
+  /// 破棄済みか（2026-11-23、画面共有関連のみ）。`startScreenShare`・
+  /// `changeScreenSource`はOSの共有選択ダイアログを待つ長い非同期の間に通話が
+  /// 別の理由（相手の切断等）で終わりdispose()され得る為、その後に続く
+  /// `notifyListeners()`・レンダラーへの書き込みを防ぐガードに使う。
+  bool _disposed = false;
 
   /// マイクのノイズ除去（RNNoise、Webで設定がオンの時だけ）。
   MicDenoiser? _micDenoiser;
@@ -159,6 +166,77 @@ class WebrtcCallController extends ChangeNotifier {
 
   bool _muted = false;
   bool get muted => _muted;
+
+  /// いま発声しているか（自分・相手、2026-11-23追加）。通話タイルをアクセントカラーの
+  /// 枠（`SpeakingFrame`）で囲むのに使う。広場（[WebrtcGroupCallController]）に
+  /// あった仕組みの移植で、flutter_webrtcに音声レベルのイベントは無い為、
+  /// [_speakingPollInterval]毎に`getStats()`の`audioLevel`を見て判定する。1対1は
+  /// 相手が1人だけなので、広場の`Set<String> speakingUserIds`ではなく
+  /// 自分・相手それぞれのboolで持つ。
+  bool _localSpeaking = false;
+  bool get localSpeaking => _localSpeaking;
+  bool _remoteSpeaking = false;
+  bool get remoteSpeaking => _remoteSpeaking;
+  Timer? _speakingTimer;
+  bool _pollingSpeaking = false;
+
+  static const _speakingPollInterval = Duration(milliseconds: 500);
+
+  /// 0〜1の音声レベルがこれを超えたら発声中とみなす。
+  static const _speakingThreshold = 0.02;
+
+  void _startSpeakingPoll() {
+    if (_speakingTimer != null) return;
+    _speakingTimer = Timer.periodic(
+      _speakingPollInterval,
+      (_) => unawaited(_pollSpeaking()),
+    );
+  }
+
+  void _stopSpeakingPoll() {
+    _speakingTimer?.cancel();
+    _speakingTimer = null;
+    _localSpeaking = false;
+    _remoteSpeaking = false;
+  }
+
+  Future<void> _pollSpeaking() async {
+    if (_pollingSpeaking || _state != CallConnectionState.active) return;
+    final pc = _peerConnection;
+    if (pc == null) return;
+    _pollingSpeaking = true;
+    try {
+      List<StatsReport> reports;
+      try {
+        reports = await pc.getStats();
+      } catch (_) {
+        return;
+      }
+      var local = false;
+      var remote = false;
+      for (final report in reports) {
+        final level = double.tryParse('${report.values['audioLevel']}');
+        if (level == null || level <= _speakingThreshold) continue;
+        final kind = report.values['kind'] ?? report.values['mediaType'];
+        if (kind != null && kind != 'audio') continue;
+        if (report.type == 'inbound-rtp') {
+          remote = true;
+        } else if ((report.type == 'media-source' ||
+                report.type == 'outbound-rtp') &&
+            !_muted) {
+          local = true;
+        }
+      }
+      if (_state != CallConnectionState.active) return;
+      if (local != _localSpeaking || remote != _remoteSpeaking) {
+        _localSpeaking = local;
+        _remoteSpeaking = remote;
+        notifyListeners();
+      }
+    } finally {
+      _pollingSpeaking = false;
+    }
+  }
 
   /// 相手がミュートしているか（2026-10-31追加）。一対にはミュート状態を運ぶ
   /// 経路が無かった為、コントロールのデータチャネルで送り合う（Firestoreへの
@@ -535,9 +613,11 @@ class WebrtcCallController extends ChangeNotifier {
 
   /// 自分のプレビューを左右反転する（前面カメラ）かの、画面に出す値。カメラを切り替えた直後は、
   /// 新しいカメラの最初の映像が出るまで少し間があり、その間に反転だけが先に切り替わって
-  /// 古い映像が一瞬反転して見えた為、反転の切り替えを遅らせる（2026-11-16）。
+  /// 古い映像が一瞬反転して見えた為、反転の切り替えを遅らせる（2026-11-16）。固定タイマーだけでは
+  /// 端末によって早すぎ/遅すぎがあった為、`RTCVideoRenderer`の`onResize`/`onFirstFrameRendered`
+  /// （新しいフレームが実際に届いた兆候）との競走に変更した（2026-11-23、[MirrorSyncRace]参照）。
   bool _mirrorFront = true;
-  Timer? _mirrorTimer;
+  final _mirrorRace = MirrorSyncRace();
   bool get isFrontCamera => _mirrorFront;
 
   /// 前後（イン/アウト）カメラ切替ボタンの表示可否に使う、映像入力
@@ -701,6 +781,11 @@ class WebrtcCallController extends ChangeNotifier {
             iceState == RTCIceConnectionState.RTCIceConnectionStateCompleted) {
           unawaited(logIceStats(_peerConnection, '1:1'));
           _markMediaConnected();
+          unawaited(
+            Future.delayed(
+              const Duration(seconds: 3),
+            ).then((_) => logOutboundMediaStats(_peerConnection, '1:1')),
+          );
         }
         final issue =
             iceState == RTCIceConnectionState.RTCIceConnectionStateFailed ||
@@ -1008,6 +1093,7 @@ class WebrtcCallController extends ChangeNotifier {
           _cancelRingTimeout();
           _connectedAt ??= DateTime.now();
           _startPresence();
+          _startSpeakingPoll();
           _startEstablishingTimer();
           unawaited(_applySpeakerphoneWithRetry());
           // 相手（着信側）が応答したことで届いたanswer。発信側が聞いていた
@@ -1051,6 +1137,7 @@ class WebrtcCallController extends ChangeNotifier {
       _cancelRingTimeout();
       _connectedAt ??= DateTime.now();
       _startPresence();
+      _startSpeakingPoll();
       _startEstablishingTimer();
       unawaited(_applySpeakerphoneWithRetry());
       // 着信側が応答したことでこのアンサーを送った瞬間。着信音をここで
@@ -1165,6 +1252,7 @@ class WebrtcCallController extends ChangeNotifier {
   void _finish() {
     _cancelRingTimeout();
     _stopPresence();
+    _stopSpeakingPoll();
     if (_state == CallConnectionState.ended) return;
     _state = CallConnectionState.ended;
     // 終了を検知した瞬間、その場で自分の音を止める（2026-09-12追加）。
@@ -1371,6 +1459,13 @@ class WebrtcCallController extends ChangeNotifier {
         'sdp': offer.sdp,
         'type': offer.type,
       });
+      if (enabled) {
+        unawaited(
+          Future.delayed(
+            const Duration(seconds: 3),
+          ).then((_) => logOutboundMediaStats(_peerConnection, '1:1')),
+        );
+      }
     } catch (e) {
       // ネットワーク瞬断・カメラが他で使用中・許可が無い等。ボタンを再度有効にし、
       // 失敗したことを画面に出して、ユーザーに再試行させる。
@@ -1539,6 +1634,16 @@ class WebrtcCallController extends ChangeNotifier {
       shareAudio: shareAudio,
     );
     if (display == null) return false;
+    if (_disposed) {
+      // OSの共有選択ダイアログを待つ間に、通話が別の理由で終わり破棄された
+      // （2026-11-23）。取得したストリームだけ止めて抜ける。
+      for (final track in display.getTracks()) {
+        try {
+          track.stop();
+        } catch (_) {}
+      }
+      return false;
+    }
     _screenDisplay = display;
     _screenDeliveryFailed = false;
     // 共有元が閉じられたら、共有も終える（`await`の前に付けて、取りこぼさない）。
@@ -1580,6 +1685,15 @@ class WebrtcCallController extends ChangeNotifier {
       if (renegotiate) await _sendRenegotiationOffer();
     } catch (e) {
       callLog('1:1 screen share failed: $e');
+      // 途中まで進んだ状態（送信枠の追加・マイクのミュート等）を`stopScreenShare`と
+      // 同じ経路で巻き戻す（2026-11-23）。以前は例外を握りつぶして常にtrueを返して
+      // いた為、ローカルの再ネゴシエーション失敗時に「共有中」のまま実体と食い違って
+      // 固着していた（相手に`screen:on`を送ってしまった場合も直後に`screen:off`が
+      // 届くので表示は固着しない）。
+      try {
+        await stopScreenShare();
+      } catch (_) {}
+      return false;
     }
     return true;
   }
@@ -1616,6 +1730,9 @@ class WebrtcCallController extends ChangeNotifier {
         await track.stop();
       } catch (_) {}
     }
+    // ここまでの間に通話が別の理由で終わり破棄されていたら、既にレンダラーも
+    // 破棄済みの為、これ以上触らず抜ける（2026-11-23）。
+    if (_disposed) return;
     localScreenRenderer.srcObject = null;
     final gain = _screenGain;
     _screenGain = null;
@@ -1630,7 +1747,7 @@ class WebrtcCallController extends ChangeNotifier {
   Future<void> resendScreenShare() async {
     final display = _screenDisplay;
     final pc = _peerConnection;
-    if (display == null || pc == null) return;
+    if (display == null || pc == null || _disposed) return;
     _screenDeliveryFailed = false;
     notifyListeners();
     callLog('1:1 screen: resend requested');
@@ -1662,6 +1779,16 @@ class WebrtcCallController extends ChangeNotifier {
       shareAudio: _screenAudio,
     );
     if (next == null) return;
+    if (_disposed) {
+      // OSの共有選択ダイアログを待つ間に、通話が別の理由で終わり破棄された
+      // （2026-11-23）。取得したストリームだけ止めて抜ける。
+      for (final track in next.getTracks()) {
+        try {
+          track.stop();
+        } catch (_) {}
+      }
+      return;
+    }
     _screenDisplay = next;
     ScreenShareCapture.watchEnded(next, () => stopScreenShare());
     if (ScreenShareCapture.isNativeAndroid && _screenAudio) {
@@ -1686,6 +1813,7 @@ class WebrtcCallController extends ChangeNotifier {
         await track.stop();
       } catch (_) {}
     }
+    if (_disposed) return;
     notifyListeners();
   }
 
@@ -1876,12 +2004,19 @@ class WebrtcCallController extends ChangeNotifier {
         previousFront: _isFrontCamera,
         nativeIsFront: nativeIsFront,
       );
-      // 反転は、新しいカメラの映像が出るころに切り替える。
-      _mirrorTimer?.cancel();
-      _mirrorTimer = Timer(const Duration(milliseconds: 450), () {
-        _mirrorFront = _isFrontCamera;
+      // 反転は、新しいカメラの映像が実際に届いたと分かるまで遅らせる。
+      // onResize/onFirstFrameRendered（兆候）と固定タイマー（保険）を競走させ、
+      // どちらが先に来ても1回だけ確定させる（2026-11-23）。前回分の競走が残って
+      // いれば、start()が確定させずに止めてから新しく始める（連打対策）。
+      final targetFront = _isFrontCamera;
+      _mirrorRace.start(() {
+        _mirrorFront = targetFront;
+        localRenderer.onResize = null;
+        localRenderer.onFirstFrameRendered = null;
         notifyListeners();
       });
+      localRenderer.onResize = _mirrorRace.signalResize;
+      localRenderer.onFirstFrameRendered = _mirrorRace.signalFirstFrame;
       if (switched != null) {
         _cameraDeviceId = trackDeviceId(switched) ?? _cameraDeviceId;
       }
@@ -1917,8 +2052,15 @@ class WebrtcCallController extends ChangeNotifier {
 
   @override
   void dispose() {
+    _disposed = true;
     _stopPresence();
-    _mirrorTimer?.cancel();
+    _stopSpeakingPoll();
+    // 保留中のカメラ切替レース（タイマー・onResize/onFirstFrameRenderedの
+    // リスナー）を、確定させずに止める。確定後にnotifyListeners()すると
+    // 「dispose後のChangeNotifier」で落ちる為、他の後片付けより先に行う（2026-11-23）。
+    _mirrorRace.cancel();
+    localRenderer.onResize = null;
+    localRenderer.onFirstFrameRendered = null;
     if (_watchingAudioDevices) navigator.mediaDevices.ondevicechange = null;
     _cancelRingTimeout();
     _disconnectGrace.cancel();

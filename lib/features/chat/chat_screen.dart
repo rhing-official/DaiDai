@@ -3876,6 +3876,10 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                             scrollOffsetController: _scrollOffsetController,
                             itemPositionsListener: _itemPositionsListener,
                             reverse: true,
+                            // 上限・下限を超えたラバーバンド（iOSの
+                            // バウンス）を無効化する（2026-11-23、他の一覧
+                            // 系ウィジェットと同じ統一方針）。
+                            physics: const ClampingScrollPhysics(),
                             itemCount: reversedEntries.length,
                             itemBuilder: (context, index) =>
                                 buildEntry(reversedEntries[index]),

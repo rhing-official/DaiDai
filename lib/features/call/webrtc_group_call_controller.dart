@@ -9,6 +9,7 @@ import '../../models/app_user.dart';
 import '../../models/group_call.dart';
 import '../../repositories/group_call_repository.dart';
 import 'call_log.dart';
+import 'camera_mirror_sync.dart';
 import 'ice_diagnostics.dart';
 import 'call_sound_player.dart';
 import 'acquire_with_video_fallback.dart';
@@ -306,9 +307,11 @@ class WebrtcGroupCallController extends ChangeNotifier {
 
   /// 自分のプレビューを左右反転する（前面カメラ）かの、画面に出す値。カメラを切り替えた直後は、
   /// 新しいカメラの最初の映像が出るまで少し間があり、その間に反転だけが先に切り替わって
-  /// 古い映像が一瞬反転して見えた為、反転の切り替えを遅らせる（2026-11-16）。
+  /// 古い映像が一瞬反転して見えた為、反転の切り替えを遅らせる（2026-11-16）。固定タイマーだけでは
+  /// 端末によって早すぎ/遅すぎがあった為、`RTCVideoRenderer`の`onResize`/`onFirstFrameRendered`
+  /// （新しいフレームが実際に届いた兆候）との競走に変更した（2026-11-23、[MirrorSyncRace]参照）。
   bool _mirrorFront = true;
-  Timer? _mirrorTimer;
+  final _mirrorRace = MirrorSyncRace();
   bool get isFrontCamera => _mirrorFront;
 
   List<CallParticipant> _participants = [];
@@ -895,6 +898,14 @@ class WebrtcGroupCallController extends ChangeNotifier {
           iceState == RTCIceConnectionState.RTCIceConnectionStateConnected ||
           iceState == RTCIceConnectionState.RTCIceConnectionStateCompleted) {
         unawaited(logIceStats(peerConnection, 'group: $otherUserId'));
+      }
+      if (iceState == RTCIceConnectionState.RTCIceConnectionStateConnected ||
+          iceState == RTCIceConnectionState.RTCIceConnectionStateCompleted) {
+        unawaited(
+          Future.delayed(const Duration(seconds: 3)).then(
+            (_) => logOutboundMediaStats(peerConnection, 'group: $otherUserId'),
+          ),
+        );
       }
       final issue =
           iceState == RTCIceConnectionState.RTCIceConnectionStateFailed ||
@@ -1921,12 +1932,19 @@ class WebrtcGroupCallController extends ChangeNotifier {
         previousFront: _isFrontCamera,
         nativeIsFront: nativeIsFront,
       );
-      // 反転は、新しいカメラの映像が出るころに切り替える。
-      _mirrorTimer?.cancel();
-      _mirrorTimer = Timer(const Duration(milliseconds: 450), () {
-        _mirrorFront = _isFrontCamera;
+      // 反転は、新しいカメラの映像が実際に届いたと分かるまで遅らせる。
+      // onResize/onFirstFrameRendered（兆候）と固定タイマー（保険）を競走させ、
+      // どちらが先に来ても1回だけ確定させる（2026-11-23）。前回分の競走が残って
+      // いれば、start()が確定させずに止めてから新しく始める（連打対策）。
+      final targetFront = _isFrontCamera;
+      _mirrorRace.start(() {
+        _mirrorFront = targetFront;
+        localRenderer.onResize = null;
+        localRenderer.onFirstFrameRendered = null;
         notifyListeners();
       });
+      localRenderer.onResize = _mirrorRace.signalResize;
+      localRenderer.onFirstFrameRendered = _mirrorRace.signalFirstFrame;
       if (switched != null) {
         _cameraDeviceId = trackDeviceId(switched) ?? _cameraDeviceId;
       }
@@ -1959,7 +1977,12 @@ class WebrtcGroupCallController extends ChangeNotifier {
 
   @override
   void dispose() {
-    _mirrorTimer?.cancel();
+    // 保留中のカメラ切替レース（タイマー・onResize/onFirstFrameRenderedの
+    // リスナー）を、確定させずに止める。確定後にnotifyListeners()すると
+    // 「dispose後のChangeNotifier」で落ちる為、他の後片付けより先に行う（2026-11-23）。
+    _mirrorRace.cancel();
+    localRenderer.onResize = null;
+    localRenderer.onFirstFrameRendered = null;
     for (final timer in _screenTimeouts.values) {
       timer.cancel();
     }

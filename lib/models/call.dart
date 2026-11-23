@@ -164,3 +164,8 @@ bool isOneToOneCallLive(Call call, DateTime now) {
   if (since == null) return true; // 書き込み直後など、時刻が未確定
   return now.difference(since) <= kCallNoHeartbeatMaxAge;
 }
+
+/// 与えた通話の一覧の中に、今まさに生きている一対の通話が1件でもあるか
+/// （発信前に「相手は既に通話中か」を確かめる用、2026-11-23）。
+bool anyOneToOneCallLive(List<Call> calls, DateTime now) =>
+    calls.any((call) => isOneToOneCallLive(call, now));

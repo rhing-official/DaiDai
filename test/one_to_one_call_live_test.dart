@@ -101,4 +101,26 @@ void main() {
       isFalse,
     );
   });
+
+  group('anyOneToOneCallLive', () {
+    test('生きている通話が1件でもあればtrue', () {
+      expect(
+        anyOneToOneCallLive([
+          _call(status: CallStatus.ended),
+          _call(callerSeenAt: _ago(const Duration(seconds: 5))),
+        ], _now),
+        isTrue,
+      );
+    });
+
+    test('空、または全て死んでいればfalse', () {
+      expect(anyOneToOneCallLive(const [], _now), isFalse);
+      expect(
+        anyOneToOneCallLive([
+          _call(callerSeenAt: _ago(const Duration(minutes: 10))),
+        ], _now),
+        isFalse,
+      );
+    });
+  });
 }

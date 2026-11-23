@@ -22,9 +22,11 @@ import '../models/app_user.dart';
 import '../models/call.dart';
 import '../models/direct_message.dart';
 import '../models/group.dart';
+import '../l10n/strings.dart';
 import '../providers/chat_navigation_providers.dart';
 import '../providers/repository_providers.dart';
 import '../theme/motion.dart';
+import '../utils/auto_dismiss_banner.dart';
 import '../utils/platform_info.dart';
 import '../widgets/interactive_swipe_back.dart';
 import 'back_stack.dart';
@@ -250,6 +252,7 @@ final goRouterProvider = Provider<GoRouter>((ref) {
   // 発信者は既にその会話のメッセージ画面を見ている為、以後は
   // 以後は`CallOverlay`が今の画面の上に通話画面を重ねて表示する。
   Future<void> startCall(
+    BuildContext context,
     AppUser currentUser,
     DirectMessage dm, {
     bool isVideo = false,
@@ -267,6 +270,18 @@ final goRouterProvider = Provider<GoRouter>((ref) {
       userId: dm.otherUserId(currentUser.userId),
       rhingSeed: dm.otherRhingSeed(currentUser.userId),
     );
+    // 相手が既に一対の通話中なら、呼び出し音を鳴らさずその場で知らせる（2026-11-23）。
+    final busyCalls = await callRepository.findActiveCallsFor(other.userId);
+    if (anyOneToOneCallLive(busyCalls, DateTime.now())) {
+      final overlay = context.mounted ? Overlay.maybeOf(context) : null;
+      if (overlay != null) {
+        showAutoDismissBannerIn(
+          overlay,
+          message: ref.read(appStringsProvider).callCalleeBusy,
+        );
+      }
+      return;
+    }
     final call = await callRepository.createCall(
       caller: currentUser,
       callee: other,
@@ -360,8 +375,9 @@ final goRouterProvider = Provider<GoRouter>((ref) {
             roomId: args.roomId,
             roomName: args.roomName,
             onCallPressed: (roomId) =>
-                startCall(args.currentUser, args.dm, roomId: roomId),
+                startCall(context, args.currentUser, args.dm, roomId: roomId),
             onVideoCallPressed: (roomId) => startCall(
+              context,
               args.currentUser,
               args.dm,
               isVideo: true,

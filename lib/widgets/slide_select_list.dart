@@ -2,6 +2,7 @@ import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../models/nav_chip_layout.dart';
 import '../providers/category_list_alignment_provider.dart';
 import '../providers/home_shell_providers.dart';
 import '../providers/slide_pick_enabled_provider.dart';
@@ -261,19 +262,44 @@ class _SlideSelectListState extends ConsumerState<SlideSelectList>
   }
 }
 
-/// 項目一覧（設定・身だしなみ）を、上・中央・下のどこに置くか決める（2026-11-07、
-/// 2026-11-23に中央を追加）。[Align]は子へ渡す制約を必ず緩める（最小0へ）ため、
-/// 呼び出し元がタイトな高さ制約（広い画面のサイドバー）の中にいても、[child]側が
-/// 内容量まで縮んでさえいれば指定位置へ動く。狭い画面・広い画面のどちらでも同じ
-/// 設定が効く。下寄せ・中央寄せは左揃え（横方向は中央にしない）。
+/// 項目一覧のブロックを画面幅より狭い固定幅に制限する時の幅（2026-11-23、
+/// 2026-11-07以前に劇画UI限定であった仕組みの復活。横の揃えを指定した時だけ使う）。
+const _categoryListBlockMaxWidth = 300.0;
+
+/// 項目一覧（設定・身だしなみ）を画面内のどこに置くか決める（2026-11-07、
+/// 2026-11-23に中央・横の揃えへの同期を追加）。[Align]は子へ渡す制約を必ず緩める
+/// （最小0へ）ため、呼び出し元がタイトな高さ制約（広い画面のサイドバー）の中にいても、
+/// [child]側が内容量まで縮んでさえいれば指定位置へ動く。
+///
+/// [horizontal]が`null`（広い画面のサイドバー表示）の時は、幅いっぱいのまま
+/// [vertical]の縦位置だけで動かす（左揃え固定）。[horizontal]を渡す（狭い画面、
+/// ナビチップの横の揃えへ同期）時は、ブロック自体を[_categoryListBlockMaxWidth]に
+/// 制限した上で、縦横を組み合わせた[Alignment]で動かす。右揃え・中央揃えの時も、
+/// 制限した後のブロックの右端・中央を基準に[Align]が計算するため、画面の右端・
+/// 中央とちゃんと揃う。
 Widget alignCategoryList(
   Widget child, {
   CategoryListVertical vertical = CategoryListVertical.top,
+  NavChipAlignment? horizontal,
 }) {
-  final alignment = switch (vertical) {
-    CategoryListVertical.top => Alignment.topLeft,
-    CategoryListVertical.center => Alignment.centerLeft,
-    CategoryListVertical.bottom => Alignment.bottomLeft,
+  final y = switch (vertical) {
+    CategoryListVertical.top => -1.0,
+    CategoryListVertical.center => 0.0,
+    CategoryListVertical.bottom => 1.0,
   };
-  return Align(alignment: alignment, child: child);
+  if (horizontal == null) {
+    return Align(alignment: Alignment(-1.0, y), child: child);
+  }
+  final x = switch (horizontal) {
+    NavChipAlignment.start => -1.0,
+    NavChipAlignment.center => 0.0,
+    NavChipAlignment.end => 1.0,
+  };
+  return Align(
+    alignment: Alignment(x, y),
+    child: ConstrainedBox(
+      constraints: const BoxConstraints(maxWidth: _categoryListBlockMaxWidth),
+      child: child,
+    ),
+  );
 }

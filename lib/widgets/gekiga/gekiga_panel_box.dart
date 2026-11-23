@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 
+import '../../models/nav_chip_layout.dart';
 import '../../theme/gekiga/gekiga_colors.dart';
 import 'monochrome_box.dart';
 
@@ -212,12 +213,12 @@ class _GekigaJointedList extends MultiChildRenderObjectWidget {
     required this.axis,
     required this.seeds,
     required this.selectedFlags,
-    required this.alignEnd,
+    required this.horizontal,
     required super.children,
   });
 
   final Axis axis;
-  final bool alignEnd;
+  final NavChipAlignment horizontal;
   final List<int> seeds;
   final List<bool> selectedFlags;
 
@@ -227,7 +228,7 @@ class _GekigaJointedList extends MultiChildRenderObjectWidget {
       axis: axis,
       seeds: seeds,
       selectedFlags: selectedFlags,
-      alignEnd: alignEnd,
+      horizontal: horizontal,
     );
   }
 
@@ -240,7 +241,7 @@ class _GekigaJointedList extends MultiChildRenderObjectWidget {
       ..axis = axis
       ..seeds = seeds
       ..selectedFlags = selectedFlags
-      ..alignEnd = alignEnd;
+      ..horizontal = horizontal;
   }
 }
 
@@ -253,13 +254,14 @@ class GekigaJointedTileList extends StatelessWidget {
     required this.selectedFlags,
     required this.children,
     this.axis = Axis.vertical,
-    this.alignEnd = false,
+    this.horizontal = NavChipAlignment.start,
     super.key,
   });
 
-  /// 縦積みの時、各箱の右端を一覧の右端へ揃える（2026-11-02、項目一覧の右揃え用）。
-  /// 一覧は利用可能な幅いっぱいに広がる。
-  final bool alignEnd;
+  /// 縦積みの時、各箱を一覧の左端・中央・右端のどこへ揃えるか（2026-11-02、
+  /// 項目一覧の右揃え用に追加、2026-11-23に中央揃えへ対応）。`start`以外を
+  /// 指定すると、一覧は利用可能な幅いっぱいに広がる。
+  final NavChipAlignment horizontal;
 
   final List<int> seeds;
   final List<bool> selectedFlags;
@@ -284,7 +286,7 @@ class GekigaJointedTileList extends StatelessWidget {
       axis: axis,
       seeds: seeds,
       selectedFlags: selectedFlags,
-      alignEnd: alignEnd,
+      horizontal: horizontal,
       children: children,
     );
   }
@@ -315,7 +317,7 @@ class GekigaJointedPair extends StatelessWidget {
       axis: Axis.horizontal,
       seeds: [leftSeed, rightSeed],
       selectedFlags: [leftSelected, rightSelected],
-      alignEnd: false,
+      horizontal: NavChipAlignment.start,
       children: [left, right],
     );
   }
@@ -335,11 +337,11 @@ class _RenderGekigaJointedList extends RenderBox
     required Axis axis,
     required List<int> seeds,
     required List<bool> selectedFlags,
-    required bool alignEnd,
+    required NavChipAlignment horizontal,
   }) : _axis = axis,
        _seeds = seeds,
        _selectedFlags = selectedFlags,
-       _alignEnd = alignEnd;
+       _horizontal = horizontal;
 
   // 上記コンストラクタは`this._axis`等の初期化フォームに出来ない
   // （引数名`axis`とpublicなsetter`axis`が衝突する為）。lintの
@@ -365,10 +367,10 @@ class _RenderGekigaJointedList extends RenderBox
     markNeedsLayout();
   }
 
-  bool _alignEnd;
-  set alignEnd(bool value) {
-    if (_alignEnd == value) return;
-    _alignEnd = value;
+  NavChipAlignment _horizontal;
+  set horizontal(NavChipAlignment value) {
+    if (_horizontal == value) return;
+    _horizontal = value;
     markNeedsLayout();
   }
 
@@ -425,17 +427,22 @@ class _RenderGekigaJointedList extends RenderBox
       if (childCross > cross) cross = childCross;
       child = childParentData.nextSibling;
     }
-    if (vertical && _alignEnd && constraints.maxWidth.isFinite) {
+    final stretch = vertical && _horizontal != NavChipAlignment.start;
+    if (stretch && constraints.maxWidth.isFinite) {
       cross = constraints.maxWidth;
     }
     size = constraints.constrain(
       vertical ? Size(cross, main) : Size(main, cross),
     );
-    if (vertical && _alignEnd) {
+    if (stretch) {
       var c = firstChild;
       while (c != null) {
         final data = c.parentData! as _JointedParentData;
-        data.offset = Offset(size.width - c.size.width, data.offset.dy);
+        final extra = size.width - c.size.width;
+        data.offset = Offset(
+          _horizontal == NavChipAlignment.end ? extra : extra / 2,
+          data.offset.dy,
+        );
         c = data.nextSibling;
       }
     }

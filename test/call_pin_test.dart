@@ -21,6 +21,19 @@ void main() {
     expect(container.read(callPinnedTilesProvider), isEmpty);
   });
 
+  test('focusは他のピンを外して指定キーだけをピンする', () {
+    final container = ProviderContainer();
+    addTearDown(container.dispose);
+    final sub = container.listen(callPinnedTilesProvider, (_, _) {});
+    addTearDown(sub.close);
+    final n = container.read(callPinnedTilesProvider.notifier);
+    n.toggle('a');
+    n.toggle('b#screen');
+    expect(container.read(callPinnedTilesProvider), {'a', 'b#screen'});
+    n.focus('c');
+    expect(container.read(callPinnedTilesProvider), {'c'});
+  });
+
   test('通話画面が無くなっても、ピンは残る（通話の間は保持）', () async {
     final container = ProviderContainer();
     addTearDown(container.dispose);

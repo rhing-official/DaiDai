@@ -88,6 +88,7 @@ import '../../widgets/home_tab_swipe.dart';
 import '../../widgets/interactive_swipe_back.dart';
 import '../../widgets/swipe_gestures.dart';
 import '../call/active_call_session.dart';
+import '../../models/call.dart';
 import 'add_chat_dialog.dart';
 import 'chat_panes.dart';
 import 'chat_screen.dart';
@@ -5862,6 +5863,18 @@ class _DmDetailWithRoomsState extends ConsumerState<_DmDetailWithRooms> {
       userId: dm.otherUserId(currentUser.userId),
       rhingSeed: dm.otherRhingSeed(currentUser.userId),
     );
+    // 相手が既に一対の通話中なら、呼び出し音を鳴らさずその場で知らせる（2026-11-23）。
+    final busyCalls = await callRepository.findActiveCallsFor(other.userId);
+    if (anyOneToOneCallLive(busyCalls, DateTime.now())) {
+      if (mounted) {
+        showAutoDismissBanner(
+          context,
+          message: ref.read(appStringsProvider).callCalleeBusy,
+        );
+      }
+      return;
+    }
+    if (!mounted) return;
     final call = await callRepository.createCall(
       caller: currentUser,
       callee: other,

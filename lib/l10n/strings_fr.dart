@@ -34,6 +34,8 @@ final Strings _stringsFr = Strings._(
   settingsNavChipsAlignmentTitle: "Alignement",
   settingsNavChipsAlignmentNarrowTitle: "Alignement (portrait)",
   settingsNavChipsAlignmentWideTitle: "Alignement (paysage)",
+  settingsNavChipsAlignmentSyncNote:
+      "Cet alignement sert aussi à la position des listes de réglages et de profil.",
   settingsNavChipsAlignStart: "À gauche",
   settingsNavChipsAlignCenter: "Au centre",
   settingsNavChipsAlignEnd: "À droite",
@@ -100,7 +102,7 @@ final Strings _stringsFr = Strings._(
   settingsTimeFormat: 'Affichage de l’heure',
   settingsTimeFormat24h: '24 heures',
   settingsTimeFormat12h: '12 heures',
-  settingsSubUI: 'Interface',
+  settingsSubUI: 'Design',
   settingsUIDescription: 'Choisissez l’apparence de toute l’application.',
   settingsUiStyleFlatLabel: 'Flat',
   settingsUiStyleGekigaLabel: 'Gekiga',
@@ -1480,6 +1482,7 @@ final Strings _stringsFr = Strings._(
   callStatusConnecting: 'Connexion…',
   callStatusActive: 'En communication',
   callStatusEnded: 'Appel terminé',
+  callCalleeBusy: 'L’autre personne est déjà en appel',
   callConnectionUnstableEllipsis: 'La connexion est instable…',
   callConnectionUnstable: 'La connexion est instable',
   callEstablishing:

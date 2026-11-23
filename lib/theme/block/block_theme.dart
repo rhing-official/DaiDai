@@ -2,6 +2,7 @@ import 'package:flutter/rendering.dart';
 import 'package:flutter/material.dart';
 
 import '../../models/dark_variant.dart';
+import '../../models/nav_chip_layout.dart';
 import '../app_theme.dart';
 import '../app_theme_extras.dart';
 
@@ -528,12 +529,21 @@ class BlockFieldFrame extends StatelessWidget {
 }
 
 /// 版画の箱を、中の文字の幅に合わせて左寄せにする（劇画の箱と同じ内容幅）。
-/// 親の最大幅が上限で、長い題名はそこで折り返す。[alignEnd]なら右寄せ。
-/// `ListTile`の固有幅は余白（文字とアイコンの間隔）を数えず短めに出る為、
-/// その分の余裕[_fitSlack]を足して、文字が不要に折り返さないようにする。
-Widget blockFitWidth(Widget box, {bool alignEnd = false}) {
+/// 親の最大幅が上限で、長い題名はそこで折り返す。[horizontal]で左・中央・
+/// 右のどこへ寄せるか指定する（2026-11-23、項目一覧の横の揃えに合わせて
+/// 3状態化）。`ListTile`の固有幅は余白（文字とアイコンの間隔）を数えず
+/// 短めに出る為、その分の余裕[_fitSlack]を足して、文字が不要に折り返さない
+/// ようにする。
+Widget blockFitWidth(
+  Widget box, {
+  NavChipAlignment horizontal = NavChipAlignment.start,
+}) {
   return Align(
-    alignment: alignEnd ? Alignment.centerRight : Alignment.centerLeft,
+    alignment: switch (horizontal) {
+      NavChipAlignment.start => Alignment.centerLeft,
+      NavChipAlignment.center => Alignment.center,
+      NavChipAlignment.end => Alignment.centerRight,
+    },
     child: _BlockFitWidth(child: box),
   );
 }

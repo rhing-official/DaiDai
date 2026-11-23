@@ -16,6 +16,13 @@ analyzer:
     # 対応のための一時的な取り込み、詳細はpubspec.yamlのコメント参照）。
     # サードパーティのソースのためこのプロジェクトのlint対象にしない。
     - third_party/**
+    - build/**
+    - android/**
+    - ios/**
+    - web/**
+    - windows/**
+    - macos/**
+    - linux/**
 
 linter:
   # The lint rules applied to this project can be customized in the

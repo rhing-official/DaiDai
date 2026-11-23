@@ -456,6 +456,8 @@ class _OneToOneStageState extends ConsumerState<_OneToOneStage> {
                 ),
               ),
             ),
+            if (remote ? controller.remoteSpeaking : controller.localSpeaking)
+              Positioned.fill(child: SpeakingFrame()),
           ],
         ),
       ),

@@ -3,7 +3,12 @@ import 'dart:math' as math;
 import 'dart:typed_data';
 
 import 'package:flutter/gestures.dart'
-    show GestureBinding, PointerDownEvent, PointerEvent, PointerScrollEvent;
+    show
+        DragStartBehavior,
+        GestureBinding,
+        PointerDownEvent,
+        PointerEvent,
+        PointerScrollEvent;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_webrtc/flutter_webrtc.dart'
@@ -18,6 +23,8 @@ import 'package:pointer_interceptor/pointer_interceptor.dart';
 import '../../l10n/strings.dart';
 import 'call_pin_provider.dart';
 import 'call_zoom_provider.dart';
+import 'pinned_call_position.dart'
+    show clampPinnedCallOffset, kPinnedCallMargin, pinnedCallOffsetForPointer;
 import 'swipe_down_dock.dart';
 
 /// 自分の画面共有のウィンドウの中身に出す「画面を共有しています」（2026-11-16）。Androidの
@@ -348,9 +355,16 @@ class CallTileVolume {
   final ValueChanged<double> onChanged;
 }
 
+/// 全画面＋PiP表示（2026-11-23、ピンがちょうど1件の時）で、ピンしていない参加者を
+/// 浮かせる小窓の大きさ。既存の帯（[_CallTileStageState._strip]）の最小幅（110）に合わせる。
+const kPipTileSize = Size(110, 150);
+
 /// 通話のウィンドウの配置（2026-11-16）。与えられた領域に**スクロール無しで常に収まる**。
 /// 並べ方は[callTileRowSizes]。画面共有は呼び出し側が先頭に置く（＝最上行）。
-/// ピン留めしたウィンドウは領域の上の大きい部分に並べ、残りは下の細い1行の帯に並べる。
+///
+/// ピン留めが**ちょうど1件**の時は、そのウィンドウを全画面化し、残りはドラッグで動かせる
+/// 小窓（PiP）として重ねる（2026-11-23）。ピンが**2件以上**の時は、以前からの表示を保つ
+/// （ピンした分は領域の上の大きい部分に並べ、残りは下の細い1行の帯に並べる）。
 /// ピンのボタンは、各ウィンドウの左上にここで重ねる。
 class CallTileStage extends ConsumerStatefulWidget {
   const CallTileStage({required this.specs, this.spacing = 4.0, super.key});
@@ -369,6 +383,10 @@ class _CallTileStageState extends ConsumerState<CallTileStage> {
 
   /// 音量のスライダーを開いているウィンドウのキー。
   final Set<String> _volumeOpen = {};
+
+  /// 全画面＋PiP表示（ピンがちょうど1件）での、各PiP小窓の左上の位置。ドラッグで
+  /// 動かした分だけ保持し、消えたキーは[build]で一緒に捨てる（2026-11-23）。
+  final Map<String, Offset> _pipOffsets = {};
 
   /// 開いているスライダーの枠と音量ボタンの位置を調べる鍵（外のクリック判定用）。
   final Map<String, GlobalKey> _volumeBoxKeys = {};
@@ -419,7 +437,17 @@ class _CallTileStageState extends ConsumerState<CallTileStage> {
 
   GlobalKey _keyFor(String key) => _keys.putIfAbsent(key, GlobalKey.new);
 
-  Widget _window(CallTileSpec spec, bool pinned, bool isPinned) {
+  /// [allowZoom]が`false`の時はピンチズームを組み込まない（全画面＋PiP表示のPiP小窓、
+  /// ドラッグで動かすジェスチャーと競合するため、2026-11-23）。[onPinTap]を渡すと、
+  /// 左上のピンボタンのタップ時にこれを呼ぶ（既定は[callPinnedTilesProvider]の
+  /// `toggle`。PiP小窓は`focus`を渡し、他のピンを外してこの1件だけに入れ替える）。
+  Widget _window(
+    CallTileSpec spec,
+    bool pinned,
+    bool isPinned, {
+    bool allowZoom = true,
+    VoidCallback? onPinTap,
+  }) {
     final strings = ref.watch(appStringsProvider);
     return KeyedSubtree(
       key: _keyFor(spec.key),
@@ -429,14 +457,17 @@ class _CallTileStageState extends ConsumerState<CallTileStage> {
           children: [
             // ピンチ・ホイールで拡縮できる（最大化のビューアの代わり、2026-11-16）。ピン留めを
             // 切り替えたら等倍に戻る。
-            CallZoomable(
-              resetKey: isPinned,
-              // ミニ表示から戻した時に、拡縮を残す（通話が終わるまで、2026-11-17）。
-              initial: ref.read(callZoomProvider)[spec.key],
-              onChanged: (entry) =>
-                  ref.read(callZoomProvider.notifier).put(spec.key, entry),
-              child: spec.build(pinned),
-            ),
+            if (allowZoom)
+              CallZoomable(
+                resetKey: isPinned,
+                // ミニ表示から戻した時に、拡縮を残す（通話が終わるまで、2026-11-17）。
+                initial: ref.read(callZoomProvider)[spec.key],
+                onChanged: (entry) =>
+                    ref.read(callZoomProvider.notifier).put(spec.key, entry),
+                child: spec.build(pinned),
+              )
+            else
+              spec.build(pinned),
             if (spec.volume != null)
               ..._volumeControls(spec, constraints.maxHeight),
             Positioned(
@@ -450,9 +481,11 @@ class _CallTileStageState extends ConsumerState<CallTileStage> {
                   child: GestureDetector(
                     key: ValueKey('pin-${spec.key}'),
                     behavior: HitTestBehavior.opaque,
-                    onTap: () => ref
-                        .read(callPinnedTilesProvider.notifier)
-                        .toggle(spec.key),
+                    onTap:
+                        onPinTap ??
+                        () => ref
+                            .read(callPinnedTilesProvider.notifier)
+                            .toggle(spec.key),
                     child: DecoratedBox(
                       decoration: const BoxDecoration(
                         color: Colors.black54,
@@ -631,6 +664,7 @@ class _CallTileStageState extends ConsumerState<CallTileStage> {
     final specs = widget.specs;
     final keys = {for (final s in specs) s.key};
     _keys.removeWhere((k, _) => !keys.contains(k));
+    _pipOffsets.removeWhere((k, _) => !keys.contains(k));
     final stored = ref.watch(callPinnedTilesProvider);
     final pinnedKeys = stored.where(keys.contains).toSet();
     // 無くなったウィンドウ（共有の終了・退出）のピンは外す。
@@ -662,6 +696,10 @@ class _CallTileStageState extends ConsumerState<CallTileStage> {
           _window(s, pinned.isNotEmpty, pinnedKeys.contains(s.key)),
       ]);
     }
+    // ピンがちょうど1件なら全画面＋PiP表示、2件以上なら従来のグリッド+帯（2026-11-23）。
+    if (pinned.length == 1) {
+      return _focusedStage(pinned.single, rest);
+    }
     return Column(
       children: [
         Expanded(
@@ -673,6 +711,153 @@ class _CallTileStageState extends ConsumerState<CallTileStage> {
           child: _strip([for (final s in rest) _window(s, false, false)]),
         ),
       ],
+    );
+  }
+
+  /// [_focusedStage]のスタック自体の位置・大きさを調べる鍵（ドラッグの
+  /// グローバル座標をステージ内のローカル座標へ変換する為、2026-11-23）。
+  final GlobalKey _focusedStageKey = GlobalKey();
+
+  /// グローバル座標（`details.globalPosition`）を、[_focusedStage]のスタック内の
+  /// ローカル座標へ変換する。`clampPinnedCallOffset`等の位置計算は、ウィンドウの
+  /// `Positioned(left:, top:)`と同じローカル座標系で行う必要がある為。
+  Offset _toStageLocal(Offset global) {
+    final box = _focusedStageKey.currentContext?.findRenderObject();
+    return box is RenderBox && box.attached
+        ? box.globalToLocal(global)
+        : global;
+  }
+
+  /// ピンがちょうど1件の時の表示（2026-11-23）: [focused]を領域いっぱいに広げ、
+  /// [rest]は各自ドラッグで動かせる小窓（PiP）として重ねる。
+  Widget _focusedStage(CallTileSpec focused, List<CallTileSpec> rest) {
+    return LayoutBuilder(
+      builder: (context, constraints) => Stack(
+        key: _focusedStageKey,
+        fit: StackFit.expand,
+        children: [
+          _window(focused, true, true),
+          for (var i = 0; i < rest.length; i++)
+            _pipWindow(rest[i], index: i, stage: constraints.biggest),
+        ],
+      ),
+    );
+  }
+
+  /// [index]番目のPiP小窓の既定の位置（まだドラッグしていない時）。右上から縦に
+  /// 段積みする。
+  Offset _defaultPipOffset(int index, Size stage) => Offset(
+    stage.width - kPipTileSize.width - kPinnedCallMargin,
+    kPinnedCallMargin + index * (kPipTileSize.height + kPinnedCallMargin),
+  );
+
+  /// ドラッグで動かせる・タップでそのウィンドウへフォーカスを入れ替えられるPiP小窓
+  /// （2026-11-23）。[stage]は`_focusedStage`が占める実際の領域（`LayoutBuilder`の
+  /// 大きさ。画面全体ではなく、PC/Webの通話ウィンドウがその一部だけの時にも正しく
+  /// 収める）。位置の計算は`pinned_call_overlay.dart`のミニ表示と同じ
+  /// `clampPinnedCallOffset`/`pinnedCallOffsetForPointer`をそのまま再利用する。
+  Widget _pipWindow(
+    CallTileSpec spec, {
+    required int index,
+    required Size stage,
+  }) {
+    Offset currentOffset() => clampPinnedCallOffset(
+      offset: _pipOffsets[spec.key] ?? _defaultPipOffset(index, stage),
+      screen: stage,
+      topInset: 0,
+      bubble: kPipTileSize,
+    );
+    final position = currentOffset();
+    return Positioned(
+      left: position.dx,
+      top: position.dy,
+      width: kPipTileSize.width,
+      height: kPipTileSize.height,
+      child: PointerInterceptor(
+        child: _PipDragSurface(
+          currentOffset: currentOffset,
+          toLocal: _toStageLocal,
+          onPointerMoved: (grab, pointer) {
+            setState(() {
+              _pipOffsets[spec.key] = pinnedCallOffsetForPointer(
+                pointer: pointer,
+                grab: grab,
+                screen: stage,
+                topInset: 0,
+                bubble: kPipTileSize,
+              );
+            });
+          },
+          child: DecoratedBox(
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(kCallTileRadius),
+              border: Border.all(color: Colors.black.withValues(alpha: 0.4)),
+            ),
+            child: _window(
+              spec,
+              false,
+              false,
+              allowZoom: false,
+              onPinTap: () =>
+                  ref.read(callPinnedTilesProvider.notifier).focus(spec.key),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// PiP小窓を掴んで動かす面（2026-11-23）。`pinned_call_overlay.dart`の
+/// `_PinnedCallDragSurface`と同じ、掴んだ相対位置（[grab]）を保持し、常に
+/// `ポインター位置 − grab`で絶対位置を求める方式（delta＝相対移動の積算は、
+/// 再描画ラグで届いた複数イベントが同じ古い位置に足されて移動量を取りこぼす
+/// ため使わない）。タップ（ピンボタン等、[_window]が内側に持つ個別のボタン）は
+/// 動きが無ければそのまま届くので、ここではタップを扱わない。`GestureDetector`の
+/// `globalPosition`はウィンドウ全体のグローバル座標なので、[toLocal]でステージ内の
+/// ローカル座標へ変換してから渡す（`_window`の`Positioned(left:, top:)`と同じ座標系に
+/// 揺する為）。
+class _PipDragSurface extends StatefulWidget {
+  const _PipDragSurface({
+    required this.currentOffset,
+    required this.onPointerMoved,
+    required this.toLocal,
+    required this.child,
+  });
+
+  /// 押した時点のPiP小窓の左上（領域内に補正済み、ステージ内のローカル座標）。
+  final Offset Function() currentOffset;
+
+  /// ドラッグ中、掴んだ位置[grab]（ポインター − 左上）と現在のポインター位置[pointer]
+  /// （どちらもステージ内のローカル座標）。
+  final void Function(Offset grab, Offset pointer) onPointerMoved;
+
+  /// グローバル座標をステージ内のローカル座標へ変換する。
+  final Offset Function(Offset global) toLocal;
+  final Widget child;
+
+  @override
+  State<_PipDragSurface> createState() => _PipDragSurfaceState();
+}
+
+class _PipDragSurfaceState extends State<_PipDragSurface> {
+  Offset? _grab;
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      dragStartBehavior: DragStartBehavior.down,
+      onPanDown: (details) => _grab =
+          widget.toLocal(details.globalPosition) - widget.currentOffset(),
+      onPanUpdate: (details) {
+        final grab = _grab;
+        if (grab != null) {
+          widget.onPointerMoved(grab, widget.toLocal(details.globalPosition));
+        }
+      },
+      onPanEnd: (_) => _grab = null,
+      onPanCancel: () => _grab = null,
+      child: widget.child,
     );
   }
 }

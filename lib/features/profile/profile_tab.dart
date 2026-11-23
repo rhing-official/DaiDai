@@ -21,6 +21,7 @@ import '../../models/app_user.dart';
 import '../../models/direct_message.dart';
 import '../../models/font_design.dart';
 import '../../models/group.dart';
+import '../../models/nav_chip_layout.dart';
 import '../../models/profile_card.dart';
 import '../../l10n/app_locale.dart';
 import '../../models/profile_material.dart';
@@ -30,6 +31,7 @@ import '../../utils/color_hex.dart';
 import '../../providers/app_locale_provider.dart';
 import '../../providers/app_ui_style_provider.dart';
 import '../../providers/category_list_alignment_provider.dart';
+import '../../providers/nav_chip_layout_provider.dart';
 import '../../providers/custom_font_colors_provider.dart';
 import '../../providers/home_shell_providers.dart';
 import '../../providers/repository_providers.dart';
@@ -988,9 +990,17 @@ class _ProfileCategoryList extends ConsumerWidget {
     final isGekiga = ref.watch(appUiStyleProvider) == AppUiStyle.gekiga;
     // 設定タブの`_CategoryList`と同じく、縦になぞって選べる（2026-11-02）。
     final narrow = large;
-    // 項目一覧の縦の位置（上・中央・下）。2026-11-23に、狭い画面（スマホ）だけでなく
-    // 広い画面（サイドバー表示＝タブレット・PC）にも同じ設定を適用するよう変更した。
-    final vertical = ref.watch(categoryListVerticalProvider);
+    final chipLayout = ref.watch(navChipLayoutProvider);
+    // 項目一覧の縦の位置（上・中央・下）。狭い画面は専用の設定、広い画面は
+    // ナビチップの縦の揃え（`wideAlignment`）へ同期する（2026-11-23）。
+    final vertical = narrow
+        ? ref.watch(categoryListVerticalProvider)
+        : categoryListVerticalFromNavChipAlignment(chipLayout.wideAlignment);
+    // 横の揃えは狭い画面だけ、ナビチップの横の揃え（左/中央/右）へ同期する
+    // （2026-11-23）。広い画面はサイドバー自体に横の揃えという概念が無いため`null`
+    // のまま（幅いっぱい・左揃え固定）。
+    final horizontal = narrow ? chipLayout.alignment : null;
+    final tileHorizontal = horizontal ?? NavChipAlignment.start;
     return SlideSelectList(
       itemCount: categories.length,
       onSlide: narrow ? null : (i) => onSelect(categories[i]),
@@ -1002,12 +1012,14 @@ class _ProfileCategoryList extends ConsumerWidget {
         if (isGekiga) {
           return alignCategoryList(
             vertical: vertical,
+            horizontal: horizontal,
             // スクロールは2026-11-23にNeverScrollableScrollPhysicsで止めた為、
             // SingleChildScrollViewの代わりにPaddingで足りる（内容量どおりに
             // 縮むので、alignCategoryListのAlignで上下左右へ動かせる）。
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 8),
               child: GekigaJointedTileList(
+                horizontal: tileHorizontal,
                 seeds: [
                   for (final category in categories) category.title.hashCode,
                 ],
@@ -1023,6 +1035,7 @@ class _ProfileCategoryList extends ConsumerWidget {
                         title: categories[i].title,
                         selected: isSelected(i),
                         large: large,
+                        horizontal: tileHorizontal,
                         tutorialTargetId: _tutorialIdOf(categories[i]),
                         onTap: () => onSelect(categories[i]),
                       ),
@@ -1034,6 +1047,7 @@ class _ProfileCategoryList extends ConsumerWidget {
         }
         return alignCategoryList(
           vertical: vertical,
+          horizontal: horizontal,
           ListView(
             // 内容量どおりに縮め、alignCategoryListのAlignで上下左右へ動かせる
             // ようにする（2026-11-23、画面の広さを問わず常時true）。
@@ -1050,6 +1064,7 @@ class _ProfileCategoryList extends ConsumerWidget {
                     icon: categories[i].icon,
                     title: categories[i].title,
                     selected: isSelected(i),
+                    horizontal: tileHorizontal,
                     tutorialTargetId: _tutorialIdOf(categories[i]),
                     onTap: () => onSelect(categories[i]),
                   ),
@@ -1069,6 +1084,7 @@ class _ProfileCategoryTile extends ConsumerWidget {
     required this.onTap,
     this.selected = false,
     this.large = false,
+    this.horizontal = NavChipAlignment.start,
     this.tutorialTargetId,
   });
 
@@ -1083,6 +1099,10 @@ class _ProfileCategoryTile extends ConsumerWidget {
   /// 狭い画面でこの一覧が画面全体を占める時に行を大きくするか
   /// （2026-08-27追加、劇画UIのみ対象。[_ProfileCategoryList.large]参照）。
   final bool large;
+
+  /// 項目一覧の横の揃え（2026-11-23追加）。版画スタイルのタイルの箱を
+  /// 左・中央・右のどこへ寄せるか（[blockFitWidth]参照）。
+  final NavChipAlignment horizontal;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -1151,6 +1171,7 @@ class _ProfileCategoryTile extends ConsumerWidget {
       return Padding(
         padding: const EdgeInsets.fromLTRB(2, 4, 6, 8),
         child: blockFitWidth(
+          horizontal: horizontal,
           blockMaterialBox(
             context,
             color: selected

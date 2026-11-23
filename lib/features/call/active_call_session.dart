@@ -308,6 +308,11 @@ class ActiveCallSessionNotifier extends Notifier<ActiveCallSession?> {
         // 停止要求が反映される前にプレイヤーごと破棄され、音が鳴り
         // 続けてしまう競合状態があった。
         await controller.soundPlayer.stopRingtone();
+        // `notifyListeners`の最中（このリスナー自身がそれを監視している）に同期的に
+        // disposeすると、リスナー一覧を反復中に空にしてしまい`RangeError`で通知が
+        // 途中で止まる（広場側で2026-11-12に発見・修正した競合と同種、画面共有中の
+        // 再ネゴシエーションで踏みやすいと判明した為、2026-11-23に1対1側にも対策）。
+        await Future<void>.delayed(Duration.zero);
         controller.dispose();
       case GroupCallSession(:final controller):
         // `notifyListeners`の最中（`leave()`・終了の検知）にこの関数が呼ばれるため、その場で

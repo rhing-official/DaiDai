@@ -28,6 +28,11 @@ abstract class CallRepository {
   /// （2026-11-17。別の端末で参加中の一対の通話を、語らい一覧の標に出すため）。
   Stream<List<Call>> watchMyActiveCalls(String userId);
 
+  /// [userId]が発信側・着信側のどちらかで、今つながっている（`active`）通話の
+  /// 一覧を一度だけ取得する（2026-11-23。発信直前に「相手は既に通話中か」を
+  /// 確かめるため。継続監視が要らない用途では[watchMyActiveCalls]より軽い）。
+  Future<List<Call>> findActiveCallsFor(String userId);
+
   Future<void> setOffer(String callId, Map<String, dynamic> offer);
 
   /// 応答（SDP）を書く。通話が既に終わっている（発信側のキャンセル等）時は書かず`false`を返す
@@ -169,6 +174,24 @@ class FirestoreCallRepository implements CallRepository {
       },
     );
     return controller.stream;
+  }
+
+  @override
+  Future<List<Call>> findActiveCallsFor(String userId) async {
+    final results = await Future.wait([
+      _calls
+          .where('callerId', isEqualTo: userId)
+          .where('status', isEqualTo: CallStatus.active.name)
+          .get(),
+      _calls
+          .where('calleeId', isEqualTo: userId)
+          .where('status', isEqualTo: CallStatus.active.name)
+          .get(),
+    ]);
+    return [
+      for (final snapshot in results)
+        for (final doc in snapshot.docs) Call.fromJson(doc.id, doc.data()),
+    ];
   }
 
   @override

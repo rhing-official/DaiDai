@@ -21,6 +21,12 @@ class CallPinnedTilesNotifier extends Notifier<Set<String>> {
     state = next;
   }
 
+  /// 他のピンを全て外し、[key]だけをピンする（2026-11-23追加）。全画面＋PiP表示
+  /// （`CallTileStage`、ピンがちょうど1件の時）で、PiPタイルをタップしてフォーカスを
+  /// 入れ替える操作用。[toggle]だと2件ピンになってしまい、意図しない旧来のグリッド
+  /// 分割表示（ピン2件以上）に入ってしまうため、専用メソッドにした。
+  void focus(String key) => state = {key};
+
   void clear() {
     if (state.isNotEmpty) state = const {};
   }

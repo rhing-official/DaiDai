@@ -357,6 +357,8 @@ class _CallScreenState extends ConsumerState<CallScreen> {
                 ),
               ),
             ),
+            if (remote ? _controller.remoteSpeaking : _controller.localSpeaking)
+              Positioned.fill(child: SpeakingFrame()),
           ],
         ),
       ),

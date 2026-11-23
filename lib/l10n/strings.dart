@@ -37,6 +37,7 @@ class Strings {
     required this.settingsNavChipsAlignmentTitle,
     required this.settingsNavChipsAlignmentNarrowTitle,
     required this.settingsNavChipsAlignmentWideTitle,
+    required this.settingsNavChipsAlignmentSyncNote,
     required this.settingsNavChipsAlignStart,
     required this.settingsNavChipsAlignCenter,
     required this.settingsNavChipsAlignEnd,
@@ -1241,6 +1242,7 @@ class Strings {
     required this.callStatusConnecting,
     required this.callStatusActive,
     required this.callStatusEnded,
+    required this.callCalleeBusy,
     required this.callConnectionUnstableEllipsis,
     required this.callConnectionUnstable,
     required this.callEstablishing,
@@ -1349,6 +1351,7 @@ class Strings {
   final String settingsNavChipsAlignmentTitle;
   final String settingsNavChipsAlignmentNarrowTitle;
   final String settingsNavChipsAlignmentWideTitle;
+  final String settingsNavChipsAlignmentSyncNote;
   final String settingsNavChipsAlignStart;
   final String settingsNavChipsAlignCenter;
   final String settingsNavChipsAlignEnd;
@@ -2902,6 +2905,7 @@ class Strings {
   final String callStatusConnecting;
   final String callStatusActive;
   final String callStatusEnded;
+  final String callCalleeBusy;
   final String callConnectionUnstableEllipsis;
   final String callConnectionUnstable;
   final String callEstablishing;
@@ -3021,6 +3025,8 @@ class Strings {
     settingsNavChipsAlignmentTitle: '揃え',
     settingsNavChipsAlignmentNarrowTitle: '縦表示の揃え',
     settingsNavChipsAlignmentWideTitle: '横表示の揃え',
+    settingsNavChipsAlignmentSyncNote:
+        'この揃えは、設定・身だしなみの項目一覧の位置にも使われます。',
     settingsNavChipsAlignStart: '左揃え',
     settingsNavChipsAlignCenter: '中央揃え',
     settingsNavChipsAlignEnd: '右揃え',
@@ -3081,7 +3087,7 @@ class Strings {
     settingsTimeFormat: '時刻の表示方法',
     settingsTimeFormat24h: '24時間表記',
     settingsTimeFormat12h: '12時間表記',
-    settingsSubUI: 'UI',
+    settingsSubUI: 'デザイン',
     settingsUIDescription: 'アプリ全体の見た目を選べます。',
     settingsUiStyleFlatLabel: 'フラット',
     settingsUiStyleGekigaLabel: '劇画',
@@ -4316,6 +4322,7 @@ class Strings {
     callStatusConnecting: '接続中…',
     callStatusActive: '通話中',
     callStatusEnded: '通話終了',
+    callCalleeBusy: '相手は通話中です',
     callConnectionUnstableEllipsis: '接続が不安定です…',
     callConnectionUnstable: '接続が不安定です',
     callEstablishing: '通信を確立しています…数秒お待ちください',
@@ -4422,6 +4429,8 @@ class Strings {
     settingsNavChipsAlignmentTitle: 'Alignment',
     settingsNavChipsAlignmentNarrowTitle: 'Alignment (portrait)',
     settingsNavChipsAlignmentWideTitle: 'Alignment (landscape)',
+    settingsNavChipsAlignmentSyncNote:
+        'This alignment is also used for the position of the Settings and Profile lists.',
     settingsNavChipsAlignStart: 'Left',
     settingsNavChipsAlignCenter: 'Centre',
     settingsNavChipsAlignEnd: 'Right',
@@ -4489,7 +4498,7 @@ class Strings {
     settingsTimeFormat: 'Time display',
     settingsTimeFormat24h: '24-hour',
     settingsTimeFormat12h: '12-hour',
-    settingsSubUI: 'UI',
+    settingsSubUI: 'Design',
     settingsUIDescription: 'Choose how the whole app looks.',
     settingsUiStyleFlatLabel: 'Flat',
     settingsUiStyleGekigaLabel: 'Gekiga',
@@ -5864,6 +5873,7 @@ class Strings {
     callStatusConnecting: 'Connecting…',
     callStatusActive: 'In call',
     callStatusEnded: 'Call ended',
+    callCalleeBusy: 'The other person is already on a call',
     callConnectionUnstableEllipsis: 'Connection is unstable…',
     callConnectionUnstable: 'Connection is unstable',
     callEstablishing: 'Setting up the connection… please wait a few seconds',

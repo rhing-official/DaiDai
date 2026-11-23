@@ -132,7 +132,7 @@ void main() {
       expect(_r(tester, 'd').top, _r(tester, 'e').top);
     });
 
-    testWidgets('ピン留めした枚は上の大きい部分、残りは下の帯に並ぶ', (tester) async {
+    testWidgets('ピンがちょうど1枚だと全画面になり、残りはPiPの小窓で重なる（2026-11-23）', (tester) async {
       final container = ProviderContainer(
         overrides: [
           initialAppLocaleProvider.overrideWithValue(AppLocale.japanese),
@@ -148,9 +148,91 @@ void main() {
       final a = _r(tester, 'a');
       final b = _r(tester, 'b');
       final c = _r(tester, 'c');
-      expect(a.height, greaterThan(b.height * 2));
-      expect(b.top, c.top);
-      expect(a.bottom, lessThanOrEqualTo(b.top));
+      // ピンした'a'はステージいっぱいに広がる。
+      expect(a.width, closeTo(600, 0.5));
+      expect(a.height, closeTo(400, 0.5));
+      // 残りは小さいPiP（既定サイズ）として重なり、ステージより小さい。
+      expect(b.width, closeTo(kPipTileSize.width, 0.5));
+      expect(b.height, closeTo(kPipTileSize.height, 0.5));
+      expect(c.width, closeTo(kPipTileSize.width, 0.5));
+      // 既定の位置は右上から縦に段積みするので重ならない。
+      expect(c.top, greaterThanOrEqualTo(b.bottom - 0.5));
+    });
+
+    testWidgets('ピンが2枚以上なら、従来どおり上の大きい部分・下の帯に並ぶ（退行しない）', (tester) async {
+      final container = ProviderContainer(
+        overrides: [
+          initialAppLocaleProvider.overrideWithValue(AppLocale.japanese),
+        ],
+      );
+      addTearDown(container.dispose);
+      await tester.pumpWidget(
+        _stage(const Size(600, 400), ['a', 'b', 'c'], container: container),
+      );
+      // 2件同時のピンは、全画面＋PiP表示に入ると（PiPのピンボタンは`focus`＝入れ替えに
+      // なる為）UIからは到達できない。レンダリング分岐自体の退行確認として、
+      // 直接notifierへ2件入れる。
+      container.read(callPinnedTilesProvider.notifier).toggle('a');
+      container.read(callPinnedTilesProvider.notifier).toggle('b');
+      await tester.pump();
+      expect(container.read(callPinnedTilesProvider), {'a', 'b'});
+      final a = _r(tester, 'a');
+      final b = _r(tester, 'b');
+      final c = _r(tester, 'c');
+      expect(a.height, greaterThan(c.height * 2));
+      expect(a.bottom, lessThanOrEqualTo(c.top));
+      expect(b.bottom, lessThanOrEqualTo(c.top));
+    });
+
+    testWidgets('PiPの小窓はドラッグで動かせ、ステージの外には出ない', (tester) async {
+      final container = ProviderContainer(
+        overrides: [
+          initialAppLocaleProvider.overrideWithValue(AppLocale.japanese),
+        ],
+      );
+      addTearDown(container.dispose);
+      await tester.pumpWidget(
+        _stage(const Size(600, 400), ['a', 'b'], container: container),
+      );
+      await tester.tap(find.byKey(const ValueKey('pin-a')));
+      await tester.pump();
+      // 'a'はステージいっぱいに広がるので、その矩形＝ステージ自体のグローバル座標。
+      final stage = _r(tester, 'a');
+      final before = _r(tester, 'b');
+      // ステージの外（右下のさらに外）までドラッグしても、ステージ内に収まる。
+      await tester.drag(
+        find.byKey(const ValueKey('tb')),
+        const Offset(400, 400),
+      );
+      await tester.pump();
+      final after = _r(tester, 'b');
+      expect(after.topLeft, isNot(before.topLeft));
+      expect(after.left, greaterThanOrEqualTo(stage.left - 0.5));
+      expect(after.top, greaterThanOrEqualTo(stage.top - 0.5));
+      expect(after.right, lessThanOrEqualTo(stage.right + 0.5));
+      expect(after.bottom, lessThanOrEqualTo(stage.bottom + 0.5));
+    });
+
+    testWidgets('PiPの小窓のピンボタンを押すと、フォーカスがそのウィンドウへ入れ替わる', (tester) async {
+      final container = ProviderContainer(
+        overrides: [
+          initialAppLocaleProvider.overrideWithValue(AppLocale.japanese),
+        ],
+      );
+      addTearDown(container.dispose);
+      await tester.pumpWidget(
+        _stage(const Size(600, 400), ['a', 'b'], container: container),
+      );
+      await tester.tap(find.byKey(const ValueKey('pin-a')));
+      await tester.pump();
+      expect(container.read(callPinnedTilesProvider), {'a'});
+      await tester.tap(find.byKey(const ValueKey('pin-b')));
+      await tester.pump();
+      // 'a'を外して'b'だけをピンする（2件ピンにはならない）。
+      expect(container.read(callPinnedTilesProvider), {'b'});
+      final b = _r(tester, 'b');
+      expect(b.width, closeTo(600, 0.5));
+      expect(b.height, closeTo(400, 0.5));
     });
 
     testWidgets('もう一度押すとピンが外れ、消えたウィンドウのピンは外れる', (tester) async {
