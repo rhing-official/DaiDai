@@ -1,4 +1,5 @@
 import '../../utils/avatar_backdrop.dart';
+import '../../utils/visible_readers.dart';
 import '../../utils/contact_alias.dart';
 import '../../providers/contact_alias_providers.dart';
 import 'dart:async';
@@ -5588,13 +5589,19 @@ class _MessageRow extends ConsumerWidget {
     final strings = ref.watch(appStringsProvider);
     // 同じ人が複数回記録されることがある（既読は時刻付きで追記する為、読み直す・複数の端末で
     // 開くと別の要素になる）。人ごとに1件にして、最初の既読を残す（2026-11-16）。
-    final readers = <MessageReadReceipt>[
+    final recordedReaders = <MessageReadReceipt>[
       for (final entry in {
         for (final r in message.readBy.reversed)
           if (r.userId != message.senderId) r.userId: r,
       }.values.toList().reversed)
         entry,
     ];
+    // 削除済みのアカウントは、既読の人数にも一覧にも出さない（2026-11-24）。住人の情報が
+    // 無いと確定した人だけを外す。読み込み中の人は残す（✓の点滅を避ける）。
+    final readers = withoutDeletedReaders(recordedReaders, (id) {
+      final watched = ref.watch(watchedUserProvider(id));
+      return watched.hasValue && watched.value == null;
+    });
     // 一対（1対1）では、相手のメッセージに付く既読マークは「自分が相手の
     // メッセージを読んだか」を示すだけで意味が無いため非表示にする
     // （読み取り・記録自体はやめない。既読の記録をやめると、自分の

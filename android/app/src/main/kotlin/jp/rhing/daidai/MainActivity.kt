@@ -157,6 +157,7 @@ class MainActivity : FlutterFragmentActivity() {
                     "callerName" to intent.getStringExtra(CallNotifications.EXTRA_CALLER_NAME),
                     "iconUrl" to intent.getStringExtra(CallNotifications.EXTRA_ICON_URL),
                     "isVideo" to intent.getBooleanExtra(CallNotifications.EXTRA_IS_VIDEO, false),
+                    "recipientId" to intent.getStringExtra(CallNotifications.EXTRA_RECIPIENT_ID),
                 )
                 intent.removeExtra(CallNotifications.EXTRA_RING)
                 if (deliver && callActionChannel != null) {
@@ -173,6 +174,7 @@ class MainActivity : FlutterFragmentActivity() {
             "kind" to intent.getStringExtra(CallNotifications.EXTRA_KIND),
             "callId" to callId,
             "groupId" to intent.getStringExtra(CallNotifications.EXTRA_GROUP_ID),
+            "recipientId" to intent.getStringExtra(CallNotifications.EXTRA_RECIPIENT_ID),
         )
         // 同じIntentで再作成されても二重に処理しない。
         intent.removeExtra(CallNotifications.EXTRA_ACTION)

@@ -17,6 +17,9 @@ class CallActionReceiver : BroadcastReceiver() {
         val kind = intent.getStringExtra(CallNotifications.EXTRA_KIND)
         CallNotifications.cancel(context, callId)
         if (kind != CallNotifications.KIND_DM) return
+        // 使っていないアカウント宛ての着信は、今のアカウントの権限では通話の状態を書き込めない
+        // （更新できるのは当事者だけ）。通知を消すだけにする（2026-11-24）。
+        if (CallNotifications.isForOtherAccount(context, intent.getStringExtra(CallNotifications.EXTRA_RECIPIENT_ID))) return
         val pending = goAsync()
         FirebaseFirestore.getInstance()
             .collection("calls")

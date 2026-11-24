@@ -55,7 +55,12 @@ self.addEventListener("notificationclick", (event) => {
     targetUrl = data.isDm === "true"
       ? `/chat/dm/${conversationId}`
       : `/chat/group/${conversationId}`;
-    if (roomId) targetUrl += `?roomId=${roomId}`;
+    // 宛先のアカウント（使っていないアカウント宛ての通知なら、アプリが宛先へ切り替えてから
+    // 開く、2026-11-24）。古い通知には無い。
+    const params = [];
+    if (roomId) params.push(`roomId=${encodeURIComponent(roomId)}`);
+    if (data.recipientId) params.push(`recipientId=${encodeURIComponent(data.recipientId)}`);
+    if (params.length > 0) targetUrl += `?${params.join("&")}`;
   }
   event.waitUntil(
     clients.matchAll({ type: "window", includeUncontrolled: true }).then((windowClients) => {

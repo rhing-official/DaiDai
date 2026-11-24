@@ -11,7 +11,7 @@ import {
   Timestamp,
   type WriteBatch,
 } from "firebase-admin/firestore";
-import { getMessaging } from "firebase-admin/messaging";
+import { getMessaging, type MulticastMessage } from "firebase-admin/messaging";
 import { getStorage } from "firebase-admin/storage";
 import {
   type AuthenticatorTransportFuture,
@@ -4099,8 +4099,7 @@ async function sendMessageNotification(params: {
       : Date.now();
   const previewUrl = preview.previewUrl;
 
-  const androidTokens: string[] = [];
-  const webTokens: string[] = [];
+  const targets: RecipientTokens[] = [];
   for (const recipientId of recipientIds) {
     // メンションされた人は、会話をミュートしていても通知する。
     if (
@@ -4116,20 +4115,17 @@ async function sendMessageNotification(params: {
     }
     const recipientDoc = await db.doc(`users/${recipientId}`).get();
     const tokens = await loadFcmTokens(recipientId, recipientDoc.data()?.fcmTokens);
-    for (const entry of tokens) {
-      if (entry.platform === "android") androidTokens.push(entry.token);
-      else if (entry.platform === "web") webTokens.push(entry.token);
-    }
+    const target = tokensOfRecipient(recipientId, tokens);
+    if (target.android.length > 0 || target.web.length > 0) targets.push(target);
   }
-  if (androidTokens.length === 0 && webTokens.length === 0) return;
+  if (targets.length === 0) return;
 
-  const messaging = getMessaging();
-  if (androidTokens.length > 0) {
-    // Androidの通知アイコン/画像はローカルアセットかバイト列でしか渡せない
-    // ため、data-onlyで送りクライアント（lib/push_notifications.dart）側で
+  await sendToEachRecipient(
+    targets,
+    // Androidの通知アイコン/画像はローカルアセットかバイト列でしか渡せないため、
+    // data-onlyで送りクライアント（lib/push_notifications.dart）側で
     // flutter_local_notificationsを使い自前でリッチ通知を組み立てる。
-    await messaging.sendEachForMulticast({
-      tokens: androidTokens,
+    (recipientId) => ({
       data: {
         title,
         body,
@@ -4144,13 +4140,12 @@ async function sendMessageNotification(params: {
         sentAt: String(sentAtMs),
         // 送信取消の時に、この通知を特定して閉じるため（2026-11-15）。
         messageId,
+        // 使っていないアカウント宛ての通知をタップした時に、宛先へ切り替えるため（2026-11-24）。
+        recipientId,
       },
       android: { priority: "high" },
-    });
-  }
-  if (webTokens.length > 0) {
-    await messaging.sendEachForMulticast({
-      tokens: webTokens,
+    }),
+    (recipientId) => ({
       webpush: {
         notification: {
           title,
@@ -4170,11 +4165,12 @@ async function sendMessageNotification(params: {
           roomId,
           isMention: String(isMention),
           messageId,
+          recipientId,
         },
         fcmOptions: { link: "/" },
       },
-    });
-  }
+    }),
+  );
 }
 
 /**
@@ -4259,22 +4255,18 @@ async function sendPushToUsers(params: {
 }): Promise<void> {
   const { recipientIds, title, body, iconUrl, isDm, conversationId, roomId } =
     params;
-  const androidTokens: string[] = [];
-  const webTokens: string[] = [];
+  const targets: RecipientTokens[] = [];
   for (const recipientId of recipientIds) {
     const recipientDoc = await db.doc(`users/${recipientId}`).get();
     const tokens = await loadFcmTokens(recipientId, recipientDoc.data()?.fcmTokens);
-    for (const entry of tokens) {
-      if (entry.platform === "android") androidTokens.push(entry.token);
-      else if (entry.platform === "web") webTokens.push(entry.token);
-    }
+    const target = tokensOfRecipient(recipientId, tokens);
+    if (target.android.length > 0 || target.web.length > 0) targets.push(target);
   }
-  if (androidTokens.length === 0 && webTokens.length === 0) return;
+  if (targets.length === 0) return;
   const sentAtMs = Date.now();
-  const messaging = getMessaging();
-  if (androidTokens.length > 0) {
-    await messaging.sendEachForMulticast({
-      tokens: androidTokens,
+  await sendToEachRecipient(
+    targets,
+    (recipientId) => ({
       data: {
         title,
         body,
@@ -4285,24 +4277,28 @@ async function sendPushToUsers(params: {
         roomId,
         isMention: "false",
         sentAt: String(sentAtMs),
+        recipientId,
       },
       android: { priority: "high" },
-    });
-  }
-  if (webTokens.length > 0) {
-    await messaging.sendEachForMulticast({
-      tokens: webTokens,
+    }),
+    (recipientId) => ({
       webpush: {
         notification: {
           title,
           body: withSentTime(body, sentAtMs),
           icon: iconUrl ?? undefined,
         },
-        data: { isDm: String(isDm), conversationId, roomId, isMention: "false" },
+        data: {
+          isDm: String(isDm),
+          conversationId,
+          roomId,
+          isMention: "false",
+          recipientId,
+        },
         fcmOptions: { link: "/" },
       },
-    });
-  }
+    }),
+  );
 }
 
 /**
@@ -5044,23 +5040,19 @@ export const onGroupCallCreated = onDocumentCreated(
     );
     const sentAtMs = Date.now();
 
-    const androidTokens: string[] = [];
-    const webTokens: string[] = [];
+    const targets: RecipientTokens[] = [];
     for (const recipientId of recipientIds) {
       if (await isConversationMuted(recipientId, groupId, "")) continue;
       const recipientDoc = await db.doc(`users/${recipientId}`).get();
       const tokens = await loadFcmTokens(recipientId, recipientDoc.data()?.fcmTokens);
-      for (const entry of tokens) {
-        if (entry.platform === "android") androidTokens.push(entry.token);
-        else if (entry.platform === "web") webTokens.push(entry.token);
-      }
+      const target = tokensOfRecipient(recipientId, tokens);
+      if (target.android.length > 0 || target.web.length > 0) targets.push(target);
     }
-    if (androidTokens.length === 0 && webTokens.length === 0) return;
+    if (targets.length === 0) return;
 
-    const messaging = getMessaging();
-    if (androidTokens.length > 0) {
-      await messaging.sendEachForMulticast({
-        tokens: androidTokens,
+    await sendToEachRecipient(
+      targets,
+      (recipientId) => ({
         data: {
           title,
           body,
@@ -5077,13 +5069,12 @@ export const onGroupCallCreated = onDocumentCreated(
           groupId,
           callerName: identity.name,
           isVideo: call.isVideo === true ? "true" : "false",
+          // 使っていないアカウント宛ての着信を、宛先へ切り替えて応答するため（2026-11-24）。
+          recipientId,
         },
         android: { priority: "high" },
-      });
-    }
-    if (webTokens.length > 0) {
-      await messaging.sendEachForMulticast({
-        tokens: webTokens,
+      }),
+      (recipientId) => ({
         webpush: {
           notification: {
             title,
@@ -5095,13 +5086,59 @@ export const onGroupCallCreated = onDocumentCreated(
             conversationId: groupId,
             roomId: "",
             isMention: "false",
+            recipientId,
           },
           fcmOptions: { link: "/" },
         },
-      });
-    }
+      }),
+    );
   },
 );
+
+/** 受信者ごとにまとめたFCMトークン。通知に宛先を載せるため、受信者ごとに送る（2026-11-24）。 */
+type RecipientTokens = { recipientId: string; android: string[]; web: string[] };
+
+/**
+ * 通知の宛先を載せるため、受信者ごとにAndroid・Webへ送る（2026-11-24）。同じ端末で複数の
+ * アカウントを使っていると、1つの端末のトークンが複数の受信者に登録されている。以前は全員の
+ * トークンを1回にまとめて送っていたため、どのアカウント宛てか通知に書けなかった。
+ * [buildAndroid]・[buildWeb]は、受信者のidから、トークン以外のメッセージ本体を作る。
+ */
+async function sendToEachRecipient(
+  targets: RecipientTokens[],
+  buildAndroid: (recipientId: string) => Omit<MulticastMessage, "tokens">,
+  buildWeb: (recipientId: string) => Omit<MulticastMessage, "tokens">,
+): Promise<void> {
+  const messaging = getMessaging();
+  await Promise.all(
+    targets.map(async (target) => {
+      if (target.android.length > 0) {
+        await messaging.sendEachForMulticast({
+          tokens: target.android,
+          ...buildAndroid(target.recipientId),
+        });
+      }
+      if (target.web.length > 0) {
+        await messaging.sendEachForMulticast({
+          tokens: target.web,
+          ...buildWeb(target.recipientId),
+        });
+      }
+    }),
+  );
+}
+
+/** 受信者1人のトークンを、プラットフォームごとに仕分ける。 */
+function tokensOfRecipient(
+  recipientId: string,
+  tokens: { token: string; platform: string }[],
+): RecipientTokens {
+  return {
+    recipientId,
+    android: tokens.filter((t) => t.platform === "android").map((t) => t.token),
+    web: tokens.filter((t) => t.platform === "web").map((t) => t.token),
+  };
+}
 
 /** 通話の着信通知を、鳴っている端末から消す（2026-11-12）。通話が終わった・応答された・
  * 拒否された時に、Androidの着信通知（CallStyle）を取り消す。 */
@@ -5161,6 +5198,8 @@ export const onCallCreated = onDocumentCreated(
         iconUrl: identity.iconUrl ?? "",
         isVideo: call.isVideo === true ? "true" : "false",
         sentAt: String(Date.now()),
+        // 使っていないアカウント宛ての着信を、宛先へ切り替えて応答するため（2026-11-24）。
+        recipientId: calleeId,
       },
       android: { priority: "high", ttl: 60 * 1000 },
     });

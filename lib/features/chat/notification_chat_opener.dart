@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:collection/collection.dart';
 import 'package:flutter/foundation.dart' show debugPrint, kDebugMode;
 import 'package:flutter/material.dart';
@@ -8,6 +10,7 @@ import '../../models/app_user.dart';
 import '../../models/direct_message.dart';
 import '../../models/group.dart';
 import '../../providers/repository_providers.dart';
+import '../../utils/notification_target.dart';
 import '../../utils/open_conversation.dart';
 import '../../router/back_stack.dart' show backStackControllerProvider;
 
@@ -30,6 +33,7 @@ class NotificationChatOpener extends ConsumerStatefulWidget {
     required this.isDm,
     required this.conversationId,
     required this.roomId,
+    this.recipientId,
     super.key,
   });
 
@@ -40,6 +44,10 @@ class NotificationChatOpener extends ConsumerStatefulWidget {
   /// 通知ペイロード由来のroomId（無効・未指定なら語らいタブ側の既定
   /// ＝最後に開いた寄合（無ければ先頭）にフォールバック）。
   final String? roomId;
+
+  /// 通知の宛先のアカウントのid（Webの通知クリックのURLの`recipientId`）。今のアカウントと
+  /// 違う時は、宛先へ切り替えてから開く（2026-11-24）。古い通知には無い。
+  final String? recipientId;
 
   @override
   ConsumerState<NotificationChatOpener> createState() =>
@@ -60,6 +68,25 @@ class _NotificationChatOpenerState
         '[DIAG-TAP] opener isDm=${widget.isDm} id=${widget.conversationId} '
         'room=${widget.roomId}',
       );
+    }
+    // 使っていないアカウント宛ての通知（Web）。行き先を置いてホームへ戻り、
+    // `PushNotificationBootstrap`が宛先へ切り替えてから開き直す。
+    if (needsAccountSwitch(widget.recipientId, widget.currentUser.userId)) {
+      pendingNotificationTarget.value = NotificationTarget(
+        kind: NotificationTargetKind.chat,
+        recipientId: widget.recipientId!,
+        data: {
+          'payload': jsonEncode({
+            'isDm': widget.isDm,
+            'conversationId': widget.conversationId,
+            'roomId': widget.roomId,
+            'recipientId': widget.recipientId,
+          }),
+        },
+        createdAtMs: DateTime.now().millisecondsSinceEpoch,
+      );
+      context.go('/');
+      return;
     }
     if (widget.isDm) {
       final resolved = await _resolveDm();

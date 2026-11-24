@@ -6,7 +6,14 @@ import 'package:shared_preferences/shared_preferences.dart';
 /// パスコードロックは端末単位（アカウントに紐づかない）。退避データ自体と持ち主の記録、
 /// 端末の通知チャンネルに紐づく準備済みの印も対象外。
 const _keepPrefixes = ['passcodeLock.', _snapshotPrefix];
-const _keepKeys = {_ownerKey, 'notificationSoundCustomChannelReadyUrl'};
+const _keepKeys = {
+  _ownerKey,
+  'notificationSoundCustomChannelReadyUrl',
+  // 通知・着信から宛先のアカウントへ切り替える仕組み（`notification_target.dart`）。切り替えの前後で
+  // 残す必要が有り、今のアカウントのidはネイティブも読む（2026-11-24）。
+  'pendingNotificationTarget',
+  'currentAccountId',
+};
 
 const _ownerKey = 'localStateOwnerUid';
 const _snapshotPrefix = 'accountSnapshot.';

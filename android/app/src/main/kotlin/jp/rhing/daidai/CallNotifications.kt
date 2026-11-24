@@ -41,6 +41,9 @@ object CallNotifications {
     const val EXTRA_KIND = "daidai_call_kind"
     const val EXTRA_CALL_ID = "daidai_call_id"
     const val EXTRA_GROUP_ID = "daidai_call_group_id"
+
+    /** 着信の宛先のアカウントのid。使っていないアカウント宛てか判断する（2026-11-24）。 */
+    const val EXTRA_RECIPIENT_ID = "daidai_call_recipient_id"
     const val EXTRA_RING = "daidai_call_ring"
     const val ACTION_ANSWER = "answer"
     const val ACTION_DECLINE = "decline"
@@ -71,6 +74,18 @@ object CallNotifications {
     fun ringtoneEnabled(context: Context): Boolean =
         context.getSharedPreferences("FlutterSharedPreferences", Context.MODE_PRIVATE)
             .getBoolean("flutter.callRingtoneEnabled", true)
+
+    /**
+     * 着信の宛先[recipientId]が、今アプリでサインインしているアカウントと違うか（2026-11-24）。
+     * 今のアカウントのidは、Dart側が端末の設定（`currentAccountId`、アカウントの切り替えで入れ替え
+     * ない）に書いたもの。宛先が無い（古いサーバー）時は、従来どおり今のアカウント宛てとみなす。
+     */
+    fun isForOtherAccount(context: Context, recipientId: String?): Boolean {
+        if (recipientId.isNullOrEmpty()) return false
+        val current = context.getSharedPreferences("FlutterSharedPreferences", Context.MODE_PRIVATE)
+            .getString("flutter.currentAccountId", null)
+        return current != recipientId
+    }
 
     private fun ensureChannel(context: Context) {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return
@@ -129,14 +144,23 @@ object CallNotifications {
         }
     }
 
-    private fun intentExtras(intent: Intent, kind: String, callId: String, groupId: String?): Intent =
+    private fun intentExtras(
+        intent: Intent,
+        kind: String,
+        callId: String,
+        groupId: String?,
+        recipientId: String?,
+    ): Intent =
         intent.putExtra(EXTRA_KIND, kind)
             .putExtra(EXTRA_CALL_ID, callId)
             .putExtra(EXTRA_GROUP_ID, groupId)
+            .putExtra(EXTRA_RECIPIENT_ID, recipientId)
 
     fun show(context: Context, data: Map<String, String>) {
-        // アプリを開いている間は、アプリ内のバナーが知らせる。
-        if (isAppInForeground(context)) return
+        // アプリを開いている間は、アプリ内のバナーが知らせる。ただし、アプリ内のバナーは今の
+        // アカウント宛ての着信しか見ないので、使っていないアカウント宛てはここで知らせる（2026-11-24）。
+        val recipientId = data["recipientId"]
+        if (isAppInForeground(context) && !isForOtherAccount(context, recipientId)) return
         val manager = NotificationManagerCompat.from(context)
         if (!manager.areNotificationsEnabled()) return
         val callId = data["callId"] ?: return
@@ -160,13 +184,14 @@ object CallNotifications {
                 kind,
                 callId,
                 groupId,
+                recipientId,
             ),
             flags,
         )
         val declineIntent = PendingIntent.getBroadcast(
             context,
             id,
-            intentExtras(Intent(context, CallActionReceiver::class.java), kind, callId, groupId),
+            intentExtras(Intent(context, CallActionReceiver::class.java), kind, callId, groupId, recipientId),
             flags,
         )
         // ロック画面では、全画面でアプリを開く（応答・拒否はアプリ内のバナーで行う）。
@@ -184,6 +209,7 @@ object CallNotifications {
                 kind,
                 callId,
                 groupId,
+                recipientId,
             ),
             flags,
         )

@@ -2025,37 +2025,39 @@ class _TalksTabState extends ConsumerState<TalksTab>
                       const SizedBox(height: 12),
                       Expanded(
                         child: searchQuery.isEmpty
-                            ? PageView(
-                                // 横スワイプで一対⇄広場を切り替える。速度しきい値
-                                // 判定の自前ジェスチャー（`SwipeBackDetector`）だと
-                                // 片方向だけジェスチャーアリーナで負けて反応しない
-                                // ことがあった為、双方向のページ送りが実績豊富な
-                                // `PageView`に置き換えた（2026-08-09変更、
-                                // 2026-08-06時点では速度しきい値の条件式自体を
-                                // 両方向常時有効にする修正をしていたが、それでも
-                                // 一対→広場方向が反応しない場合が残っていた）。
-                                controller: _categoryPageController,
-                                // 一対・広場の端でそれ以上横に動かない
-                                // ようにする（2026-11-23追加、iOS/macOSの
-                                // 既定のバウンス＝ゴムのような跳ね返りを止める）。
-                                physics: const ClampingScrollPhysics(),
-                                onPageChanged: _handleCategoryPageChanged,
-                                children: [
-                                  _buildDirectMessages(
-                                    dmSnapshot,
-                                    directMessages,
-                                    incomingRequests,
-                                    outgoingRequests,
-                                    prefsById,
-                                    blockedIds,
-                                  ),
-                                  _buildGroups(
-                                    groupSnapshot,
-                                    groups,
-                                    prefsById,
-                                    pendingGroupRequests,
-                                  ),
-                                ],
+                            ? _NoHorizontalOverscroll(
+                                child: PageView(
+                                  // 横スワイプで一対⇄広場を切り替える。速度しきい値
+                                  // 判定の自前ジェスチャー（`SwipeBackDetector`）だと
+                                  // 片方向だけジェスチャーアリーナで負けて反応しない
+                                  // ことがあった為、双方向のページ送りが実績豊富な
+                                  // `PageView`に置き換えた（2026-08-09変更、
+                                  // 2026-08-06時点では速度しきい値の条件式自体を
+                                  // 両方向常時有効にする修正をしていたが、それでも
+                                  // 一対→広場方向が反応しない場合が残っていた）。
+                                  controller: _categoryPageController,
+                                  // 一対・広場の端でそれ以上横に動かない
+                                  // ようにする（2026-11-23追加、iOS/macOSの
+                                  // 既定のバウンス＝ゴムのような跳ね返りを止める）。
+                                  physics: const ClampingScrollPhysics(),
+                                  onPageChanged: _handleCategoryPageChanged,
+                                  children: [
+                                    _buildDirectMessages(
+                                      dmSnapshot,
+                                      directMessages,
+                                      incomingRequests,
+                                      outgoingRequests,
+                                      prefsById,
+                                      blockedIds,
+                                    ),
+                                    _buildGroups(
+                                      groupSnapshot,
+                                      groups,
+                                      prefsById,
+                                      pendingGroupRequests,
+                                    ),
+                                  ],
+                                ),
                               )
                             : _buildSearchResults(
                                 searchQuery,
@@ -2846,16 +2848,18 @@ class _TalksTabState extends ConsumerState<TalksTab>
                       onTap: () => _openMessageSearchHit(hit),
                     ),
                   )
-                : PageView(
-                    controller: _categoryPageController,
-                    // 上の通常レイアウトと同じく、端での跳ね返りを止める
-                    // （2026-11-23追加）。
-                    physics: const ClampingScrollPhysics(),
-                    onPageChanged: _handleCategoryPageChanged,
-                    children: [
-                      buildCategoryTiles(_TalksCategory.dm),
-                      buildCategoryTiles(_TalksCategory.group),
-                    ],
+                : _NoHorizontalOverscroll(
+                    child: PageView(
+                      controller: _categoryPageController,
+                      // 上の通常レイアウトと同じく、端での跳ね返りを止める
+                      // （2026-11-23追加）。
+                      physics: const ClampingScrollPhysics(),
+                      onPageChanged: _handleCategoryPageChanged,
+                      children: [
+                        buildCategoryTiles(_TalksCategory.dm),
+                        buildCategoryTiles(_TalksCategory.group),
+                      ],
+                    ),
                   ),
           ),
         ],
@@ -7094,5 +7098,39 @@ class BlockTalkTileWrap extends StatelessWidget {
         ),
       ),
     );
+  }
+}
+
+/// 横方向のスクロールで、端を越えた時の伸び・光りの表示（Androidの
+/// オーバースクロール表示）を出さない。一対⇄広場の横スワイプ用
+/// （2026-11-24追加）。`ClampingScrollPhysics`は動きを止めるだけで、
+/// Androidではこの表示が別に出る。縦方向のスクロールには影響しない。
+class _NoHorizontalOverscroll extends StatelessWidget {
+  const _NoHorizontalOverscroll({required this.child});
+
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    return ScrollConfiguration(
+      behavior: const _NoHorizontalOverscrollBehavior(),
+      child: child,
+    );
+  }
+}
+
+class _NoHorizontalOverscrollBehavior extends MaterialScrollBehavior {
+  const _NoHorizontalOverscrollBehavior();
+
+  @override
+  Widget buildOverscrollIndicator(
+    BuildContext context,
+    Widget child,
+    ScrollableDetails details,
+  ) {
+    if (axisDirectionToAxis(details.direction) == Axis.horizontal) {
+      return child;
+    }
+    return super.buildOverscrollIndicator(context, child, details);
   }
 }

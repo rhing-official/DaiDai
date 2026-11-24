@@ -850,6 +850,9 @@ class _PipDragSurfaceState extends State<_PipDragSurface> {
       onPanDown: (details) => _grab =
           widget.toLocal(details.globalPosition) - widget.currentOffset(),
       onPanUpdate: (details) {
+        // 小窓を動かす操作は、通話画面の下スワイプ（ミニ表示）として数えない（2026-11-24）。
+        // 下へ動かすと、押した位置から真下へ動いたと判定され、通話画面が閉じていた。
+        SwipeDownDockGuard.maybeOf(context)?.cancel();
         final grab = _grab;
         if (grab != null) {
           widget.onPointerMoved(grab, widget.toLocal(details.globalPosition));

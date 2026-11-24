@@ -12,6 +12,7 @@ import '../../models/group_call.dart';
 import '../../providers/call_answer_providers.dart';
 import '../../providers/repository_providers.dart';
 import '../../providers/ring_launch_provider.dart';
+import '../../utils/notification_target.dart';
 import 'active_call_session.dart';
 import 'call_log.dart';
 import 'call_ring_timeout.dart';
@@ -157,6 +158,21 @@ class _RingLaunchOverlayState extends ConsumerState<RingLaunchOverlay> {
 
   void _accept(RingLaunch ring) {
     setState(() => _answered = true);
+    // 使っていないアカウント宛ての着信は、宛先へ切り替えてから応答する（2026-11-24、
+    // `PushNotificationBootstrap`が切り替える）。
+    if (needsAccountSwitch(ring.recipientId, signedInAccountId)) {
+      pendingNotificationTarget.value = NotificationTarget(
+        kind: NotificationTargetKind.callAnswer,
+        recipientId: ring.recipientId!,
+        data: {
+          'kind': ring.kind,
+          'callId': ring.callId,
+          'groupId': ring.groupId,
+        },
+        createdAtMs: DateTime.now().millisecondsSinceEpoch,
+      );
+      return;
+    }
     // セッションが始まり次第、既存の仕組み（着信通知の「応答」と同じ）が自動で応答する。
     ref
         .read(pendingCallAnswerProvider.notifier)
@@ -170,7 +186,13 @@ class _RingLaunchOverlayState extends ConsumerState<RingLaunchOverlay> {
   }
 
   void _decline(RingLaunch ring) {
-    if (!ring.isGroup) {
+    // 使っていないアカウント宛ての着信は、今のアカウントの権限では拒否を書き込めない
+    // （通話の状態を更新できるのは当事者だけ）。全画面を閉じるだけにする（2026-11-24）。
+    final otherAccount = needsAccountSwitch(
+      ring.recipientId,
+      signedInAccountId,
+    );
+    if (!ring.isGroup && !otherAccount) {
       // セッションが無いまま拒否する時は、通話の状態を直接書き換える。
       ref
           .read(callRepositoryProvider)

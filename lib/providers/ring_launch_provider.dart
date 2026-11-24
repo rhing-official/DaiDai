@@ -12,6 +12,7 @@ class RingLaunch {
     required this.isVideo,
     this.groupId,
     this.iconUrl,
+    this.recipientId,
   });
 
   /// `dm`（一対）または`group`（広場）。
@@ -21,6 +22,10 @@ class RingLaunch {
   final String callerName;
   final String? iconUrl;
   final bool isVideo;
+
+  /// 着信の宛先のアカウントのid。使っていないアカウント宛てか判断するために使う
+  /// （2026-11-24）。古いサーバーの通知には無い。
+  final String? recipientId;
 
   bool get isGroup => kind == 'group';
 
@@ -35,6 +40,7 @@ class RingLaunch {
       callerName: arguments['callerName'] as String? ?? '',
       iconUrl: arguments['iconUrl'] as String?,
       isVideo: arguments['isVideo'] as bool? ?? false,
+      recipientId: arguments['recipientId'] as String?,
     );
   }
 }

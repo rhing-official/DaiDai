@@ -17,6 +17,7 @@ import 'router/app_router.dart' show globalBackStack, globalRouter;
 import 'features/chat/room_viewing_presence.dart' show isViewingRoomNow;
 import 'theme/motion.dart' show suppressPageLiquify;
 import 'utils/message_time.dart';
+import 'utils/notification_target.dart';
 import 'utils/android_notification_sound_sync.dart'
     show customNotificationSoundFile;
 
@@ -125,7 +126,14 @@ Future<String?> consumeLaunchNotificationPayload() async {
 /// [showRemoteMessageNotification]が積んだpayload（`isDm`/`conversationId`/
 /// `roomId`のJSON）を`app_router.dart`の`/chat/dm/:dmId`・
 /// `/chat/group/:groupId`（[NotificationChatOpener]参照）へのURLに変換する。
-void navigateFromNotificationPayload(String? payload) {
+///
+/// 通知の宛先（`recipientId`）が今のアカウントと違う時は、すぐには開かず、
+/// [pendingNotificationTarget]に行き先を置く。`PushNotificationBootstrap`が宛先の
+/// アカウントへ切り替えてから、[skipAccountCheck]付きでもう一度呼ぶ（2026-11-24）。
+void navigateFromNotificationPayload(
+  String? payload, {
+  bool skipAccountCheck = false,
+}) {
   if (kDebugMode) {
     debugPrint(
       '[DIAG-TAP] navigate payload=$payload router=${globalRouter != null}',
@@ -137,6 +145,17 @@ void navigateFromNotificationPayload(String? payload) {
     final isDm = data['isDm'] as bool? ?? true;
     final conversationId = data['conversationId'] as String?;
     if (conversationId == null || conversationId.isEmpty) return;
+    final recipientId = data['recipientId'] as String?;
+    if (!skipAccountCheck &&
+        needsAccountSwitch(recipientId, signedInAccountId)) {
+      pendingNotificationTarget.value = NotificationTarget(
+        kind: NotificationTargetKind.chat,
+        recipientId: recipientId!,
+        data: {'payload': payload},
+        createdAtMs: DateTime.now().millisecondsSinceEpoch,
+      );
+      return;
+    }
     final roomId = data['roomId'] as String?;
     final path = isDm
         ? '/chat/dm/$conversationId'
@@ -257,6 +276,9 @@ Future<void> _showRemoteMessageNotification(RemoteMessage message) async {
       'isDm': (data['isDm'] as String?) == 'true',
       'conversationId': data['conversationId'] as String?,
       'roomId': data['roomId'] as String?,
+      // 使っていないアカウント宛ての通知をタップした時に、宛先へ切り替えるため
+      // （2026-11-24、`navigateFromNotificationPayload`）。古いサーバーの通知には無い。
+      'recipientId': data['recipientId'] as String?,
     }),
   );
 }
