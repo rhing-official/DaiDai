@@ -9,6 +9,7 @@ import {
   hashSecret,
   isActiveAccount,
   isKiwamiPlan,
+  pickSessionsToEvict,
   verifySecret,
 } from "./switchSession";
 
@@ -189,4 +190,31 @@ test("切り替え: 無い・失効・期限切れのセッションは、同じ
   for (const r of [none, revoked, expired]) assert.equal(r.kind, "deny");
   assert.deepEqual(none, revoked);
   assert.deepEqual(none, expired);
+});
+
+test("合言葉が上限に達していたら、最後に使ったのが古いものから外して1つ空ける", () => {
+  const alive = Array.from({ length: 10 }, (_, i) => ({
+    id: `s${i}`,
+    lastUsedAtMs: 1000 + i * 10,
+  }));
+  // 並びが乱れていても、最後に使ったのが古い順に外す。
+  const shuffled = [...alive].reverse();
+  assert.deepEqual(pickSessionsToEvict(shuffled, 10), ["s0"]);
+});
+
+test("上限に満たなければ、何も外さない", () => {
+  const alive = [
+    { id: "a", lastUsedAtMs: 1 },
+    { id: "b", lastUsedAtMs: 2 },
+  ];
+  assert.deepEqual(pickSessionsToEvict(alive, 10), []);
+  assert.deepEqual(pickSessionsToEvict([], 10), []);
+});
+
+test("上限を超えて溜まっていても、1つ足せる所まで古いものから外す", () => {
+  const alive = Array.from({ length: 13 }, (_, i) => ({
+    id: `s${i}`,
+    lastUsedAtMs: i,
+  }));
+  assert.deepEqual(pickSessionsToEvict(alive, 10), ["s0", "s1", "s2", "s3"]);
 });

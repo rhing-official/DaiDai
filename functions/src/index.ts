@@ -70,7 +70,10 @@ import {
 import { parseRoleUpdates } from "./stickerRoles";
 import {
   SWITCH_MAX_SESSIONS_PER_USER,
+  SWITCH_SESSION_SCAN_LIMIT,
   SWITCH_SESSION_TTL_MS,
+  pickSessionsToEvict,
+  type AliveSession,
   SWITCH_TICKET_TTL_MS,
   decideSessionOwner,
   evaluateRedeem,
@@ -804,9 +807,12 @@ export const createSwitchSession = onCall(
         );
       }
 
-      // 失効・期限切れのセッションは掃除し、残りが上限に達していれば作らせない。
-      const existing = await tx.get(sessionsRef.limit(SWITCH_MAX_SESSIONS_PER_USER + 1));
-      let active = 0;
+      // 失効・期限切れのセッションは掃除する。残りが上限に達していても断らず、最後に使ったのが
+      // 古いものから外して空ける（使われなくなった合言葉が溜まって追加が止まるのを防ぐ、2026-11-24）。
+      const existing = await tx.get(
+        sessionsRef.orderBy("createdAtMs").limit(SWITCH_SESSION_SCAN_LIMIT),
+      );
+      const aliveSessions: AliveSession[] = [];
       for (const doc of existing.docs) {
         const data = doc.data();
         const alive =
@@ -814,16 +820,25 @@ export const createSwitchSession = onCall(
           typeof data.expiresAtMs === "number" &&
           data.expiresAtMs >= nowMs;
         if (alive) {
-          active++;
+          const lastUsed = data.lastUsedAt;
+          aliveSessions.push({
+            id: doc.id,
+            lastUsedAtMs:
+              typeof lastUsed?.toMillis === "function"
+                ? lastUsed.toMillis()
+                : typeof data.createdAtMs === "number"
+                  ? data.createdAtMs
+                  : 0,
+          });
         } else {
           tx.delete(doc.ref);
         }
       }
-      if (active >= SWITCH_MAX_SESSIONS_PER_USER) {
-        throw new HttpsError(
-          "resource-exhausted",
-          "保存できるアカウントの数が上限に達しています",
-        );
+      for (const id of pickSessionsToEvict(
+        aliveSessions,
+        SWITCH_MAX_SESSIONS_PER_USER,
+      )) {
+        tx.delete(sessionsRef.doc(id));
       }
 
       // 使ったチケットは消す（1回限り）。

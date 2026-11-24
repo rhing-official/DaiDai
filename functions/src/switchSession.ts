@@ -20,6 +20,31 @@ export const SWITCH_MAX_FAILURES = 5;
 /** 1人のアカウントが同時に持てるセッション数（端末3台分の余裕込みの上限）。 */
 export const SWITCH_MAX_SESSIONS_PER_USER = 10;
 
+/** 1回の追加で、溜まった合言葉を調べる最大件数（古いものから）。 */
+export const SWITCH_SESSION_SCAN_LIMIT = 200;
+
+export interface AliveSession {
+  id: string;
+  /** 最後に使った時刻（epoch ms）。無ければ作った時刻。 */
+  lastUsedAtMs: number;
+}
+
+/**
+ * 新しい合言葉を1つ足す余地を作るために、外す（削除する）合言葉のidを返す（2026-11-24）。
+ * 以前は上限に達していると追加を断っていたが、端末のデータが消えた・アプリを入れ直した等で
+ * 使われなくなった合言葉は、取り外しもできないまま期限（90日）まで残り、いつの間にか上限に
+ * 達して「保存できるアカウントは3つまで」と出て、追加が止まってしまっていた。最後に使った
+ * のが古いものから外して、いつでも追加できるようにする。[alive]は有効な合言葉だけ。
+ */
+export function pickSessionsToEvict(alive: AliveSession[], max: number): string[] {
+  const excess = alive.length - (max - 1);
+  if (excess <= 0) return [];
+  return [...alive]
+    .sort((a, b) => a.lastUsedAtMs - b.lastUsedAtMs)
+    .slice(0, excess)
+    .map((s) => s.id);
+}
+
 export type Check =
   | { ok: true }
   | { ok: false; code: string; message: string };
