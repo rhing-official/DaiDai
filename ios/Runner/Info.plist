@@ -53,6 +53,8 @@
 	<string>音声通話でマイクを使用します</string>
 	<key>NSPhotoLibraryAddUsageDescription</key>
 	<string>スクリーンショットを写真に保存するために使用します</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>身だしなみ・語らい・蔵で使う写真を選ぶために使用します</string>
 	<key>UIApplicationSceneManifest</key>
 	<dict>
 		<key>UIApplicationSupportsMultipleScenes</key>
