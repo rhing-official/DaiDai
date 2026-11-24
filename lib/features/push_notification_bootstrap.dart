@@ -220,6 +220,9 @@ class _PushNotificationBootstrapState
       );
     }
     if (user?.pushNotificationsEnabled == false) return;
+    // 取得を待つ間にサインアウト（アカウントの追加・切り替え）で画面が外れると、`ref`を使えず
+    // `Using "ref" when a widget is about to or has been unmounted`になる（2026-11-24）。
+    if (!mounted) return;
     await ref
         .read(pushNotificationRepositoryProvider)
         .requestPermissionAndRegister(widget.currentUserId);

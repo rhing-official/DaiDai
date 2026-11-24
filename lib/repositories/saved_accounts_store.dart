@@ -26,6 +26,17 @@ class SecureSavedAccountsStore implements SavedAccountsStore {
 
   final FlutterSecureStorage _storage;
 
+  /// 読んで書き換える処理（保存・取り外し）を1つずつ順に行う為の列。アイコンの更新と
+  /// 追加の保存が重なると、後から書いた側が先の保存を上書きして消してしまう
+  /// （「追加したアカウントが消える」の疑い、2026-11-24）。
+  Future<void> _queue = Future<void>.value();
+
+  Future<T> _serialized<T>(Future<T> Function() action) {
+    final result = _queue.then((_) => action());
+    _queue = result.then<void>((_) {}, onError: (_) {});
+    return result;
+  }
+
   static const _accountsKey = 'savedAccounts.v1';
   static const _pendingKey = 'savedAccounts.pendingAdd.v1';
 
@@ -54,23 +65,23 @@ class SecureSavedAccountsStore implements SavedAccountsStore {
   }
 
   @override
-  Future<void> save(SavedAccount account) async {
+  Future<void> save(SavedAccount account) => _serialized(() async {
     final current = await load();
     await _write([
       for (final a in current)
         if (a.uid != account.uid) a,
       account,
     ]);
-  }
+  });
 
   @override
-  Future<void> remove(String uid) async {
+  Future<void> remove(String uid) => _serialized(() async {
     final current = await load();
     await _write([
       for (final a in current)
         if (a.uid != uid) a,
     ]);
-  }
+  });
 
   @override
   Future<PendingAccountAdd?> loadPending() async {

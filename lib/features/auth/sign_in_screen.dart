@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../l10n/strings.dart';
+import '../../providers/account_switcher_providers.dart';
 import '../../providers/repository_providers.dart';
 import '../../repositories/auth_repository.dart';
 import '../../services/app_functions.dart';
@@ -131,6 +132,17 @@ class _SignInScreenState extends ConsumerState<SignInScreen>
       _errorMessage = null;
     });
     try {
+      // Webの本番ドメインは、Google・Appleのログインを同じタブのリダイレクトで行い、戻ると
+      // ページが読み込み直される。アカウントの追加の途中なら、それは「追加の途中で終わった
+      // 起動」ではなく追加の続きだと、先に印を付けて伝える。印が無いと、戻った時に追加元の
+      // アカウントへ自動で戻されて、追加できなかった（2026-11-24）。
+      if (useWebRedirectSignIn && !isPasskey) {
+        try {
+          await ref.read(accountSwitcherProvider).markAddContinues();
+        } on Object {
+          // 印が付かなくても、ログイン自体は続ける。
+        }
+      }
       await signIn(ref.read(authRepositoryProvider));
     } on FirebaseAuthMultiFactorException catch (e) {
       setState(() {
@@ -143,7 +155,8 @@ class _SignInScreenState extends ConsumerState<SignInScreen>
       final strings = ref.read(appStringsProvider);
       setState(() {
         // 例外の中身（`Instance of ...`）をそのまま出さない。メッセージを持つ例外だけ渡す。
-        _errorMessage = (e is FirebaseAuthException || e is AppFunctionsException)
+        _errorMessage =
+            (e is FirebaseAuthException || e is AppFunctionsException)
             ? _signInErrorText(strings, e)
             : isPasskey
             ? strings.passkeyCreateFailed

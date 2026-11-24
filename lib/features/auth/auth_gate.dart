@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../l10n/strings.dart';
+import '../../models/saved_account.dart';
 import '../../models/app_user.dart';
 import '../../models/residence.dart';
 import '../../providers/account_switcher_providers.dart';
@@ -286,6 +287,16 @@ class _AuthLoadErrorScreen extends ConsumerWidget {
 ///
 /// 保存された追加の保留があるのに、このセッションで追加を始めていない（＝追加の途中でアプリが
 /// 終わった・リロードした、または期限切れ）時は、元のアカウントへ戻す（2026-11-14）。
+/// ログイン画面が開いた時に、保留中のアカウントの追加を捨てて元のアカウントへ戻すか
+/// （2026-11-24）。保留が無ければ`false`。リダイレクトのログインへ向かう印
+/// （`continued`）が有り、チケットの期限内なら、Googleから戻る途中なので`false`
+/// （戻した後の続きは、ログイン後に`AuthGate`が引き継ぐ）。
+bool shouldRestorePendingAtSignIn(PendingAccountAdd? pending, int nowMs) {
+  if (pending == null) return false;
+  if (pending.continued && pending.expiresAtMs >= nowMs) return false;
+  return true;
+}
+
 class _SignInGate extends ConsumerStatefulWidget {
   const _SignInGate();
 
@@ -305,7 +316,14 @@ class _SignInGateState extends ConsumerState<_SignInGate> {
   Future<void> _restoreIfLeftOver() async {
     if (!mounted || ref.read(addStartedThisSessionProvider)) return;
     final switcher = ref.read(accountSwitcherProvider);
-    if (await switcher.loadPendingAdd() == null || !mounted) return;
+    final pending = await switcher.loadPendingAdd();
+    if (!mounted ||
+        !shouldRestorePendingAtSignIn(
+          pending,
+          DateTime.now().millisecondsSinceEpoch,
+        )) {
+      return;
+    }
     setState(() => _restoring = true);
     await restoreOriginalAccount(context, ref);
     if (mounted) setState(() => _restoring = false);
