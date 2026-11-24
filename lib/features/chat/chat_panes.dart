@@ -52,6 +52,7 @@ import '../album/album_popup_content.dart';
 import '../calendar/calendar_pane_view.dart';
 import '../calendar/calendar_event_detail_dialog.dart';
 import '../calendar/calendar_popup_content.dart';
+import '../call/urgent_call.dart';
 import '../call/active_call_session.dart';
 import '../call/pinned_call_overlay.dart';
 import '../note/note_pane_view.dart';
@@ -233,6 +234,8 @@ class DmChatPane extends ConsumerStatefulWidget {
     required this.roomName,
     this.onCallPressed,
     this.onVideoCallPressed,
+    this.onUrgentCallPressed,
+    this.onUrgentVideoCallPressed,
     this.showRoomTabBar = false,
     super.key,
   });
@@ -248,6 +251,10 @@ class DmChatPane extends ConsumerStatefulWidget {
   /// 通話ボタン。今開いている寄合のid（通話を始めた寄合として記録する、2026-11-18）を渡す。
   final void Function(String roomId)? onCallPressed;
   final void Function(String roomId)? onVideoCallPressed;
+
+  /// 通話ボタンの長押しで、緊急で発信する（2026-11-25）。
+  final void Function(String roomId)? onUrgentCallPressed;
+  final void Function(String roomId)? onUrgentVideoCallPressed;
 
   /// AppBar直下に寄合の横スクロールタブバー（`RoomTabBar`）を表示するか
   /// （2026-08-03追加）。trueでも[DirectMessage.roomsEnabled]がfalseの
@@ -779,6 +786,12 @@ class _DmChatPaneState extends ConsumerState<DmChatPane> {
       onVideoCallPressed: widget.onVideoCallPressed == null
           ? null
           : () => widget.onVideoCallPressed!(roomId),
+      onUrgentCallPressed: widget.onUrgentCallPressed == null
+          ? null
+          : () => widget.onUrgentCallPressed!(roomId),
+      onUrgentVideoCallPressed: widget.onUrgentVideoCallPressed == null
+          ? null
+          : () => widget.onUrgentVideoCallPressed!(roomId),
       // 既読の無効化は、会話に極みの人がいる間だけ効く（2026-10-17）。
       readReceiptsEnabled:
           dm.readReceiptsEnabled ||
@@ -2444,6 +2457,7 @@ class _GroupChatPaneState extends ConsumerState<GroupChatPane> {
   Future<void> _handleCallPressed(
     BuildContext context, {
     required bool isVideo,
+    bool urgent = false,
   }) async {
     // 通話中（ミニ表示を含む）に通話ボタンを押したら、新しい通話は始めず、ミニ表示を
     // タップした時と同じく進行中の通話画面を開き直す（一対の`startCall`と同じ挙動）。
@@ -2452,6 +2466,11 @@ class _GroupChatPaneState extends ConsumerState<GroupChatPane> {
       reopenActiveCall(ref.read, ongoing);
       return;
     }
+    // 緊急の発信（長押し）は、初めて使う時に確認する（2026-11-25）。
+    if (urgent &&
+        !await confirmUrgentCall(context, ref.read(appStringsProvider)))
+      return;
+    if (!context.mounted) return;
     final group = widget.group;
     final currentUser = widget.currentUser;
     final groupCallRepository = ref.read(groupCallRepositoryProvider);
@@ -2468,6 +2487,7 @@ class _GroupChatPaneState extends ConsumerState<GroupChatPane> {
       initiator: currentUser,
       isVideo: isVideo,
       roomId: _currentRoomId,
+      urgent: urgent,
     );
 
     final participants = await groupCallRepository
@@ -2834,6 +2854,13 @@ class _GroupChatPaneState extends ConsumerState<GroupChatPane> {
       onVideoCallPressed: activeGroupCall != null
           ? null
           : () => _handleCallPressed(context, isVideo: true),
+      // 長押しの緊急の発信は、新しく通話を始める時だけ（進行中の通話への参加には使わない）。
+      onUrgentCallPressed: activeGroupCall != null
+          ? null
+          : () => _handleCallPressed(context, isVideo: false, urgent: true),
+      onUrgentVideoCallPressed: activeGroupCall != null
+          ? null
+          : () => _handleCallPressed(context, isVideo: true, urgent: true),
       callParticipantCount: activeGroupCall == null
           ? null
           : ref

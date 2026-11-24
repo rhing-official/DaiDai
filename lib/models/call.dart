@@ -41,6 +41,7 @@ class Call {
     this.calleeSeenAt,
     this.answeredBy,
     this.roomId,
+    this.urgent = false,
   });
 
   final String callId;
@@ -51,6 +52,10 @@ class Call {
 
   /// 通話を始めた寄合のid（表示用、2026-11-18）。変更前に始まった通話はnull。
   final String? roomId;
+
+  /// 緊急の発信か（2026-11-25）。受け手の端末のおやすみモードを貫通して鳴らす（Androidで、受け手が
+  /// 端末の「おやすみモードの許可」を与えている時だけ）。
+  final bool urgent;
   final String callerId;
   final String callerRhingSeed;
   final String calleeId;
@@ -118,6 +123,7 @@ class Call {
       calleeSeenAt: json['calleeSeenAt'] as Timestamp?,
       answeredBy: json['answeredBy'] as String?,
       roomId: json['roomId'] as String?,
+      urgent: json['urgent'] as bool? ?? false,
     );
   }
 
@@ -125,6 +131,7 @@ class Call {
     return {
       'dmId': dmId,
       if (roomId != null) 'roomId': roomId,
+      if (urgent) 'urgent': true,
       'callerId': callerId,
       'callerRhingSeed': callerRhingSeed,
       'calleeId': calleeId,

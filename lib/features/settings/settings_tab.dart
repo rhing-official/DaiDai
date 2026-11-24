@@ -14,6 +14,7 @@ import 'package:flutter/foundation.dart'
         LicenseParagraph,
         LicenseRegistry;
 import 'package:flutter/material.dart';
+import 'urgent_call_access_tile.dart';
 import 'package:flutter/services.dart';
 import '../../services/app_functions.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -5769,6 +5770,10 @@ class _NotificationsPage extends ConsumerWidget {
           onChanged: (v) =>
               ref.read(callRingbackEnabledProvider.notifier).set(v),
         ),
+        // 緊急の着信をおやすみモード中も鳴らす許可はAndroidだけ（端末のおやすみモードの許可、
+        // Webに同等が無いOS固有の設定、2026-11-25）。
+        if (!kIsWeb && defaultTargetPlatform == TargetPlatform.android)
+          const UrgentCallAccessTile(),
         _SectionHeader(strings.settingsSoundRingtoneTitle),
         _SoundSettingsFolder(
           strings: strings,

@@ -327,6 +327,16 @@ class MainActivity : FlutterFragmentActivity() {
             } else if (call.method == "setLockedCallMode") {
                 lockedCallBackBlocker.isEnabled = call.argument<Boolean>("on") ?: false
                 result.success(null)
+            } else if (call.method == "hasDndAccess") {
+                // 端末の「おやすみモードの許可」を持っているか（緊急の着信の貫通に要る、2026-11-25）。
+                result.success(CallNotifications.hasPolicyAccess(this))
+            } else if (call.method == "openDndAccessSettings") {
+                // 端末の「おやすみモードの許可」の設定画面を開く。
+                startActivity(
+                    android.content.Intent(android.provider.Settings.ACTION_NOTIFICATION_POLICY_ACCESS_SETTINGS)
+                        .addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK),
+                )
+                result.success(null)
             } else if (call.method == "isDeviceLocked") {
                 // 画面がロックされているか（着信を全画面で出すかの判断に使う）。
                 val keyguard = getSystemService(android.content.Context.KEYGUARD_SERVICE)

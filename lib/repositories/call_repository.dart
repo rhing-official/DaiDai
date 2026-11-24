@@ -14,6 +14,7 @@ abstract class CallRepository {
     required String dmId,
     bool isVideo = false,
     String? roomId,
+    bool urgent = false,
   });
 
   Stream<Call?> watchCall(String callId);
@@ -92,12 +93,14 @@ class FirestoreCallRepository implements CallRepository {
     required String dmId,
     bool isVideo = false,
     String? roomId,
+    bool urgent = false,
   }) async {
     final ref = _calls.doc();
     final call = Call(
       callId: ref.id,
       dmId: dmId,
       roomId: roomId,
+      urgent: urgent,
       callerId: caller.userId,
       callerRhingSeed: caller.rhingSeed,
       calleeId: callee.userId,

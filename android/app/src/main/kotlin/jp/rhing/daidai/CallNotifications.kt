@@ -34,6 +34,13 @@ object CallNotifications {
 
     /** 音・振動なしの着信チャンネル（設定で着信音をオフにした端末用、2026-11-18）。 */
     const val SILENT_CHANNEL_ID = "incoming_call_silent"
+
+    /**
+     * 緊急の着信のチャンネル（おやすみモードを貫通する、2026-11-25）。チャンネルは作った後で設定を
+     * 変えられないため、通常のチャンネルとは別に作る。端末の「おやすみモードの許可」が有る時だけ作る。
+     */
+    const val URGENT_CHANNEL_ID = "incoming_call_urgent"
+    const val URGENT_SILENT_CHANNEL_ID = "incoming_call_urgent_silent"
     const val EXTRA_CALLER_NAME = "daidai_call_caller_name"
     const val EXTRA_ICON_URL = "daidai_call_icon_url"
     const val EXTRA_IS_VIDEO = "daidai_call_is_video"
@@ -85,6 +92,49 @@ object CallNotifications {
         val current = context.getSharedPreferences("FlutterSharedPreferences", Context.MODE_PRIVATE)
             .getString("flutter.currentAccountId", null)
         return current != recipientId
+    }
+
+    /** 端末の「おやすみモードの許可」を、このアプリが持っているか（Android 6以降）。 */
+    fun hasPolicyAccess(context: Context): Boolean {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.M) return false
+        return context.getSystemService(NotificationManager::class.java).isNotificationPolicyAccessGranted
+    }
+
+    /**
+     * 緊急の着信のチャンネルを用意する。許可が無い時は作らない（許可が無いと、貫通の指定が効かない
+     * チャンネルが残ってしまうため）。既に有っても貫通の設定が外れていれば、作り直す。
+     */
+    private fun ensureUrgentChannels(context: Context) {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O || !hasPolicyAccess(context)) return
+        val manager = context.getSystemService(NotificationManager::class.java)
+        for ((id, name, ring) in listOf(
+            Triple(URGENT_CHANNEL_ID, "通話の着信（緊急）", true),
+            Triple(URGENT_SILENT_CHANNEL_ID, "通話の着信（緊急・音なし）", false),
+        )) {
+            val existing = manager.getNotificationChannel(id)
+            if (existing != null && existing.canBypassDnd()) continue
+            if (existing != null) manager.deleteNotificationChannel(id)
+            val channel = NotificationChannel(id, name, NotificationManager.IMPORTANCE_HIGH).apply {
+                description = "相手が緊急で発信した通話の着信を、おやすみモード中も知らせます"
+                setBypassDnd(true)
+                lockscreenVisibility = android.app.Notification.VISIBILITY_PUBLIC
+                if (ring) {
+                    setSound(
+                        RingtoneManager.getDefaultUri(RingtoneManager.TYPE_RINGTONE),
+                        AudioAttributes.Builder()
+                            .setUsage(AudioAttributes.USAGE_NOTIFICATION_RINGTONE)
+                            .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
+                            .build(),
+                    )
+                    enableVibration(true)
+                    vibrationPattern = longArrayOf(0, 800, 600, 800, 600)
+                } else {
+                    setSound(null, null)
+                    enableVibration(false)
+                }
+            }
+            manager.createNotificationChannel(channel)
+        }
     }
 
     private fun ensureChannel(context: Context) {
@@ -168,7 +218,10 @@ object CallNotifications {
         val groupId = data["groupId"]
         val callerName = data["callerName"].orEmpty()
         val isVideo = data["isVideo"] == "true"
+        // 緊急の発信で、受け手が「おやすみモードの許可」を与えている時だけ、貫通するチャンネルで出す。
+        val urgent = data["urgent"] == "true" && hasPolicyAccess(context)
         ensureChannel(context)
+        if (urgent) ensureUrgentChannels(context)
 
         val id = notificationId(callId)
         val flags = PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
@@ -225,7 +278,13 @@ object CallNotifications {
         }
         val title = if (kind == KIND_GROUP) data["title"].orEmpty() else callerName
         val ringEnabled = ringtoneEnabled(context)
-        val builder = NotificationCompat.Builder(context, if (ringEnabled) CHANNEL_ID else SILENT_CHANNEL_ID)
+        val channelId = when {
+            urgent && ringEnabled -> URGENT_CHANNEL_ID
+            urgent -> URGENT_SILENT_CHANNEL_ID
+            ringEnabled -> CHANNEL_ID
+            else -> SILENT_CHANNEL_ID
+        }
+        val builder = NotificationCompat.Builder(context, channelId)
             .setSmallIcon(R.drawable.ic_notification)
             .setContentTitle(title)
             .setContentText(text)

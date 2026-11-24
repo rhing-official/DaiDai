@@ -1483,6 +1483,18 @@ final Strings _stringsFr = Strings._(
   callStatusActive: 'En communication',
   callStatusEnded: 'Appel terminé',
   callCalleeBusy: 'L’autre personne est déjà en appel',
+  urgentCallConfirmTitle: 'Passer un appel urgent ?',
+  urgentCallConfirmBody:
+      'L’appel sonnera même si l’appareil de l’autre personne est en mode Ne pas déranger. Cela ne fonctionne que si elle l’a autorisé dans les réglages de son appareil. À utiliser uniquement en cas d’urgence.',
+  urgentCallConfirmAction: 'Appeler en urgence',
+  settingsUrgentCallTitle:
+      'Faire sonner les appels urgents en mode Ne pas déranger',
+  settingsUrgentCallDescription:
+      'Seuls les appels urgents, passés par un appui long sur le bouton d’appel, sonnent en mode Ne pas déranger. L’accès « Ne pas déranger » est requis dans les réglages de l’appareil.',
+  settingsUrgentCallAllowed: 'Autorisé',
+  settingsUrgentCallNotAllowed:
+      'Non autorisé. Autorisez-le dans les réglages de l’appareil',
+  settingsUrgentCallOpenSettings: 'Ouvrir les réglages de l’appareil',
   callConnectionUnstableEllipsis: 'La connexion est instable…',
   callConnectionUnstable: 'La connexion est instable',
   callEstablishing:

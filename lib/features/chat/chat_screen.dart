@@ -164,6 +164,8 @@ class ChatScreen extends ConsumerStatefulWidget {
     this.scheduledSendEnabled = false,
     this.onCallPressed,
     this.onVideoCallPressed,
+    this.onUrgentCallPressed,
+    this.onUrgentVideoCallPressed,
     this.callParticipantCount,
     this.extraActions,
     this.menuAnchorKey,
@@ -315,6 +317,11 @@ class ChatScreen extends ConsumerStatefulWidget {
 
   /// ビデオ通話の発信ボタン。一対（1対1）のみで渡す（グループ通話は未対応）。
   final VoidCallback? onVideoCallPressed;
+
+  /// 通話・ビデオ通話ボタンの長押しで、緊急で発信する（2026-11-25）。受け手の端末のおやすみモードを
+  /// 貫通して鳴る。nullなら長押しは何もしない（進行中の通話に参加する時など）。
+  final VoidCallback? onUrgentCallPressed;
+  final VoidCallback? onUrgentVideoCallPressed;
 
   /// 通話ボタンに出す、進行中の通話の参加人数（広場、2026-10-21）。null又は0なら
   /// 出さない。進行中の通話は種別（音声・ビデオ）に関わらず1つなので、ボタンを
@@ -3319,28 +3326,31 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                         if (widget.onCallPressed case final onCall?)
                           TutorialTarget(
                             id: TutorialTargetIds.chatCallButton,
-                            child: IconButton(
-                              key: _callButtonKey,
-                              tooltip: '',
-                              icon: _withCallCountBadge(switch (uiStyle) {
-                                AppUiStyle.gekiga => const GekigaIconBadge(
-                                  icon: Icons.call_outlined,
-                                  size: 32,
-                                  seed: gekigaToolbarIconSeed,
-                                ),
-                                AppUiStyle.glass => const GlassIconBadge(
-                                  icon: Icons.call_outlined,
-                                  size: 32,
-                                  opaque: true,
-                                ),
-                                AppUiStyle.block => const BlockIconBadge(
-                                  icon: Icons.call_outlined,
-                                ),
-                                AppUiStyle.flat => const Icon(
-                                  Icons.call_outlined,
-                                ),
-                              }),
-                              onPressed: onCall,
+                            child: GestureDetector(
+                              onLongPress: widget.onUrgentCallPressed,
+                              child: IconButton(
+                                key: _callButtonKey,
+                                tooltip: '',
+                                icon: _withCallCountBadge(switch (uiStyle) {
+                                  AppUiStyle.gekiga => const GekigaIconBadge(
+                                    icon: Icons.call_outlined,
+                                    size: 32,
+                                    seed: gekigaToolbarIconSeed,
+                                  ),
+                                  AppUiStyle.glass => const GlassIconBadge(
+                                    icon: Icons.call_outlined,
+                                    size: 32,
+                                    opaque: true,
+                                  ),
+                                  AppUiStyle.block => const BlockIconBadge(
+                                    icon: Icons.call_outlined,
+                                  ),
+                                  AppUiStyle.flat => const Icon(
+                                    Icons.call_outlined,
+                                  ),
+                                }),
+                                onPressed: onCall,
+                              ),
                             ),
                           ),
                         if (widget.onVideoCallPressed case final onVideoCall?)
@@ -3348,28 +3358,31 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                               CameraAvailability.unavailable)
                             TutorialTarget(
                               id: TutorialTargetIds.chatVideoButton,
-                              child: IconButton(
-                                key: _videoCallButtonKey,
-                                tooltip: '',
-                                icon: switch (uiStyle) {
-                                  AppUiStyle.gekiga => const GekigaIconBadge(
-                                    icon: Icons.videocam_outlined,
-                                    size: 32,
-                                    seed: gekigaToolbarIconSeed,
-                                  ),
-                                  AppUiStyle.glass => const GlassIconBadge(
-                                    icon: Icons.videocam_outlined,
-                                    size: 32,
-                                    opaque: true,
-                                  ),
-                                  AppUiStyle.block => const BlockIconBadge(
-                                    icon: Icons.videocam_outlined,
-                                  ),
-                                  AppUiStyle.flat => const Icon(
-                                    Icons.videocam_outlined,
-                                  ),
-                                },
-                                onPressed: onVideoCall,
+                              child: GestureDetector(
+                                onLongPress: widget.onUrgentVideoCallPressed,
+                                child: IconButton(
+                                  key: _videoCallButtonKey,
+                                  tooltip: '',
+                                  icon: switch (uiStyle) {
+                                    AppUiStyle.gekiga => const GekigaIconBadge(
+                                      icon: Icons.videocam_outlined,
+                                      size: 32,
+                                      seed: gekigaToolbarIconSeed,
+                                    ),
+                                    AppUiStyle.glass => const GlassIconBadge(
+                                      icon: Icons.videocam_outlined,
+                                      size: 32,
+                                      opaque: true,
+                                    ),
+                                    AppUiStyle.block => const BlockIconBadge(
+                                      icon: Icons.videocam_outlined,
+                                    ),
+                                    AppUiStyle.flat => const Icon(
+                                      Icons.videocam_outlined,
+                                    ),
+                                  },
+                                  onPressed: onVideoCall,
+                                ),
                               ),
                             ),
                         if (widget.onFetchMessage != null)

@@ -1243,6 +1243,14 @@ class Strings {
     required this.callStatusActive,
     required this.callStatusEnded,
     required this.callCalleeBusy,
+    required this.urgentCallConfirmTitle,
+    required this.urgentCallConfirmBody,
+    required this.urgentCallConfirmAction,
+    required this.settingsUrgentCallTitle,
+    required this.settingsUrgentCallDescription,
+    required this.settingsUrgentCallAllowed,
+    required this.settingsUrgentCallNotAllowed,
+    required this.settingsUrgentCallOpenSettings,
     required this.callConnectionUnstableEllipsis,
     required this.callConnectionUnstable,
     required this.callEstablishing,
@@ -2906,6 +2914,14 @@ class Strings {
   final String callStatusActive;
   final String callStatusEnded;
   final String callCalleeBusy;
+  final String urgentCallConfirmTitle;
+  final String urgentCallConfirmBody;
+  final String urgentCallConfirmAction;
+  final String settingsUrgentCallTitle;
+  final String settingsUrgentCallDescription;
+  final String settingsUrgentCallAllowed;
+  final String settingsUrgentCallNotAllowed;
+  final String settingsUrgentCallOpenSettings;
   final String callConnectionUnstableEllipsis;
   final String callConnectionUnstable;
   final String callEstablishing;
@@ -4322,6 +4338,16 @@ class Strings {
     callStatusActive: '通話中',
     callStatusEnded: '通話終了',
     callCalleeBusy: '相手は通話中です',
+    urgentCallConfirmTitle: '緊急で発信しますか',
+    urgentCallConfirmBody:
+        '相手の端末がおやすみモードでも鳴ります。相手が端末の設定で許可している時だけ届きます。緊急の時だけ使ってください。',
+    urgentCallConfirmAction: '緊急で発信',
+    settingsUrgentCallTitle: '緊急の着信をおやすみモード中も鳴らす',
+    settingsUrgentCallDescription:
+        '相手が通話ボタンを長押しして発信した緊急の着信だけを、おやすみモード中も鳴らします。端末の「おやすみモードの許可」が必要です。',
+    settingsUrgentCallAllowed: '許可済み',
+    settingsUrgentCallNotAllowed: '未許可。端末の設定で許可してください',
+    settingsUrgentCallOpenSettings: '端末の設定を開く',
     callConnectionUnstableEllipsis: '接続が不安定です…',
     callConnectionUnstable: '接続が不安定です',
     callEstablishing: '通信を確立しています…数秒お待ちください',
@@ -5873,6 +5899,17 @@ class Strings {
     callStatusActive: 'In call',
     callStatusEnded: 'Call ended',
     callCalleeBusy: 'The other person is already on a call',
+    urgentCallConfirmTitle: 'Make an urgent call?',
+    urgentCallConfirmBody:
+        'It will ring even if the other person’s device is in Do Not Disturb. This only works if they have allowed it in their device settings. Please use it only in an emergency.',
+    urgentCallConfirmAction: 'Call urgently',
+    settingsUrgentCallTitle: 'Ring urgent calls in Do Not Disturb',
+    settingsUrgentCallDescription:
+        'Only urgent calls, made by long-pressing the call button, ring in Do Not Disturb. This needs “Do Not Disturb access” in your device settings.',
+    settingsUrgentCallAllowed: 'Allowed',
+    settingsUrgentCallNotAllowed:
+        'Not allowed. Allow it in your device settings',
+    settingsUrgentCallOpenSettings: 'Open device settings',
     callConnectionUnstableEllipsis: 'Connection is unstable…',
     callConnectionUnstable: 'Connection is unstable',
     callEstablishing: 'Setting up the connection… please wait a few seconds',

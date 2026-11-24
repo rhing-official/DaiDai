@@ -33,6 +33,7 @@ class GroupCall {
     this.createdAt,
     this.endedAt,
     this.roomId,
+    this.urgent = false,
   });
 
   final String groupCallId;
@@ -53,6 +54,10 @@ class GroupCall {
   /// 出すために使う。変更前に始まった通話はnull。
   final String? roomId;
 
+  /// 緊急の発信か（2026-11-25）。メンバーの端末のおやすみモードを貫通して鳴らす（Androidで、
+  /// 受け手が端末の「おやすみモードの許可」を与えている時だけ）。
+  final bool urgent;
+
   factory GroupCall.fromJson(String groupCallId, Map<String, dynamic> json) {
     return GroupCall(
       groupCallId: groupCallId,
@@ -66,6 +71,7 @@ class GroupCall {
       createdAt: json['createdAt'] as Timestamp?,
       endedAt: json['endedAt'] as Timestamp?,
       roomId: json['roomId'] as String?,
+      urgent: json['urgent'] as bool? ?? false,
     );
   }
 
@@ -80,6 +86,7 @@ class GroupCall {
       'createdAt': createdAt ?? FieldValue.serverTimestamp(),
       'endedAt': endedAt,
       if (roomId != null) 'roomId': roomId,
+      if (urgent) 'urgent': true,
     };
   }
 }

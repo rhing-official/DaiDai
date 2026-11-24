@@ -13,6 +13,9 @@
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
     <!-- 通話の着信通知（CallStyle）を、ロック画面で全画面表示するため（2026-11-12）。 -->
     <uses-permission android:name="android.permission.USE_FULL_SCREEN_INTENT"/>
+    <!-- 緊急の発信（通話ボタンの長押し）の着信を、おやすみモード中も鳴らすため。利用者が端末の設定で
+         「おやすみモードの許可」を与えた時だけ効く（2026-11-25）。 -->
+    <uses-permission android:name="android.permission.ACCESS_NOTIFICATION_POLICY"/>
     <!-- 通話中、アプリを離れても・画面を消してもマイク・カメラ・通信を止められないようにする
          前面サービス用（2026-11-13、CallForegroundService）。 -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE"/>

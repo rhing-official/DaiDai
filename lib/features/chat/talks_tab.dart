@@ -1,3 +1,4 @@
+import '../call/urgent_call.dart';
 import '../call/pinned_call_overlay.dart';
 import '../../utils/avatar_backdrop.dart';
 import '../../utils/contact_alias.dart';
@@ -6042,6 +6043,7 @@ class _DmDetailWithRoomsState extends ConsumerState<_DmDetailWithRooms> {
     DirectMessage dm, {
     bool isVideo = false,
     String? roomId,
+    bool urgent = false,
   }) async {
     // 通話中の再発信で二重通話にならないよう、進行中の通話があればその画面を開き直す
     // （2026-11-13）。
@@ -6050,6 +6052,11 @@ class _DmDetailWithRoomsState extends ConsumerState<_DmDetailWithRooms> {
       reopenActiveCall(ref.read, ongoing);
       return;
     }
+    // 緊急の発信（長押し）は、初めて使う時に確認する（2026-11-25）。
+    if (urgent &&
+        !await confirmUrgentCall(context, ref.read(appStringsProvider)))
+      return;
+    if (!mounted) return;
     final callRepository = ref.read(callRepositoryProvider);
     final currentUser = widget.currentUser;
     final other = AppUser(
@@ -6074,6 +6081,7 @@ class _DmDetailWithRoomsState extends ConsumerState<_DmDetailWithRooms> {
       dmId: dm.dmId,
       isVideo: isVideo,
       roomId: roomId,
+      urgent: urgent,
     );
     // セッションは先に作っておく（2026-11-23、画面遷移の前。モバイルで
     // `/call`をpushした直後の`CallScreen.initState`内で作ると、ウィジェット
@@ -6428,6 +6436,14 @@ class _DmDetailWithRoomsState extends ConsumerState<_DmDetailWithRooms> {
                   onCallPressed: (roomId) => _startCall(dm, roomId: roomId),
                   onVideoCallPressed: (roomId) =>
                       _startCall(dm, isVideo: true, roomId: roomId),
+                  onUrgentCallPressed: (roomId) =>
+                      _startCall(dm, roomId: roomId, urgent: true),
+                  onUrgentVideoCallPressed: (roomId) => _startCall(
+                    dm,
+                    isVideo: true,
+                    roomId: roomId,
+                    urgent: true,
+                  ),
                 ),
               ),
             ),

@@ -5084,6 +5084,9 @@ export const onGroupCallCreated = onDocumentCreated(
           groupId,
           callerName: identity.name,
           isVideo: call.isVideo === true ? "true" : "false",
+          // 緊急の発信（通話ボタンの長押し）。受け手の端末のおやすみモードを貫通して鳴らす
+          // （受け手が端末の許可を与えている時だけ、2026-11-25）。
+          urgent: call.urgent === true ? "true" : "false",
           // 使っていないアカウント宛ての着信を、宛先へ切り替えて応答するため（2026-11-24）。
           recipientId,
         },
@@ -5212,6 +5215,9 @@ export const onCallCreated = onDocumentCreated(
         callerName: identity.name,
         iconUrl: identity.iconUrl ?? "",
         isVideo: call.isVideo === true ? "true" : "false",
+        // 緊急の発信（通話ボタンの長押し）。受け手の端末のおやすみモードを貫通して鳴らす
+        // （受け手が端末の許可を与えている時だけ、2026-11-25）。
+        urgent: call.urgent === true ? "true" : "false",
         sentAt: String(Date.now()),
         // 使っていないアカウント宛ての着信を、宛先へ切り替えて応答するため（2026-11-24）。
         recipientId: calleeId,

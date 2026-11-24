@@ -3,6 +3,7 @@ import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../features/call/urgent_call.dart';
 import '../features/call/pinned_call_overlay.dart';
 import '../features/admin/admin_gate.dart';
 import '../features/not_found/not_found_screen.dart';
@@ -257,7 +258,13 @@ final goRouterProvider = Provider<GoRouter>((ref) {
     DirectMessage dm, {
     bool isVideo = false,
     String? roomId,
+    bool urgent = false,
   }) async {
+    // 緊急の発信（長押し）は、初めて使う時に確認する（2026-11-25）。
+    if (urgent &&
+        !await confirmUrgentCall(context, ref.read(appStringsProvider)))
+      return;
+    if (!context.mounted) return;
     // 通話中の再発信で二重通話にならないよう、進行中の通話があればその画面を開き直す
     // （2026-11-13）。
     final ongoing = ref.read(activeCallSessionProvider);
@@ -288,6 +295,7 @@ final goRouterProvider = Provider<GoRouter>((ref) {
       dmId: dm.dmId,
       isVideo: isVideo,
       roomId: roomId,
+      urgent: urgent,
     );
     // セッションは先に作っておく（2026-11-23、画面遷移の前。モバイルで
     // `/call`をpushした直後の`CallScreen.initState`内で作ると、ウィジェット
@@ -382,6 +390,21 @@ final goRouterProvider = Provider<GoRouter>((ref) {
               args.dm,
               isVideo: true,
               roomId: roomId,
+            ),
+            onUrgentCallPressed: (roomId) => startCall(
+              context,
+              args.currentUser,
+              args.dm,
+              roomId: roomId,
+              urgent: true,
+            ),
+            onUrgentVideoCallPressed: (roomId) => startCall(
+              context,
+              args.currentUser,
+              args.dm,
+              isVideo: true,
+              roomId: roomId,
+              urgent: true,
             ),
             showRoomTabBar: args.showRoomTabBar,
           );
