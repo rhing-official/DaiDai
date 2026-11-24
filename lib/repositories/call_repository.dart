@@ -178,6 +178,18 @@ class FirestoreCallRepository implements CallRepository {
 
   @override
   Future<List<Call>> findActiveCallsFor(String userId) async {
+    // 相手の通話を探す問い合わせは、`firestore.rules`の`calls`が当事者にしか読み取りを許さない
+    // ため、拒否される（2026-11-25）。この確認は「相手が通話中なら知らせる」だけの補助なので、
+    // 失敗しても発信を止めず、通話中ではないものとして扱う。止めると、発信ボタンを押しても
+    // 何も起きなくなる（2026-11-23に入れてから発生した）。
+    try {
+      return await _findActiveCallsFor(userId);
+    } on Object {
+      return const [];
+    }
+  }
+
+  Future<List<Call>> _findActiveCallsFor(String userId) async {
     final results = await Future.wait([
       _calls
           .where('callerId', isEqualTo: userId)

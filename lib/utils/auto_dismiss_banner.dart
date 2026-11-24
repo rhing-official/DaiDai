@@ -73,6 +73,17 @@ Timer showAutoDismissBannerIn(
   return Timer(duration, dismiss);
 }
 
+/// バナーに出す文から、文末の句点・ピリオドを取り除く（2026-11-25、ユーザー指示）。
+/// 文の途中にある句点（複数の文）は残す。「…」「...」のような省略の点は残す。
+String stripBannerTrailingPeriod(String message) {
+  var text = message.trimRight();
+  if (text.endsWith('...') || text.endsWith('…')) return text;
+  while (text.endsWith('。') || text.endsWith('．') || text.endsWith('.')) {
+    text = text.substring(0, text.length - 1).trimRight();
+  }
+  return text;
+}
+
 /// 中央揃え・テキスト量に応じた可変幅のピル状カード（2026-08-14、画面幅
 /// いっぱいに伸びる横長バーから変更）。
 class _FloatingBanner extends StatelessWidget {
@@ -106,7 +117,7 @@ class _FloatingBanner extends StatelessWidget {
                   children: [
                     Flexible(
                       child: Text(
-                        message,
+                        stripBannerTrailingPeriod(message),
                         textAlign: TextAlign.center,
                         style: TextStyle(color: colorScheme.onSurface),
                       ),
