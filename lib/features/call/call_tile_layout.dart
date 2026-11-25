@@ -21,6 +21,8 @@ import 'package:flutter_webrtc/flutter_webrtc.dart'
 import 'package:pointer_interceptor/pointer_interceptor.dart';
 
 import '../../l10n/strings.dart';
+import '../../providers/call_display_provider.dart';
+import '../../utils/platform_info.dart';
 import 'call_pin_provider.dart';
 import 'call_zoom_provider.dart';
 import 'pinned_call_position.dart'
@@ -367,10 +369,20 @@ const kPipTileSize = Size(110, 150);
 /// （ピンした分は領域の上の大きい部分に並べ、残りは下の細い1行の帯に並べる）。
 /// ピンのボタンは、各ウィンドウの左上にここで重ねる。
 class CallTileStage extends ConsumerStatefulWidget {
-  const CallTileStage({required this.specs, this.spacing = 4.0, super.key});
+  const CallTileStage({
+    required this.specs,
+    this.spacing = 4.0,
+    this.autoFocusKey,
+    super.key,
+  });
 
   final List<CallTileSpec> specs;
   final double spacing;
+
+  /// 自分が画面共有している時の、自分の共有のウィンドウのキー（2026-11-26）。モバイルのアプリで、
+  /// ユーザーが何もピンしておらず、PiPの設定が「出さない」でなければ、これを自動でピンした
+  /// 扱いにして全画面に広げ、他のウィンドウ（相手のカメラなど）を小窓として重ねる。保存はしない。
+  final String? autoFocusKey;
 
   @override
   ConsumerState<CallTileStage> createState() => _CallTileStageState();
@@ -666,9 +678,18 @@ class _CallTileStageState extends ConsumerState<CallTileStage> {
     _keys.removeWhere((k, _) => !keys.contains(k));
     _pipOffsets.removeWhere((k, _) => !keys.contains(k));
     final stored = ref.watch(callPinnedTilesProvider);
-    final pinnedKeys = stored.where(keys.contains).toSet();
+    var pinnedKeys = stored.where(keys.contains).toSet();
+    final autoKey = widget.autoFocusKey;
+    if (stored.isEmpty &&
+        autoKey != null &&
+        isMobileCallPlatform &&
+        keys.contains(autoKey) &&
+        keys.length > 1 &&
+        callPipAllowed(ref.watch(callPipPolicyProvider), hasVideo: true)) {
+      pinnedKeys = {autoKey};
+    }
     // 無くなったウィンドウ（共有の終了・退出）のピンは外す。
-    if (pinnedKeys.length != stored.length) {
+    if (stored.isNotEmpty && pinnedKeys.length != stored.length) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (mounted) {
           ref.read(callPinnedTilesProvider.notifier).retain(keys);
