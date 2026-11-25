@@ -217,6 +217,20 @@ class MainActivity : FlutterFragmentActivity() {
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
         setUpImeProgress(flutterEngine)
+        // 変換中の文字の、キーボードが付けた背景色（カーソルの位置の表示）をFlutterへ送る（2026-11-26）。
+        val imeSpanChannel = MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "jp.rhing.daidai/ime_spans")
+        val imeSpanBridge = ImeSpanBridge(this, imeSpanChannel)
+        imeSpanChannel.setMethodCallHandler { call, result ->
+            when (call.method) {
+                "start" -> imeSpanBridge.start()
+                "stop" -> imeSpanBridge.stop()
+                else -> {
+                    result.notImplemented()
+                    return@setMethodCallHandler
+                }
+            }
+            result.success(null)
+        }
         // 新しいエンジンには通話が無い。前の画面（エンジン）が終わった後も前面サービスだけが
         // 残っていた場合（通話の終了を伝える相手が居なくなった時）に、ここで止める（2026-11-16）。
         callActive = false

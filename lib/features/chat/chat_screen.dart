@@ -1,3 +1,4 @@
+import '../../widgets/ime_highlight_controller.dart';
 import '../../utils/avatar_backdrop.dart';
 import '../../utils/visible_readers.dart';
 import '../../utils/contact_alias.dart';
@@ -497,7 +498,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     );
   }
 
-  final _textController = TextEditingController();
+  final _textController = ImeHighlightController();
 
   /// 入力欄の下書き複数端末同期用（2026-08-13追加）。デバウンス書き込みの
   /// タイマーと、編集モード中など「今の入力内容を下書きとして書き込んで
@@ -819,16 +820,18 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     final draft =
         prefsMap[widget.conversationId!]?.draftByRoom[widget.roomId!] ?? '';
     if (draft == _textController.text) return;
-    debugPrint('[CARET] applyRemoteDraft overwrites text');
     _suppressDraftSync = true;
     _textController.text = draft;
     _suppressDraftSync = false;
   }
 
+  TextEditingValue? _lastComposerValue;
+
   void _onComposerTextChanged() {
-    debugPrint(
-      '[CARET] sel=${_textController.selection.baseOffset}-${_textController.selection.extentOffset} len=${_textController.text.length} focus=${_composerFocusNode.hasFocus}',
-    );
+    // 背景色の範囲だけが変わった通知では、何もしない。
+    final current = _textController.value;
+    if (current == _lastComposerValue) return;
+    _lastComposerValue = current;
     _updateMentionSuggestions();
     _updateStickerSuggestions();
     if (_suppressDraftSync || _editingMessage != null) return;
@@ -1180,6 +1183,12 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   /// 入力欄にフォーカスが入った（ソフトキーボードが出る）時は、キーボードと
   /// 同時には出さずドックを閉じる（Discordと同じ切り替え）。
   void _onComposerFocusChanged() {
+    // 変換中の文字のカーソル位置（キーボードが付けた背景色）をAndroidから受け取る間だけ動かす。
+    if (_composerFocusNode.hasFocus) {
+      ImeSpanSync.activate(_textController);
+    } else {
+      ImeSpanSync.deactivate(_textController);
+    }
     if (_composerFocusNode.hasFocus &&
         _stickerDockStage != StickerDockStage.closed) {
       _setStickerDockStage(StickerDockStage.closed);
@@ -3195,6 +3204,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     _stickerRolesSub?.cancel();
     _ownedStickerPacksSub?.cancel();
     _textController.removeListener(_onComposerTextChanged);
+    ImeSpanSync.deactivate(_textController);
     _textController.dispose();
     _composerFocusNode.removeListener(_onComposerFocusChanged);
     _composerFocusNode.dispose();
