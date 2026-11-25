@@ -787,7 +787,6 @@ final Strings _stringsFr = Strings._(
   callScreenShareFps: "Fréquence d’images",
   callScreenShareResolution: "Résolution",
   callScreenShareAudio: "Partager le son",
-  callScreenShareLive: "EN DIRECT",
   callScreenShareKiwami: "Kiwami",
   callScreenShareKiwamiOnly:
       "La haute qualité (1080p ou plus, 60 FPS) est réservée au forfait Kiwami.",

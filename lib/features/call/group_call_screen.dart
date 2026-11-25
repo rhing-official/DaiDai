@@ -428,7 +428,6 @@ class _GroupCallScreenState extends ConsumerState<GroupCallScreen> {
           ),
         ),
         qualityLabel: label,
-        liveText: strings.callScreenShareLive,
         notice: (isSelf && _controller.screenDeliveryFailedPeers.isNotEmpty)
             ? ScreenDeliveryNotice(onRetry: _controller.resendScreenShare)
             : null,

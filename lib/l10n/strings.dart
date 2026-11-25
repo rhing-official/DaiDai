@@ -651,7 +651,6 @@ class Strings {
     required this.callScreenShareFps,
     required this.callScreenShareResolution,
     required this.callScreenShareAudio,
-    required this.callScreenShareLive,
     required this.callScreenShareKiwami,
     required this.callScreenShareKiwamiOnly,
     required this.callScreenShareNoAudio,
@@ -2105,7 +2104,6 @@ class Strings {
   final String callScreenShareFps;
   final String callScreenShareResolution;
   final String callScreenShareAudio;
-  final String callScreenShareLive;
   final String callScreenShareKiwami;
   final String callScreenShareKiwamiOnly;
   final String callScreenShareNoAudio;
@@ -3712,7 +3710,6 @@ class Strings {
     callScreenShareFps: 'フレームレート',
     callScreenShareResolution: '解像度',
     callScreenShareAudio: '音声も共有',
-    callScreenShareLive: 'ライブ',
     callScreenShareKiwami: '極み',
     callScreenShareKiwamiOnly: '高画質（1080p以上・60FPS）は、極みプランで使えます。',
     callScreenShareNoAudio:
@@ -5208,7 +5205,6 @@ class Strings {
     callScreenShareFps: 'Frame rate',
     callScreenShareResolution: 'Resolution',
     callScreenShareAudio: 'Share audio',
-    callScreenShareLive: 'LIVE',
     callScreenShareKiwami: 'Kiwami',
     callScreenShareKiwamiOnly:
         'High quality (1080p or higher, 60 FPS) is available with the Kiwami plan.',

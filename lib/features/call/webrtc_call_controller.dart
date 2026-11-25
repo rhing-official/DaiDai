@@ -1040,6 +1040,8 @@ class WebrtcCallController extends ChangeNotifier {
       if (remoteVideo != _remoteIsVideo) {
         _remoteIsVideo = remoteVideo;
         notifyListeners();
+        // 相手が映像をオンにしたら、こちらもスピーカーにする（2026-11-25）。
+        if (remoteVideo) _autoSwitchToSpeaker();
       }
 
       final offerSdp = updated.offer?['sdp'] as String?;
@@ -1308,6 +1310,8 @@ class WebrtcCallController extends ChangeNotifier {
             ..start();
           _remoteScreenTimedOut = false;
           callLog('1:1 screen: on received');
+          // 相手が画面共有を始めたら、こちらもスピーカーにする（2026-11-25）。
+          _autoSwitchToSpeaker();
         }
         final kept = _remoteScreenStream;
         if (!_remoteScreenAttached &&
@@ -1442,6 +1446,8 @@ class WebrtcCallController extends ChangeNotifier {
     callLog('1:1 setVideoEnabled($enabled) start');
     try {
       await _reconcileLocalVideoTo(enabled);
+      // 音声通話から映像をオンにしたら、ビデオ通話と同じくスピーカーにする（2026-11-25）。
+      if (enabled) _autoSwitchToSpeaker();
       notifyListeners();
       await _callRepository.updateIsVideo(
         call.callId,
@@ -1645,6 +1651,8 @@ class WebrtcCallController extends ChangeNotifier {
       return false;
     }
     _screenDisplay = display;
+    // 自分が画面共有を始めたら、スピーカーにする（2026-11-25）。
+    _autoSwitchToSpeaker();
     _screenDeliveryFailed = false;
     // 共有元が閉じられたら、共有も終える（`await`の前に付けて、取りこぼさない）。
     ScreenShareCapture.watchEnded(display, () => stopScreenShare());
@@ -1953,7 +1961,27 @@ class WebrtcCallController extends ChangeNotifier {
     }
   }
 
+  /// 通話中に手動でスピーカー/受話口を切り替えたか。切り替えた後は、自動でスピーカーへ
+  /// 切り替えない（2026-11-25）。
+  bool _speakerManuallySet = false;
+
+  /// 映像のオン・画面共有の開始（自分・相手）で、受話口ならスピーカーへ切り替える
+  /// （モバイルのみ。外部のオーディオ接続中は`_applySpeakerphone`が強制しない）。
+  void _autoSwitchToSpeaker() {
+    if (!isSpeakerToggleCapablePlatform) return;
+    if (!shouldAutoSpeaker(
+      speakerOn: _speakerOn,
+      manuallySet: _speakerManuallySet,
+    )) {
+      return;
+    }
+    _speakerOn = true;
+    unawaited(_applySpeakerphone(true));
+    notifyListeners();
+  }
+
   void toggleSpeaker() {
+    _speakerManuallySet = true;
     _speakerOn = !_speakerOn;
     _applySpeakerphone(_speakerOn);
     notifyListeners();

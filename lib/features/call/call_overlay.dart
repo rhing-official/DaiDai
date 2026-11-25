@@ -495,7 +495,6 @@ class _OneToOneStageState extends ConsumerState<_OneToOneStage> {
       qualityLabel: remote
           ? (controller.remoteScreenLabel ?? '')
           : controller.screenQuality.label,
-      liveText: strings.callScreenShareLive,
       notice: (!remote && controller.screenDeliveryFailed)
           ? ScreenDeliveryNotice(onRetry: controller.resendScreenShare)
           : null,
@@ -617,7 +616,6 @@ class _GroupStageState extends ConsumerState<_GroupStage> {
             ),
           ),
           qualityLabel: label,
-          liveText: strings.callScreenShareLive,
           notice:
               (userId == selfId &&
                   controller.screenDeliveryFailedPeers.isNotEmpty)

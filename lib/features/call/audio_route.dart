@@ -42,3 +42,11 @@ Future<bool> hasExternalAudioOutput() async {
     return false;
   }
 }
+
+/// 通話中に、映像のオン（自分・相手）や画面共有の開始（自分・相手）があった時に、スピーカーへ
+/// 自動で切り替えるか（2026-11-25）。ビデオ通話はスピーカーから始まるのと同じく、画面を見る
+/// 姿勢になるため。既にスピーカーなら何もしない。通話中に手動で切り替えた（受話口を選んだ）後は、
+/// その選択を壊さないよう、以後は自動で切り替えない（1回の通話につき、自動の切り替えは多くて1回）。
+/// 映像・共有が終わっても、受話口へは戻さない。
+bool shouldAutoSpeaker({required bool speakerOn, required bool manuallySet}) =>
+    !speakerOn && !manuallySet;

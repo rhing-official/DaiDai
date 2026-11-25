@@ -398,7 +398,6 @@ class _CallScreenState extends ConsumerState<CallScreen> {
       qualityLabel: remote
           ? (_controller.remoteScreenLabel ?? '')
           : _controller.screenQuality.label,
-      liveText: strings.callScreenShareLive,
       notice: (!remote && _controller.screenDeliveryFailed)
           ? ScreenDeliveryNotice(onRetry: _controller.resendScreenShare)
           : null,

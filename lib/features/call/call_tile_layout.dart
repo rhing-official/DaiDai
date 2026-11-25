@@ -962,13 +962,14 @@ class ScreenDeliveryNotice extends ConsumerWidget {
 }
 
 /// 画面共有（配信）のタイル（2026-11-15）。映像（切り抜かず全体を見せる）、左下に
-/// 「モニターのアイコン＋名前」、右上に赤い「ライブ」と画質の表示（Discordの配信と同じ配置）。
+/// 「モニターのアイコン＋名前」、右上に画質（解像度とリフレッシュレート）の表示。画質は、
+/// アクセントカラーの地に、設定の「アクセント上の文字色」で出す（2026-11-25、赤い「ライブ」の
+/// ブロックは廃止）。
 class ScreenShareFrame extends StatelessWidget {
   const ScreenShareFrame({
     required this.video,
     required this.name,
     required this.qualityLabel,
-    required this.liveText,
     this.notice,
     super.key,
   });
@@ -982,7 +983,6 @@ class ScreenShareFrame extends StatelessWidget {
   /// 配信している人の呼び名（文字は白）。
   final Widget name;
   final String qualityLabel;
-  final String liveText;
 
   @override
   Widget build(BuildContext context) {
@@ -1018,38 +1018,25 @@ class ScreenShareFrame extends StatelessWidget {
             top: 8,
             right: 8,
             child: IgnorePointer(
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  DecoratedBox(
-                    decoration: BoxDecoration(
-                      // 濃い赤に白（明るい色に白文字は禁止）。
-                      color: Colors.red.shade700,
-                      borderRadius: BorderRadius.circular(6),
-                    ),
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 6,
-                        vertical: 2,
-                      ),
-                      child: Text(
-                        liveText,
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 11,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
+              child: DecoratedBox(
+                decoration: BoxDecoration(
+                  // アクセントカラーの地に、設定の「アクセント上の文字色」（`onPrimary`）。
+                  color: Theme.of(context).colorScheme.primary,
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 8,
+                    vertical: 4,
+                  ),
+                  child: Text(
+                    qualityLabel,
+                    style: TextStyle(
+                      color: Theme.of(context).colorScheme.onPrimary,
+                      fontSize: 11,
                     ),
                   ),
-                  const SizedBox(width: 6),
-                  CallLabelSheet(
-                    child: Text(
-                      qualityLabel,
-                      style: const TextStyle(color: Colors.white, fontSize: 11),
-                    ),
-                  ),
-                ],
+                ),
               ),
             ),
           ),
