@@ -1313,6 +1313,7 @@ class Strings {
     required this.switchAccountsLogoutBody,
     required this.switchAccountsLogout,
     required this.switchAccountsSwitching,
+    required this.switchAccountsCallNotEntered,
     required this.workshopBirthdayNotRegisteredHint,
     required this.workshopFontLabel,
     required this.workshopFontShortLabel,
@@ -2997,6 +2998,7 @@ class Strings {
   final String switchAccountsLogoutBody;
   final String switchAccountsLogout;
   final String switchAccountsSwitching;
+  final String switchAccountsCallNotEntered;
   final String workshopBirthdayNotRegisteredHint;
 
   final String workshopFontLabel;
@@ -4419,6 +4421,7 @@ class Strings {
         'この端末に保存した切り替えの情報を消し、保存した別のアカウントへ切り替えます。アカウント自体は消えません。もう一度使うには、ログインして追加し直してください。',
     switchAccountsLogout: 'ログアウト',
     switchAccountsSwitching: '切り替えています…',
+    switchAccountsCallNotEntered: '通話に入れませんでした。通話が既に終わった可能性が有ります。',
   );
 
   static final enGB = Strings._(
@@ -5989,6 +5992,8 @@ class Strings {
         'This removes the switching details saved on this device and switches to another saved account. The account itself is not deleted. To use it again, sign in and add it again.',
     switchAccountsLogout: 'Log out',
     switchAccountsSwitching: 'Switching…',
+    switchAccountsCallNotEntered:
+        'Couldn\'t join the call. It may have already ended.',
   );
 
   /// `MaterialApp.locale`（[Localizations]）から対訳セットを引く。Riverpodを

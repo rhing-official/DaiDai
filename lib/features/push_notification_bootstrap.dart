@@ -15,7 +15,12 @@ import '../providers/locked_call_providers.dart';
 import '../providers/repository_providers.dart';
 import '../providers/ring_launch_provider.dart';
 import '../push_notifications.dart';
+import '../utils/auto_dismiss_banner.dart';
 import '../utils/notification_target.dart';
+import '../repositories/switch_session_repository.dart';
+import '../l10n/strings.dart';
+import 'call/call_log.dart';
+import 'settings/account_toggle.dart' show switchAccountFailureMessage;
 
 /// ログイン済みユーザーが判明した時点で、プッシュ通知の権限リクエスト・
 /// FCMトークン登録・トークン更新の追従・フォアグラウンド受信時の
@@ -64,24 +69,49 @@ class _PushNotificationBootstrapState
       DateTime.now().millisecondsSinceEpoch,
     );
     if (saved != null && saved.recipientId == widget.currentUserId) {
+      callLog('account switch: resumed ${saved.kind.name}');
       // 切り替えでアプリが作り直された直後。画面（ルーター）が落ち着くのを待ってから開く。
       await Future<void>.delayed(const Duration(milliseconds: 400));
-      if (mounted) _perform(saved);
+      if (mounted) await _perform(saved);
+    } else if (accountSwitchBusy.value &&
+        pendingNotificationTarget.value == null) {
+      // 起動時に出したスケルトン（期限切れ・宛先違い・行き先なし）を閉じる。
+      callLog(
+        'account switch: no target to resume (saved=${saved?.recipientId} '
+        'current=${widget.currentUserId})',
+      );
+      accountSwitchBusy.value = false;
     }
     _onPendingTarget();
+  }
+
+  void _showBanner(String message) {
+    final overlay = Overlay.maybeOf(context);
+    if (overlay != null) showAutoDismissBannerIn(overlay, message: message);
   }
 
   void _onPendingTarget() {
     final target = pendingNotificationTarget.value;
     if (target == null || !mounted) return;
     pendingNotificationTarget.value = null;
-    if (target.isExpired(DateTime.now().millisecondsSinceEpoch)) return;
+    if (target.isExpired(DateTime.now().millisecondsSinceEpoch)) {
+      callLog('account switch: target expired');
+      accountSwitchBusy.value = false;
+      return;
+    }
     if (target.recipientId == widget.currentUserId) {
       _perform(target);
     } else {
+      accountSwitchBusy.value = true;
       _switchFor(target);
     }
   }
+
+  /// 切り替えを再試行してよい失敗か。通信の一時的な失敗は再試行し、合言葉の失効・極みの
+  /// 契約切れ・上限は、繰り返しても直らないのですぐ失敗にする。
+  static bool _retryable(Object error) =>
+      error is! SwitchAccountException ||
+      error.kind == SwitchAccountFailure.other;
 
   /// 宛先のアカウントへ切り替える。切り替えでアプリが作り直されるので、行き先を保存して
   /// 引き継ぐ。宛先のアカウントがこの端末に保存されていない・切り替えに失敗した時は、
@@ -93,33 +123,83 @@ class _PushNotificationBootstrapState
       (a) => a.uid == target.recipientId,
     );
     if (account == null) {
+      callLog('account switch: account not saved on this device');
+      accountSwitchBusy.value = false;
       _fallback(target);
       return;
     }
+    accountSwitchBusy.value = true;
+    final strings = ref.read(appStringsProvider);
+    final overlay = Overlay.maybeOf(context);
     await savePendingNotificationTarget(target);
-    try {
-      await switcher.switchTo(account);
-    } catch (_) {
-      await takeSavedNotificationTarget(DateTime.now().millisecondsSinceEpoch);
-      _fallback(target);
+    Object? lastError;
+    for (var attempt = 1; attempt <= 3; attempt++) {
+      try {
+        callLog('account switch: attempt $attempt');
+        await switcher.switchTo(account);
+        // 成功すると、アプリが作り直される（Webは再読み込み）。ここへは戻らないことが多い。
+        return;
+      } catch (error) {
+        lastError = error;
+        callLog('account switch: attempt $attempt failed: $error');
+        if (!_retryable(error) || attempt == 3) break;
+        await Future<void>.delayed(Duration(seconds: attempt));
+        // 待つ間にこの画面が外れても、切り替え自体は続けて完了させる。
+      }
     }
+    await takeSavedNotificationTarget(DateTime.now().millisecondsSinceEpoch);
+    accountSwitchBusy.value = false;
+    final message = lastError is SwitchAccountException
+        ? switchAccountFailureMessage(
+            strings,
+            lastError,
+            fallback: strings.switchAccountsFailed,
+          )
+        : strings.switchAccountsFailed;
+    if (overlay != null && overlay.mounted) {
+      showAutoDismissBannerIn(overlay, message: message);
+    }
+    _fallback(target);
   }
 
   /// 宛先が今のアカウントの時の動き。
-  void _perform(NotificationTarget target) {
+  Future<void> _perform(NotificationTarget target) async {
     switch (target.kind) {
       case NotificationTargetKind.chat:
         navigateFromNotificationPayload(
           target.data['payload'] as String?,
           skipAccountCheck: true,
         );
+        accountSwitchBusy.value = false;
       case NotificationTargetKind.callAnswer:
+        final callId = target.data['callId'] as String?;
         _setPendingAnswer(
           kind: target.data['kind'] as String? ?? 'dm',
-          callId: target.data['callId'] as String?,
+          callId: callId,
           groupId: target.data['groupId'] as String?,
         );
+        await _awaitAnswerConsumed(callId);
     }
+  }
+
+  /// 応答の指示が、通話のセッション（一対のバナー・広場のリスナー）に受け取られるのを待つ。
+  /// 約12秒たっても受け取られなければ（通話が既に終わった・読み込みが遅い）、指示を消して
+  /// 知らせる。黙って終わらない（2026-11-25）。
+  Future<void> _awaitAnswerConsumed(String? callId) async {
+    final deadline = DateTime.now().add(const Duration(seconds: 12));
+    while (mounted && DateTime.now().isBefore(deadline)) {
+      if (ref.read(pendingCallAnswerProvider)?.callId != callId) {
+        callLog('account switch: answer taken callId=$callId');
+        accountSwitchBusy.value = false;
+        return;
+      }
+      await Future<void>.delayed(const Duration(milliseconds: 250));
+    }
+    if (!mounted) return;
+    callLog('account switch: answer not taken callId=$callId');
+    ref.read(pendingCallAnswerProvider.notifier).clear();
+    accountSwitchBusy.value = false;
+    _showBanner(ref.read(appStringsProvider).switchAccountsCallNotEntered);
   }
 
   /// 切り替えられなかった時。語らいは従来どおり開こうとする（今のアカウントが参加者でなければ

@@ -1,4 +1,6 @@
-import 'dart:async' show unawaited;
+import 'utils/notification_target.dart';
+import 'widgets/account_switch_overlay.dart';
+import 'dart:async' show Timer, unawaited;
 import 'dart:io' show Platform;
 
 import 'package:appflowy_editor/appflowy_editor.dart'
@@ -164,6 +166,12 @@ Future<void> main() async {
   // Web以外では、アカウントを切り替えた後に、この関数でアプリ全体の状態を作り直す
   // （Webはページの再読み込み、2026-11-12）。
   appRestartHook = () => _launchApp(firstLaunch: false);
+  // 別アカウント宛ての着信・通知から切り替えた直後（行き先が保存されている）は、読み込みの間
+  // スケルトンを出す。行き先を処理しないまま残らないよう、20秒で必ず閉じる（2026-11-25）。
+  if (await hasSavedNotificationTarget()) {
+    accountSwitchBusy.value = true;
+    Timer(const Duration(seconds: 20), () => accountSwitchBusy.value = false);
+  }
   await _launchApp(firstLaunch: true);
 }
 
@@ -478,6 +486,8 @@ class DaiDaiApp extends ConsumerWidget {
                 // 着信の全画面インテントで開かれた時、セッションの開始を待たずに全画面で出す
                 // （2026-11-18）。
                 const RingLaunchOverlay(),
+                // 別アカウントへの切り替え中のスケルトン（2026-11-25）。
+                const AccountSwitchOverlay(),
                 // ロック画面の上の通話・着信の安全（終了後の認証・通話中の操作制限、2026-11-18）。
                 const LockScreenCallGuard(),
                 // 広場の通話開始バナーは全ルート・ボタン・ミニ表示より最前面に出す。

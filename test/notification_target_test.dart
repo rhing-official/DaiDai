@@ -105,5 +105,21 @@ void main() {
       final prefs = await SharedPreferences.getInstance();
       expect(prefs.getString(kCurrentAccountIdKey), 'a');
     });
+
+    test('保存した行き先の有無を、取り出さずに調べられる', () async {
+      expect(await hasSavedNotificationTarget(), isFalse);
+      await savePendingNotificationTarget(
+        const NotificationTarget(
+          kind: NotificationTargetKind.callAnswer,
+          recipientId: 'b',
+          data: {'callId': 'c'},
+          createdAtMs: 0,
+        ),
+      );
+      expect(await hasSavedNotificationTarget(), isTrue);
+      expect(await hasSavedNotificationTarget(), isTrue);
+      expect(await takeSavedNotificationTarget(0), isNotNull);
+      expect(await hasSavedNotificationTarget(), isFalse);
+    });
   });
 }

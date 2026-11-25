@@ -90,6 +90,18 @@ class NotificationTarget {
 final ValueNotifier<NotificationTarget?> pendingNotificationTarget =
     ValueNotifier<NotificationTarget?>(null);
 
+/// 別アカウントへの切り替え、または切り替え後の行き先の実行が進行中か（2026-11-25）。
+/// 時間が掛かっても進んでいることが分かるよう、`AccountSwitchOverlay`がスケルトンを出す。
+/// 切り替えでアプリが作り直されても、同じプロセスなら残る（Webの再読み込みは、保存した
+/// 行き先の有無で[hasSavedNotificationTarget]が補う）。
+final ValueNotifier<bool> accountSwitchBusy = ValueNotifier<bool>(false);
+
+/// 切り替えの前後で引き継ぐ行き先が、端末に保存されているか（取り出さずに調べる）。
+Future<bool> hasSavedNotificationTarget() async {
+  final prefs = await SharedPreferences.getInstance();
+  return prefs.getString(kPendingNotificationTargetKey) != null;
+}
+
 /// 今サインインしているアカウントのid（`PushNotificationBootstrap`が設定する）。
 /// まだ分からない間（起動直後）は`null`。
 String? signedInAccountId;

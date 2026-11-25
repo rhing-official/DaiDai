@@ -1,3 +1,4 @@
+import '../../utils/notification_target.dart';
 import 'dart:async';
 
 import 'package:flutter/material.dart';
@@ -164,7 +165,8 @@ class _AuthenticatedUserGateState
           // アカウントの追加の途中でログインした直後は、読み込みが進んでいることが分かる
           // ようにスケルトンを出す（2026-11-12）。それ以外は従来のスピナー。
           final adding = ref.watch(hasPendingAccountAddProvider).value ?? false;
-          return adding
+          // 別アカウント宛ての着信・通知から切り替えた直後も、同じスケルトンを出す（2026-11-25）。
+          return adding || accountSwitchBusy.value
               ? const HomeSkeleton()
               : const Scaffold(body: DelayedSpinner());
         }

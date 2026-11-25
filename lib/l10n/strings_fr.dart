@@ -1579,4 +1579,6 @@ final Strings _stringsFr = Strings._(
       'Les informations de changement enregistrées sur cet appareil seront supprimées et vous passerez à un autre compte enregistré. Le compte lui-même n’est pas supprimé. Pour le réutiliser, reconnectez-vous et ajoutez-le de nouveau.',
   switchAccountsLogout: 'Se déconnecter',
   switchAccountsSwitching: 'Changement en cours…',
+  switchAccountsCallNotEntered:
+      'Impossible de rejoindre l\'appel. Il est peut-être déjà terminé.',
 );

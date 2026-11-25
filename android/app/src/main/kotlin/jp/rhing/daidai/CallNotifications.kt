@@ -30,7 +30,17 @@ import java.net.URL
  * 拒否は[CallActionReceiver]がアプリを開かずに処理する。
  */
 object CallNotifications {
+    /**
+     * 着信音ごとの通常・緊急のチャンネルIDの接頭辞（2026-11-25）。チャンネルの音は作った後で変えられない
+     * ため、DaiDaiの着信音（設定で選ぶ`ringtoneSound`）ごとに別のチャンネルを作る。以前は端末の標準の
+     * 着信音を鳴らす`incoming_call`・`incoming_call_urgent`だった（[LEGACY_CHANNEL_IDS]、削除する）。
+     */
     const val CHANNEL_ID = "incoming_call"
+    private val LEGACY_CHANNEL_IDS = listOf("incoming_call", "incoming_call_urgent")
+
+    /** `res/raw`に同梱した着信音。idはファイル名と`SoundPreset.id`に一致する。 */
+    private val RING_SOUND_IDS = listOf("phonebooth_ring", "marimba_ring", "european_ringback", "futuristic_dial")
+    private const val DEFAULT_RING_SOUND_ID = "marimba_ring"
 
     /** 音・振動なしの着信チャンネル（設定で着信音をオフにした端末用、2026-11-18）。 */
     const val SILENT_CHANNEL_ID = "incoming_call_silent"
@@ -78,6 +88,29 @@ object CallNotifications {
      * 設定>着信音・呼出音の「着信音を鳴らす」（端末ごと、既定オン）。DartのSharedPreferences
      * （`flutter.`が付く同じファイル）から読む。
      */
+    /**
+     * 設定で選んだ着信音のid。未設定・不明・アップロード音源（通知のチャンネルでは鳴らせない）は
+     * 既定の音（`SoundCategory.ringtone.defaultPreset`と同じ）。
+     */
+    fun ringSoundId(context: Context): String {
+        val saved = context.getSharedPreferences("FlutterSharedPreferences", Context.MODE_PRIVATE)
+            .getString("flutter.ringtoneSound", null)
+        return if (saved != null && saved in RING_SOUND_IDS) saved else DEFAULT_RING_SOUND_ID
+    }
+
+    private fun ringChannelId(soundId: String, urgent: Boolean) =
+        if (urgent) "incoming_call_urgent_$soundId" else "incoming_call_$soundId"
+
+    private fun ringSoundUri(context: Context, soundId: String): android.net.Uri {
+        val resId = context.resources.getIdentifier(soundId, "raw", context.packageName)
+        return android.net.Uri.parse("android.resource://${context.packageName}/$resId")
+    }
+
+    private fun ringAudioAttributes() = AudioAttributes.Builder()
+        .setUsage(AudioAttributes.USAGE_NOTIFICATION_RINGTONE)
+        .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
+        .build()
+
     fun ringtoneEnabled(context: Context): Boolean =
         context.getSharedPreferences("FlutterSharedPreferences", Context.MODE_PRIVATE)
             .getBoolean("flutter.callRingtoneEnabled", true)
@@ -116,11 +149,11 @@ object CallNotifications {
      * 緊急の着信のチャンネルを用意する。許可が無い時は作らない（許可が無いと、貫通の指定が効かない
      * チャンネルが残ってしまうため）。既に有っても貫通の設定が外れていれば、作り直す。
      */
-    private fun ensureUrgentChannels(context: Context) {
+    private fun ensureUrgentChannels(context: Context, soundId: String) {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O || !hasPolicyAccess(context)) return
         val manager = context.getSystemService(NotificationManager::class.java)
         for ((id, name, ring) in listOf(
-            Triple(URGENT_CHANNEL_ID, "通話の着信（緊急）", true),
+            Triple(ringChannelId(soundId, true), "通話の着信（緊急）", true),
             Triple(URGENT_SILENT_CHANNEL_ID, "通話の着信（緊急・音なし）", false),
         )) {
             val existing = manager.getNotificationChannel(id)
@@ -131,13 +164,7 @@ object CallNotifications {
                 setBypassDnd(true)
                 lockscreenVisibility = android.app.Notification.VISIBILITY_PUBLIC
                 if (ring) {
-                    setSound(
-                        RingtoneManager.getDefaultUri(RingtoneManager.TYPE_RINGTONE),
-                        AudioAttributes.Builder()
-                            .setUsage(AudioAttributes.USAGE_NOTIFICATION_RINGTONE)
-                            .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
-                            .build(),
-                    )
+                    setSound(ringSoundUri(context, soundId), ringAudioAttributes())
                     enableVibration(true)
                     vibrationPattern = longArrayOf(0, 800, 600, 800, 600)
                 } else {
@@ -149,9 +176,13 @@ object CallNotifications {
         }
     }
 
-    private fun ensureChannel(context: Context) {
+    private fun ensureChannel(context: Context, soundId: String) {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return
         val manager = context.getSystemService(NotificationManager::class.java)
+        // 端末の標準の着信音を鳴らしていた旧チャンネルを消す。
+        for (legacy in LEGACY_CHANNEL_IDS) {
+            if (manager.getNotificationChannel(legacy) != null) manager.deleteNotificationChannel(legacy)
+        }
         if (manager.getNotificationChannel(SILENT_CHANNEL_ID) == null) {
             val silent = NotificationChannel(
                 SILENT_CHANNEL_ID,
@@ -165,16 +196,11 @@ object CallNotifications {
             }
             manager.createNotificationChannel(silent)
         }
-        if (manager.getNotificationChannel(CHANNEL_ID) != null) return
-        val channel = NotificationChannel(CHANNEL_ID, "通話の着信", NotificationManager.IMPORTANCE_HIGH).apply {
-            description = "通話の着信を知らせます"
-            setSound(
-                RingtoneManager.getDefaultUri(RingtoneManager.TYPE_RINGTONE),
-                AudioAttributes.Builder()
-                    .setUsage(AudioAttributes.USAGE_NOTIFICATION_RINGTONE)
-                    .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
-                    .build(),
-            )
+        val id = ringChannelId(soundId, false)
+        if (manager.getNotificationChannel(id) != null) return
+        val channel = NotificationChannel(id, "通話の着信", NotificationManager.IMPORTANCE_HIGH).apply {
+            description = "通話の着信を、設定で選んだ着信音で知らせます"
+            setSound(ringSoundUri(context, soundId), ringAudioAttributes())
             enableVibration(true)
             vibrationPattern = longArrayOf(0, 800, 600, 800, 600)
             lockscreenVisibility = android.app.Notification.VISIBILITY_PUBLIC
@@ -237,8 +263,9 @@ object CallNotifications {
             "DaiDaiCall",
             "incoming urgentFlag=${data["urgent"]} policyAccess=${hasPolicyAccess(context)} dnd=${isDndActive(context)}",
         )
-        ensureChannel(context)
-        if (urgent) ensureUrgentChannels(context)
+        val soundId = ringSoundId(context)
+        ensureChannel(context, soundId)
+        if (urgent) ensureUrgentChannels(context, soundId)
 
         val id = notificationId(callId)
         val flags = PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
@@ -311,9 +338,9 @@ object CallNotifications {
             return
         }
         val channelId = when {
-            urgent && ringEnabled -> URGENT_CHANNEL_ID
+            urgent && ringEnabled -> ringChannelId(soundId, true)
             urgent -> URGENT_SILENT_CHANNEL_ID
-            ringEnabled -> CHANNEL_ID
+            ringEnabled -> ringChannelId(soundId, false)
             else -> SILENT_CHANNEL_ID
         }
         val builder = NotificationCompat.Builder(context, channelId)
