@@ -1938,6 +1938,50 @@ class WebrtcGroupCallController extends ChangeNotifier {
     _cameraDeviceId = trackDeviceId(track) ?? _cameraDeviceId;
   }
 
+  int _camSwitchGen = 0;
+
+  /// カメラの切り替えの後、新しいカメラの最初のフレームが出たら、反転の確定の競走へ知らせる
+  /// （2026-11-25）。送信している映像のフレーム数が増えた時点を、その合図とする。取れない時は、
+  /// 競走の保険（450ms）がそのまま働く。
+  Future<void> _awaitNewCameraFrame(
+    int gen,
+    void Function(String) camLog,
+  ) async {
+    final pollWatch = Stopwatch()..start();
+    camLog('frame poll: start');
+    final base = await outboundVideoFramesEncoded(
+      _peerConnections.values.firstOrNull,
+    );
+    camLog('frame poll: base=$base after ${pollWatch.elapsedMilliseconds}ms');
+    if (base == null) {
+      // 統計が取れない時は、従来どおり450msで確定する。
+      camLog('frame poll: no stats');
+      final rest = kMirrorSyncFallback - pollWatch.elapsed;
+      if (!rest.isNegative) await Future<void>.delayed(rest);
+      if (gen == _camSwitchGen && _mirrorRace.isPending) {
+        _mirrorRace.signalFrame?.call();
+      }
+      return;
+    }
+    for (var i = 0; i < 75; i++) {
+      await Future<void>.delayed(const Duration(milliseconds: 40));
+      if (gen != _camSwitchGen ||
+          _state == GroupCallConnectionState.ended ||
+          !_mirrorRace.isPending)
+        return;
+      final now = await outboundVideoFramesEncoded(
+        _peerConnections.values.firstOrNull,
+      );
+      camLog('frame poll: i=$i now=$now t=${pollWatch.elapsedMilliseconds}ms');
+      if (now != null && now > base) {
+        camLog('frame poll: new frame base=$base now=$now');
+        _mirrorRace.signalFrame?.call();
+        return;
+      }
+    }
+    camLog('frame poll: gave up');
+  }
+
   Future<void> switchCamera() async {
     // 連打による多重実行を防ぐ（実機で「重くなる」報告の一因だった）。
     if (_switchingCamera) return;
@@ -1945,6 +1989,15 @@ class WebrtcGroupCallController extends ChangeNotifier {
     if (videoTracks.isEmpty) return;
     _switchingCamera = true;
     notifyListeners();
+    // 診断用（2026-11-25）。反転の確定の順番を実機のログで確かめる。挙動は変えない。
+    final camWatch = Stopwatch()..start();
+    void camLog(String message) =>
+        callLog('cam: [${camWatch.elapsedMilliseconds}ms] $message');
+    camLog('group start front=$_isFrontCamera mirror=$_mirrorFront');
+    // 聞き始める前に発火した分も取れるよう、切り替えの前から記録だけを付ける。
+    localRenderer.onResize = () => camLog('onResize (before race)');
+    localRenderer.onFirstFrameRendered = () =>
+        camLog('onFirstFrameRendered (before race)');
     try {
       final track = videoTracks.first;
       bool? nativeIsFront;
@@ -1961,6 +2014,7 @@ class WebrtcGroupCallController extends ChangeNotifier {
         // ネイティブの戻り値は、成功したかではなく「切替後が前面カメラか」。
         nativeIsFront = await Helper.switchCamera(track);
       }
+      camLog('switchCamera returned nativeIsFront=$nativeIsFront');
       final switched = _localStream?.getVideoTracks().firstOrNull;
       // ネイティブは同じトラックのままカメラだけが切り替わり、`getSettings()`は作成時の値の
       // まま（外カメラでも'user'）なので、設定は使わず切替の戻り値で決める（2026-11-15）。
@@ -1975,14 +2029,23 @@ class WebrtcGroupCallController extends ChangeNotifier {
       // どちらが先に来ても1回だけ確定させる（2026-11-23）。前回分の競走が残って
       // いれば、start()が確定させずに止めてから新しく始める（連打対策）。
       final targetFront = _isFrontCamera;
+      camLog('race start targetFront=$targetFront');
+      unawaited(_awaitNewCameraFrame(++_camSwitchGen, camLog));
       _mirrorRace.start(() {
         _mirrorFront = targetFront;
         localRenderer.onResize = null;
         localRenderer.onFirstFrameRendered = null;
+        camLog('mirror settled mirror=$_mirrorFront');
         notifyListeners();
-      });
-      localRenderer.onResize = _mirrorRace.signalResize;
-      localRenderer.onFirstFrameRendered = _mirrorRace.signalFirstFrame;
+      }, fallbackOverride: kMirrorFrameWaitFallback);
+      localRenderer.onResize = () {
+        camLog('onResize');
+        _mirrorRace.signalResize?.call();
+      };
+      localRenderer.onFirstFrameRendered = () {
+        camLog('onFirstFrameRendered');
+        _mirrorRace.signalFirstFrame?.call();
+      };
       if (switched != null) {
         _cameraDeviceId = trackDeviceId(switched) ?? _cameraDeviceId;
       }
@@ -1996,7 +2059,9 @@ class WebrtcGroupCallController extends ChangeNotifier {
       // Connectionがある為、全員分に反映する必要がある）。
       final newTrack = _localStream?.getVideoTracks().firstOrNull;
       if (newTrack != null) {
+        camLog('srcObject reassign');
         localRenderer.srcObject = _localStream;
+        camLog('srcObject reassigned');
         muteLocalPlayback(localRenderer);
         for (final pc in _peerConnections.values) {
           final sender = (await pc.getSenders())
@@ -2008,6 +2073,11 @@ class WebrtcGroupCallController extends ChangeNotifier {
     } catch (_) {
       // 切替可能なカメラが1つしかない環境など。現状維持。
     } finally {
+      // 競走が始まらずに終わった時（カメラが1つだけ等）、診断用の記録だけのコールバックを外す。
+      if (!_mirrorRace.isPending) {
+        localRenderer.onResize = null;
+        localRenderer.onFirstFrameRendered = null;
+      }
       _switchingCamera = false;
       notifyListeners();
     }

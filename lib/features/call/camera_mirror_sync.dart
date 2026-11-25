@@ -5,6 +5,12 @@ import 'dart:async';
 /// 保険として残す。信号が来ればそれより早く確定する）。
 const kMirrorSyncFallback = Duration(milliseconds: 450);
 
+/// 送信中の映像のフレーム数の増加を合図にできる時の、保険の時間（2026-11-25）。実機（Android）では、
+/// カメラを切り替えた後、新しいカメラの映像が0.5秒以上届かず、その間は切り替え前の画像が止まって
+/// 見える。450msで反転を切り替えると、止まった古い画像が左右反転して見えるため、新しい最初の
+/// フレームが出るまで待つ。合図が来ない時の最後の保険。
+const kMirrorFrameWaitFallback = Duration(milliseconds: 3000);
+
 /// カメラ切替後、「反転をいつ切り替えるか」を複数の非同期シグナルの競走で
 /// 決める小さなクラス（2026-11-23）。
 ///
@@ -35,7 +41,10 @@ class MirrorSyncRace {
 
   /// 競走を開始する。[onSettle]は、どの経路で確定しても一度だけ呼ばれる。
   /// 既に別の競走が進行中なら、確定させずに止めてから新しく始める（連打対策）。
-  void start(void Function() onSettle) {
+  ///
+  /// [fallbackOverride]を渡すと、その回だけ保険の時間を変える（フレーム数の合図を待てる時は
+  /// 長く待つ、2026-11-25）。
+  void start(void Function() onSettle, {Duration? fallbackOverride}) {
     cancel();
     _settled = false;
     void settle() {
@@ -48,13 +57,20 @@ class MirrorSyncRace {
 
     signalResize = settle;
     signalFirstFrame = settle;
-    _timer = Timer(fallback, settle);
+    signalFrame = settle;
+    _timer = Timer(fallbackOverride ?? fallback, settle);
   }
 
   /// `RTCVideoRenderer.onResize`/`onFirstFrameRendered`に直接代入して使う
   /// 差し込み口。
   void Function()? signalResize;
   void Function()? signalFirstFrame;
+
+  /// 送信している映像のフレーム数が増えた（新しいカメラの最初のフレームが出た）時に呼ぶ
+  /// （2026-11-25）。端末によっては前面・背面で解像度も向きも同じで、`onResize`も
+  /// `onFirstFrameRendered`も発火せず、[fallback]が唯一の確定手段になり、それが遅くて
+  /// 反転して見えていた（実機のログで確認）。
+  void Function()? signalFrame;
 
   /// 進行中の競走を、確定させずに止める（dispose・次の切替開始時）。
   void cancel() {
@@ -63,5 +79,6 @@ class MirrorSyncRace {
     _settled = true;
     signalResize = null;
     signalFirstFrame = null;
+    signalFrame = null;
   }
 }

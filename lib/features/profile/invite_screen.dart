@@ -5,7 +5,10 @@ import 'package:go_router/go_router.dart';
 import '../../l10n/strings.dart';
 import '../../models/app_ui_style.dart';
 import '../../providers/app_ui_style_provider.dart';
+import '../../theme/block/block_theme.dart';
+import '../../widgets/gekiga/gekiga_icon_badge.dart';
 import '../../widgets/glass/glass_dialog.dart';
+import '../../widgets/glass/glass_icon_badge.dart';
 import '../../models/app_user.dart';
 import '../../models/direct_message.dart';
 import '../../providers/repository_providers.dart';
@@ -264,24 +267,28 @@ class _InviteConfirmViewState extends ConsumerState<_InviteConfirmView> {
         return const SizedBox.shrink();
       case _InviteStatus.invalid:
         return _Message(
+          icon: Icons.link_off,
           text: strings.inviteScreenInvalid,
           strings: strings,
           onClose: widget.asDialog ? null : () => _close(context),
         );
       case _InviteStatus.self:
         return _Message(
+          icon: Icons.person_outline,
           text: strings.friendSearchSelf,
           strings: strings,
           onClose: widget.asDialog ? null : () => _close(context),
         );
       case _InviteStatus.alreadyFriends:
         return _Message(
+          icon: Icons.people_outline,
           text: strings.friendRequestAlreadyFriends,
           strings: strings,
           onClose: widget.asDialog ? null : () => _close(context),
         );
       case _InviteStatus.sent:
         return _Message(
+          icon: Icons.mark_email_read_outlined,
           text: strings.friendRequestSent,
           strings: strings,
           onClose: widget.asDialog ? null : () => _close(context),
@@ -357,25 +364,59 @@ class _InviteConfirmViewState extends ConsumerState<_InviteConfirmView> {
   }
 }
 
-class _Message extends StatelessWidget {
+/// 招待の結果（リンクが無効・自分自身・既に友達・申請済み）を知らせる表示。UIスタイル
+/// （フラット・ガラス・劇画・版画）に沿った大きなアイコンのバッジと、文を中央に出す
+/// （2026-11-25）。
+class _Message extends ConsumerWidget {
   const _Message({
+    required this.icon,
     required this.text,
     required this.strings,
     required this.onClose,
   });
 
+  final IconData icon;
   final String text;
   final Strings strings;
 
   /// nullなら「ホームに戻る」ボタンを出さない（ポップアップは外側のタップなどで閉じる）。
   final VoidCallback? onClose;
 
+  static const _badgeSize = 72.0;
+
+  Widget _badge(BuildContext context, AppUiStyle uiStyle) {
+    final scheme = Theme.of(context).colorScheme;
+    return switch (uiStyle) {
+      AppUiStyle.gekiga => GekigaIconBadge(icon: icon, size: _badgeSize),
+      AppUiStyle.glass => GlassIconBadge(icon: icon, size: _badgeSize),
+      AppUiStyle.block => BlockIconBadge(icon: icon, size: _badgeSize),
+      // アクセントカラーは地として使い、アイコンは設定の「アクセント上の文字色」に従う。
+      AppUiStyle.flat => Container(
+        width: _badgeSize,
+        height: _badgeSize,
+        decoration: BoxDecoration(
+          color: scheme.primary,
+          shape: BoxShape.circle,
+        ),
+        child: Icon(icon, size: _badgeSize * 0.5, color: scheme.onPrimary),
+      ),
+    };
+  }
+
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final uiStyle = ref.watch(appUiStyleProvider);
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
-        Text(text, textAlign: TextAlign.center),
+        const SizedBox(height: 8),
+        _badge(context, uiStyle),
+        const SizedBox(height: 20),
+        Text(
+          text,
+          textAlign: TextAlign.center,
+          style: Theme.of(context).textTheme.titleMedium,
+        ),
         if (onClose != null) ...[
           const SizedBox(height: 24),
           ElevatedButton(

@@ -63,4 +63,33 @@ void main() {
       expect(race.signalFirstFrame, isNull);
     });
   });
+
+  test('フレームの合図が来れば、保険の時間を待たずに確定する', () {
+    fakeAsync((async) {
+      var settled = 0;
+      final race = MirrorSyncRace(fallback: const Duration(milliseconds: 450));
+      race.start(() => settled++);
+      async.elapse(const Duration(milliseconds: 80));
+      expect(settled, 0);
+      race.signalFrame?.call();
+      expect(settled, 1);
+      async.elapse(const Duration(milliseconds: 1000));
+      expect(settled, 1);
+    });
+  });
+
+  test('保険の時間を、その回だけ長くできる', () {
+    fakeAsync((async) {
+      var settled = 0;
+      final race = MirrorSyncRace(fallback: const Duration(milliseconds: 450));
+      race.start(
+        () => settled++,
+        fallbackOverride: const Duration(milliseconds: 3000),
+      );
+      async.elapse(const Duration(milliseconds: 2999));
+      expect(settled, 0);
+      async.elapse(const Duration(milliseconds: 1));
+      expect(settled, 1);
+    });
+  });
 }

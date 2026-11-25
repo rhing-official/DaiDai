@@ -100,3 +100,26 @@ Future<void> logOutboundMediaStats(
     callLog('$label outbound stats failed: $e');
   }
 }
+
+/// 送信している映像（`outbound-rtp`の映像）の、これまでに符号化したフレーム数。取れない時は
+/// `null`（接続が無い・統計が取れない・映像が無い）。カメラの切り替え後に、新しいカメラの
+/// 最初のフレームが出たかを、フレーム数の増加で知るために使う（2026-11-25）。
+Future<int?> outboundVideoFramesEncoded(RTCPeerConnection? connection) async {
+  if (connection == null) return null;
+  try {
+    final reports = await connection.getStats();
+    int? best;
+    for (final report in reports) {
+      if (report.type != 'outbound-rtp') continue;
+      final kind = report.values['kind'] ?? report.values['mediaType'];
+      if (kind != 'video') continue;
+      final frames = report.values['framesEncoded'];
+      if (frames is num && (best == null || frames > best)) {
+        best = frames.toInt();
+      }
+    }
+    return best;
+  } catch (_) {
+    return null;
+  }
+}
