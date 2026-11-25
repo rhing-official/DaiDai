@@ -10666,7 +10666,9 @@ class _ComposerBlockBox extends StatelessWidget {
         color: Theme.of(context).brightness == Brightness.light
             ? Colors.white
             : scheme.surface,
-        child: child,
+        // 入力欄の文字は、版画以外では枠が無く左端に寄せて置く。太枠の箱では、左端の文字が枠に
+        // 重ならないよう、左に余白を取る（2026-11-26）。右側のぺったんのボタンの位置は変えない。
+        child: Padding(padding: const EdgeInsets.only(left: 12), child: child),
       ),
     );
   }

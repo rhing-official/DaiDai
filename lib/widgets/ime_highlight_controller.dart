@@ -37,6 +37,25 @@ class ImeHighlightController extends TextEditingController {
     notifyListeners();
   }
 
+  /// 背景色の範囲がキーボードから届かない環境（Web・PC・iOS、またはAndroidで届く前）の、全環境で
+  /// 揃えるためのラベルの範囲（2026-11-26）。変換中の文字全体を薄く、先頭からカーソルまでを濃くする。
+  /// Androidのキーボードが付ける背景色と同じ見た目（変換中の文字の入力中は、全体が濃い）。
+  static List<ImeHighlight> _derivedHighlights(
+    TextRange composing,
+    TextSelection selection,
+    int length,
+  ) {
+    final start = composing.start.clamp(0, length);
+    final end = composing.end.clamp(0, length);
+    final caret = selection.isValid && selection.isCollapsed
+        ? selection.baseOffset.clamp(start, end)
+        : end;
+    return [
+      ImeHighlight(start, end, const Color(0x194DB6AC)),
+      if (caret > start) ImeHighlight(start, caret, const Color(0x664DB6AC)),
+    ];
+  }
+
   @override
   TextSpan buildTextSpan({
     required BuildContext context,
@@ -44,10 +63,7 @@ class ImeHighlightController extends TextEditingController {
     required bool withComposing,
   }) {
     final composing = value.composing;
-    if (!withComposing ||
-        _highlights.isEmpty ||
-        !composing.isValid ||
-        composing.isCollapsed) {
+    if (!withComposing || !composing.isValid || composing.isCollapsed) {
       return super.buildTextSpan(
         context: context,
         style: style,
@@ -57,12 +73,15 @@ class ImeHighlightController extends TextEditingController {
     final accent = Theme.of(context).colorScheme.primary;
     final text = value.text;
     final length = text.length;
+    final highlights = _highlights.isNotEmpty
+        ? _highlights
+        : _derivedHighlights(composing, value.selection, length);
     final cuts = <int>{0, length};
     int clamp(int v) => v.clamp(0, length);
     cuts
       ..add(clamp(composing.start))
       ..add(clamp(composing.end));
-    for (final h in _highlights) {
+    for (final h in highlights) {
       cuts
         ..add(clamp(h.start))
         ..add(clamp(h.end));
@@ -79,7 +98,7 @@ class ImeHighlightController extends TextEditingController {
       var segmentStyle = (a >= composing.start && b <= composing.end)
           ? underline
           : style;
-      for (final h in _highlights) {
+      for (final h in highlights) {
         if (a >= h.start && b <= h.end) {
           // ラベルの色はアクセントカラー。濃さは、キーボードが付けた背景色の濃さ（カーソルより前が濃い）に合わせる。
           segmentStyle = (segmentStyle ?? const TextStyle()).copyWith(
