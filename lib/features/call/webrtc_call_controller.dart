@@ -24,6 +24,7 @@ import 'screen_share.dart';
 import '../../providers/bgm_preferences_provider.dart';
 import 'bgm/bgm_queue.dart';
 import 'bgm/call_bgm.dart';
+import '../../utils/user_activity.dart';
 import 'webrtc_media_constraints.dart';
 
 enum CallConnectionState { connecting, active, ended }
@@ -1274,6 +1275,7 @@ class WebrtcCallController extends ChangeNotifier {
   }
 
   Future<void> hangUp() async {
+    UserActivity.instance.forgetRecent();
     // 先に相手へWebRTCで終了を伝え、自分も即座に閉じる。Firestoreの書き込み
     // （遅い・失敗することがある）は閉じた後に行い、本人の画面を待たせない。
     _sendBye();

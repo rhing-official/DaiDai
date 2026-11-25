@@ -28,6 +28,7 @@ import 'mic_denoiser.dart';
 import '../../providers/bgm_preferences_provider.dart';
 import 'bgm/bgm_queue.dart';
 import 'bgm/call_bgm.dart';
+import '../../utils/user_activity.dart';
 import 'webrtc_media_constraints.dart';
 
 enum GroupCallConnectionState { connecting, active, ended }
@@ -1290,6 +1291,7 @@ class WebrtcGroupCallController extends ChangeNotifier {
 
   Future<void> leave() async {
     if (_state == GroupCallConnectionState.ended) return;
+    UserActivity.instance.forgetRecent();
     // 1対1の`hangUp`と同じく、先に自分の画面を閉じる。Firestoreの退出処理
     // （直列に3〜4往復、回線が悪いと長い）を待たせない（2026-11-13）。
     final id = groupCallId;

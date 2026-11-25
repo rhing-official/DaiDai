@@ -4537,6 +4537,11 @@ async function incrementUnreadCounts(params: {
   if (typeof message.assistantOwnerId === "string") {
     recipientIds = recipientIds.filter((id) => id !== message.assistantOwnerId);
   }
+  // 通話の記録は、その通話に出ていた人の未読にしない（2026-11-26）。
+  if (message.contentType === "call" && Array.isArray(message.callJoinedUserIds)) {
+    const joined = new Set<string>(message.callJoinedUserIds);
+    recipientIds = recipientIds.filter((id) => !joined.has(id));
+  }
   if (recipientIds.length === 0) return;
 
   const batch = db.batch();
@@ -5289,19 +5294,31 @@ async function writeCallRecordMessage(params: {
   startedAt: Timestamp | null;
   durationSeconds: number | null;
   isVideo: boolean;
+  /** 通話を始めた寄合。空・削除済みなら最も古い寄合（2026-11-26）。 */
+  roomId?: string | null;
+  /** 通話に出ていた住人。これらの人は、記録を未読にしない（2026-11-26）。 */
+  joinedUserIds?: string[] | null;
 }): Promise<void> {
   const { isDm, conversationId, callId, senderId, result } = params;
   const missed = result !== "completed";
   const parentRef = db.doc(
     `${isDm ? "directMessages" : "groups"}/${conversationId}`,
   );
-  const oldestRoom = await parentRef
-    .collection("rooms")
-    .orderBy("createdAt")
-    .limit(1)
-    .get();
-  if (oldestRoom.empty) return;
-  const roomRef = oldestRoom.docs[0].ref;
+  // 通話を始めた寄合へ書く。指定が無い・寄合が削除済みなら、最も古い寄合へ。
+  let roomRef: FirebaseFirestore.DocumentReference | null = null;
+  if (params.roomId) {
+    const started = parentRef.collection("rooms").doc(params.roomId);
+    if ((await started.get()).exists) roomRef = started;
+  }
+  if (!roomRef) {
+    const oldestRoom = await parentRef
+      .collection("rooms")
+      .orderBy("createdAt")
+      .limit(1)
+      .get();
+    if (oldestRoom.empty) return;
+    roomRef = oldestRoom.docs[0].ref;
+  }
   const messageRef = roomRef.collection("messages").doc(`call_${callId}`);
   if ((await messageRef.get()).exists) return;
   const senderDoc = await db.doc(`users/${senderId}`).get();
@@ -5324,6 +5341,7 @@ async function writeCallRecordMessage(params: {
     callStartedAt: missed ? null : params.startedAt,
     callDurationSeconds: missed ? null : params.durationSeconds,
     callIsVideo: params.isVideo,
+    callJoinedUserIds: params.joinedUserIds ?? [],
     sentAt: FieldValue.serverTimestamp(),
     hiddenFor: [],
     readBy: [],
@@ -5386,6 +5404,9 @@ export const onCallEnded = onDocumentUpdated(
       startedAt: connectedAt ?? null,
       durationSeconds,
       isVideo: after.isVideo === true,
+      roomId: (after.roomId as string | undefined) ?? null,
+      // つながった通話は、双方が出ていた。不在・拒否・取消は、受け手が出ていない。
+      joinedUserIds: answered ? [callerId, calleeId] : [callerId],
     });
   },
 );
@@ -5432,6 +5453,10 @@ export const recordGroupCallEnd = onDocumentUpdated(
         ? Math.max(0, Math.round((endedAt.toMillis() - createdAt.toMillis()) / 1000))
         : null,
       isVideo: after.isVideo === true,
+      roomId: (after.roomId as string | undefined) ?? null,
+      joinedUserIds: Array.isArray(after.joinedUserIds)
+        ? (after.joinedUserIds as string[])
+        : null,
     });
   },
 );

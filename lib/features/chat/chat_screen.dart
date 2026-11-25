@@ -1,3 +1,4 @@
+import '../../utils/user_activity.dart';
 import '../../widgets/ime_highlight_controller.dart';
 import '../../utils/avatar_backdrop.dart';
 import '../../utils/visible_readers.dart';
@@ -832,6 +833,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     final current = _textController.value;
     if (current == _lastComposerValue) return;
     _lastComposerValue = current;
+    ComposerDraftTracker.set(this, current.text.trim().isNotEmpty);
     _updateMentionSuggestions();
     _updateStickerSuggestions();
     if (_suppressDraftSync || _editingMessage != null) return;
@@ -3195,6 +3197,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
 
   @override
   void dispose() {
+    ComposerDraftTracker.set(this, false);
     _composerAnimationTimer?.cancel();
     _lifecycleListener.dispose();
     _draftSaveTimer?.cancel();

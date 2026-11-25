@@ -55,6 +55,13 @@ class MainActivity : FlutterFragmentActivity() {
     private var shownOverLock = false
 
     /**
+     * 「ロック画面の上に表示する」設定（`setShowWhenLocked`・`setTurnScreenOn`）を、オンにしたままか
+     * （2026-11-26）。ロックされていない時に着信・応答で開いた場合も、オンにする。外さないと、通話の後で
+     * 端末をロックして画面を点けた時に、語らい一覧がロック画面の上に出てしまう。
+     */
+    private var showWhenLockedOn = false
+
+    /**
      * ロック画面の上の通話中は、戻る操作でアプリの他の画面へ移る前に、端末の認証（生体認証など）を
      * 求める（Dartが切り替える）。認証に成功したら、Dartへ知らせて通常の戻る操作をさせる。
      */
@@ -103,8 +110,11 @@ class MainActivity : FlutterFragmentActivity() {
      */
     private fun releaseOverLock() {
         lockedCallBackBlocker.isEnabled = false
-        if (!shownOverLock) return
         shownOverLock = false
+        // ロックされていなかった時に開いた場合も、設定は必ず外す（外さないと、後でロックした時に
+        // ロック画面の上にアプリが出る）。
+        if (!showWhenLockedOn) return
+        showWhenLockedOn = false
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O_MR1) {
             setShowWhenLocked(false)
             setTurnScreenOn(false)
@@ -143,6 +153,7 @@ class MainActivity : FlutterFragmentActivity() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O_MR1) {
             setShowWhenLocked(true)
             setTurnScreenOn(true)
+            showWhenLockedOn = true
         }
         // ロック中に開かれた時だけ、終了後に認証を求める対象にする。
         if (isKeyguardLocked()) shownOverLock = true
@@ -468,6 +479,9 @@ class MainActivity : FlutterFragmentActivity() {
     // 画面の消灯でも止まるため、操作できる状態（点灯中）の時だけ「閉じられた」とみなして通話を終える。
     override fun onStop() {
         super.onStop()
+        // 通話が無いのに、ロック画面の上に表示する設定が残っていたら外す（2026-11-26）。Dartからの
+        // 解除（`releaseOverLock`）が届かなかった場合の保険。
+        if (!callActive && showWhenLockedOn) releaseOverLock()
         if (!callActive || Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return
         val interactive = (getSystemService(POWER_SERVICE) as PowerManager).isInteractive
         if (isInPictureInPictureMode && interactive) {
