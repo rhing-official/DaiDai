@@ -36,7 +36,9 @@ object CallNotifications {
      * 着信音を鳴らす`incoming_call`・`incoming_call_urgent`だった（[LEGACY_CHANNEL_IDS]、削除する）。
      */
     const val CHANNEL_ID = "incoming_call"
-    private val LEGACY_CHANNEL_IDS = listOf("incoming_call", "incoming_call_urgent")
+    private val LEGACY_CHANNEL_IDS = listOf("incoming_call", "incoming_call_urgent") +
+        listOf("phonebooth_ring", "marimba_ring", "european_ringback", "futuristic_dial")
+            .flatMap { listOf("incoming_call_$it", "incoming_call_urgent_$it") }
 
     /** `res/raw`に同梱した着信音。idはファイル名と`SoundPreset.id`に一致する。 */
     private val RING_SOUND_IDS = listOf("phonebooth_ring", "marimba_ring", "european_ringback", "futuristic_dial")
@@ -98,12 +100,16 @@ object CallNotifications {
         return if (saved != null && saved in RING_SOUND_IDS) saved else DEFAULT_RING_SOUND_ID
     }
 
+    /** 音の指定が壊れていたチャンネル（1205・1206）を作り直すため、IDに版（v2）を付ける。 */
     private fun ringChannelId(soundId: String, urgent: Boolean) =
-        if (urgent) "incoming_call_urgent_$soundId" else "incoming_call_$soundId"
+        if (urgent) "incoming_call_urgent_v2_$soundId" else "incoming_call_v2_$soundId"
 
     private fun ringSoundUri(context: Context, soundId: String): android.net.Uri {
         val resId = context.resources.getIdentifier(soundId, "raw", context.packageName)
-        return android.net.Uri.parse("android.resource://${context.packageName}/$resId")
+        if (resId != 0) return android.net.Uri.parse("android.resource://${context.packageName}/$resId")
+        // 音が見つからない（リソースの縮小で消えた等）。無音のまま気付かないよう、標準の通知音に落とす。
+        android.util.Log.w("DaiDaiCall", "ring sound missing: $soundId")
+        return RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION)
     }
 
     private fun ringAudioAttributes() = AudioAttributes.Builder()

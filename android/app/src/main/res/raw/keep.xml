@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 通知のチャンネルの音（着信音・メッセージの通知音）は、コードから`R.raw`で参照せず、名前で引く。
+     リソースの縮小で消されないよう、`raw`の全てを残す（2026-11-25）。 -->
+<resources xmlns:tools="http://schemas.android.com/tools"
+    tools:keep="@raw/*" />
