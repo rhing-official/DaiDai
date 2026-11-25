@@ -119,6 +119,19 @@ void muteLocalPlayback(RTCVideoRenderer renderer) {
   }
 }
 
+/// 相手（画面共有）のレンダラーの消音を解く（2026-11-25）。Webの`<audio>`にだけ効かせる。
+/// ネイティブの`RTCVideoRenderer.muted`は、リモートのトラックには使えず、例外を投げる
+/// （"You're trying to mute a remote track, this is not supported"）。この例外が受信側の
+/// 画面共有の取り込みを途中で止め、モバイルが相手（ブラウザ）の画面共有を受け取れなかった。
+void unmuteRemotePlayback(RTCVideoRenderer renderer) {
+  if (!kIsWeb) return;
+  try {
+    renderer.muted = false;
+  } catch (_) {
+    // 音声トラックが無い（映像のみ）等。無視してよい。
+  }
+}
+
 /// 通話の開始時に、マイクのノイズ除去（RNNoise）を使うか（Webで、設定がオンの時だけtrue）。
 Future<bool> shouldDenoiseMic() async =>
     MicDenoiser.isSupported && await loadMicDenoiseEnabled();

@@ -1552,7 +1552,7 @@ class WebrtcCallController extends ChangeNotifier {
     // 届くたびに入れ直す（Webの描画の部品は、入れた時点のトラックを控える為、後から届いた
     // 音声のトラックを取り込むのに必要）。
     remoteScreenRenderer.srcObject = stream;
-    remoteScreenRenderer.muted = false;
+    unmuteRemotePlayback(remoteScreenRenderer);
     unawaited(
       remoteScreenRenderer.setVolume(_remoteScreenVolume).catchError((_) {}),
     );

@@ -1346,7 +1346,7 @@ class WebrtcGroupCallController extends ChangeNotifier {
     // 届くたびに入れ直す（Webの描画の部品は、入れた時点のトラックを控える為、後から届いた
     // 音声のトラックを取り込むのに必要）。
     renderer.srcObject = stream;
-    renderer.muted = false;
+    unmuteRemotePlayback(renderer);
     _remoteScreenStreams[userId] = stream;
     _screenTimeouts.remove(userId)?.cancel();
     _screenTimedOut.remove(userId);
