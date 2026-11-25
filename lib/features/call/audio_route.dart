@@ -1,4 +1,5 @@
 import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart' show MethodChannel;
 import 'package:flutter_webrtc/flutter_webrtc.dart';
 
 /// モバイル（Android・iOS）か。スピーカー/受話口の切替ボタンを出せる環境
@@ -50,3 +51,19 @@ Future<bool> hasExternalAudioOutput() async {
 /// 映像・共有が終わっても、受話口へは戻さない。
 bool shouldAutoSpeaker({required bool speakerOn, required bool manuallySet}) =>
     !speakerOn && !manuallySet;
+
+/// アプリ内の着信音を鳴らしてよいか（2026-11-25）。端末のおやすみモード中は、通常の発信の着信音を
+/// 鳴らさない（アプリ内の音は、おやすみモードの対象外で鳴ってしまうため）。緊急の発信は、受け手が
+/// 端末の「おやすみモードの許可」を与えている時だけ鳴らす。Android以外は常に`true`。
+Future<bool> shouldRingInApp({required bool urgent}) async {
+  if (kIsWeb || defaultTargetPlatform != TargetPlatform.android) return true;
+  const channel = MethodChannel('jp.rhing.daidai/call_action');
+  try {
+    final dnd = await channel.invokeMethod<bool>('isDndActive') ?? false;
+    if (!dnd) return true;
+    if (!urgent) return false;
+    return await channel.invokeMethod<bool>('hasDndAccess') ?? false;
+  } catch (_) {
+    return true;
+  }
+}

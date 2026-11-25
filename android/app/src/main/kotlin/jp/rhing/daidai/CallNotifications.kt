@@ -94,6 +94,18 @@ object CallNotifications {
         return current != recipientId
     }
 
+    /**
+     * 端末のおやすみモード（通知の制限）が、今オンか（2026-11-25）。許可は要らない。通常の発信の
+     * 着信は、オンの間は音も全画面も出さない（`CATEGORY_CALL`の通知は、おやすみモードの「通話を
+     * 許可」「繰り返しの発信者」の設定で鳴ってしまうため、アプリ側で止める）。
+     */
+    fun isDndActive(context: Context): Boolean {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.M) return false
+        val filter = context.getSystemService(NotificationManager::class.java).currentInterruptionFilter
+        return filter != NotificationManager.INTERRUPTION_FILTER_ALL &&
+            filter != NotificationManager.INTERRUPTION_FILTER_UNKNOWN
+    }
+
     /** 端末の「おやすみモードの許可」を、このアプリが持っているか（Android 6以降）。 */
     fun hasPolicyAccess(context: Context): Boolean {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.M) return false
@@ -220,6 +232,11 @@ object CallNotifications {
         val isVideo = data["isVideo"] == "true"
         // 緊急の発信で、受け手が「おやすみモードの許可」を与えている時だけ、貫通するチャンネルで出す。
         val urgent = data["urgent"] == "true" && hasPolicyAccess(context)
+        // 診断用（2026-11-25）。緊急の判定と、おやすみモードの状態を、実機のログで確かめる。
+        android.util.Log.d(
+            "DaiDaiCall",
+            "incoming urgentFlag=${data["urgent"]} policyAccess=${hasPolicyAccess(context)} dnd=${isDndActive(context)}",
+        )
         ensureChannel(context)
         if (urgent) ensureUrgentChannels(context)
 
@@ -278,6 +295,21 @@ object CallNotifications {
         }
         val title = if (kind == KIND_GROUP) data["title"].orEmpty() else callerName
         val ringEnabled = ringtoneEnabled(context)
+        // おやすみモード中の通常の発信は、鳴らさず、全画面も出さず、静かな通知だけにする。
+        // 緊急の発信（かつ許可あり）だけが貫通する。
+        if (isDndActive(context) && !urgent) {
+            showQuiet(
+                context,
+                id,
+                title,
+                text,
+                person,
+                declineIntent,
+                answerIntent,
+                fullScreenIntent,
+            )
+            return
+        }
         val channelId = when {
             urgent && ringEnabled -> URGENT_CHANNEL_ID
             urgent -> URGENT_SILENT_CHANNEL_ID
@@ -305,6 +337,39 @@ object CallNotifications {
         }
         try {
             manager.notify(id, notification)
+        } catch (e: SecurityException) {
+            // 通知の許可が無い。
+        }
+    }
+
+    /**
+     * おやすみモード中の通常の発信の着信。音・振動・全画面・`CATEGORY_CALL`なし（通話として扱われて
+     * 貫通しないよう）の、静かな通知。タップで着信の画面を開き、応答・拒否のボタンは付ける。
+     */
+    private fun showQuiet(
+        context: Context,
+        id: Int,
+        title: String,
+        text: String,
+        person: Person,
+        declineIntent: PendingIntent,
+        answerIntent: PendingIntent,
+        openIntent: PendingIntent,
+    ) {
+        val builder = NotificationCompat.Builder(context, SILENT_CHANNEL_ID)
+            .setSmallIcon(R.drawable.ic_notification)
+            .setContentTitle(title)
+            .setContentText(text)
+            .setPriority(NotificationCompat.PRIORITY_DEFAULT)
+            .setSilent(true)
+            .setOngoing(true)
+            .setTimeoutAfter(RING_TIMEOUT_MS)
+            .setContentIntent(openIntent)
+            .addAction(0, "拒否", declineIntent)
+            .addAction(0, "応答", answerIntent)
+            .addPerson(person)
+        try {
+            NotificationManagerCompat.from(context).notify(id, builder.build())
         } catch (e: SecurityException) {
             // 通知の許可が無い。
         }

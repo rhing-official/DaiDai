@@ -1,3 +1,5 @@
+import 'call_log.dart';
+import 'audio_route.dart';
 import 'dart:async';
 
 import 'package:flutter/foundation.dart';
@@ -230,7 +232,13 @@ class ActiveCallSessionNotifier extends Notifier<ActiveCallSession?> {
       final ringtoneSource = SoundCategory.ringtone.resolveSource(
         ref.read(ringtoneSoundProvider),
       );
-      controller.soundPlayer.startRingtoneLoop(ringtoneSource);
+      // おやすみモード中の通常の発信は鳴らさない（2026-11-25）。
+      callLog('1:1 incoming urgent=${call.urgent}');
+      unawaited(() async {
+        if (await shouldRingInApp(urgent: call.urgent)) {
+          await controller.soundPlayer.startRingtoneLoop(ringtoneSource);
+        }
+      }());
     }
     state = session;
     return session;

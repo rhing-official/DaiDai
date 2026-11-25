@@ -1,3 +1,4 @@
+import 'audio_route.dart';
 import 'dart:async';
 
 import 'package:flutter/material.dart';
@@ -202,7 +203,12 @@ class _GroupIncomingCallListenerState
       final ringtoneSource = SoundCategory.ringtone.resolveSource(
         ref.read(ringtoneSoundProvider),
       );
-      unawaited(_soundPlayer.playRingtoneTimes(3, ringtoneSource));
+      // おやすみモード中の通常の発信は鳴らさない（2026-11-25）。
+      unawaited(() async {
+        if (await shouldRingInApp(urgent: call.urgent)) {
+          await _soundPlayer.playRingtoneTimes(3, ringtoneSource);
+        }
+      }());
     }
   }
 

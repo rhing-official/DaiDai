@@ -819,12 +819,16 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     final draft =
         prefsMap[widget.conversationId!]?.draftByRoom[widget.roomId!] ?? '';
     if (draft == _textController.text) return;
+    debugPrint('[CARET] applyRemoteDraft overwrites text');
     _suppressDraftSync = true;
     _textController.text = draft;
     _suppressDraftSync = false;
   }
 
   void _onComposerTextChanged() {
+    debugPrint(
+      '[CARET] sel=${_textController.selection.baseOffset}-${_textController.selection.extentOffset} len=${_textController.text.length} focus=${_composerFocusNode.hasFocus}',
+    );
     _updateMentionSuggestions();
     _updateStickerSuggestions();
     if (_suppressDraftSync || _editingMessage != null) return;
