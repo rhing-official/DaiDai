@@ -918,7 +918,7 @@ class CallLabelSheet extends StatelessWidget {
 }
 
 /// 自分の画面共有が相手に届いていないと知らされた時のお知らせと「やり直す」ボタン
-/// （2026-11-17）。濃い赤に白（明るい色に白文字は禁止）。
+/// （2026-11-17）。2026-11-25に、赤からアクセントカラーの地・設定の文字色へ変更。
 class ScreenDeliveryNotice extends ConsumerWidget {
   const ScreenDeliveryNotice({required this.onRetry, super.key});
 
@@ -927,27 +927,29 @@ class ScreenDeliveryNotice extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final strings = ref.watch(appStringsProvider);
+    // 地はアクセントカラー、文字・アイコンは設定の「アクセント上の文字色」（`onPrimary`、2026-11-25）。
+    final scheme = Theme.of(context).colorScheme;
     return PointerInterceptor(
       child: DecoratedBox(
         decoration: BoxDecoration(
-          color: Colors.red.shade700,
+          color: scheme.primary,
           borderRadius: BorderRadius.circular(8),
         ),
         child: Padding(
           padding: const EdgeInsets.fromLTRB(10, 4, 4, 4),
           child: Row(
             children: [
-              const Icon(Icons.warning_amber, size: 18, color: Colors.white),
+              Icon(Icons.warning_amber, size: 18, color: scheme.onPrimary),
               const SizedBox(width: 6),
               Expanded(
                 child: Text(
                   strings.callScreenDeliveryFailed,
-                  style: const TextStyle(color: Colors.white, fontSize: 12),
+                  style: TextStyle(color: scheme.onPrimary, fontSize: 12),
                 ),
               ),
               TextButton(
                 style: TextButton.styleFrom(
-                  foregroundColor: Colors.white,
+                  foregroundColor: scheme.onPrimary,
                   visualDensity: VisualDensity.compact,
                 ),
                 onPressed: onRetry,

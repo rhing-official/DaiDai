@@ -1603,10 +1603,20 @@ class WebrtcCallController extends ChangeNotifier {
     return renegotiate;
   }
 
-  Future<void> _sendRenegotiationOffer() async {
+  /// 再ネゴシエーションの offer を送る。[iceRestart]がtrueなら、ICEも張り直す（SDPが必ず
+  /// 変わるので、前回と同じ内容で相手に届かない事が無い。画面共有のやり直し用、2026-11-25）。
+  Future<void> _sendRenegotiationOffer({bool iceRestart = false}) async {
     final pc = _peerConnection;
     if (pc == null) return;
-    final offer = await pc.createOffer();
+    // Webは`iceRestart`、ネイティブは`mandatory.IceRestart`を見る（互いに他方は無視する）。
+    final offer = await pc.createOffer(
+      iceRestart
+          ? {
+              'iceRestart': true,
+              'mandatory': {'IceRestart': true},
+            }
+          : <String, dynamic>{},
+    );
     await pc.setLocalDescription(offer);
     callLog('1:1 screen offer sent sdp=${offer.sdp?.length}');
     _pendingLocalOfferSdp = offer.sdp;
@@ -1759,6 +1769,9 @@ class WebrtcCallController extends ChangeNotifier {
     _screenDeliveryFailed = false;
     notifyListeners();
     callLog('1:1 screen: resend requested');
+    // 相手の共有の状態を一度リセットする（相手は`screen:fail`の後も共有中の状態を持ったままで、
+    // `screen:on`だけでは受信の準備が最初からやり直されないため、2026-11-25）。
+    _sendScreenState(null);
     for (final sender in [_screenVideoSender, _screenAudioSender]) {
       if (sender == null) continue;
       try {
@@ -1769,10 +1782,15 @@ class WebrtcCallController extends ChangeNotifier {
     }
     _screenVideoSender = null;
     _screenAudioSender = null;
+    callLog('1:1 screen: resend senders removed');
     try {
       await _attachScreenTracks();
+      callLog('1:1 screen: resend tracks attached');
+      // ICEも張り直す。枠を付け直しただけだと、前回と同じSDPになり、相手へ届かないことがある。
+      await _sendRenegotiationOffer(iceRestart: true);
+      callLog('1:1 screen: resend offer sent');
       _sendScreenState(_screenQuality.label);
-      await _sendRenegotiationOffer();
+      callLog('1:1 screen: resend screen:on sent');
     } catch (e) {
       callLog('1:1 screen resend failed: $e');
     }
