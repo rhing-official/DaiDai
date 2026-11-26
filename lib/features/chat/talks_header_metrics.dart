@@ -116,7 +116,7 @@ class TalksControlButton extends ConsumerWidget {
         size: size,
         onPressed: onPressed,
       ),
-      AppUiStyle.flat => flatCircleIconButton(
+      AppUiStyle.flat || AppUiStyle.washi => flatCircleIconButton(
         context,
         icon: icon,
         size: size,
@@ -179,6 +179,7 @@ class TalksNameChip extends ConsumerWidget {
             child: text(13, scheme.onSurfaceVariant),
           ),
         );
+      case AppUiStyle.washi:
       case AppUiStyle.flat:
         return Material(
           color: scheme.surface,

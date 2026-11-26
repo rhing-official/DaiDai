@@ -9,6 +9,8 @@ import '../providers/selection_motion_provider.dart';
 import '../theme/chalk/chalk_paint.dart';
 import 'liquid_chip_highlight.dart';
 import 'nav_chip.dart';
+import 'ring_nav_bar.dart';
+import 'washi_nav_bar.dart';
 
 /// 帯の内側の余白。
 const double _kPad = 12;
@@ -35,11 +37,10 @@ class ChalkNavBar extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final slide = ref.watch(selectionWaterMotionProvider);
     final target = (selectedIndex ?? -1).toDouble();
     return TweenAnimationBuilder<double>(
       tween: Tween(end: target),
-      duration: slide ? const Duration(milliseconds: 320) : Duration.zero,
+      duration: const Duration(milliseconds: 320),
       curve: Curves.easeOutCubic,
       builder: (context, position, child) => CustomPaint(
         painter: _ChalkBarPainter(
@@ -142,7 +143,7 @@ class _ChalkBarPainter extends CustomPainter {
       old.ringColor != ringColor;
 }
 
-/// チップの帯。チョークスタイルは[ChalkNavBar]、他は水が流れ込む[LiquidChipStrip]。
+/// チップの帯。チョークスタイルは[ChalkNavBar]、和紙は[WashiNavBar]、他は水が流れ込む[LiquidChipStrip]。
 class NavChipBand extends ConsumerWidget {
   const NavChipBand({
     required this.child,
@@ -159,12 +160,34 @@ class NavChipBand extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    if (ref.watch(appUiStyleProvider) == AppUiStyle.chalk) {
-      return ChalkNavBar(
-        count: entries.length,
+    final style = ref.watch(appUiStyleProvider);
+    // 「丸で囲む」の時だけ、帯を1本にする。それ以外（液体・なし）は、チップを1つずつ分ける。
+    if (ref.watch(navBandMergedProvider)) {
+      // 帯を1本にして、選択中の丸は、水が流れ込んで塗る（チョークは、手描きの輪も重ねる）。
+      final bar = switch (style) {
+        AppUiStyle.chalk => ChalkNavBar(
+          count: entries.length,
+          selectedIndex: selectedIndex,
+          vertical: vertical,
+          child: child,
+        ),
+        AppUiStyle.washi => WashiNavBar(
+          count: entries.length,
+          selectedIndex: selectedIndex,
+          vertical: vertical,
+          child: child,
+        ),
+        _ => RingNavBar(
+          selectedIndex: selectedIndex,
+          vertical: vertical,
+          child: child,
+        ),
+      };
+      return LiquidChipStrip(
+        entries: entries,
         selectedIndex: selectedIndex,
         vertical: vertical,
-        child: child,
+        child: bar,
       );
     }
     return LiquidChipStrip(

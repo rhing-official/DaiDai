@@ -388,6 +388,7 @@ class _SegmentTile extends ConsumerWidget {
       case AppUiStyle.block:
         foreground = selected ? scheme.onPrimary : scheme.onSurface;
         fill = selected ? scheme.primary : null;
+      case AppUiStyle.washi:
       case AppUiStyle.flat:
         foreground = selected ? scheme.onPrimary : scheme.onSurfaceVariant;
         fill = selected ? scheme.primary : scheme.surface;
@@ -475,6 +476,7 @@ class _SegmentTile extends ConsumerWidget {
                   : scheme.surface),
           child: Material(color: Colors.transparent, child: tappable),
         );
+      case AppUiStyle.washi:
       case AppUiStyle.flat:
         return Material(
           color: fill,

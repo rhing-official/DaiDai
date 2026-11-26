@@ -124,28 +124,28 @@ class _StickerCarouselState extends State<StickerCarousel> {
             ? 1.0
             : (pageWidth / constraints.maxWidth).clamp(0.25, 1.0);
         final controller = _ensureController(fraction);
-        return Stack(
-          children: [
-            Positioned.fill(
-              // マウスでも横にドラッグして切り替えられるようにする。
-              child: ScrollConfiguration(
-                behavior: ScrollConfiguration.of(context).copyWith(
-                  dragDevices: {
-                    PointerDeviceKind.touch,
-                    PointerDeviceKind.mouse,
-                    PointerDeviceKind.trackpad,
-                    PointerDeviceKind.stylus,
-                  },
-                ),
-                child: PageView.builder(
-                  controller: controller,
-                  itemCount: widget.stickers.length,
-                  onPageChanged: widget.onIndexChanged,
-                  itemBuilder: (context, i) => Listener(
-                    // ページの領域全体でホイールを受ける。
-                    behavior: HitTestBehavior.opaque,
-                    onPointerSignal: _onPointerSignal,
-                    child: AnimatedBuilder(
+        // ホイールは、ページが無い空白（先頭の左・末尾の右など）も含め、全体で受ける。
+        return Listener(
+          behavior: HitTestBehavior.opaque,
+          onPointerSignal: _onPointerSignal,
+          child: Stack(
+            children: [
+              Positioned.fill(
+                // マウスでも横にドラッグして切り替えられるようにする。
+                child: ScrollConfiguration(
+                  behavior: ScrollConfiguration.of(context).copyWith(
+                    dragDevices: {
+                      PointerDeviceKind.touch,
+                      PointerDeviceKind.mouse,
+                      PointerDeviceKind.trackpad,
+                      PointerDeviceKind.stylus,
+                    },
+                  ),
+                  child: PageView.builder(
+                    controller: controller,
+                    itemCount: widget.stickers.length,
+                    onPageChanged: widget.onIndexChanged,
+                    itemBuilder: (context, i) => AnimatedBuilder(
                       animation: controller,
                       builder: (context, child) {
                         final page =
@@ -197,8 +197,8 @@ class _StickerCarouselState extends State<StickerCarousel> {
                   ),
                 ),
               ),
-            ),
-          ],
+            ],
+          ),
         );
       },
     );

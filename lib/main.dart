@@ -82,6 +82,7 @@ import 'theme/app_theme.dart';
 import 'theme/block/block_theme.dart';
 import 'theme/chalk/chalk_paint.dart';
 import 'theme/chalk/chalk_theme.dart';
+import 'theme/washi/washi_theme.dart';
 import 'theme/gekiga/gekiga_theme.dart';
 import 'theme/glass/glass_theme.dart';
 import 'utils/web_redirect_sign_in.dart';
@@ -200,7 +201,7 @@ Future<void> _launchApp({required bool firstLaunch}) async {
   final initialJoinVideoCameraOn = await loadInitialJoinVideoCameraOn();
   final initialIconSplitMirrored = await loadInitialIconSplitMirrored();
   final initialSlidePickEnabled = await loadInitialSlidePickEnabled();
-  final initialSelectionWaterMotion = await loadInitialSelectionWaterMotion();
+  final initialSelectionMotion = await loadInitialSelectionMotion();
   final initialCustomAppearance = await loadInitialCustomAppearance();
   final initialCustomBackgroundColors =
       await loadInitialCustomBackgroundColors();
@@ -285,8 +286,8 @@ Future<void> _launchApp({required bool firstLaunch}) async {
         initialCustomAppearanceProvider.overrideWithValue(
           initialCustomAppearance,
         ),
-        initialSelectionWaterMotionProvider.overrideWithValue(
-          initialSelectionWaterMotion,
+        initialSelectionMotionProvider.overrideWithValue(
+          initialSelectionMotion,
         ),
         initialSlidePickEnabledProvider.overrideWithValue(
           initialSlidePickEnabled,
@@ -437,6 +438,12 @@ class DaiDaiApp extends ConsumerWidget {
         fontFamily,
         background: custom.enabled ? custom.color : null,
       ),
+      AppUiStyle.washi => WashiTheme.build(
+        accentColor,
+        fontFamily,
+        background: custom.enabled ? custom.color : null,
+        onAccentColor: onAccentColorLight,
+      ),
       AppUiStyle.block => BlockTheme.light(
         accentColor,
         textColor: custom.enabled ? null : textColorLight,
@@ -471,6 +478,12 @@ class DaiDaiApp extends ConsumerWidget {
         accentColor,
         fontFamily,
         background: custom.enabled ? custom.color : null,
+      ),
+      AppUiStyle.washi => WashiTheme.build(
+        accentColor,
+        fontFamily,
+        background: custom.enabled ? custom.color : null,
+        onAccentColor: onAccentColorLight,
       ),
       AppUiStyle.block => BlockTheme.dark(
         accentColor,
@@ -528,15 +541,22 @@ class DaiDaiApp extends ConsumerWidget {
                   ),
                 ),
                 // チョーク: 黒板に残った粉を、画面全体へ薄く重ねる（2026-11-26）。
-                // 他のスタイルでも、背景に黒板を選んだ時は同じ粉を重ねる。
-                if (uiStyle == AppUiStyle.chalk ||
-                    (custom.enabled &&
-                        custom.color.toARGB32() ==
-                            ChalkColors.board.toARGB32()))
+                // チョーク: 黒板に残った粉を、画面全体へ薄く重ねる（2026-11-26）。他のスタイルで
+                // 背景に黒板の色を選んでも、粉は重ねず、一面を同じ色にする。
+                if (uiStyle == AppUiStyle.chalk)
                   Positioned.fill(
                     child: ChalkBoardDust(
                       color: ChalkTheme.inkFor(
                         custom.enabled ? custom.color : ChalkColors.board,
+                      ),
+                    ),
+                  ),
+                // 和紙: 紙に混ざった繊維を、ごく薄く重ねる（2026-11-26）。
+                if (uiStyle == AppUiStyle.washi)
+                  Positioned.fill(
+                    child: WashiPaperFibers(
+                      color: WashiTheme.inkFor(
+                        custom.enabled ? custom.color : WashiColors.paper,
                       ),
                     ),
                   ),

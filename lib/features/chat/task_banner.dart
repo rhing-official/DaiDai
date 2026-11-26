@@ -530,7 +530,10 @@ class _ChatTaskBannerState extends ConsumerState<ChatTaskBanner> {
         icon: _expanded ? Icons.expand_less : Icons.expand_more,
         onPressed: () => setState(() => _expanded = !_expanded),
       ),
-      AppUiStyle.flat || AppUiStyle.chalk || AppUiStyle.block => IconButton(
+      AppUiStyle.flat ||
+      AppUiStyle.washi ||
+      AppUiStyle.chalk ||
+      AppUiStyle.block => IconButton(
         tooltip: '',
         icon: Icon(_expanded ? Icons.expand_less : Icons.expand_more),
         color: foreground,

@@ -11,7 +11,9 @@ import '../theme/gekiga/gekiga_colors.dart';
 import 'gekiga/gekiga_badge.dart';
 import 'glass/glass_surface.dart';
 import '../providers/selection_motion_provider.dart';
+import '../theme/chalk/chalk_paint.dart';
 import 'chalk_nav_bar.dart';
+import 'washi_nav_bar.dart';
 import 'liquid_chip_highlight.dart';
 
 /// ナビチップの直径と、チップ同士・画面端との間隔（ホーム画面
@@ -66,17 +68,19 @@ class NavChip extends ConsumerWidget {
     // 塗りを層に任せる時（`liquid`）は、選択の見た目（色・文字色）をここでは出さない。
     // 影の高さだけは、選択に従う。
     final elevated = selected;
-    final sel =
-        selected && !(liquid && ref.watch(selectionWaterMotionProvider));
+    final sel = selected && !(liquid && ref.watch(navWaterMotionProvider));
     final colorScheme = Theme.of(context).colorScheme;
     final uiStyle = ref.watch(appUiStyleProvider);
     final isGekiga = uiStyle == AppUiStyle.gekiga;
     final isGlass = uiStyle == AppUiStyle.glass;
     final isBlock = uiStyle == AppUiStyle.block;
+    // チョーク・和紙: チップ自体は塗らない。印・枠は、帯（[ChalkNavBar]・[WashiNavBar]）が描く。
     final isChalk = uiStyle == AppUiStyle.chalk;
+    final isWashi = uiStyle == AppUiStyle.washi;
+    // 「丸で囲む」の時は、帯が1本になり、チップは塗らない（印・輪は帯が描く）。
+    final merged = ref.watch(navBandMergedProvider);
     final brightness = Theme.of(context).brightness;
-    final glassWater =
-        liquid && isGlass && ref.watch(selectionWaterMotionProvider)
+    final glassWater = liquid && isGlass && ref.watch(navWaterMotionProvider)
         ? LiquidChipScope.of(context, key)
         : null;
     // ガラスの選択色は、背景にアクセント色を45%で重ねた、不透明な色にする。半透明のままだと、
@@ -89,10 +93,9 @@ class NavChip extends ConsumerWidget {
 
     // popped中は帯から浮き出させ、指を離す（popped=falseに戻る）と
     // AnimatedSlideが規定位置までスライドして戻す。
-    final offset = isChalk
-        // チョーク: 選ばれたチップも動かさない（印は、枠の上の黄色い輪）。
+    final offset = merged
         ? Offset.zero
-        : popped && !(liquid && ref.watch(selectionWaterMotionProvider))
+        : popped && !(liquid && ref.watch(navWaterMotionProvider))
         ? (vertical ? const Offset(0.35, 0) : const Offset(0, -0.35))
         : Offset.zero;
 
@@ -101,19 +104,91 @@ class NavChip extends ConsumerWidget {
     // （2026-08-04変更。以前は選択中のみアクセントカラー塗りのバッジだったが、
     // アクセントカラーは劇画UI選択中は変更不可にした為、この画面だけ
     // 固定色になったアクセントカラーが残るのは一貫しない）。
-    final chip = isChalk
-        // チョーク: チップ自体は塗らない。白いチョークのアイコンで、選択中だけアクセント色
-        // （黄色のチョーク）。枠は[ChalkNavBar]が1本で描く。
+    final mergedIconColor = switch (uiStyle) {
+      AppUiStyle.flat =>
+        sel ? colorScheme.onPrimary : colorScheme.onSurfaceVariant,
+      AppUiStyle.glass => colorScheme.onSurfaceVariant,
+      AppUiStyle.block => sel ? colorScheme.onPrimary : colorScheme.onSurface,
+      AppUiStyle.gekiga => sel ? GekigaColors.panel : GekigaColors.onPanel,
+      AppUiStyle.chalk => colorScheme.onSurface,
+      AppUiStyle.washi => sel ? colorScheme.onPrimary : colorScheme.onSurface,
+    };
+    final chip = merged
         ? Material(
             color: Colors.transparent,
             shape: const CircleBorder(),
+            child: Stack(
+              children: [
+                // ガラスは、水を、チップの中で描く。
+                if (glassWater != null)
+                  Positioned.fill(
+                    child: IgnorePointer(
+                      child: CustomPaint(
+                        painter: LiquidGlassFillPainter(
+                          glassWater.$1,
+                          glassWater.$2,
+                          glassSelectedFill,
+                        ),
+                      ),
+                    ),
+                  ),
+                InkWell(
+                  onTap: onTap,
+                  customBorder: const CircleBorder(),
+                  child: SizedBox(
+                    width: kNavChipSize,
+                    height: kNavChipSize,
+                    child: Icon(icon, size: iconSize, color: mergedIconColor),
+                  ),
+                ),
+              ],
+            ),
+          )
+        : isChalk
+        // チョーク（分ける時）: チョークで引いた丸の縁。選択中の塗りはアクセントカラー。
+        ? Material(
+            color: sel ? colorScheme.primary : Colors.transparent,
+            shape: ChalkShapeBorder(
+              borderRadius: BorderRadius.circular(kNavChipSize / 2),
+              color: colorScheme.onSurface,
+              width: 2,
+            ),
             child: InkWell(
               onTap: onTap,
               customBorder: const CircleBorder(),
               child: SizedBox(
                 width: kNavChipSize,
                 height: kNavChipSize,
-                child: Icon(icon, size: iconSize, color: colorScheme.onSurface),
+                child: Icon(
+                  icon,
+                  size: iconSize,
+                  color: sel ? colorScheme.onPrimary : colorScheme.onSurface,
+                ),
+              ),
+            ),
+          )
+        : isWashi
+        // 和紙（分ける時）: へこんだ丸。選択中（なし）は、ざらつきのある印を重ねる。
+        ? CustomPaint(
+            painter: WashiInsetChipPainter(
+              base: colorScheme.surface,
+              fill: sel ? colorScheme.primary : null,
+            ),
+            child: Material(
+              color: Colors.transparent,
+              shape: const CircleBorder(),
+              child: InkWell(
+                onTap: onTap,
+                customBorder: const CircleBorder(),
+                child: SizedBox(
+                  width: kNavChipSize,
+                  height: kNavChipSize,
+                  child: Icon(
+                    icon,
+                    size: iconSize,
+                    color: sel ? colorScheme.onPrimary : colorScheme.onSurface,
+                  ),
+                ),
               ),
             ),
           )

@@ -194,10 +194,13 @@ void applyRemoteUserPreferences(WidgetRef ref, AppUserPreferences preferences) {
           color: preferences.customAppearanceColor,
         );
   }
-  if (preferences.selectionWaterMotion != null) {
-    ref
-        .read(selectionWaterMotionProvider.notifier)
-        .syncFromRemote(preferences.selectionWaterMotion!);
+  final remoteMotion =
+      SelectionMotion.parse(preferences.selectionMotion) ??
+      (preferences.selectionWaterMotion == null
+          ? null
+          : SelectionMotion.fromLegacy(preferences.selectionWaterMotion!));
+  if (remoteMotion != null) {
+    ref.read(selectionMotionProvider.notifier).syncFromRemote(remoteMotion);
   }
   if (preferences.iconSplitMirrored != null) {
     ref

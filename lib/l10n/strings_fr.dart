@@ -109,6 +109,7 @@ final Strings _stringsFr = Strings._(
   settingsUiStyleGlassLabel: 'Verre',
   settingsUiStyleBlockLabel: 'Gravure',
   settingsUiStyleChalkLabel: 'Craie',
+  settingsUiStyleWashiLabel: 'Papier washi',
   settingsCustomAppearanceInvalid: 'Saisissez un code couleur à 6 chiffres.',
   settingsBackgroundPresetBoard: 'Tableau noir',
   settingsChatLayoutTitle: 'Affichage des messages',
@@ -139,8 +140,9 @@ final Strings _stringsFr = Strings._(
   settingsWaterMotionTitle: 'Mouvement de sélection',
   settingsMotionLiquid: 'Liquide',
   settingsMotionNone: 'Aucun',
+  settingsMotionRing: 'Cercle',
   settingsWaterMotionSubtitle:
-      "La couleur coule vers la pastille, l'élément ou l'onglet suivant comme un liquide. Avec Liquide, les pastilles ne ressortent pas quand vous glissez dessus. Avec Aucun, le changement est instantané et elles ressortent de nouveau. Aucun au départ si l'appareil réduit les animations.",
+      "Choisissez le mouvement de la sélection des pastilles du menu.\nLiquide garde les pastilles séparées et la couleur coule vers la suivante.\nCercle réunit les pastilles en une barre et entoure la sélection.\nAucun garde les pastilles séparées et change instantanément. Cela ignore le réglage de l'appareil pour réduire les animations.",
   settingsTalksListMirrorTitle: "Inverser gauche et droite",
   settingsTalksListMirrorSubtitle:
       "Avec « Icônes + liste des salons », place la colonne d’icônes à droite et les messages à gauche.",

@@ -113,7 +113,7 @@ class _LiquidChipHighlightState extends ConsumerState<LiquidChipHighlight>
     if (_initialized &&
         _sim.tanks.isEmpty &&
         _target != null &&
-        ref.read(selectionWaterMotionProvider)) {
+        ref.read(navWaterMotionProvider)) {
       _sim.fillInstantly(_target!);
       _sim.repaint();
     }
@@ -134,7 +134,7 @@ class _LiquidChipHighlightState extends ConsumerState<LiquidChipHighlight>
     if (widget.selectedIndex != _target) {
       final prev = _target;
       _target = widget.selectedIndex;
-      if (ref.read(selectionWaterMotionProvider)) {
+      if (ref.read(navWaterMotionProvider)) {
         _startTransition(prev, _target);
       } else {
         _settleInstantly();
@@ -172,7 +172,7 @@ class _LiquidChipHighlightState extends ConsumerState<LiquidChipHighlight>
   @override
   Widget build(BuildContext context) {
     WidgetsBinding.instance.addPostFrameCallback((_) => _measure());
-    if (!ref.watch(selectionWaterMotionProvider)) {
+    if (!ref.watch(navWaterMotionProvider)) {
       return const SizedBox.shrink();
     }
     final style = ref.watch(appUiStyleProvider);

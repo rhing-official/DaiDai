@@ -771,6 +771,7 @@ class _PreviewPane extends StatelessWidget {
           child: content,
         );
       case AppUiStyle.glass:
+      case AppUiStyle.washi:
       case AppUiStyle.flat:
         return DecoratedBox(
           decoration: BoxDecoration(

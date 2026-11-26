@@ -103,6 +103,7 @@ class Strings {
     required this.settingsUiStyleGlassLabel,
     required this.settingsUiStyleBlockLabel,
     required this.settingsUiStyleChalkLabel,
+    required this.settingsUiStyleWashiLabel,
     required this.settingsCustomAppearanceInvalid,
     required this.settingsBackgroundPresetBoard,
     required this.settingsChatLayoutTitle,
@@ -130,6 +131,7 @@ class Strings {
     required this.settingsWaterMotionTitle,
     required this.settingsMotionLiquid,
     required this.settingsMotionNone,
+    required this.settingsMotionRing,
     required this.settingsWaterMotionSubtitle,
     required this.settingsTalksListMirrorTitle,
     required this.settingsTalksListMirrorSubtitle,
@@ -1445,6 +1447,7 @@ class Strings {
   final String settingsUiStyleGlassLabel;
   final String settingsUiStyleBlockLabel;
   final String settingsUiStyleChalkLabel;
+  final String settingsUiStyleWashiLabel;
   final String settingsCustomAppearanceInvalid;
   final String settingsBackgroundPresetBoard;
 
@@ -1477,6 +1480,7 @@ class Strings {
   final String settingsWaterMotionTitle;
   final String settingsMotionLiquid;
   final String settingsMotionNone;
+  final String settingsMotionRing;
   final String settingsWaterMotionSubtitle;
   final String settingsTalksListMirrorTitle;
   final String settingsTalksListMirrorSubtitle;
@@ -3125,6 +3129,7 @@ class Strings {
     settingsUiStyleGlassLabel: 'ガラス',
     settingsUiStyleBlockLabel: '版画',
     settingsUiStyleChalkLabel: 'チョーク',
+    settingsUiStyleWashiLabel: '和紙',
     settingsCustomAppearanceInvalid: '6桁のカラーコードで入力してください。',
     settingsBackgroundPresetBoard: '黒板',
     settingsChatLayoutTitle: 'メッセージの表示',
@@ -3160,8 +3165,9 @@ class Strings {
     settingsWaterMotionTitle: '選択の動き',
     settingsMotionLiquid: '液体',
     settingsMotionNone: 'なし',
+    settingsMotionRing: '丸で囲む',
     settingsWaterMotionSubtitle:
-        'メニューチップ・一覧・タブの選択色を、液体が流れ込むように移します。\n「液体」の間は、なぞってもチップは浮き出ません。\n「なし」にすると、その場で切り替わり、なぞるとチップが浮き出ます。端末の「動きを減らす」設定がオンの時は、初めから「なし」です。',
+        'メニューチップの選択の動きを選びます。\n「液体」は、チップを1つずつ分けて、選択色が液体のように流れ込みます。\n「丸で囲む」は、チップを1本の帯にまとめて、選択中を丸で囲みます。\n「なし」は、チップを1つずつ分けて、その場で切り替わります。端末の「動きを減らす」設定には関係なく動きます。',
     settingsTalksListMirrorTitle: '左右を反転する',
     settingsTalksListMirrorSubtitle: '「アイコン＋寄合一覧」の時、アイコン列を右端に、メッセージ画面を左にします。',
     settingsRoomListSwipeTitle: '寄合一覧の横スワイプ',
@@ -4556,6 +4562,7 @@ class Strings {
     settingsUiStyleGlassLabel: 'Glass',
     settingsUiStyleBlockLabel: 'Woodcut',
     settingsUiStyleChalkLabel: 'Chalk',
+    settingsUiStyleWashiLabel: 'Washi',
     settingsCustomAppearanceInvalid: 'Enter a 6-digit colour code.',
     settingsBackgroundPresetBoard: 'Blackboard',
     settingsChatLayoutTitle: 'Message display',
@@ -4593,8 +4600,9 @@ class Strings {
     settingsWaterMotionTitle: 'Selection motion',
     settingsMotionLiquid: 'Liquid',
     settingsMotionNone: 'None',
+    settingsMotionRing: 'Circle',
     settingsWaterMotionSubtitle:
-        'Colour flows into the next chip, list item or tab like a liquid. With Liquid, chips do not pop out as you slide over them. With None, colour switches instantly and chips pop out again. It starts on None when the device asks to reduce motion.',
+        'Choose how the selection moves in the menu chips.\nLiquid keeps the chips separate and colour flows into the next one.\nCircle joins the chips into one bar and circles the selected one.\nNone keeps the chips separate and switches instantly. This ignores the device setting to reduce motion.',
     settingsTalksListMirrorTitle: 'Flip left and right',
     settingsTalksListMirrorSubtitle:
         'With "Icon + room list", puts the icon column on the right and the messages on the left.',

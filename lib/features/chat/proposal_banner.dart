@@ -70,6 +70,7 @@ class ProposalBannerLayout extends ConsumerWidget {
           ),
           child: content(colorScheme.onSurface),
         );
+      case AppUiStyle.washi:
       case AppUiStyle.flat:
         return Container(
           decoration: BoxDecoration(

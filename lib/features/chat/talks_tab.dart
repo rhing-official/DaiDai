@@ -3381,6 +3381,7 @@ class _TalksTabState extends ConsumerState<TalksTab>
             ),
           ),
         );
+      case AppUiStyle.washi:
       case AppUiStyle.flat:
         // ガラスと同じ形（角丸24・枠線なし）で、半透明にはせず不透明の面で塗る
         // （2026-11-01）。
@@ -5350,6 +5351,7 @@ class _ConversationGesturesState extends ConsumerState<_ConversationGestures> {
                       color: menuTheme.colorScheme.surface,
                       child: list,
                     );
+                  case AppUiStyle.washi:
                   case AppUiStyle.flat:
                     return Material(
                       color: menuTheme.colorScheme.surface,

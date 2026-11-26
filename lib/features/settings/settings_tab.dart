@@ -3081,6 +3081,8 @@ class _CustomAppearanceEditorState
     final isGekiga = ref.watch(appUiStyleProvider) == AppUiStyle.gekiga;
     final current = widget.shownColor.withAlpha(0xFF);
     final saved = ref.watch(customBackgroundColorsProvider);
+    // 長押しで削除した固定プリセット（6桁hexで、アクセントの8桁hexと同じ集合に保存）。
+    final removed = ref.watch(removedDefaultColorPresetsProvider);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -3251,14 +3253,27 @@ class _CustomAppearanceEditorState
                 runSpacing: 12,
                 children: [
                   for (var i = 0; i < _fixedPresets.length; i++)
-                    Tooltip(
-                      message: names[i],
-                      child: PresetColorSwatch(
-                        hex: _hex(_fixedPresets[i]),
-                        selected: _fixedPresets[i] == current,
-                        onTap: () => _pick(_fixedPresets[i]),
+                    if (!removed.contains(_hex(_fixedPresets[i])))
+                      Tooltip(
+                        message: names[i],
+                        child: PresetColorSwatch(
+                          hex: _hex(_fixedPresets[i]),
+                          selected: _fixedPresets[i] == current,
+                          onTap: () => _pick(_fixedPresets[i]),
+                          onLongPress: () async {
+                            final confirmed = await confirmDeletePresetColor(
+                              context,
+                              strings,
+                            );
+                            if (!confirmed) return;
+                            ref
+                                .read(
+                                  removedDefaultColorPresetsProvider.notifier,
+                                )
+                                .markRemoved(_hex(_fixedPresets[i]));
+                          },
+                        ),
                       ),
-                    ),
                   for (final color in saved)
                     PresetColorSwatch(
                       hex: _hex(color),
@@ -4223,6 +4238,7 @@ class UiStyleFolder extends ConsumerWidget {
           AppUiStyle.glass.hashCode,
           AppUiStyle.block.hashCode,
           AppUiStyle.chalk.hashCode,
+          AppUiStyle.washi.hashCode,
           AppUiStyle.gekiga.hashCode,
         ],
         selectedFlags: [
@@ -4230,6 +4246,7 @@ class UiStyleFolder extends ConsumerWidget {
           style == AppUiStyle.glass,
           style == AppUiStyle.block,
           style == AppUiStyle.chalk,
+          style == AppUiStyle.washi,
           style == AppUiStyle.gekiga,
         ],
         children: [
@@ -4278,6 +4295,17 @@ class UiStyleFolder extends ConsumerWidget {
             onTap: () => select(AppUiStyle.chalk),
           ),
           GekigaTileContent(
+            selected: style == AppUiStyle.washi,
+            leading: AppRadioMark(
+              selected: style == AppUiStyle.washi,
+              color: (style == AppUiStyle.washi)
+                  ? GekigaColors.panel
+                  : GekigaColors.onPanel,
+            ),
+            title: Text(strings.settingsUiStyleWashiLabel),
+            onTap: () => select(AppUiStyle.washi),
+          ),
+          GekigaTileContent(
             selected: style == AppUiStyle.gekiga,
             leading: AppRadioMark(
               selected: style == AppUiStyle.gekiga,
@@ -4314,6 +4342,10 @@ class UiStyleFolder extends ConsumerWidget {
           AppRadioListTile<AppUiStyle>(
             value: AppUiStyle.chalk,
             title: Text(strings.settingsUiStyleChalkLabel),
+          ),
+          AppRadioListTile<AppUiStyle>(
+            value: AppUiStyle.washi,
+            title: Text(strings.settingsUiStyleWashiLabel),
           ),
           AppRadioListTile<AppUiStyle>(
             value: AppUiStyle.gekiga,
@@ -6689,13 +6721,14 @@ class _SelectionMotionChoice extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final liquid = ref.watch(selectionWaterMotionProvider);
+    final liquid = ref.watch(selectionMotionProvider);
     final isGekiga = ref.watch(appUiStyleProvider) == AppUiStyle.gekiga;
-    void select(bool value) =>
-        ref.read(selectionWaterMotionProvider.notifier).setEnabled(value);
+    void select(SelectionMotion value) =>
+        ref.read(selectionMotionProvider.notifier).setMotion(value);
     final options = [
-      (true, strings.settingsMotionLiquid),
-      (false, strings.settingsMotionNone),
+      (SelectionMotion.liquid, strings.settingsMotionLiquid),
+      (SelectionMotion.ring, strings.settingsMotionRing),
+      (SelectionMotion.none, strings.settingsMotionNone),
     ];
     final control = isGekiga
         ? GekigaJointedTileList(
@@ -6716,7 +6749,7 @@ class _SelectionMotionChoice extends ConsumerWidget {
                 ),
             ],
           )
-        : RadioGroup<bool>(
+        : RadioGroup<SelectionMotion>(
             groupValue: liquid,
             onChanged: (v) {
               if (v != null) select(v);
@@ -6724,7 +6757,10 @@ class _SelectionMotionChoice extends ConsumerWidget {
             child: Column(
               children: [
                 for (final o in options)
-                  AppRadioListTile<bool>(value: o.$1, title: Text(o.$2)),
+                  AppRadioListTile<SelectionMotion>(
+                    value: o.$1,
+                    title: Text(o.$2),
+                  ),
               ],
             ),
           );

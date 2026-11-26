@@ -25,6 +25,7 @@ class AppUserPreferences {
     this.iconSplitMirrored,
     this.slidePickEnabled,
     this.selectionWaterMotion,
+    this.selectionMotion,
     this.customAppearanceEnabled,
     this.customAppearanceColor,
     this.chatLayoutStyle,
@@ -94,6 +95,9 @@ class AppUserPreferences {
 
   /// 選択色を水で移すか（2026-11-26追加、null=端末の既定）。
   final bool? selectionWaterMotion;
+
+  /// 選択の動き（liquid／ring／none、2026-11-26追加）。旧[selectionWaterMotion]より優先する。
+  final String? selectionMotion;
 
   /// カスタムの外観（背景色のカラーコード）を使うか、その色（ARGB、2026-11-26追加）。
   final bool? customAppearanceEnabled;
@@ -196,6 +200,7 @@ class AppUserPreferences {
       iconSplitMirrored: json['iconSplitMirrored'] as bool?,
       slidePickEnabled: json['slidePickEnabled'] as bool?,
       selectionWaterMotion: json['selectionWaterMotion'] as bool?,
+      selectionMotion: json['selectionMotion'] as String?,
       customAppearanceEnabled: json['customAppearanceEnabled'] as bool?,
       customAppearanceColor: (json['customAppearanceColor'] as num?)?.toInt(),
       chatLayoutStyle: json['chatLayoutStyle'] as String?,
@@ -257,6 +262,7 @@ class AppUserPreferences {
       if (slidePickEnabled != null) 'slidePickEnabled': slidePickEnabled,
       if (selectionWaterMotion != null)
         'selectionWaterMotion': selectionWaterMotion,
+      if (selectionMotion != null) 'selectionMotion': selectionMotion,
       if (customAppearanceEnabled != null)
         'customAppearanceEnabled': customAppearanceEnabled,
       if (customAppearanceColor != null)
