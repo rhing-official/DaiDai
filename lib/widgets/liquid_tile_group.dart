@@ -11,6 +11,8 @@ import '../providers/selection_motion_provider.dart';
 import '../theme/gekiga/gekiga_colors.dart';
 import 'liquid_paint.dart';
 import 'liquid_sim.dart';
+import 'ring_list_scope.dart';
+import 'scribble_paint.dart';
 
 /// 項目の並び（設定・身だしなみのカテゴリ一覧、語らいの一対・広場のタブ）の、選択色を、
 /// 水が流れ込むように移す（2026-11-26）。チップは[LiquidChipHighlight]、こちらは文字のある
@@ -155,6 +157,10 @@ class _LiquidTileGroupState extends ConsumerState<LiquidTileGroup>
   Widget build(BuildContext context) {
     WidgetsBinding.instance.addPostFrameCallback((_) => _measure());
     final style = ref.watch(appUiStyleProvider);
+    // 「丸で囲む」: 項目を1つの大きなブロックにまとめ、選択中を線の枠で囲む（水は使わない）。
+    if (widget.enabled && ref.watch(navBandMergedProvider)) {
+      return _buildRing(context, style);
+    }
     final scheme = Theme.of(context).colorScheme;
     final water = ref.watch(selectionWaterMotionProvider);
     final gekiga = style == AppUiStyle.gekiga;
@@ -162,6 +168,7 @@ class _LiquidTileGroupState extends ConsumerState<LiquidTileGroup>
     // ガラスは、不透明で描いて層ごと透明にする（重なっても濃くならない）。
     final layerAlpha = style == AppUiStyle.glass ? 0.45 : 1.0;
     return _LiquidScope(
+      draw: widget.enabled && ref.watch(selectionDrawMotionProvider),
       sim: widget.enabled && water ? _sim : null,
       keyFor: _keyFor,
       selectedIndex: widget.selectedIndex,
@@ -181,6 +188,57 @@ class _LiquidTileGroupState extends ConsumerState<LiquidTileGroup>
               ],
             )
           : widget.child,
+    );
+  }
+}
+
+extension on _LiquidTileGroupState {
+  Widget _buildRing(BuildContext context, AppUiStyle style) {
+    final selected = widget.selectedIndex;
+    // 項目は、選択の見た目（塗り）を出さない（選択は、枠で表す）。
+    final body = _LiquidScope(
+      sim: null,
+      keyFor: _keyFor,
+      selectedIndex: null,
+      glass: false,
+      child: RingListBlock(withBackground: false, child: widget.child),
+    );
+    return Stack(
+      clipBehavior: Clip.none,
+      children: [
+        if (style != AppUiStyle.gekiga)
+          Positioned.fill(child: ringBlockBackground(context, style)),
+        body,
+        // 選択中の項目を囲む枠。選択が移ると、枠が次の項目へ、少し遅れて滑る。
+        Positioned.fill(
+          child: IgnorePointer(
+            child: ListenableBuilder(
+              listenable: _sim,
+              builder: (context, _) {
+                final rects = _sim.rects;
+                final rect = selected != null && selected < rects.length
+                    ? rects[selected]
+                    : null;
+                if (rect == null) return const SizedBox.shrink();
+                return TweenAnimationBuilder<Rect?>(
+                  tween: RectTween(end: rect),
+                  duration: const Duration(milliseconds: 320),
+                  curve: Curves.easeOutCubic,
+                  builder: (context, r, _) => Stack(
+                    clipBehavior: Clip.none,
+                    children: [
+                      Positioned.fromRect(
+                        rect: (r ?? rect).deflate(1),
+                        child: RingOutline(style: style),
+                      ),
+                    ],
+                  ),
+                );
+              },
+            ),
+          ),
+        ),
+      ],
     );
   }
 }
@@ -216,7 +274,11 @@ class _LiquidScope extends InheritedWidget {
     required this.selectedIndex,
     required this.glass,
     required super.child,
+    this.draw = false,
   });
+
+  /// 描き: 選ばれた見た目を、ペンで往復して塗るように現す。
+  final bool draw;
 
   /// ガラスか。半透明の塗りが文字に重ならないよう、水の外だけに、選ばれていない版を出す。
   final bool glass;
@@ -228,7 +290,8 @@ class _LiquidScope extends InheritedWidget {
   bool updateShouldNotify(_LiquidScope old) =>
       old.sim != sim ||
       old.selectedIndex != selectedIndex ||
-      old.glass != glass;
+      old.glass != glass ||
+      old.draw != draw;
 }
 
 /// [LiquidTileGroup]の中の1項目。[builder]は、選ばれた見た目（`true`）と選ばれていない見た目
@@ -294,8 +357,22 @@ class _LiquidTileState extends State<LiquidTile> {
   Widget build(BuildContext context) {
     final scope = context.dependOnInheritedWidgetOfExactType<_LiquidScope>();
     final sim = scope?.sim;
-    if (scope == null || sim == null) {
-      return widget.builder(context, scope?.selectedIndex == widget.index);
+    if (scope == null) return widget.builder(context, false);
+    if (scope.draw) {
+      return KeyedSubtree(
+        key: scope.keyFor(widget.index),
+        child: _DrawTile(
+          selected: scope.selectedIndex == widget.index,
+          builder: widget.builder,
+        ),
+      );
+    }
+    if (sim == null) {
+      // 水を使わない時（丸で囲む等）。測るための鍵だけは付ける。
+      return KeyedSubtree(
+        key: scope.keyFor(widget.index),
+        child: widget.builder(context, scope.selectedIndex == widget.index),
+      );
     }
     final mode = _mode ?? _modeOf(sim, scope.selectedIndex == widget.index);
     final Widget body = switch (mode) {
@@ -412,6 +489,76 @@ class _RenderOutsideWaterClip extends RenderProxyBox {
       bounds,
       outside,
       super.paint,
+    );
+  }
+}
+
+/// 描き: 選ばれた見た目を、ペンが往復して塗るように現す（選択が外れた時は、塗りが短く消える）。
+class _DrawTile extends StatefulWidget {
+  const _DrawTile({required this.selected, required this.builder});
+
+  final bool selected;
+  final Widget Function(BuildContext context, bool selected) builder;
+
+  @override
+  State<_DrawTile> createState() => _DrawTileState();
+}
+
+class _DrawTileState extends State<_DrawTile>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _c = AnimationController(
+    vsync: this,
+    value: widget.selected ? 1 : 0,
+  );
+
+  @override
+  void didUpdateWidget(covariant _DrawTile old) {
+    super.didUpdateWidget(old);
+    if (widget.selected == old.selected) return;
+    if (widget.selected) {
+      _c.value = 0;
+      _c.animateTo(
+        1,
+        duration: const Duration(milliseconds: 450),
+        curve: Curves.easeInOut,
+      );
+    } else {
+      _c.animateBack(
+        0,
+        duration: const Duration(milliseconds: 150),
+        curve: Curves.easeIn,
+      );
+    }
+  }
+
+  @override
+  void dispose() {
+    _c.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: _c,
+      builder: (context, _) {
+        final p = _c.value;
+        if (p <= 0) return widget.builder(context, false);
+        if (p >= 1) return widget.builder(context, true);
+        return Stack(
+          children: [
+            widget.builder(context, false),
+            Positioned.fill(
+              child: IgnorePointer(
+                child: ScribbleReveal(
+                  progress: p,
+                  child: widget.builder(context, true),
+                ),
+              ),
+            ),
+          ],
+        );
+      },
     );
   }
 }

@@ -43,6 +43,7 @@ import '../../providers/text_size_provider.dart';
 import '../../utils/sidebar_width.dart';
 import '../../widgets/nav_chip.dart';
 import '../../widgets/liquid_tile_group.dart';
+import '../../widgets/ring_list_scope.dart';
 import '../../widgets/pick_zone.dart';
 import '../../models/talks_list_layout_style.dart';
 import '../../providers/app_ui_style_provider.dart';
@@ -2978,31 +2979,33 @@ class _TalksTabState extends ConsumerState<TalksTab>
       );
     }
 
-    return ListView(
-      key: const PageStorageKey<String>('talksDmList'),
-      // 上下端で跳ね返らないようにする（2026-11-23追加）。
-      physics: const ClampingScrollPhysics(),
-      // 選択中タイルの塗り潰し（selectedTileColor）がカラム間の
-      // VerticalDividerに接して重なって見えないよう左右に余白を持たせる
-      // （2026-08-12追加、settings_tab.dart/profile_tab.dartの一覧と
-      // 同じ手法）。
-      padding: const EdgeInsets.symmetric(horizontal: 8),
-      children: [
-        for (final request in incomingRequests)
-          _pendingRequestTile(request, compact: false),
-        for (final request in outgoingRequests)
-          _pendingRequestTile(request, compact: false),
-        for (final dm in sortedDms)
-          DirectMessageTile(
-            currentUser: widget.currentUser,
-            dm: dm,
-            pinned: prefsById[dm.dmId]?.pinned ?? false,
-            muted: prefsById[dm.dmId]?.notificationsMuted ?? false,
-            unreadCount: prefsById[dm.dmId]?.unreadCount ?? 0,
-            selected: _isSplit && _selectedDm?.dmId == dm.dmId,
-            onTap: () => _openDirectMessage(dm),
-          ),
-      ],
+    return RingListBlock(
+      child: ListView(
+        key: const PageStorageKey<String>('talksDmList'),
+        // 上下端で跳ね返らないようにする（2026-11-23追加）。
+        physics: const ClampingScrollPhysics(),
+        // 選択中タイルの塗り潰し（selectedTileColor）がカラム間の
+        // VerticalDividerに接して重なって見えないよう左右に余白を持たせる
+        // （2026-08-12追加、settings_tab.dart/profile_tab.dartの一覧と
+        // 同じ手法）。
+        padding: const EdgeInsets.symmetric(horizontal: 8),
+        children: [
+          for (final request in incomingRequests)
+            _pendingRequestTile(request, compact: false),
+          for (final request in outgoingRequests)
+            _pendingRequestTile(request, compact: false),
+          for (final dm in sortedDms)
+            DirectMessageTile(
+              currentUser: widget.currentUser,
+              dm: dm,
+              pinned: prefsById[dm.dmId]?.pinned ?? false,
+              muted: prefsById[dm.dmId]?.notificationsMuted ?? false,
+              unreadCount: prefsById[dm.dmId]?.unreadCount ?? 0,
+              selected: _isSplit && _selectedDm?.dmId == dm.dmId,
+              onTap: () => _openDirectMessage(dm),
+            ),
+        ],
+      ),
     );
   }
 
@@ -3083,33 +3086,35 @@ class _TalksTabState extends ConsumerState<TalksTab>
       );
     }
 
-    return ListView(
-      key: const PageStorageKey<String>('talksGroupList'),
-      // 上下端で跳ね返らないようにする（2026-11-23追加）。
-      physics: const ClampingScrollPhysics(),
-      // 選択中タイルの塗り潰し（selectedTileColor）がカラム間の
-      // VerticalDividerに接して重なって見えないよう左右に余白を持たせる
-      // （2026-08-12追加、settings_tab.dart/profile_tab.dartの一覧と
-      // 同じ手法）。
-      padding: const EdgeInsets.symmetric(horizontal: 8),
-      children: [
-        for (final request in pendingRequests)
-          _PendingGroupJoinRequestTile(
-            request: request,
-            isSplit: _isSplit,
-            onSelectPending: _selectPendingScreen,
-          ),
-        for (final group in sortedGroups)
-          GroupTile(
-            currentUserId: widget.currentUser.userId,
-            group: group,
-            pinned: prefsById[group.groupId]?.pinned ?? false,
-            muted: prefsById[group.groupId]?.notificationsMuted ?? false,
-            unreadCount: prefsById[group.groupId]?.unreadCount ?? 0,
-            selected: _isSplit && _selectedGroup?.groupId == group.groupId,
-            onTap: () => _openGroup(group),
-          ),
-      ],
+    return RingListBlock(
+      child: ListView(
+        key: const PageStorageKey<String>('talksGroupList'),
+        // 上下端で跳ね返らないようにする（2026-11-23追加）。
+        physics: const ClampingScrollPhysics(),
+        // 選択中タイルの塗り潰し（selectedTileColor）がカラム間の
+        // VerticalDividerに接して重なって見えないよう左右に余白を持たせる
+        // （2026-08-12追加、settings_tab.dart/profile_tab.dartの一覧と
+        // 同じ手法）。
+        padding: const EdgeInsets.symmetric(horizontal: 8),
+        children: [
+          for (final request in pendingRequests)
+            _PendingGroupJoinRequestTile(
+              request: request,
+              isSplit: _isSplit,
+              onSelectPending: _selectPendingScreen,
+            ),
+          for (final group in sortedGroups)
+            GroupTile(
+              currentUserId: widget.currentUser.userId,
+              group: group,
+              pinned: prefsById[group.groupId]?.pinned ?? false,
+              muted: prefsById[group.groupId]?.notificationsMuted ?? false,
+              unreadCount: prefsById[group.groupId]?.unreadCount ?? 0,
+              selected: _isSplit && _selectedGroup?.groupId == group.groupId,
+              onTap: () => _openGroup(group),
+            ),
+        ],
+      ),
     );
   }
 
@@ -4348,7 +4353,8 @@ class DirectMessageTile extends ConsumerWidget {
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(12),
           ),
-          selected: selected,
+          // 「丸で囲む」の時は、塗らず、枠で囲む（[BlockTalkTileWrap]）。
+          selected: selected && RingListScope.styleOf(context) == null,
           selectedTileColor: colorScheme.primary,
           selectedColor: colorScheme.onPrimary,
           leading: leadingWidget,
@@ -4560,7 +4566,8 @@ class GroupTile extends ConsumerWidget {
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(12),
           ),
-          selected: selected,
+          // 「丸で囲む」の時は、塗らず、枠で囲む（[BlockTalkTileWrap]）。
+          selected: selected && RingListScope.styleOf(context) == null,
           selectedTileColor: colorScheme.primary,
           selectedColor: colorScheme.onPrimary,
           leading: leadingWidget,
@@ -7150,6 +7157,19 @@ class BlockTalkTileWrap extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // 「丸で囲む」: 1つの大きなブロックの中で、選択中だけ、線の枠で囲む。
+    final ringStyle = RingListScope.styleOf(context);
+    if (ringStyle != null) {
+      if (!selected) return child;
+      return Stack(
+        children: [
+          child,
+          Positioned.fill(
+            child: IgnorePointer(child: RingOutline(style: ringStyle)),
+          ),
+        ],
+      );
+    }
     if (!isBlockTheme(context)) return child;
     final scheme = Theme.of(context).colorScheme;
     return Padding(

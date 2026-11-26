@@ -5006,91 +5006,110 @@ class NavChipLayoutFolder extends ConsumerWidget {
         ref.watch(accountTabVisibleProvider) &&
         layout.accountChipEnabled &&
         MediaQuery.sizeOf(context).width < kNavChipWideBreakpoint;
+    // 並び替えの行の幅は、一番長いチップの名前に合わせる（2026-11-26、フランス語の
+    // 「Discussions」が固定の220で「Discussio…」と省略された）。名前以外の部分（左右の余白・
+    // アイコン・つまみ・箱の枠と影）の分を足し、最低220、画面の幅を超えない。
+    final orderLabelStyle = Theme.of(context).textTheme.bodyLarge;
+    final orderTextScaler = MediaQuery.textScalerOf(context);
+    var longestLabel = 0.0;
+    for (final t in layout.order) {
+      final painter = TextPainter(
+        text: TextSpan(text: _tabLabel(t), style: orderLabelStyle),
+        textDirection: Directionality.of(context),
+        textScaler: orderTextScaler,
+        maxLines: 1,
+      )..layout();
+      if (painter.width > longestLabel) longestLabel = painter.width;
+    }
     final orderControl = Align(
       alignment: Alignment.centerLeft,
-      child: SizedBox(
-        width: 220,
-        child: _NavChipOrderList(
-          // 「アカウント」のチップは、保存したアカウントが2つ以上で縦画面の時だけ出る。
-          // 横表示（設定が分割表示になる幅）では出ないので、並べ替えの対象にもしない。
-          order: [
-            for (final t in layout.order)
-              if (t != HomeTabId.account || accountChipListed) t,
-          ],
-          onReorder: (list) {
-            if (accountChipListed) {
-              notifier.setOrder(list);
-              return;
-            }
-            // 並べ替えの対象外の間は、「アカウント」の位置を今のまま残す。
-            final at = layout.order.indexOf(HomeTabId.account);
-            final merged = [...list]
-              ..insert(at.clamp(0, list.length), HomeTabId.account);
-            notifier.setOrder(merged);
-          },
-          tileBuilder: (tab, handle) {
-            // `ListTile`は枠の高さが足りない（劇画の箱の内側など）と中身が下へはみ出し、
-            // 文字が縦に中央からずれる為、`Row`で縦中央に揃えて自前で組む。
-            final contentColor = isGekiga
-                ? GekigaColors.onPanel
-                : colorScheme.onSurface;
-            final content = Row(
-              crossAxisAlignment: CrossAxisAlignment.center,
-              children: [
-                const SizedBox(width: 12),
-                Icon(_icons[tab], color: contentColor),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Text(
-                    _tabLabel(tab),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                      color: contentColor,
-                      height: 1.0,
+      child: LayoutBuilder(
+        builder: (context, constraints) => SizedBox(
+          width: (longestLabel + _kNavChipOrderRowChrome)
+              .clamp(220.0, constraints.maxWidth)
+              .toDouble(),
+          child: _NavChipOrderList(
+            // 「アカウント」のチップは、保存したアカウントが2つ以上で縦画面の時だけ出る。
+            // 横表示（設定が分割表示になる幅）では出ないので、並べ替えの対象にもしない。
+            order: [
+              for (final t in layout.order)
+                if (t != HomeTabId.account || accountChipListed) t,
+            ],
+            onReorder: (list) {
+              if (accountChipListed) {
+                notifier.setOrder(list);
+                return;
+              }
+              // 並べ替えの対象外の間は、「アカウント」の位置を今のまま残す。
+              final at = layout.order.indexOf(HomeTabId.account);
+              final merged = [...list]
+                ..insert(at.clamp(0, list.length), HomeTabId.account);
+              notifier.setOrder(merged);
+            },
+            tileBuilder: (tab, handle) {
+              // `ListTile`は枠の高さが足りない（劇画の箱の内側など）と中身が下へはみ出し、
+              // 文字が縦に中央からずれる為、`Row`で縦中央に揃えて自前で組む。
+              final contentColor = isGekiga
+                  ? GekigaColors.onPanel
+                  : colorScheme.onSurface;
+              final content = Row(
+                crossAxisAlignment: CrossAxisAlignment.center,
+                children: [
+                  const SizedBox(width: 12),
+                  Icon(_icons[tab], color: contentColor),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Text(
+                      _tabLabel(tab),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                        color: contentColor,
+                        height: 1.0,
+                      ),
                     ),
                   ),
-                ),
-                Icon(
-                  Icons.drag_handle,
-                  color: isGekiga
-                      ? GekigaColors.onPanel
-                      : colorScheme.onSurfaceVariant,
-                ),
-                const SizedBox(width: 12),
-              ],
-            );
-            // 箱の外枠（劇画は上下の余白3＋枠の黒3＋白線3の左右上下）の分を引いた高さ。
-            final tile = SizedBox(
-              height: isGekiga
-                  ? _NavChipOrderListState.itemHeight - 6 - 12
-                  : _NavChipOrderListState.itemHeight,
-              child: content,
-            );
-            if (ref.watch(appUiStyleProvider).isBoxed) {
-              // 版画: 太枠と硬い影の箱（影の分の余白を含めて1行の高さに収める）。
-              return Padding(
-                padding: const EdgeInsets.fromLTRB(2, 4, 6, 8),
-                child: blockMaterialBox(
-                  context,
-                  color: Theme.of(context).brightness == Brightness.light
-                      ? Colors.white
-                      : colorScheme.surface,
-                  child: SizedBox(
-                    height: _NavChipOrderListState.itemHeight - 12,
-                    child: content,
+                  Icon(
+                    Icons.drag_handle,
+                    color: isGekiga
+                        ? GekigaColors.onPanel
+                        : colorScheme.onSurfaceVariant,
                   ),
-                ),
+                  const SizedBox(width: 12),
+                ],
               );
-            }
-            if (!isGekiga) return tile;
-            // 劇画は単色の黒ベタにせず、他の箱と同じ「黒外枠→白の細い線→黒地」の
-            // 直角モノクロボックスで描く。項目同士は縦に少し間を空ける。
-            return Padding(
-              padding: const EdgeInsets.symmetric(vertical: 3),
-              child: GekigaStraightMonochromeBox(isMe: false, child: tile),
-            );
-          },
+              // 箱の外枠（劇画は上下の余白3＋枠の黒3＋白線3の左右上下）の分を引いた高さ。
+              final tile = SizedBox(
+                height: isGekiga
+                    ? _NavChipOrderListState.itemHeight - 6 - 12
+                    : _NavChipOrderListState.itemHeight,
+                child: content,
+              );
+              if (ref.watch(appUiStyleProvider).isBoxed) {
+                // 版画: 太枠と硬い影の箱（影の分の余白を含めて1行の高さに収める）。
+                return Padding(
+                  padding: const EdgeInsets.fromLTRB(2, 4, 6, 8),
+                  child: blockMaterialBox(
+                    context,
+                    color: Theme.of(context).brightness == Brightness.light
+                        ? Colors.white
+                        : colorScheme.surface,
+                    child: SizedBox(
+                      height: _NavChipOrderListState.itemHeight - 12,
+                      child: content,
+                    ),
+                  ),
+                );
+              }
+              if (!isGekiga) return tile;
+              // 劇画は単色の黒ベタにせず、他の箱と同じ「黒外枠→白の細い線→黒地」の
+              // 直角モノクロボックスで描く。項目同士は縦に少し間を空ける。
+              return Padding(
+                padding: const EdgeInsets.symmetric(vertical: 3),
+                child: GekigaStraightMonochromeBox(isMe: false, child: tile),
+              );
+            },
+          ),
         ),
       ),
     );
@@ -5207,6 +5226,10 @@ class _AccountChipSwitch extends ConsumerWidget {
 /// メニューチップの並び替えリスト。3項目の枠の中だけをドラッグでき、枠の外へは
 /// 出ない（`ReorderableListView`は軸・範囲を制限出来ないため自前。2026-11-01）。
 /// 項目は背景ごと（劇画の黒いラベルも含めて）一緒に動く。
+/// 並び替えの行の、名前以外の部分の幅（左余白12・アイコン24・間12・つまみ24・右余白12、
+/// 版画・チョークの箱の余白と枠の分を含めて切り上げ）。
+const double _kNavChipOrderRowChrome = 108;
+
 class _NavChipOrderList extends StatefulWidget {
   const _NavChipOrderList({
     required this.order,
@@ -6806,6 +6829,7 @@ class _SelectionMotionChoice extends ConsumerWidget {
         ref.read(selectionMotionProvider.notifier).setMotion(value);
     final options = [
       (SelectionMotion.liquid, strings.settingsMotionLiquid),
+      (SelectionMotion.draw, strings.settingsMotionDraw),
       (SelectionMotion.ring, strings.settingsMotionRing),
       (SelectionMotion.none, strings.settingsMotionNone),
     ];

@@ -42,7 +42,7 @@ class WashiNavBar extends ConsumerWidget {
           position: position,
           vertical: vertical,
           base: scheme.surface,
-          pill: scheme.onSurface,
+          pill: scheme.primary,
         ),
         child: child,
       ),
@@ -223,4 +223,26 @@ class WashiInsetChipPainter extends CustomPainter {
   @override
   bool shouldRepaint(covariant WashiInsetChipPainter old) =>
       old.base != base || old.fill != fill;
+}
+
+/// 大きなブロック（一覧の背景）の、へこんだ面。メニューチップの帯と同じ描き方。
+class WashiInsetBlockPainter extends CustomPainter {
+  WashiInsetBlockPainter(this.base, this.radius);
+
+  final Color base;
+  final double radius;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    paintWashiInset(
+      canvas,
+      RRect.fromRectAndRadius(Offset.zero & size, Radius.circular(radius)),
+      base,
+      const Offset(2, 3),
+    );
+  }
+
+  @override
+  bool shouldRepaint(covariant WashiInsetBlockPainter old) =>
+      old.base != base || old.radius != radius;
 }

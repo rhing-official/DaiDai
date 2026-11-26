@@ -10,6 +10,7 @@ import '../providers/selection_motion_provider.dart';
 import '../theme/block/block_theme.dart';
 import '../theme/chalk/chalk_paint.dart';
 import '../theme/gekiga/gekiga_colors.dart';
+import 'draw_chip_highlight.dart';
 import 'gekiga/monochrome_box.dart';
 import 'liquid_paint.dart';
 import 'liquid_sim.dart';
@@ -421,6 +422,16 @@ class _LiquidChipStripState extends State<LiquidChipStrip> {
             child: IgnorePointer(
               child: LiquidChipHighlight(
                 sim: _sim,
+                entries: widget.entries,
+                selectedIndex: widget.selectedIndex,
+                vertical: widget.vertical,
+              ),
+            ),
+          ),
+          // 描き: ペンで塗る層（描きの時だけ描く）。
+          Positioned.fill(
+            child: IgnorePointer(
+              child: DrawChipHighlight(
                 entries: widget.entries,
                 selectedIndex: widget.selectedIndex,
                 vertical: widget.vertical,

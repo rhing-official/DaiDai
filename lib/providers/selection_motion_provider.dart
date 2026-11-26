@@ -13,6 +13,9 @@ enum SelectionMotion {
   /// チップを1つずつ分けて、選択色が水のように流れ込む。
   liquid,
 
+  /// チップを1つずつ分けて、選択色が、ペンで往復して塗られる（2026-11-26追加）。
+  draw,
+
   /// 帯を1本にして、選択中を丸で囲む。丸が次の項目へ滑る。
   ring,
 
@@ -79,6 +82,18 @@ final selectionMotionProvider =
 final selectionWaterMotionProvider = Provider<bool>(
   (ref) => ref.watch(selectionMotionProvider) == SelectionMotion.liquid,
 );
+
+/// 選択色を、ペンで塗るように移すか（描きの時だけ）。
+final selectionDrawMotionProvider = Provider<bool>(
+  (ref) => ref.watch(selectionMotionProvider) == SelectionMotion.draw,
+);
+
+/// メニューチップの選択色を、チップの外の層（水・ペン）で描くか（液体と描き）。そのとき、チップ自身は
+/// 選択の塗りを描かない。
+final navFillOverlayProvider = Provider<bool>((ref) {
+  final m = ref.watch(selectionMotionProvider);
+  return m == SelectionMotion.liquid || m == SelectionMotion.draw;
+});
 
 /// メニューチップの選択色を、水が流れ込むように移すか（液体の時だけ。丸で囲む時は、丸が滑る）。
 final navWaterMotionProvider = Provider<bool>(

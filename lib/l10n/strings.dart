@@ -135,6 +135,7 @@ class Strings {
     required this.settingsMotionLiquid,
     required this.settingsMotionNone,
     required this.settingsMotionRing,
+    required this.settingsMotionDraw,
     required this.settingsWaterMotionSubtitle,
     required this.settingsTalksListMirrorTitle,
     required this.settingsTalksListMirrorSubtitle,
@@ -1491,6 +1492,7 @@ class Strings {
   final String settingsMotionLiquid;
   final String settingsMotionNone;
   final String settingsMotionRing;
+  final String settingsMotionDraw;
   final String settingsWaterMotionSubtitle;
   final String settingsTalksListMirrorTitle;
   final String settingsTalksListMirrorSubtitle;
@@ -3179,9 +3181,10 @@ class Strings {
     settingsWaterMotionTitle: '選択の動き',
     settingsMotionLiquid: '液体',
     settingsMotionNone: 'なし',
-    settingsMotionRing: '丸で囲む',
+    settingsMotionRing: '囲み',
+    settingsMotionDraw: '描き',
     settingsWaterMotionSubtitle:
-        'メニューチップの選択の動きを選びます。\n「液体」は、チップを1つずつ分けて、選択色が液体のように流れ込みます。\n「丸で囲む」は、チップを1本の帯にまとめて、選択中を丸で囲みます。\n「なし」は、チップを1つずつ分けて、その場で切り替わります。端末の「動きを減らす」設定には関係なく動きます。',
+        '選択の動きを選びます。\n「液体」: チップを1つずつ分けて、色が液体のように流れ込みます。\n「描き」: チップを1つずつ分けて、色がペンで塗られます。\n「囲み」: チップを1本の帯にまとめて、選択中を丸で囲みます。\n「なし」: チップを1つずつ分けて、その場で切り替わります。\n端末の「動きを減らす」設定には関係なく動きます。',
     settingsTalksListMirrorTitle: '左右を反転する',
     settingsTalksListMirrorSubtitle: '「アイコン＋寄合一覧」の時、アイコン列を右端に、メッセージ画面を左にします。',
     settingsRoomListSwipeTitle: '寄合一覧の横スワイプ',
@@ -4619,8 +4622,9 @@ class Strings {
     settingsMotionLiquid: 'Liquid',
     settingsMotionNone: 'None',
     settingsMotionRing: 'Circle',
+    settingsMotionDraw: 'Draw',
     settingsWaterMotionSubtitle:
-        'Choose how the selection moves in the menu chips.\nLiquid keeps the chips separate and colour flows into the next one.\nCircle joins the chips into one bar and circles the selected one.\nNone keeps the chips separate and switches instantly. This ignores the device setting to reduce motion.',
+        'Choose how the selection moves.\nLiquid: separate chips, colour flows in like a liquid.\nDraw: separate chips, colour is painted with a pen.\nCircle: one bar, with a circle around the selected chip.\nNone: separate chips, switching instantly.\nThis ignores the device setting to reduce motion.',
     settingsTalksListMirrorTitle: 'Flip left and right',
     settingsTalksListMirrorSubtitle:
         'With "Icon + room list", puts the icon column on the right and the messages on the left.',

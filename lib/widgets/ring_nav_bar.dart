@@ -70,22 +70,19 @@ class RingNavBar extends ConsumerWidget {
       ),
     };
 
-    // 丸は、塗らず、線だけで囲む。
+    // 丸は、塗らず、アクセントカラーの線だけで囲む（劇画は白）。
     Widget ring() => switch (style) {
       AppUiStyle.glass => DecoratedBox(
         decoration: BoxDecoration(
           shape: BoxShape.circle,
-          border: Border.all(
-            color: scheme.onSurface.withValues(alpha: 0.7),
-            width: 1.6,
-          ),
+          border: Border.all(color: scheme.primary, width: 1.6),
         ),
       ),
       AppUiStyle.block => DecoratedBox(
         decoration: BoxDecoration(
           shape: BoxShape.circle,
           border: Border.all(
-            color: BlockTheme.lineColor(brightness),
+            color: scheme.primary,
             width: BlockTheme.borderWidth,
           ),
         ),
@@ -99,7 +96,7 @@ class RingNavBar extends ConsumerWidget {
       _ => DecoratedBox(
         decoration: BoxDecoration(
           shape: BoxShape.circle,
-          border: Border.all(color: scheme.onSurface, width: 2),
+          border: Border.all(color: scheme.primary, width: 2),
         ),
       ),
     };

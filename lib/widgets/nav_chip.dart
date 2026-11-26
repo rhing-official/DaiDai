@@ -68,7 +68,7 @@ class NavChip extends ConsumerWidget {
     // 塗りを層に任せる時（`liquid`）は、選択の見た目（色・文字色）をここでは出さない。
     // 影の高さだけは、選択に従う。
     final elevated = selected;
-    final sel = selected && !(liquid && ref.watch(navWaterMotionProvider));
+    final sel = selected && !(liquid && ref.watch(navFillOverlayProvider));
     final colorScheme = Theme.of(context).colorScheme;
     final uiStyle = ref.watch(appUiStyleProvider);
     final isGekiga = uiStyle == AppUiStyle.gekiga;
@@ -95,7 +95,7 @@ class NavChip extends ConsumerWidget {
     // AnimatedSlideが規定位置までスライドして戻す。
     final offset = merged
         ? Offset.zero
-        : popped && !(liquid && ref.watch(navWaterMotionProvider))
+        : popped && !(liquid && ref.watch(navFillOverlayProvider))
         ? (vertical ? const Offset(0.35, 0) : const Offset(0, -0.35))
         : Offset.zero;
 

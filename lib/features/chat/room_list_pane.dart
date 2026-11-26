@@ -1,4 +1,5 @@
 import 'call_presence_mark.dart';
+import '../../widgets/ring_list_scope.dart';
 import '../../widgets/pick_zone.dart';
 import '../../theme/block/block_theme.dart';
 import 'package:flutter/foundation.dart' show setEquals;
@@ -335,9 +336,11 @@ class _RoomListPaneState extends ConsumerState<RoomListPane> {
         );
       }
 
-      return ListTile(
+      // 「丸で囲む」の時は、塗らず、線の枠で囲む。
+      final ringStyle = RingListScope.styleOf(context);
+      final tile = ListTile(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-        selected: isSelected,
+        selected: isSelected && ringStyle == null,
         selectedTileColor: colorScheme.primary,
         selectedColor: colorScheme.onPrimary,
         leading: tagIcon,
@@ -348,6 +351,17 @@ class _RoomListPaneState extends ConsumerState<RoomListPane> {
         ),
         onTap: () => widget.onSelectRoom(room),
       );
+      if (ringStyle != null && isSelected) {
+        return Stack(
+          children: [
+            tile,
+            Positioned.fill(
+              child: IgnorePointer(child: RingOutline(style: ringStyle)),
+            ),
+          ],
+        );
+      }
+      return tile;
     }
 
     final zone = widget.headerZoneHeight != null;
@@ -452,16 +466,23 @@ class _RoomListPaneState extends ConsumerState<RoomListPane> {
                   ),
                 )
               : !isGekiga && widget.onReorderRooms == null
-              ? ListView(
-                  // 上下端で跳ね返らないようにする（2026-11-23追加）。
-                  physics: const ClampingScrollPhysics(),
-                  // 選択中タイルの塗り潰し（selectedTileColor）が、左右は
-                  // カラム間のVerticalDividerに（2026-08-12追加）、上は
-                  // ヘッダー直下のDividerに（同日追加）接して重なって
-                  // 見えないよう余白を持たせる。上余白12pxは劇画UI分岐
-                  // （上の`SingleChildScrollView`、2026-08-04追加）と揃えた。
-                  padding: EdgeInsets.fromLTRB(8, widget.listTopPadding, 8, 0),
-                  children: [for (final room in _rooms) buildRoomTile(room)],
+              ? RingListBlock(
+                  child: ListView(
+                    // 上下端で跳ね返らないようにする（2026-11-23追加）。
+                    physics: const ClampingScrollPhysics(),
+                    // 選択中タイルの塗り潰し（selectedTileColor）が、左右は
+                    // カラム間のVerticalDividerに（2026-08-12追加）、上は
+                    // ヘッダー直下のDividerに（同日追加）接して重なって
+                    // 見えないよう余白を持たせる。上余白12pxは劇画UI分岐
+                    // （上の`SingleChildScrollView`、2026-08-04追加）と揃えた。
+                    padding: EdgeInsets.fromLTRB(
+                      8,
+                      widget.listTopPadding,
+                      8,
+                      0,
+                    ),
+                    children: [for (final room in _rooms) buildRoomTile(room)],
+                  ),
                 )
               : ReorderableListView(
                   // ブロック左端のドラッグハンドル（`Icons.drag_indicator`、

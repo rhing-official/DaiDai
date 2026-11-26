@@ -145,8 +145,9 @@ final Strings _stringsFr = Strings._(
   settingsMotionLiquid: 'Liquide',
   settingsMotionNone: 'Aucun',
   settingsMotionRing: 'Cercle',
+  settingsMotionDraw: 'Dessin',
   settingsWaterMotionSubtitle:
-      "Choisissez le mouvement de la sélection des pastilles du menu.\nLiquide garde les pastilles séparées et la couleur coule vers la suivante.\nCercle réunit les pastilles en une barre et entoure la sélection.\nAucun garde les pastilles séparées et change instantanément. Cela ignore le réglage de l'appareil pour réduire les animations.",
+      "Choisissez le mouvement de la sélection.\nLiquide : pastilles séparées, la couleur coule comme un liquide.\nDessin : pastilles séparées, la couleur est peinte au stylo.\nCercle : une seule barre, avec un cercle autour de la sélection.\nAucun : pastilles séparées, changement instantané.\nCela ignore le réglage de l'appareil pour réduire les animations.",
   settingsTalksListMirrorTitle: "Inverser gauche et droite",
   settingsTalksListMirrorSubtitle:
       "Avec « Icônes + liste des salons », place la colonne d’icônes à droite et les messages à gauche.",

@@ -48,7 +48,7 @@ class ChalkNavBar extends ConsumerWidget {
           count: count,
           vertical: vertical,
           color: Theme.of(context).colorScheme.onSurface,
-          ringColor: Theme.of(context).colorScheme.onSurface,
+          ringColor: Theme.of(context).colorScheme.primary,
         ),
         child: child,
       ),
