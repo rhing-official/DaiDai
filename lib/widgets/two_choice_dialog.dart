@@ -43,7 +43,7 @@ Future<T?> showTwoChoiceDialog<T>({
 }) {
   final uiStyle = ProviderScope.containerOf(context).read(appUiStyleProvider);
   final isGlass = uiStyle == AppUiStyle.glass;
-  final isBoxed = uiStyle == AppUiStyle.gekiga || uiStyle == AppUiStyle.block;
+  final isBoxed = uiStyle == AppUiStyle.gekiga || uiStyle.isBoxed;
   return showGeneralDialog<T>(
     context: context,
     barrierDismissible: true,
@@ -78,12 +78,14 @@ Future<T?> showTwoChoiceDialog<T>({
                 width: isBoxed ? 6 : 1,
                 thickness: switch (uiStyle) {
                   AppUiStyle.gekiga => 3,
-                  AppUiStyle.block => BlockTheme.borderWidth,
+                  AppUiStyle.block ||
+                  AppUiStyle.chalk => BlockTheme.borderWidth,
                   _ => 1,
                 },
                 color: switch (uiStyle) {
                   AppUiStyle.gekiga => GekigaColors.onPanel,
-                  AppUiStyle.block => BlockTheme.lineColor(theme.brightness),
+                  AppUiStyle.block ||
+                  AppUiStyle.chalk => BlockTheme.lineColor(theme.brightness),
                   _ => colorScheme.outlineVariant,
                 },
               ),
@@ -165,7 +167,7 @@ class _TwoChoiceTile extends StatelessWidget {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
     final isGekiga = uiStyle == AppUiStyle.gekiga;
-    final isBlock = uiStyle == AppUiStyle.block;
+    final isBlock = uiStyle.isBoxed;
     // 文字・アイコンはアクセントカラーにせず、背景と反対の中立色にする
     // （フラット・ガラスのアイコンだけは従来どおりアクセント）。
     final fg = isGekiga ? GekigaColors.onPanel : colorScheme.onSurface;

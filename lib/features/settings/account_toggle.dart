@@ -384,11 +384,11 @@ class _SegmentTile extends ConsumerWidget {
         // ナビチップと同じ: 文字色は選択で変えず、塗りだけで選択を表す。
         foreground = scheme.onSurfaceVariant;
         fill = selected ? scheme.primary.withValues(alpha: 0.45) : null;
+      case AppUiStyle.chalk:
       case AppUiStyle.block:
         foreground = selected ? scheme.onPrimary : scheme.onSurface;
         fill = selected ? scheme.primary : null;
       case AppUiStyle.flat:
-      case AppUiStyle.chalk:
         foreground = selected ? scheme.onPrimary : scheme.onSurfaceVariant;
         fill = selected ? scheme.primary : scheme.surface;
     }
@@ -464,6 +464,7 @@ class _SegmentTile extends ConsumerWidget {
       case AppUiStyle.gekiga:
         // 外枠は`GekigaJointedTileList`が描くので、ここでは中身（タップ領域）だけ。
         return Material(color: Colors.transparent, child: tappable);
+      case AppUiStyle.chalk:
       case AppUiStyle.block:
         return blockMaterialBox(
           context,
@@ -475,7 +476,6 @@ class _SegmentTile extends ConsumerWidget {
           child: Material(color: Colors.transparent, child: tappable),
         );
       case AppUiStyle.flat:
-      case AppUiStyle.chalk:
         return Material(
           color: fill,
           borderRadius: BorderRadius.circular(12),

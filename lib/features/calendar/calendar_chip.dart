@@ -181,7 +181,7 @@ class CalendarResponseGroup extends ConsumerWidget {
       );
     }
 
-    if (styledMemberChips && uiStyle == AppUiStyle.block) {
+    if (styledMemberChips && uiStyle.isBoxed) {
       // 版画の枠付きの箱（黒の太枠＋硬い影）。影が右・下へはみ出す分の余白を足す。
       return Padding(
         padding: const EdgeInsets.only(right: 3, bottom: 3),

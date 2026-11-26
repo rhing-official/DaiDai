@@ -11,7 +11,6 @@ import '../theme/gekiga/gekiga_colors.dart';
 import 'gekiga/gekiga_badge.dart';
 import 'glass/glass_surface.dart';
 import '../providers/selection_motion_provider.dart';
-import '../theme/chalk/chalk_theme.dart';
 import 'chalk_nav_bar.dart';
 import 'liquid_chip_highlight.dart';
 
@@ -91,12 +90,8 @@ class NavChip extends ConsumerWidget {
     // popped中は帯から浮き出させ、指を離す（popped=falseに戻る）と
     // AnimatedSlideが規定位置までスライドして戻す。
     final offset = isChalk
-        // チョーク: 選ばれたチップは、枠の出っ張りの方へ持ち上がる。
-        ? (selected
-              ? (vertical
-                    ? const Offset(kChalkLift / kNavChipSize, 0)
-                    : const Offset(0, -kChalkLift / kNavChipSize))
-              : Offset.zero)
+        // チョーク: 選ばれたチップも動かさない（印は、枠の上の黄色い輪）。
+        ? Offset.zero
         : popped && !(liquid && ref.watch(selectionWaterMotionProvider))
         ? (vertical ? const Offset(0.35, 0) : const Offset(0, -0.35))
         : Offset.zero;
@@ -118,11 +113,7 @@ class NavChip extends ConsumerWidget {
               child: SizedBox(
                 width: kNavChipSize,
                 height: kNavChipSize,
-                child: Icon(
-                  icon,
-                  size: iconSize,
-                  color: selected ? colorScheme.primary : ChalkColors.chalk,
-                ),
+                child: Icon(icon, size: iconSize, color: colorScheme.onSurface),
               ),
             ),
           )

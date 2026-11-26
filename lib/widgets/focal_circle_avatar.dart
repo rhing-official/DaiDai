@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../models/profile_card.dart';
 import '../theme/block/block_theme.dart';
+import '../theme/chalk/chalk_theme.dart';
 import '../utils/avatar_backdrop.dart';
 import 'focal_image.dart';
 
@@ -37,7 +38,7 @@ class FocalCircleAvatar extends StatelessWidget {
     final backdrop = url != null
         ? avatarBackdropColor(context, focal)
         : Colors.transparent;
-    if (blockFrame && isBlockTheme(context)) {
+    if (blockFrame && isBlockTheme(context) && !isChalkTheme(context)) {
       final theme = Theme.of(context);
       final size = radius * 2;
       final inner = BorderRadius.circular(

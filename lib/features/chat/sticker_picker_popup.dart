@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../models/app_ui_style.dart';
 import '../../models/sticker.dart';
 import '../../providers/app_ui_style_provider.dart';
+import '../../theme/chalk/chalk_paint.dart';
 import '../../widgets/transitioned_overlay.dart';
 import 'sticker_picker_content.dart';
 
@@ -37,6 +38,12 @@ Future<Sticker?> showStickerPickerPopup(
         listen: false,
       ).read(appUiStyleProvider) ==
       AppUiStyle.gekiga;
+  final isChalk =
+      ProviderScope.containerOf(
+        context,
+        listen: false,
+      ).read(appUiStyleProvider) ==
+      AppUiStyle.chalk;
 
   const panelWidth = 360.0;
   const panelHeight = 420.0;
@@ -89,9 +96,17 @@ Future<Sticker?> showStickerPickerPopup(
             color: isGekiga
                 ? colorScheme.surface
                 : colorScheme.surfaceContainer,
-            elevation: 8,
+            elevation: isChalk ? 0 : 8,
             shadowColor: colorScheme.shadow,
-            borderRadius: const BorderRadius.all(Radius.circular(12)),
+            borderRadius: isChalk
+                ? null
+                : const BorderRadius.all(Radius.circular(12)),
+            shape: isChalk
+                ? ChalkShapeBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    color: colorScheme.onSurface,
+                  )
+                : null,
             clipBehavior: Clip.antiAlias,
             child: StickerPickerContent(
               railAxis: Axis.vertical,

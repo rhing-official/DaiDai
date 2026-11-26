@@ -349,6 +349,7 @@ class _UserProfileCardDialogState extends ConsumerState<UserProfileCardDialog> {
                     borderRadius: radius,
                     child: ClipRRect(borderRadius: radius, child: list),
                   );
+                case AppUiStyle.chalk:
                 case AppUiStyle.block:
                   return blockMaterialBox(
                     menuContext,
@@ -356,7 +357,6 @@ class _UserProfileCardDialogState extends ConsumerState<UserProfileCardDialog> {
                     child: list,
                   );
                 case AppUiStyle.flat:
-                case AppUiStyle.chalk:
                   return Material(
                     color: theme.colorScheme.surface,
                     clipBehavior: Clip.antiAlias,

@@ -110,13 +110,13 @@ class TalksControlButton extends ConsumerWidget {
         accentColorOverride: Theme.of(context).colorScheme.onSurfaceVariant,
         onPressed: onPressed,
       ),
-      AppUiStyle.block => blockHeaderButton(
+      AppUiStyle.block || AppUiStyle.chalk => blockHeaderButton(
         context,
         icon: icon,
         size: size,
         onPressed: onPressed,
       ),
-      AppUiStyle.flat || AppUiStyle.chalk => flatCircleIconButton(
+      AppUiStyle.flat => flatCircleIconButton(
         context,
         icon: icon,
         size: size,
@@ -161,6 +161,7 @@ class TalksNameChip extends ConsumerWidget {
             ),
           ],
         );
+      case AppUiStyle.chalk:
       case AppUiStyle.block:
         return blockMaterialBox(
           context,
@@ -179,7 +180,6 @@ class TalksNameChip extends ConsumerWidget {
           ),
         );
       case AppUiStyle.flat:
-      case AppUiStyle.chalk:
         return Material(
           color: scheme.surface,
           borderRadius: BorderRadius.circular(20),

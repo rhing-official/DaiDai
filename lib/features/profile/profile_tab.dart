@@ -1196,7 +1196,7 @@ class _ProfileCategoryTile extends ConsumerWidget {
     final foreground = selected
         ? colorScheme.onPrimary
         : colorScheme.onSurfaceVariant;
-    if (uiStyle == AppUiStyle.block) {
+    if (uiStyle.isBoxed) {
       // 版画: 設定の項目（`SettingsTile`）と同じ、太枠と硬い影の箱。選択中はアクセントで塗る。
       final fg = selected ? colorScheme.onPrimary : colorScheme.onSurface;
       return Padding(
@@ -2322,7 +2322,7 @@ class _WorkshopBlankSlot extends ConsumerWidget {
           : resolveTertiaryTextColor(context, isGlass: isGlass),
     );
 
-    final content = uiStyle == AppUiStyle.block
+    final content = uiStyle.isBoxed
         // 版画: 空き枠も、太枠と硬い影の箱（外側の影の分だけ内側へ寄せる）。
         ? Padding(
             padding: const EdgeInsets.fromLTRB(2, 2, 5, 5),
@@ -3052,7 +3052,7 @@ Widget _registeredItemsSection<T>({
           textStyle: styleOf?.call(item),
         ),
       if (canAdd)
-        if (ref.watch(appUiStyleProvider) == AppUiStyle.block)
+        if (ref.watch(appUiStyleProvider).isBoxed)
           Builder(
             builder: (context) {
               // 版画: 追加も、アクセントで塗った太枠の箱（主要操作）。
@@ -3318,7 +3318,7 @@ class _RegisteredItemRow extends ConsumerWidget {
         onTap: onEdit,
       );
     }
-    if (ref.watch(appUiStyleProvider) == AppUiStyle.block) {
+    if (ref.watch(appUiStyleProvider).isBoxed) {
       // 版画: 登録した項目を、太枠と硬い影の箱にする（押すと編集）。
       final scheme = Theme.of(context).colorScheme;
       return Padding(

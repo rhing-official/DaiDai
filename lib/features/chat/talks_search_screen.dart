@@ -147,7 +147,7 @@ class _TalksSearchScreenState extends ConsumerState<TalksSearchScreen> {
         toolbarHeight: isGekiga ? 80 : null,
         // 版画はテーマのAppBarが下に細い線（枠線）を引くが、この検索画面では消す
         // （2026-11-08）。
-        shape: uiStyle == AppUiStyle.block ? const Border() : null,
+        shape: uiStyle.isBoxed ? const Border() : null,
         title: isGekiga
             ? Padding(
                 // 上に余白を空ける（2026-11-08）。

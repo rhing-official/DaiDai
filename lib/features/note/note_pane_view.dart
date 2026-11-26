@@ -2380,6 +2380,7 @@ Widget Function(Widget child) _insertMenuSurface(
           borderRadius: radius,
           child: ClipRRect(borderRadius: radius, child: child),
         );
+      case AppUiStyle.chalk:
       case AppUiStyle.block:
         return Builder(
           builder: (context) => Theme(
@@ -2394,7 +2395,6 @@ Widget Function(Widget child) _insertMenuSurface(
           ),
         );
       case AppUiStyle.flat:
-      case AppUiStyle.chalk:
         return Material(
           color: style.selectionMenuBackgroundColor,
           clipBehavior: Clip.antiAlias,
@@ -2497,6 +2497,7 @@ class _CursorLineAddButtonState extends ConsumerState<_CursorLineAddButton> {
             child: Icon(Icons.add, size: 18, color: scheme.onSurface),
           ),
         );
+      case AppUiStyle.chalk:
       case AppUiStyle.block:
         return blockMaterialBox(
           context,
@@ -2510,7 +2511,6 @@ class _CursorLineAddButtonState extends ConsumerState<_CursorLineAddButton> {
           ),
         );
       case AppUiStyle.flat:
-      case AppUiStyle.chalk:
         return Material(
           color: scheme.primary,
           shape: const CircleBorder(),

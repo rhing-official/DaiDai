@@ -1,6 +1,8 @@
 import 'package:flutter/rendering.dart';
 import 'package:flutter/material.dart';
 
+import '../chalk/chalk_paint.dart';
+import '../chalk/chalk_theme.dart';
 import '../../models/dark_variant.dart';
 import '../../models/nav_chip_layout.dart';
 import '../app_theme.dart';
@@ -28,8 +30,10 @@ class BlockThemeMarker extends ThemeExtension<BlockThemeMarker> {
 }
 
 /// 現在のテーマがブロックか。
+/// チョークも、版画と同じ「枠付きの箱」の部品で描く（枠はチョークの線、影は無し）ので、真を返す。
 bool isBlockTheme(BuildContext context) =>
-    Theme.of(context).extension<BlockThemeMarker>() != null;
+    Theme.of(context).extension<BlockThemeMarker>() != null ||
+    isChalkTheme(context);
 
 /// 枠付きのカード（画像・動画・PDF・URL・予定・投票・ノートの通知など）の装飾。
 /// フラット/ガラスは今まで通りアクセント色の細い枠。ブロックは黒の太枠と硬い影
@@ -40,6 +44,13 @@ BoxDecoration framedCardDecoration(
   Color? color,
 }) {
   final theme = Theme.of(context);
+  if (isChalkTheme(context)) {
+    return ChalkBoxDecoration(
+      color: color,
+      borderRadius: borderRadius,
+      lineColor: theme.colorScheme.onSurface,
+    );
+  }
   if (isBlockTheme(context)) {
     return BoxDecoration(
       color: color,
@@ -66,6 +77,16 @@ Widget blockCardWrap(
   required Widget child,
 }) {
   if (!isBlockTheme(context)) return child;
+  if (isChalkTheme(context)) {
+    return DecoratedBox(
+      position: DecorationPosition.foreground,
+      decoration: ChalkBoxDecoration(
+        borderRadius: borderRadius,
+        lineColor: Theme.of(context).colorScheme.onSurface,
+      ),
+      child: child,
+    );
+  }
   final theme = Theme.of(context);
   return DecoratedBox(
     decoration: BoxDecoration(
@@ -403,6 +424,19 @@ Widget blockMaterialBox(
   Offset shadowOffset = const Offset(3, 3),
 }) {
   final theme = Theme.of(context);
+  if (isChalkTheme(context)) {
+    // チョーク: 影は無く、縁をチョークの線で描く。
+    return Material(
+      color: color ?? theme.colorScheme.surface,
+      shape: ChalkShapeBorder(
+        borderRadius: BorderRadius.circular(radius),
+        width: 1.8,
+        color: theme.colorScheme.onSurface,
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: child,
+    );
+  }
   final line = BlockTheme.lineColor(theme.brightness);
   final shape = RoundedRectangleBorder(
     borderRadius: BorderRadius.circular(radius),

@@ -305,7 +305,7 @@ class _RoomListPaneState extends ConsumerState<RoomListPane> {
         );
       }
 
-      if (uiStyle == AppUiStyle.block) {
+      if (uiStyle.isBoxed) {
         // 版画: 太枠と硬い影の箱（選択中はアクセント）。
         final fg = isSelected ? colorScheme.onPrimary : colorScheme.onSurface;
         return Padding(
@@ -486,7 +486,7 @@ class _RoomListPaneState extends ConsumerState<RoomListPane> {
                         animation,
                         colorScheme,
                         isGekiga,
-                        showOutline: uiStyle != AppUiStyle.block,
+                        showOutline: !uiStyle.isBoxed,
                       ),
                   children: [
                     for (final (index, room) in _rooms.indexed)

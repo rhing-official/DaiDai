@@ -39,3 +39,8 @@ enum AppUiStyle {
     );
   }
 }
+
+extension AppUiStyleBoxed on AppUiStyle {
+  /// 枠付きの箱で部品を描くスタイル（版画・チョーク）。チョークは、版画の部品を、チョークの縁で描く。
+  bool get isBoxed => this == AppUiStyle.block || this == AppUiStyle.chalk;
+}

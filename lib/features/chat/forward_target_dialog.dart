@@ -301,7 +301,7 @@ class _ForwardTargetDialogState extends ConsumerState<_ForwardTargetDialog> {
           ),
         );
       }
-      final isBlock = uiStyle == AppUiStyle.block;
+      final isBlock = uiStyle.isBoxed;
       final listTile = ListTile(
         leading: leading,
         title: Text(title, maxLines: 1, overflow: TextOverflow.ellipsis),
@@ -761,6 +761,7 @@ class _PreviewPane extends StatelessWidget {
           selectedFlags: const [false],
           children: [content],
         );
+      case AppUiStyle.chalk:
       case AppUiStyle.block:
         return blockMaterialBox(
           context,
@@ -771,7 +772,6 @@ class _PreviewPane extends StatelessWidget {
         );
       case AppUiStyle.glass:
       case AppUiStyle.flat:
-      case AppUiStyle.chalk:
         return DecoratedBox(
           decoration: BoxDecoration(
             color: scheme.surfaceContainerHigh,

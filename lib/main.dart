@@ -80,6 +80,7 @@ import 'utils/always_animate_binding.dart';
 import 'utils/android_notification_sound_sync.dart';
 import 'theme/app_theme.dart';
 import 'theme/block/block_theme.dart';
+import 'theme/chalk/chalk_paint.dart';
 import 'theme/chalk/chalk_theme.dart';
 import 'theme/gekiga/gekiga_theme.dart';
 import 'theme/glass/glass_theme.dart';
@@ -420,7 +421,6 @@ class DaiDaiApp extends ConsumerWidget {
         palette: palette,
       ),
       // チョーク: ライト/ダークによらず、黒板の色に固定する（文字は白いチョーク色）。
-      AppUiStyle.chalk => ChalkTheme.build(accentColor, fontFamily),
       AppUiStyle.gekiga => GekigaTheme.build(
         gekigaBackgroundColor,
         fontFamily: fontFamily,
@@ -431,6 +431,11 @@ class DaiDaiApp extends ConsumerWidget {
         onAccentColor: onAccentColorLight,
         fontFamily: fontFamily,
         palette: palette,
+      ),
+      AppUiStyle.chalk => ChalkTheme.build(
+        accentColor,
+        fontFamily,
+        background: custom.enabled ? custom.color : null,
       ),
       AppUiStyle.block => BlockTheme.light(
         accentColor,
@@ -450,7 +455,6 @@ class DaiDaiApp extends ConsumerWidget {
         variant: darkVariant,
       ),
       // チョーク: ライト/ダークによらず、黒板の色に固定する（文字は白いチョーク色）。
-      AppUiStyle.chalk => ChalkTheme.build(accentColor, fontFamily),
       AppUiStyle.gekiga => GekigaTheme.build(
         gekigaBackgroundColor,
         fontFamily: fontFamily,
@@ -462,6 +466,11 @@ class DaiDaiApp extends ConsumerWidget {
         fontFamily: fontFamily,
         palette: palette,
         variant: darkVariant,
+      ),
+      AppUiStyle.chalk => ChalkTheme.build(
+        accentColor,
+        fontFamily,
+        background: custom.enabled ? custom.color : null,
       ),
       AppUiStyle.block => BlockTheme.dark(
         accentColor,
@@ -518,6 +527,19 @@ class DaiDaiApp extends ConsumerWidget {
                     ),
                   ),
                 ),
+                // チョーク: 黒板に残った粉を、画面全体へ薄く重ねる（2026-11-26）。
+                // 他のスタイルでも、背景に黒板を選んだ時は同じ粉を重ねる。
+                if (uiStyle == AppUiStyle.chalk ||
+                    (custom.enabled &&
+                        custom.color.toARGB32() ==
+                            ChalkColors.board.toARGB32()))
+                  Positioned.fill(
+                    child: ChalkBoardDust(
+                      color: ChalkTheme.inkFor(
+                        custom.enabled ? custom.color : ChalkColors.board,
+                      ),
+                    ),
+                  ),
                 const PinnedCallOverlay(),
                 // PC・Webの通話画面は、今の画面の上に重ねる（2026-10-23）。
                 const CallOverlay(),

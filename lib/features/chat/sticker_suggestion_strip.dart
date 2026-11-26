@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../models/app_ui_style.dart';
 import '../../models/sticker.dart';
 import '../../providers/app_ui_style_provider.dart';
+import '../../theme/chalk/chalk_paint.dart';
 import '../../theme/gekiga/gekiga_colors.dart';
 import '../../utils/platform_info.dart';
 import '../../widgets/glass/glass_surface.dart';
@@ -185,6 +186,16 @@ class StickerSuggestionStrip extends ConsumerWidget {
           panel = Material(
             color: GekigaColors.panel,
             shape: Border.all(color: GekigaColors.onPanel, width: 3),
+            child: content,
+          );
+        } else if (uiStyle == AppUiStyle.chalk) {
+          // チョーク: 黒板に、チョークで囲んだ枠。
+          panel = Material(
+            color: colorScheme.surfaceContainerHigh,
+            shape: ChalkShapeBorder(
+              borderRadius: radius,
+              color: colorScheme.onSurface,
+            ),
             child: content,
           );
         } else {

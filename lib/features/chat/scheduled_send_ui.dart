@@ -421,7 +421,7 @@ class _ScheduledMessagesDialog extends ConsumerWidget {
               // 薄くて見えにくかったので、文字色に近い濃さにする。
               color: switch (uiStyle) {
                 AppUiStyle.gekiga => GekigaColors.onPanel,
-                AppUiStyle.block => BlockTheme.lineColor(
+                AppUiStyle.block || AppUiStyle.chalk => BlockTheme.lineColor(
                   Theme.of(context).brightness,
                 ),
                 _ => Theme.of(

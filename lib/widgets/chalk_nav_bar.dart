@@ -6,25 +6,19 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../models/app_ui_style.dart';
 import '../providers/app_ui_style_provider.dart';
 import '../providers/selection_motion_provider.dart';
-import '../theme/chalk/chalk_theme.dart';
+import '../theme/chalk/chalk_paint.dart';
 import 'liquid_chip_highlight.dart';
 import 'nav_chip.dart';
-
-/// 選ばれた項目の上（縦並びは右）へ出っ張る高さ。
-const double kChalkBumpHeight = 16;
-
-/// 選ばれた項目のチップを、出っ張りの方へ持ち上げる量。
-const double kChalkLift = 10;
 
 /// 帯の内側の余白。
 const double _kPad = 12;
 
 /// メニューチップの帯を、黒板にチョークで描いた1本の枠にする（2026-11-26、チョークスタイル）。
-/// 枠は、選ばれた項目の位置だけ出っ張り、選択が移ると、出っ張りが次の項目へ滑る。
+/// 選ばれた項目は、アクセントカラー（黄色のチョーク）の輪で囲み、選択が移ると、輪が次の項目へ滑る。
 /// 「選択の動き」が「なし」なら、その場で移る。
 ///
 /// [child]は、チップを並べたRow/Column。チップ同士の間は[kNavChipGap]、1つの大きさは
-/// [kNavChipSize]として、出っ張りの位置を計算する。
+/// [kNavChipSize]として、輪の位置を計算する。
 class ChalkNavBar extends ConsumerWidget {
   const ChalkNavBar({
     required this.child,
@@ -52,7 +46,8 @@ class ChalkNavBar extends ConsumerWidget {
           position: position,
           count: count,
           vertical: vertical,
-          color: ChalkColors.chalk,
+          color: Theme.of(context).colorScheme.onSurface,
+          ringColor: Theme.of(context).colorScheme.primary,
         ),
         child: child,
       ),
@@ -67,6 +62,7 @@ class _ChalkBarPainter extends CustomPainter {
     required this.count,
     required this.vertical,
     required this.color,
+    required this.ringColor,
   });
 
   /// 出っ張りの位置（項目の番号。小数は、滑っている途中）。負なら出っ張りなし。
@@ -74,41 +70,40 @@ class _ChalkBarPainter extends CustomPainter {
   final int count;
   final bool vertical;
   final Color color;
+  final Color ringColor;
 
   static const double _radius = 26;
-  static const double _bumpHalf = 30;
 
   /// 枠の輪郭。横並びとして組み、縦並びは向きを回して使う。
-  Path _outline(double length, double thickness, double bumpCenter) {
+  Path _outline(double length, double thickness) {
     final r = math.min(_radius, math.min(thickness, length) / 2);
-    final bump = bumpCenter >= 0 && length > r * 2 + 1;
-    final path = Path()..moveTo(r, 0);
-    if (bump) {
-      final left = (bumpCenter - _bumpHalf).clamp(r, length - r);
-      final right = (bumpCenter + _bumpHalf).clamp(r, length - r);
-      final mid = (left + right) / 2;
-      path
-        ..lineTo(left, 0)
-        ..cubicTo(
-          left + 14,
-          0,
-          mid - 18,
-          -kChalkBumpHeight,
-          mid,
-          -kChalkBumpHeight,
-        )
-        ..cubicTo(mid + 18, -kChalkBumpHeight, right - 14, 0, right, 0);
+    return Path()..addRRect(
+      RRect.fromRectAndRadius(
+        Rect.fromLTWH(0, 0, length, thickness),
+        Radius.circular(r),
+      ),
+    );
+  }
+
+  /// 選ばれた項目を囲む輪（少し横長の、ゆがんだ楕円）。
+  Path _ring(double center, double thickness) {
+    final w = kNavChipSize * 1.3;
+    final h = math.min(kNavChipSize + 10, thickness - 6);
+    final cy = thickness / 2;
+    // 手で描いた輪の様に、始点と終点が少しずれて重なる。
+    final path = Path();
+    const steps = 64;
+    for (var i = 0; i <= steps + 4; i++) {
+      final t = i / steps * 2 * math.pi + 0.5;
+      final grow = 1 + 0.035 * math.sin(t * 2 + 1) + (i / steps) * 0.02;
+      final x = center + math.cos(t) * w / 2 * grow;
+      final y = cy + math.sin(t) * h / 2 * grow;
+      if (i == 0) {
+        path.moveTo(x, y);
+      } else {
+        path.lineTo(x, y);
+      }
     }
-    path
-      ..lineTo(length - r, 0)
-      ..arcToPoint(Offset(length, r), radius: Radius.circular(r))
-      ..lineTo(length, thickness - r)
-      ..arcToPoint(Offset(length - r, thickness), radius: Radius.circular(r))
-      ..lineTo(r, thickness)
-      ..arcToPoint(Offset(0, thickness - r), radius: Radius.circular(r))
-      ..lineTo(0, r)
-      ..arcToPoint(Offset(r, 0), radius: Radius.circular(r))
-      ..close();
     return path;
   }
 
@@ -120,73 +115,22 @@ class _ChalkBarPainter extends CustomPainter {
     final center = position < 0
         ? -1.0
         : _kPad + position * (kNavChipSize + kNavChipGap) + kNavChipSize / 2;
-    var path = _outline(length, thickness, center);
+    var path = _outline(length, thickness);
+    var ring = center < 0 ? null : _ring(center, thickness);
     if (vertical) {
-      // 横並びの上辺が、右辺になるよう、時計回りに90度回す。
-      path = path.transform(
-        (Matrix4.identity()
-              ..translateByDouble(size.width, 0, 0, 1)
-              ..rotateZ(math.pi / 2))
-            .storage,
-      );
+      // 横並びを、縦並びへ、時計回りに90度回す。
+      final m =
+          (Matrix4.identity()
+                ..translateByDouble(size.width, 0, 0, 1)
+                ..rotateZ(math.pi / 2))
+              .storage;
+      path = path.transform(m);
+      ring = ring?.transform(m);
     }
-    final rough = _roughen(path);
-    // 粉っぽいにじみ、本線、かすれた2本目、の順に重ねる。
-    canvas.drawPath(
-      rough,
-      Paint()
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 4
-        ..color = color.withValues(alpha: 0.14)
-        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 2),
-    );
-    canvas.drawPath(
-      rough,
-      Paint()
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 2.2
-        ..strokeCap = StrokeCap.round
-        ..strokeJoin = StrokeJoin.round
-        ..color = color.withValues(alpha: 0.9),
-    );
-    canvas.drawPath(
-      _roughen(path, shift: 1),
-      Paint()
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 1.1
-        ..strokeCap = StrokeCap.round
-        ..color = color.withValues(alpha: 0.45),
-    );
-  }
-
-  /// 線を、位置で決まる細かい揺れでずらして、手描きのチョークにする。揺れは、位置だけで
-  /// 決まるので、出っ張りが滑っても、線がちらつかない。
-  Path _roughen(Path path, {double shift = 0}) {
-    final out = Path();
-    for (final metric in path.computeMetrics()) {
-      var first = true;
-      for (var d = 0.0; d <= metric.length; d += 4) {
-        final t = metric.getTangentForOffset(d);
-        if (t == null) continue;
-        final p = t.position;
-        final nx = _noise(p.dx * 0.9 + shift * 31, p.dy * 0.9 + shift * 17);
-        final ny = _noise(p.dy * 0.9 + 13 + shift * 29, p.dx * 0.9 + 7);
-        final q = p + Offset(nx, ny) * 0.55;
-        if (first) {
-          out.moveTo(q.dx, q.dy);
-          first = false;
-        } else {
-          out.lineTo(q.dx, q.dy);
-        }
-      }
+    ChalkPaint.stroke(canvas, path, color, width: 2.4);
+    if (ring != null) {
+      ChalkPaint.stroke(canvas, ring, ringColor, width: 2.6, seed: 5);
     }
-    return out;
-  }
-
-  /// -1〜1の、位置から決まる擬似的な乱数。
-  static double _noise(double x, double y) {
-    final v = math.sin(x * 12.9898 + y * 78.233) * 43758.5453;
-    return (v - v.floorToDouble()) * 2 - 1;
   }
 
   @override
@@ -194,7 +138,8 @@ class _ChalkBarPainter extends CustomPainter {
       old.position != position ||
       old.count != count ||
       old.vertical != vertical ||
-      old.color != color;
+      old.color != color ||
+      old.ringColor != ringColor;
 }
 
 /// チップの帯。チョークスタイルは[ChalkNavBar]、他は水が流れ込む[LiquidChipStrip]。

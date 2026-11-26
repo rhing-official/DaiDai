@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../models/app_ui_style.dart';
 import '../../models/sticker.dart';
 import '../../providers/app_ui_style_provider.dart';
+import '../../theme/chalk/chalk_paint.dart';
 import 'sticker_picker_content.dart';
 
 /// 中身を組む最小の高さ（検索欄・レール・バーが収まる高さ）。
@@ -96,12 +97,23 @@ class StickerPickerDock extends ConsumerWidget {
     }
     final colorScheme = Theme.of(context).colorScheme;
     final isGekiga = ref.watch(appUiStyleProvider) == AppUiStyle.gekiga;
+    final isChalk = ref.watch(appUiStyleProvider) == AppUiStyle.chalk;
 
     return SizedBox(
       height: height,
       child: Material(
         color: isGekiga ? colorScheme.surface : colorScheme.surfaceContainer,
-        borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
+        borderRadius: isChalk
+            ? null
+            : const BorderRadius.vertical(top: Radius.circular(16)),
+        shape: isChalk
+            ? ChalkShapeBorder(
+                borderRadius: const BorderRadius.vertical(
+                  top: Radius.circular(16),
+                ),
+                color: colorScheme.onSurface,
+              )
+            : null,
         clipBehavior: Clip.antiAlias,
         // 閉じる・縮める途中で高さが中身の最小高さを下回ると下端が溢れる
         // （ピクセルエラー）ため、中身は常に一定以上の高さで組み、はみ出した

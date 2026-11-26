@@ -391,7 +391,7 @@ class _MiniPlayerSurface extends ConsumerWidget {
     final style = ref.watch(appUiStyleProvider);
     if (style == AppUiStyle.gekiga ||
         style == AppUiStyle.glass ||
-        style == AppUiStyle.block) {
+        style.isBoxed) {
       return CallPanelSurface(allRounded: true, child: child);
     }
     final scheme = Theme.of(context).colorScheme;

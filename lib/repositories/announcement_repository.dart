@@ -171,13 +171,16 @@ class FirestoreAnnouncementRepository implements AnnouncementRepository {
           broadcasts = value;
           emit();
         }, onError: controller.addError);
-        noticesSub = _watchNotices().listen((value) {
-          notices = value;
-          emit();
-        }, onError: (_) {
-          notices = const <Announcement>[];
-          emit();
-        });
+        noticesSub = _watchNotices().listen(
+          (value) {
+            notices = value;
+            emit();
+          },
+          onError: (_) {
+            notices = const <Announcement>[];
+            emit();
+          },
+        );
       },
       onCancel: () async {
         await broadcastsSub?.cancel();

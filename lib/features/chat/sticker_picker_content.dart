@@ -12,6 +12,7 @@ import '../../widgets/sticker_image.dart';
 import '../../widgets/transitioned_overlay.dart';
 import 'sticker_carousel.dart';
 import '../../providers/app_ui_style_provider.dart';
+import '../../theme/chalk/chalk_paint.dart';
 import '../../models/sticker_send_mode.dart';
 import '../../providers/last_sticker_tab_provider.dart';
 import '../../providers/owned_sticker_packs_provider.dart';
@@ -320,9 +321,17 @@ class _StickerPickerContentState extends ConsumerState<StickerPickerContent> {
         color: ref.watch(appUiStyleProvider) == AppUiStyle.gekiga
             ? Theme.of(context).colorScheme.surface
             : Theme.of(context).colorScheme.surfaceContainerHigh,
-        elevation: 8,
+        elevation: ref.watch(appUiStyleProvider) == AppUiStyle.chalk ? 0 : 8,
         shadowColor: Theme.of(context).colorScheme.shadow,
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: ref.watch(appUiStyleProvider) == AppUiStyle.chalk
+            ? null
+            : BorderRadius.circular(16),
+        shape: ref.watch(appUiStyleProvider) == AppUiStyle.chalk
+            ? ChalkShapeBorder(
+                borderRadius: BorderRadius.circular(16),
+                color: Theme.of(context).colorScheme.onSurface,
+              )
+            : null,
         clipBehavior: Clip.antiAlias,
         // 提案パネルの拡大と同じカルーセル（2026-11-21）。中央が大きく、左右に隣が覗き、
         // 横スワイプ・ホイールで切り替わる。中央のタップ＝「同じぺったんをもう一度タップ」
@@ -371,9 +380,14 @@ class _StickerPickerContentState extends ConsumerState<StickerPickerContent> {
                   isDense: true,
                   prefixIcon: const Icon(Icons.search, size: 20),
                   hintText: strings.stickerSearchHint,
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(20),
-                  ),
+                  border: ref.watch(appUiStyleProvider) == AppUiStyle.chalk
+                      ? ChalkInputBorder(
+                          borderRadius: BorderRadius.circular(20),
+                          color: Theme.of(context).colorScheme.onSurface,
+                        )
+                      : OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(20),
+                        ),
                 ),
                 onChanged: (value) => setState(() => _query = value),
               ),

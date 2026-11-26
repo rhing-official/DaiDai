@@ -53,7 +53,7 @@ class SettingsTile extends ConsumerWidget {
         ),
       );
     }
-    if (ref.watch(appUiStyleProvider) == AppUiStyle.block) {
+    if (ref.watch(appUiStyleProvider).isBoxed) {
       final scheme = Theme.of(context).colorScheme;
       final fg = selected ? scheme.onPrimary : scheme.onSurface;
       return Padding(

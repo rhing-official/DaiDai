@@ -389,9 +389,10 @@ class _Message extends ConsumerWidget {
     return switch (uiStyle) {
       AppUiStyle.gekiga => GekigaIconBadge(icon: icon, size: _badgeSize),
       AppUiStyle.glass => GlassIconBadge(icon: icon, size: _badgeSize),
-      AppUiStyle.block => BlockIconBadge(icon: icon, size: _badgeSize),
+      AppUiStyle.block ||
+      AppUiStyle.chalk => BlockIconBadge(icon: icon, size: _badgeSize),
       // アクセントカラーは地として使い、アイコンは設定の「アクセント上の文字色」に従う。
-      AppUiStyle.flat || AppUiStyle.chalk => Container(
+      AppUiStyle.flat => Container(
         width: _badgeSize,
         height: _badgeSize,
         decoration: BoxDecoration(

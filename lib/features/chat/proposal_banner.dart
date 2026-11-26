@@ -58,6 +58,7 @@ class ProposalBannerLayout extends ConsumerWidget {
           enableEdgeStroke: false,
           child: content(colorScheme.onSurface),
         );
+      case AppUiStyle.chalk:
       case AppUiStyle.block:
         return Container(
           decoration: BoxDecoration(
@@ -70,7 +71,6 @@ class ProposalBannerLayout extends ConsumerWidget {
           child: content(colorScheme.onSurface),
         );
       case AppUiStyle.flat:
-      case AppUiStyle.chalk:
         return Container(
           decoration: BoxDecoration(
             color: colorScheme.surfaceContainerHighest,

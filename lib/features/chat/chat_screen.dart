@@ -30,6 +30,8 @@ import '../../l10n/strings.dart';
 import '../../models/scheduled_message.dart';
 import 'scheduled_send_ui.dart';
 import '../../theme/block/block_theme.dart';
+import '../../theme/chalk/chalk_paint.dart';
+import '../../theme/chalk/chalk_theme.dart';
 import '../../theme/motion.dart';
 import '../../l10n/vocabulary.dart';
 import '../../models/app_ui_style.dart';
@@ -1270,7 +1272,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
       );
     } else if (isGekiga) {
       background = Container(child: content);
-    } else if (isBlockTheme(context)) {
+    } else if (isBlockTheme(context) && !isChalkTheme(context)) {
       // 版画は入力欄の上（返信・編集のラベルなども含めた領域とメッセージ一覧の境界）に
       // 上部のヘッダーの下線と同じ太さ（[BlockTheme.borderWidth]）の線を引く（2026-11-06）。
       final theme = Theme.of(context);
@@ -3359,11 +3361,13 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                                     size: 32,
                                     opaque: true,
                                   ),
-                                  AppUiStyle.block => const BlockIconBadge(
+                                  AppUiStyle.block ||
+                                  AppUiStyle.chalk => const BlockIconBadge(
                                     icon: Icons.call_outlined,
                                   ),
-                                  AppUiStyle.flat || AppUiStyle.chalk =>
-                                    const Icon(Icons.call_outlined),
+                                  AppUiStyle.flat => const Icon(
+                                    Icons.call_outlined,
+                                  ),
                                 }),
                                 onPressed: onCall,
                               ),
@@ -3390,11 +3394,13 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                                       size: 32,
                                       opaque: true,
                                     ),
-                                    AppUiStyle.block => const BlockIconBadge(
+                                    AppUiStyle.block ||
+                                    AppUiStyle.chalk => const BlockIconBadge(
                                       icon: Icons.videocam_outlined,
                                     ),
-                                    AppUiStyle.flat || AppUiStyle.chalk =>
-                                      const Icon(Icons.videocam_outlined),
+                                    AppUiStyle.flat => const Icon(
+                                      Icons.videocam_outlined,
+                                    ),
                                   },
                                   onPressed: onVideoCall,
                                 ),
@@ -3415,10 +3421,11 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                                 size: 32,
                                 opaque: true,
                               ),
-                              AppUiStyle.block => const BlockIconBadge(
+                              AppUiStyle.block ||
+                              AppUiStyle.chalk => const BlockIconBadge(
                                 icon: Icons.push_pin_outlined,
                               ),
-                              AppUiStyle.flat || AppUiStyle.chalk => const Icon(
+                              AppUiStyle.flat => const Icon(
                                 Icons.push_pin_outlined,
                               ),
                             },
@@ -4713,7 +4720,7 @@ class _DateSeparator extends StatelessWidget {
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
         child: text,
       ),
-      AppUiStyle.block => Padding(
+      AppUiStyle.block || AppUiStyle.chalk => Padding(
         padding: const EdgeInsets.only(right: 3, bottom: 3),
         child: blockMaterialBox(
           context,
@@ -4725,7 +4732,7 @@ class _DateSeparator extends StatelessWidget {
           ),
         ),
       ),
-      AppUiStyle.gekiga || AppUiStyle.flat || AppUiStyle.chalk => Container(
+      AppUiStyle.gekiga || AppUiStyle.flat => Container(
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
         decoration: BoxDecoration(
           color: uiStyle == AppUiStyle.gekiga
@@ -6267,7 +6274,19 @@ class _MessageRow extends ConsumerWidget {
         ),
         child: bubbleContent,
       ),
-      AppUiStyle.flat || AppUiStyle.chalk => Container(
+      AppUiStyle.chalk => Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+        // チョーク: 塗りの上に、チョークで引いた縁を描く。
+        decoration: skipBubbleFrame
+            ? null
+            : ChalkBoxDecoration(
+                color: bubbleFill,
+                borderRadius: BorderRadius.circular(20),
+                lineColor: colorScheme.onSurface,
+              ),
+        child: bubbleContent,
+      ),
+      AppUiStyle.flat => Container(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
         decoration: BoxDecoration(
           // ブロックメッセージ（`skipBubbleFrame`）は自前の独立したカード
@@ -10478,7 +10497,7 @@ class _ReturnToMessageBlockBody extends StatelessWidget {
         fill = colorScheme.primary;
         fg = colorScheme.onPrimary;
     }
-    final isBlock = uiStyle == AppUiStyle.block;
+    final isBlock = uiStyle.isBoxed;
     if (isBlock)
       shape = RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(BlockTheme.radius),
@@ -10549,6 +10568,7 @@ class _JumpToLatestButton extends StatelessWidget {
           size: _size,
           opaque: true,
         );
+      case AppUiStyle.chalk:
       case AppUiStyle.block:
         return blockIconButton(
           context,
@@ -10639,7 +10659,7 @@ class _FloatingPopupSurface extends ConsumerWidget {
         child: Material(type: MaterialType.transparency, child: child),
       ),
       // 版画: 太枠と硬い影の箱（影の分の余白を含める）。
-      AppUiStyle.block => Padding(
+      AppUiStyle.block || AppUiStyle.chalk => Padding(
         padding: const EdgeInsets.only(right: 4, bottom: 4),
         child: blockMaterialBox(
           context,

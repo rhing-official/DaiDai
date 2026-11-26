@@ -77,6 +77,7 @@ class ToggleColors {
           borderWidth: 1,
           check: accent,
         );
+      case AppUiStyle.chalk:
       case AppUiStyle.block:
         final line = BlockTheme.lineColor(scheme.brightness);
         // オン=アクセントの面（つまみは黒＋白いチェック）、オフ=白い面（つまみは黒）で、
@@ -93,7 +94,6 @@ class ToggleColors {
           check: isDark ? const Color(0xFF121212) : Colors.white,
         );
       case AppUiStyle.flat:
-      case AppUiStyle.chalk:
         return ToggleColors(
           onFill: accent,
           offFill: scheme.onSurface.withValues(alpha: 0.12),

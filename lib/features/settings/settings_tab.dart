@@ -958,7 +958,7 @@ class _FolderTile extends ConsumerWidget {
       );
     }
 
-    if (uiStyle == AppUiStyle.block) {
+    if (uiStyle.isBoxed) {
       // 版画: 太枠と硬い影の箱（選択中はアクセントで塗る）。
       final fg = selected ? colorScheme.onPrimary : colorScheme.onSurface;
       return Padding(
@@ -1157,7 +1157,7 @@ class _CopyableInfoRow extends ConsumerWidget {
               ),
             ],
           )
-        : ref.watch(appUiStyleProvider) == AppUiStyle.block
+        : ref.watch(appUiStyleProvider).isBoxed
         // 版画: 太枠と硬い影の箱（影の分の余白を含める）。
         // 左右の余白は下の外側の余白に任せ、「検索に表示する」の行（[SettingsTile]）と
         // 同じ左右の端に揃える（2026-11-06）。
@@ -1194,8 +1194,7 @@ class _CopyableInfoRow extends ConsumerWidget {
             ),
           );
     // 劇画・版画は箱を左右いっぱいに広げ、「検索に表示する」の箱と幅を揃える。
-    final blockStyle =
-        isGekiga || ref.watch(appUiStyleProvider) == AppUiStyle.block;
+    final blockStyle = isGekiga || ref.watch(appUiStyleProvider).isBoxed;
     return Padding(
       padding: EdgeInsets.symmetric(
         horizontal: blockStyle ? 0 : 16,
@@ -4957,7 +4956,7 @@ class NavChipLayoutFolder extends ConsumerWidget {
                   : _NavChipOrderListState.itemHeight,
               child: content,
             );
-            if (ref.watch(appUiStyleProvider) == AppUiStyle.block) {
+            if (ref.watch(appUiStyleProvider).isBoxed) {
               // 版画: 太枠と硬い影の箱（影の分の余白を含めて1行の高さに収める）。
               return Padding(
                 padding: const EdgeInsets.fromLTRB(2, 4, 6, 8),

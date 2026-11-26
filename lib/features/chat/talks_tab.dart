@@ -2736,7 +2736,7 @@ class _TalksTabState extends ConsumerState<TalksTab>
     // 縦に並ぶ検索・＋のボタン。劇画UIでは並べ替えボタンと同じモノクロの箱のバッジ
     // （40px）にする（2026-11-01）。
     final isGekigaRail = ref.watch(appUiStyleProvider) == AppUiStyle.gekiga;
-    final isBlockRail = ref.watch(appUiStyleProvider) == AppUiStyle.block;
+    final isBlockRail = ref.watch(appUiStyleProvider).isBoxed;
     Widget railButton({
       required IconData icon,
       required VoidCallback onPressed,
@@ -3351,6 +3351,7 @@ class _TalksTabState extends ConsumerState<TalksTab>
             onSubmitted: onSubmitted == null ? null : (_) => onSubmitted(),
           ),
         );
+      case AppUiStyle.chalk:
       case AppUiStyle.block:
         // 版画: 太枠と硬い影の箱の中に、枠・塗り無しの素のTextFieldを置く。
         return Padding(
@@ -3381,7 +3382,6 @@ class _TalksTabState extends ConsumerState<TalksTab>
           ),
         );
       case AppUiStyle.flat:
-      case AppUiStyle.chalk:
         // ガラスと同じ形（角丸24・枠線なし）で、半透明にはせず不透明の面で塗る
         // （2026-11-01）。
         return DecoratedBox(
@@ -3721,7 +3721,7 @@ class CategoryTab extends ConsumerWidget {
       ),
     );
 
-    if (ref.watch(appUiStyleProvider) == AppUiStyle.block) {
+    if (ref.watch(appUiStyleProvider).isBoxed) {
       return blockMaterialBox(
         context,
         color: selected
@@ -5343,6 +5343,7 @@ class _ConversationGesturesState extends ConsumerState<_ConversationGestures> {
                       borderRadius: radius,
                       child: ClipRRect(borderRadius: radius, child: list),
                     );
+                  case AppUiStyle.chalk:
                   case AppUiStyle.block:
                     return blockMaterialBox(
                       menuContext,
@@ -5350,7 +5351,6 @@ class _ConversationGesturesState extends ConsumerState<_ConversationGestures> {
                       child: list,
                     );
                   case AppUiStyle.flat:
-                  case AppUiStyle.chalk:
                     return Material(
                       color: menuTheme.colorScheme.surface,
                       clipBehavior: Clip.antiAlias,
