@@ -1,5 +1,6 @@
 import 'call_presence_mark.dart';
 import '../../widgets/liquid_tile_group.dart';
+import '../../providers/selection_motion_provider.dart';
 import '../../widgets/ring_list_scope.dart';
 import '../../widgets/pick_zone.dart';
 import '../../theme/block/block_theme.dart';
@@ -212,6 +213,38 @@ class _RoomListPaneState extends ConsumerState<RoomListPane> {
     );
   }
 
+  /// 囲みの時の、並べ替えで持ち上げた項目の見た目（2026-11-26）。囲みの項目は、箱も塗りも持たない
+  /// ので、持ち上げると文字だけが浮いてしまう。そこで、ペインの面の色で塗り、少しだけ拡大する。
+  /// 枠は付けない（非選択の項目に、アクセントカラーの枠が出てしまうため）。傾けない（チョークの手描きの線と衝突する）。項目は、囲みの範囲の外
+  /// （Overlay）で描かれるため、範囲を付け直す。
+  Widget _ringDragDecorator(
+    Widget child,
+    Animation<double> animation,
+    ColorScheme colorScheme,
+    AppUiStyle style,
+  ) {
+    return Material(
+      type: MaterialType.transparency,
+      child: AnimatedBuilder(
+        animation: animation,
+        builder: (context, _) {
+          final t = Curves.easeOut.transform(animation.value);
+          return Transform.scale(
+            scale: 1.0 + 0.03 * t,
+            child: DecoratedBox(
+              decoration: BoxDecoration(
+                color: colorScheme.surface,
+                borderRadius: BorderRadius.circular(12),
+              ),
+              // 枠は付けない。選択中の項目には、項目自身の枠が付く。
+              child: RingListBlock(withBackground: false, child: child),
+            ),
+          );
+        },
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final strings = ref.watch(appStringsProvider);
@@ -248,6 +281,7 @@ class _RoomListPaneState extends ConsumerState<RoomListPane> {
     // [index]は並べ替え有効時（[RoomListPane.onReorderRooms]非null）のみ
     // 渡され、`leading`にドラッグハンドルを追加する（2026-09-08追加）。
     Widget buildRoomTileBody(
+      BuildContext tileContext,
       RoomListEntry room,
       bool isSelected, {
       int? index,
@@ -279,6 +313,31 @@ class _RoomListPaneState extends ConsumerState<RoomListPane> {
           ),
           onTap: () => widget.onSelectRoom(room),
         );
+      }
+
+      // 「丸で囲む」の時は、塗らず、線の枠で囲む。項目の箱・塗りは、ブロックが描く。
+      // 囲みの範囲の中かは、項目の`context`で調べる（一覧の外の`context`では分からない）。
+      final ringStyle = RingListScope.styleOf(tileContext);
+      if (ringStyle != null) {
+        final ringTile = ListTile(
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+          ),
+          leading: tagIcon,
+          title: Text(room.name, maxLines: 1, overflow: TextOverflow.ellipsis),
+          trailing: trailingOf(
+            room,
+            Theme.of(tileContext).colorScheme.onSurface,
+          ),
+          onTap: () => widget.onSelectRoom(room),
+        );
+        return isSelected
+            ? RingSelectedMarker(
+                style: ringStyle,
+                selectionKey: room.roomId,
+                child: ringTile,
+              )
+            : ringTile;
       }
 
       if (isGlass) {
@@ -340,11 +399,9 @@ class _RoomListPaneState extends ConsumerState<RoomListPane> {
         );
       }
 
-      // 「丸で囲む」の時は、塗らず、線の枠で囲む。
-      final ringStyle = RingListScope.styleOf(context);
-      final tile = ListTile(
+      return ListTile(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-        selected: isSelected && ringStyle == null,
+        selected: isSelected,
         selectedTileColor: colorScheme.primary,
         selectedColor: colorScheme.onPrimary,
         leading: tagIcon,
@@ -355,17 +412,16 @@ class _RoomListPaneState extends ConsumerState<RoomListPane> {
         ),
         onTap: () => widget.onSelectRoom(room),
       );
-      if (ringStyle != null && isSelected) {
-        return RingSelectedMarker(style: ringStyle, child: tile);
-      }
-      return tile;
     }
 
     Widget buildRoomTile(RoomListEntry room, {int? index}) => DrawSelectionTile(
       selected: room.roomId == widget.selectedRoomId,
-      builder: (context, sel) => buildRoomTileBody(room, sel, index: index),
+      builder: (context, sel) =>
+          buildRoomTileBody(context, room, sel, index: index),
     );
 
+    // 囲みの時は、大きなブロックを、寄合の有る所までで区切る（2026-11-26）。
+    final ringFit = ref.watch(navBandMergedProvider);
     final zone = widget.headerZoneHeight != null;
     final paneContent = Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -469,7 +525,9 @@ class _RoomListPaneState extends ConsumerState<RoomListPane> {
                 )
               : !isGekiga && widget.onReorderRooms == null
               ? RingListBlock(
+                  fitContent: true,
                   child: ListView(
+                    shrinkWrap: ringFit,
                     // 上下端で跳ね返らないようにする（2026-11-23追加）。
                     physics: const ClampingScrollPhysics(),
                     // 選択中タイルの塗り潰し（selectedTileColor）が、左右は
@@ -486,46 +544,63 @@ class _RoomListPaneState extends ConsumerState<RoomListPane> {
                     children: [for (final room in _rooms) buildRoomTile(room)],
                   ),
                 )
-              : ReorderableListView(
-                  // ブロック左端のドラッグハンドル（`Icons.drag_indicator`、
-                  // `buildRoomTile`参照）のみでドラッグを開始させ、行本体の
-                  // タップ＝寄合選択と競合しないようにする（2026-09-08追加）。
-                  // 劇画UIも他のUIスタイルと同じくこの分岐で並べ替える
-                  // （2026-09-12追加、以前は劇画UIだけ非対応だった。
-                  // `GekigaJointedTileList`は2026-08-05の変更で複数の箱を
-                  // 接合せず、間隔を空けてそれぞれ独立した箱として描くように
-                  // なっている為、1件だけ渡しても他の項目と見た目が変わらない
-                  // 独立した箱になる＝`ReorderableListView`の1行として個別に
-                  // ドラッグ出来る）。
-                  buildDefaultDragHandles: false,
-                  // 上下端で跳ね返らないようにする（2026-11-23追加）。
-                  physics: const ClampingScrollPhysics(),
-                  padding: EdgeInsets.fromLTRB(8, widget.listTopPadding, 8, 0),
-                  onReorderItem: _handleReorder,
-                  proxyDecorator: (child, index, animation) =>
-                      _dragLiftDecorator(
-                        child,
-                        index,
-                        animation,
-                        colorScheme,
-                        isGekiga,
-                        showOutline: !uiStyle.isBoxed,
-                      ),
-                  children: [
-                    for (final (index, room) in _rooms.indexed)
-                      KeyedSubtree(
-                        key: ValueKey(room.roomId),
-                        child: isGekiga
-                            ? GekigaJointedTileList(
-                                seeds: [room.roomId.hashCode],
-                                selectedFlags: [
-                                  room.roomId == widget.selectedRoomId,
-                                ],
-                                children: [buildRoomTile(room, index: index)],
-                              )
-                            : buildRoomTile(room, index: index),
-                      ),
-                  ],
+              // 囲みの時は、並べ替えが有効でも、大きなブロックにまとめる（2026-11-26）。
+              : RingListBlock(
+                  fitContent: true,
+                  child: ReorderableListView(
+                    shrinkWrap: ringFit,
+                    // ブロック左端のドラッグハンドル（`Icons.drag_indicator`、
+                    // `buildRoomTile`参照）のみでドラッグを開始させ、行本体の
+                    // タップ＝寄合選択と競合しないようにする（2026-09-08追加）。
+                    // 劇画UIも他のUIスタイルと同じくこの分岐で並べ替える
+                    // （2026-09-12追加、以前は劇画UIだけ非対応だった。
+                    // `GekigaJointedTileList`は2026-08-05の変更で複数の箱を
+                    // 接合せず、間隔を空けてそれぞれ独立した箱として描くように
+                    // なっている為、1件だけ渡しても他の項目と見た目が変わらない
+                    // 独立した箱になる＝`ReorderableListView`の1行として個別に
+                    // ドラッグ出来る）。
+                    buildDefaultDragHandles: false,
+                    // 上下端で跳ね返らないようにする（2026-11-23追加）。
+                    physics: const ClampingScrollPhysics(),
+                    padding: EdgeInsets.fromLTRB(
+                      8,
+                      widget.listTopPadding,
+                      8,
+                      0,
+                    ),
+                    onReorderItem: _handleReorder,
+                    proxyDecorator: (child, index, animation) =>
+                        ringFit && !isGekiga
+                        ? _ringDragDecorator(
+                            child,
+                            animation,
+                            colorScheme,
+                            uiStyle,
+                          )
+                        : _dragLiftDecorator(
+                            child,
+                            index,
+                            animation,
+                            colorScheme,
+                            isGekiga,
+                            showOutline: !uiStyle.isBoxed,
+                          ),
+                    children: [
+                      for (final (index, room) in _rooms.indexed)
+                        KeyedSubtree(
+                          key: ValueKey(room.roomId),
+                          child: isGekiga
+                              ? GekigaJointedTileList(
+                                  seeds: [room.roomId.hashCode],
+                                  selectedFlags: [
+                                    room.roomId == widget.selectedRoomId,
+                                  ],
+                                  children: [buildRoomTile(room, index: index)],
+                                )
+                              : buildRoomTile(room, index: index),
+                        ),
+                    ],
+                  ),
                 ),
         ),
       ],

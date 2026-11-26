@@ -308,6 +308,18 @@ class RingSlideHostState extends State<RingSlideHost>
   Size _toSize = Size.zero;
   int _mountCount = 0;
 
+  /// 選択中の項目が替わった直後で、滑らせる位置がまだ決まっていない間。この間は、枠を描かない
+  /// （描くと、新しい項目に一瞬だけ枠が現れてから、元の位置へ戻って滑り出す）。
+  bool _pending = false;
+
+  /// 今、枠が付いている項目の識別（寄合のid等）。同じ項目が付け直された時（並べ替えで持ち上げて
+  /// 離した時など）は、枠を滑らせない。
+  Object? _selectedKey;
+
+  /// 選択が替わった直後の1フレームだけ、元の位置に枠を残すための位置（このフレームは、新しい項目に
+  /// 枠が付くため、そのままだと枠が一瞬消えて見える）。
+  Rect? _ghostRect;
+
   @override
   void dispose() {
     _controller.dispose();
@@ -323,20 +335,29 @@ class RingSlideHostState extends State<RingSlideHost>
   }
 
   /// 選択中の項目が、描かれた後（レイアウト済み）に呼ぶ。前の位置から、新しい位置へ滑らせる。
-  void marked(RenderBox box) {
+  void marked(RenderBox box, Object? key) {
     if (!mounted) return;
     _mountCount++;
+    _pending = false;
     final rect = _rectOf(box);
     final previous = _lastRect;
+    final sameBox = identical(_box, box);
+    // 識別が同じなら、同じ項目（付け直しただけ）。識別が無ければ、別の項目として扱う。
+    final sameItem = sameBox || (key != null && key == _selectedKey);
+    _selectedKey = key;
     _box = box;
     _lastRect = rect;
     if (rect == null) return;
+    // 同じ項目の再構築（並べ替えで項目が動いた時など）では、枠を滑らせない。項目自身の動きに、
+    // 枠が付いて行くだけでよい（滑らせると、項目の動きと二重になって乱れる）。
     final moved =
+        !sameItem &&
         previous != null &&
         ((previous.topLeft - rect.topLeft).distance >= 1 ||
             previous.size != rect.size);
     setState(() {
       _toSize = rect.size;
+      _ghostRect = rect;
       if (moved) {
         _displacement = previous.topLeft - rect.topLeft;
         _fromSize = previous.size;
@@ -350,7 +371,18 @@ class RingSlideHostState extends State<RingSlideHost>
     if (identical(_box, box)) _box = null;
     final count = _mountCount;
     SchedulerBinding.instance.addPostFrameCallback((_) {
-      if (mounted && _mountCount == count && _box == null) _lastRect = null;
+      if (mounted && _mountCount == count && _box == null) {
+        _lastRect = null;
+        _ghostRect = null;
+        _pending = false;
+      }
+    });
+  }
+
+  /// 項目が動く途中（並べ替えのアニメーション等）の後に、覚えている位置を更新する。
+  void refreshLater() {
+    Future<void>.delayed(const Duration(milliseconds: 450), () {
+      if (mounted) _refresh();
     });
   }
 
@@ -360,6 +392,13 @@ class RingSlideHostState extends State<RingSlideHost>
       final box = _box;
       if (!mounted || box == null) return;
       _lastRect = _rectOf(box) ?? _lastRect;
+      final ghost = _lastRect;
+      if (ghost != null &&
+          (_ghostRect == null ||
+              (_ghostRect!.topLeft - ghost.topLeft).distance > 0.5 ||
+              _ghostRect!.size != ghost.size)) {
+        setState(() => _ghostRect = ghost);
+      }
     });
   }
 
@@ -383,6 +422,16 @@ class RingSlideHostState extends State<RingSlideHost>
                 child: Stack(
                   clipBehavior: Clip.none,
                   children: [
+                    if (_ghostRect != null)
+                      Positioned.fromRect(
+                        rect: _ghostRect!,
+                        child: _RingGate(
+                          // 元の位置を覚えている時だけ。覚えていない時（並べ替えで持ち上げた後など）は、
+                          // 古い位置に枠が一瞬出てしまう。
+                          isHidden: () => !_pending || _lastRect == null,
+                          child: RingOutline(style: widget.style),
+                        ),
+                      ),
                     AnimatedBuilder(
                       animation: _controller,
                       builder: (context, _) {
@@ -391,19 +440,22 @@ class RingSlideHostState extends State<RingSlideHost>
                         );
                         final size = Size.lerp(_fromSize, _toSize, t);
                         final animating = _controller.isAnimating;
-                        return CompositedTransformFollower(
-                          link: link,
-                          showWhenUnlinked: false,
-                          offset: animating
-                              ? _displacement * (1 - t)
-                              : Offset.zero,
-                          child: animating && size != null
-                              ? SizedBox(
-                                  width: size.width,
-                                  height: size.height,
-                                  child: RingOutline(style: widget.style),
-                                )
-                              : _RingToTargetSize(style: widget.style),
+                        return _RingGate(
+                          isHidden: () => _pending,
+                          child: CompositedTransformFollower(
+                            link: link,
+                            showWhenUnlinked: false,
+                            offset: animating
+                                ? _displacement * (1 - t)
+                                : Offset.zero,
+                            child: animating && size != null
+                                ? SizedBox(
+                                    width: size.width,
+                                    height: size.height,
+                                    child: RingOutline(style: widget.style),
+                                  )
+                                : _RingToTargetSize(style: widget.style),
+                          ),
                         );
                       },
                     ),
@@ -443,11 +495,15 @@ class RingSelectedMarker extends StatefulWidget {
   const RingSelectedMarker({
     required this.style,
     required this.child,
+    this.selectionKey,
     super.key,
   });
 
   final AppUiStyle style;
   final Widget child;
+
+  /// この項目の識別（寄合のid等）。同じ識別が付け直された時は、枠を滑らせない。
+  final Object? selectionKey;
 
   @override
   State<RingSelectedMarker> createState() => _RingSelectedMarkerState();
@@ -460,12 +516,20 @@ class _RingSelectedMarkerState extends State<RingSelectedMarker> {
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
+    final first = _host == null;
     _host = RingSlideHost.maybeOf(context);
+    final host = _host;
+    if (first && host != null) {
+      host._pending =
+          widget.selectionKey == null ||
+          host._selectedKey != widget.selectionKey;
+    }
   }
 
   @override
   void initState() {
     super.initState();
+    _host = null;
     _schedule();
   }
 
@@ -473,6 +537,7 @@ class _RingSelectedMarkerState extends State<RingSelectedMarker> {
   void didUpdateWidget(RingSelectedMarker old) {
     super.didUpdateWidget(old);
     _schedule();
+    _host?.refreshLater();
   }
 
   void _schedule() {
@@ -481,7 +546,7 @@ class _RingSelectedMarkerState extends State<RingSelectedMarker> {
       final box = context.findRenderObject();
       if (!mounted || host == null || box is! RenderBox) return;
       _box = box;
-      host.marked(box);
+      host.marked(box, widget.selectionKey);
     });
   }
 
@@ -505,5 +570,33 @@ class _RingSelectedMarkerState extends State<RingSelectedMarker> {
       );
     }
     return CompositedTransformTarget(link: host.link, child: widget.child);
+  }
+}
+
+/// [isHidden]が`true`の間、中身を描かない（描画の時に調べる）。
+class _RingGate extends SingleChildRenderObjectWidget {
+  const _RingGate({required this.isHidden, required Widget super.child});
+
+  final bool Function() isHidden;
+
+  @override
+  RenderObject createRenderObject(BuildContext context) =>
+      _RenderRingGate(isHidden);
+
+  @override
+  void updateRenderObject(BuildContext context, RenderProxyBox renderObject) {
+    (renderObject as _RenderRingGate).isHidden = isHidden;
+  }
+}
+
+class _RenderRingGate extends RenderProxyBox {
+  _RenderRingGate(this.isHidden);
+
+  bool Function() isHidden;
+
+  @override
+  void paint(PaintingContext context, Offset offset) {
+    if (isHidden()) return;
+    super.paint(context, offset);
   }
 }

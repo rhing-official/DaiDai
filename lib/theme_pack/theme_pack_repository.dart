@@ -12,10 +12,18 @@ class ThemePackSummary {
     required this.id,
     required this.name,
     required this.author,
+    this.owned = false,
+    this.updateAvailable = false,
   });
   final String id;
   final String name;
   final String author;
+
+  /// 横丁で取得した意匠か（同梱の公式パックはfalse）。
+  final bool owned;
+
+  /// 公開中の版が、取得した時の版より新しい。更新の案内だけに使う。
+  final bool updateAvailable;
 }
 
 /// 素材パックの置き場所を隠すインターフェース（自前化の方針、Repositoryパターン）。

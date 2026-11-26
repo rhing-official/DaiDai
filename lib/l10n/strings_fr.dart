@@ -114,6 +114,9 @@ final Strings _stringsFr = Strings._(
   settingsDesignUnpin: 'Désépingler',
   settingsThemePackFallbackTemplate: (reason) =>
       'Le pack de design n’a pas pu être chargé ; la gravure standard a été rétablie. $reason',
+  settingsThemePackSuspendedNotice:
+      'La distribution du pack de design que vous utilisiez a été suspendue ; la gravure standard a été rétablie.',
+  settingsThemePackUpdateAvailable: 'Une nouvelle version est disponible',
   settingsCustomAppearanceInvalid: 'Saisissez un code couleur à 6 chiffres.',
   settingsBackgroundPresetBoard: 'Tableau noir',
   settingsChatLayoutTitle: 'Affichage des messages',

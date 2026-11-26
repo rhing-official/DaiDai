@@ -107,6 +107,8 @@ class Strings {
     required this.settingsDesignPin,
     required this.settingsDesignUnpin,
     required this.settingsThemePackFallbackTemplate,
+    required this.settingsThemePackSuspendedNotice,
+    required this.settingsThemePackUpdateAvailable,
     required this.settingsCustomAppearanceInvalid,
     required this.settingsBackgroundPresetBoard,
     required this.settingsChatLayoutTitle,
@@ -1459,6 +1461,12 @@ class Strings {
 
   /// 選んだ素材パックを読めず、標準の版画へ戻した時の1行。`reason`は読めなかった理由。
   final String Function(String reason) settingsThemePackFallbackTemplate;
+
+  /// 取得した意匠パックの配信が停止され、標準の版画へ戻した時の1行。
+  final String settingsThemePackSuspendedNotice;
+
+  /// 取得した意匠パックに、新しい版が公開されている時の1行。
+  final String settingsThemePackUpdateAvailable;
   final String settingsCustomAppearanceInvalid;
   final String settingsBackgroundPresetBoard;
 
@@ -3146,6 +3154,8 @@ class Strings {
     settingsDesignUnpin: 'ピン留めを外す',
     settingsThemePackFallbackTemplate: (reason) =>
         '素材パックを読み込めなかった為、標準の版画に戻しました。$reason',
+    settingsThemePackSuspendedNotice: '使っていた意匠パックの配信が停止された為、標準の版画に戻しました。',
+    settingsThemePackUpdateAvailable: '新しい版が有ります',
     settingsCustomAppearanceInvalid: '6桁のカラーコードで入力してください。',
     settingsBackgroundPresetBoard: '黒板',
     settingsChatLayoutTitle: 'メッセージの表示',
@@ -4584,6 +4594,9 @@ class Strings {
     settingsDesignUnpin: 'Unpin',
     settingsThemePackFallbackTemplate: (reason) =>
         'The design pack could not be loaded, so the standard woodcut was restored. $reason',
+    settingsThemePackSuspendedNotice:
+        'The design pack you were using has been withdrawn from distribution, so the standard woodcut was restored.',
+    settingsThemePackUpdateAvailable: 'A new version is available',
     settingsCustomAppearanceInvalid: 'Enter a 6-digit colour code.',
     settingsBackgroundPresetBoard: 'Blackboard',
     settingsChatLayoutTitle: 'Message display',

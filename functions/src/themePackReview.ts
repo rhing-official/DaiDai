@@ -106,10 +106,10 @@ export function approvedNoticeText(name: string): string {
   return `意匠パック『${name}』が承認され、公開されました。`;
 }
 export function rejectedNoticeText(name: string, reason: string): string {
-  return `意匠パック『${name}』は、差し戻されました。理由は次のとおりです。${reason}`;
+  return `意匠パック『${name}』は、差し戻されました。理由は次のとおりです。\n${reason}`;
 }
 export function suspendedCreatorNoticeText(name: string, reason: string): string {
-  return `意匠パック『${name}』の配信を停止しました。理由は次のとおりです。${reason}`;
+  return `意匠パック『${name}』の配信を停止しました。理由は次のとおりです。\n${reason}`;
 }
 export function suspendedOwnerNoticeText(name: string): string {
   return `取得した意匠パック『${name}』の配信が停止されました。表示は標準に戻ります。`;

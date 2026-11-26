@@ -6246,6 +6246,13 @@ class _MessageRow extends ConsumerWidget {
     // 破綻するケースが解消しきれず、ユーザー判断でこの方式に一本化した）。
     // ガラスUIは`accentColorOverride`を自分/相手とも未指定にし、
     // `GlassSurface`既定の環境アクセントカラーをそのまま縁の光彩に使う。
+    // 枠を持たない添付（画像・動画・ファイルのカード等）は、中身が自前の枠を持つ。左右の
+    // 余白を残すと、文字の吹き出しの端より内側にずれるため、左右の余白は付けない
+    // （2026-11-26、ユーザー指示。上下の余白は行の間隔を保つため残す）。
+    final bubblePadding = EdgeInsets.symmetric(
+      horizontal: skipBubbleFrame ? 0 : 16,
+      vertical: 10,
+    );
     final bubble = switch (uiStyle) {
       AppUiStyle.gekiga => _GekigaBubble(
         seed: message.messageId.hashCode,
@@ -6255,7 +6262,7 @@ class _MessageRow extends ConsumerWidget {
         child: bubbleContent,
       ),
       AppUiStyle.block => Container(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+        padding: bubblePadding,
         decoration: BoxDecoration(
           color: skipBubbleFrame ? null : bubbleFill,
           // ブロック: 太い枠線とぼかしの無い硬い影（このスタイルだけの例外）。
@@ -6276,7 +6283,7 @@ class _MessageRow extends ConsumerWidget {
         child: bubbleContent,
       ),
       AppUiStyle.chalk => Container(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+        padding: bubblePadding,
         // チョーク: 塗りの上に、チョークで引いた縁を描く。
         decoration: skipBubbleFrame
             ? null
@@ -6289,7 +6296,7 @@ class _MessageRow extends ConsumerWidget {
         child: bubbleContent,
       ),
       AppUiStyle.flat || AppUiStyle.washi => Container(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+        padding: bubblePadding,
         decoration: BoxDecoration(
           // ブロックメッセージ（`skipBubbleFrame`）は自前の独立したカード
           // 見た目を持つため、外枠の塗りも無効化する。以前は`colorScheme.
@@ -6306,7 +6313,7 @@ class _MessageRow extends ConsumerWidget {
         child: bubbleContent,
       ),
       AppUiStyle.glass => GlassSurface(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+        padding: bubblePadding,
         enableEdgeStroke: !skipBubbleFrame,
         fillColorOverride: skipBubbleFrame ? null : bubbleFill,
         child: bubbleContent,

@@ -4220,10 +4220,27 @@ class _LanguageFolder extends ConsumerWidget {
 /// （[ChatLayoutStyle]のコメント参照）。
 /// UIスタイル（見た目）の切り替え（2026-07-29追加）。現時点では
 /// メッセージ画面（`ChatScreen`）のみがこの値を見て見た目を変える。
-class UiStyleFolder extends ConsumerWidget {
+class UiStyleFolder extends ConsumerStatefulWidget {
   const UiStyleFolder({required this.strings});
 
   final Strings strings;
+
+  @override
+  ConsumerState<UiStyleFolder> createState() => _UiStyleFolderState();
+}
+
+class _UiStyleFolderState extends ConsumerState<UiStyleFolder> {
+  Strings get strings => widget.strings;
+
+  @override
+  void initState() {
+    super.initState();
+    // 設定を開いた時に、取得済みの意匠の状態（配信停止・新しい版）を確かめる。
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      await ref.read(themePackProvider.notifier).verify();
+      if (mounted) ref.invalidate(themePackListProvider);
+    });
+  }
 
   String _styleLabel(AppUiStyle style) => switch (style) {
     AppUiStyle.flat => strings.settingsUiStyleFlatLabel,
@@ -4235,7 +4252,7 @@ class UiStyleFolder extends ConsumerWidget {
   };
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  Widget build(BuildContext context) {
     final style = ref.watch(appUiStyleProvider);
     final packState = ref.watch(themePackProvider);
     final packs = ref.watch(themePackListProvider).value ?? const [];
@@ -4252,6 +4269,10 @@ class UiStyleFolder extends ConsumerWidget {
         : styleDesignId(style);
 
     final packNames = {for (final p in packs) p.id: p.name};
+    final updatable = {
+      for (final p in packs)
+        if (p.updateAvailable) p.id,
+    };
     final ordered = sortDesignIds(
       selectedId: selectedId,
       pins: pins,
@@ -4271,6 +4292,24 @@ class UiStyleFolder extends ConsumerWidget {
         return packNames[id.substring(5)] ?? id.substring(5);
       }
       return _styleLabel(AppUiStyle.fromName(id.substring(6)));
+    }
+
+    // 新しい版が有る意匠には、名前の下に1行添える。自動では差し替えない。
+    Widget titleOf(String id) {
+      final label = Text(labelOf(id));
+      if (!id.startsWith('pack:') || !updatable.contains(id.substring(5))) {
+        return label;
+      }
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          label,
+          Text(
+            strings.settingsThemePackUpdateAvailable,
+            style: Theme.of(context).textTheme.bodySmall,
+          ),
+        ],
+      );
     }
 
     // どのスタイルを選んでも素材パックは外れ、パックを選ぶと版画へ流し込む。
@@ -4324,7 +4363,7 @@ class UiStyleFolder extends ConsumerWidget {
                         ? GekigaColors.panel
                         : GekigaColors.onPanel,
                   ),
-                  title: Text(labelOf(id)),
+                  title: titleOf(id),
                   trailing: pinButton(
                     id,
                     color: id == selectedId
@@ -4358,7 +4397,7 @@ class UiStyleFolder extends ConsumerWidget {
                   AppRadioListTile<String>(
                     key: ValueKey(id),
                     value: id,
-                    title: Text(labelOf(id)),
+                    title: titleOf(id),
                     secondary: pinButton(id),
                   ),
                 if (hasMore)
@@ -4384,7 +4423,15 @@ class UiStyleFolder extends ConsumerWidget {
       mainAxisSize: MainAxisSize.min,
       children: [
         list,
-        if (packState.fallbackReason != null)
+        if (packState.suspended)
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 4, 16, 8),
+            child: Text(
+              strings.settingsThemePackSuspendedNotice,
+              style: theme.textTheme.bodySmall,
+            ),
+          )
+        else if (packState.fallbackReason != null)
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 4, 16, 8),
             child: Text(

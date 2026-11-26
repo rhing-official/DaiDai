@@ -96,6 +96,18 @@ class ThemePack {
     ThemePackBrightness.both => null,
   };
 
+  /// 取得済みの意匠は、一覧と選択中の照合に、投稿者を含む識別子を使う。
+  ThemePack withId(String newId) => ThemePack(
+    id: newId,
+    name: name,
+    author: author,
+    brightness: brightness,
+    tokens: tokens,
+    light: light,
+    dark: dark,
+    backgroundImage: backgroundImage,
+  );
+
   ThemePack withBackgroundImage(ImageProvider? image) => ThemePack(
     id: id,
     name: name,

@@ -58,17 +58,84 @@ void main() {
     );
     await tester.pumpAndSettle();
     final tile0 = tester.getRect(find.byType(ListTile).at(0));
-    expect(tester.getRect(find.byType(RingOutline)).top, closeTo(tile0.top, 1));
+    expect(
+      tester.getRect(find.byType(RingOutline).last).top,
+      closeTo(tile0.top, 1),
+    );
 
     final tile2 = tester.getRect(find.byType(ListTile).at(2));
     index.value = 2;
     await tester.pump(); // 組み立て
     await tester.pump(); // 組み立て後の位置の登録
     await tester.pump(const Duration(milliseconds: 60));
-    final mid = tester.getRect(find.byType(RingOutline)).top;
+    final mid = tester.getRect(find.byType(RingOutline).last).top;
     expect(mid, greaterThan(tile0.top + 1));
     expect(mid, lessThan(tile2.top - 1));
     await tester.pumpAndSettle();
-    expect(tester.getRect(find.byType(RingOutline)).top, closeTo(tile2.top, 1));
+    expect(
+      tester.getRect(find.byType(RingOutline).last).top,
+      closeTo(tile2.top, 1),
+    );
+  });
+
+  testWidgets('囲みの一覧: 同じ項目に枠が付け直されただけなら、枠は滑らない', (tester) async {
+    // 項目を持ち上げて離した時のように、枠が一度外れて、別の位置に付け直される。
+    final marked = ValueNotifier<int?>(0); // 枠が付く位置。null=外れている
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          initialAppUiStyleProvider.overrideWithValue(AppUiStyle.flat),
+          initialSelectionMotionProvider.overrideWithValue(
+            SelectionMotion.ring,
+          ),
+        ],
+        child: MaterialApp(
+          home: Scaffold(
+            body: Align(
+              alignment: Alignment.topLeft,
+              child: SizedBox(
+                width: 300,
+                height: 400,
+                child: ValueListenableBuilder<int?>(
+                  valueListenable: marked,
+                  builder: (_, at, _) => RingListBlock(
+                    child: ListView(
+                      children: [
+                        for (var k = 0; k < 4; k++)
+                          Builder(
+                            builder: (context) {
+                              final tile = ListTile(title: Text('項目$k'));
+                              final style = RingListScope.styleOf(context)!;
+                              return k == at
+                                  ? RingSelectedMarker(
+                                      style: style,
+                                      selectionKey: 'a',
+                                      child: tile,
+                                    )
+                                  : tile;
+                            },
+                          ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    marked.value = null; // 持ち上げた
+    await tester.pumpAndSettle();
+    marked.value = 3; // 別の位置に離した
+    await tester.pump();
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 40));
+    final target = tester.getRect(find.byType(ListTile).at(3)).top;
+    expect(
+      tester.getRect(find.byType(RingOutline).last).top,
+      closeTo(target, 1),
+    );
   });
 }
