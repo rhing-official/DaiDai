@@ -3090,17 +3090,6 @@ class _CustomAppearanceEditorState
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Container(
-                width: 48,
-                height: 48,
-                margin: const EdgeInsets.only(top: 4),
-                decoration: BoxDecoration(
-                  color: current,
-                  shape: BoxShape.circle,
-                  border: Border.all(color: Colors.black12),
-                ),
-              ),
-              const SizedBox(width: 16),
               SizedBox(
                 width: 296,
                 child: TextField(
