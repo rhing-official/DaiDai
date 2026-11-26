@@ -4262,7 +4262,7 @@ class _UiStyleFolderState extends ConsumerState<UiStyleFolder> {
         .watch(settingsExpansionProvider)
         .expandedOr(_designExpansionKey, false);
 
-    // 今のデザイン。素材パックは版画に流し込むので、版画で、パックが有効な時だけ、パックが選択中。
+    // 今のデザイン。意匠パックは版画に流し込むので、版画で、パックが有効な時だけ、パックが選択中。
     final activePackId = style == AppUiStyle.block ? packState.pack?.id : null;
     final selectedId = activePackId != null
         ? packDesignId(activePackId)
@@ -4312,7 +4312,7 @@ class _UiStyleFolderState extends ConsumerState<UiStyleFolder> {
       );
     }
 
-    // どのスタイルを選んでも素材パックは外れ、パックを選ぶと版画へ流し込む。
+    // どのスタイルを選んでも意匠パックは外れ、パックを選ぶと版画へ流し込む。
     void select(String id) {
       if (id.startsWith('pack:')) {
         ref.read(themePackProvider.notifier).select(id.substring(5));
