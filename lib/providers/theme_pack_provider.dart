@@ -13,15 +13,12 @@ import 'repository_providers.dart';
 
 const _prefsKey = 'themePackId';
 
-/// 同梱の公式パックと、取得済みの意匠。未ログインの時は、端末に置いた素材だけを読む。
+/// 横丁で取得した意匠。未ログインの時は、端末に置いた素材だけを読む。
 final themePackRepositoryProvider = Provider<ThemePackRepository>((ref) {
   final uid = ref.watch(authStateProvider).value?.uid;
-  return CompositeThemePackRepository(
-    bundled: BundledThemePackRepository(),
-    owned: OwnedThemePackRepository(
-      source: uid == null ? null : FirebaseOwnedThemePackSource(userId: uid),
-      cache: createThemePackFileCache(),
-    ),
+  return OwnedThemePackRepository(
+    source: uid == null ? null : FirebaseOwnedThemePackSource(userId: uid),
+    cache: createThemePackFileCache(),
   );
 });
 
@@ -53,17 +50,18 @@ Future<ThemePackState> loadInitialThemePack({
   final prefs = await SharedPreferences.getInstance();
   final id = prefs.getString(_prefsKey);
   if (id == null) return const ThemePackState();
+  // 同梱の公式パックは廃止した。昔の選択は理由を出さずに外し、標準の版画で起動する。
+  if (!isOwnedThemePackId(id)) {
+    await prefs.remove(_prefsKey);
+    return const ThemePackState();
+  }
   // 版画以外のスタイルが選ばれているなら、パックは使わない。
   if (AppUiStyle.fromName(prefs.getString('appUiStyle')) != AppUiStyle.block) {
     return const ThemePackState();
   }
   // 起動は端末に置いた素材だけで即時に適用する。通信を伴う確認は、認証が確定した後。
   final state = await _tryLoad(
-    repository ??
-        CompositeThemePackRepository(
-          bundled: BundledThemePackRepository(),
-          owned: OwnedThemePackRepository(cache: createThemePackFileCache()),
-        ),
+    repository ?? OwnedThemePackRepository(cache: createThemePackFileCache()),
     id,
   );
   _applyTokens(state.pack);

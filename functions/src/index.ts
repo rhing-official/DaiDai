@@ -48,6 +48,16 @@ import {
   submitThemePack as submitThemePackBody,
 } from "./themePackSubmit";
 import {
+  type AccountDeletionStore,
+  deleteThemePackData,
+} from "./themePackAccountDeletion";
+import {
+  type OrphanCleanupStore,
+  cleanupOrphanSubmissionAssets,
+  recentFailures,
+  FAILURE_LIMIT,
+} from "./themePackAbuse";
+import {
   type ReviewStore,
   ReviewError,
   approveThemePack as approveThemePackBody,
@@ -450,6 +460,12 @@ async function deleteAccount(
   userData: FirebaseFirestore.DocumentData,
 ): Promise<void> {
   const rhingSeed: string | undefined = userData.rhingSeed;
+
+  // 意匠パックを全て削除する（2026-11-26、規約第9条）。取得した人の表示は、標準へ戻る
+  // （お知らせは送らない）。失敗は握りつぶさず投げる。`users/{uid}`が残るため、
+  // `processAccountDeletions`が翌日に再実行する（各段は冪等）。
+  await deleteThemePackData(themePackAccountDeletionStore, userId);
+
   const writer = new ChunkedWriter();
 
   // 変更前のSeedの予約（対応表）も残さない。
@@ -2010,6 +2026,14 @@ const themePackSubmissionStore: SubmissionStore = {
           );
           return snap.size;
         },
+        async countSince(creatorId, sinceMillis) {
+          // 状態は問わない（却下・取り下げも、投稿した回数として数える）。
+          // `creatorId`と`createdAt`の複合インデックスが要る（firestore.indexes.json）
+          const snap = await t.get(
+            col.where("creatorId", "==", creatorId).where("createdAt", ">=", Timestamp.fromMillis(sinceMillis)).select(),
+          );
+          return snap.size;
+        },
         async maxVersion(packId) {
           const snap = await t.get(col.where("packId", "==", packId).orderBy("version", "desc").limit(1));
           return snap.empty ? 0 : Number(snap.docs[0].data().version);
@@ -2029,6 +2053,25 @@ const themePackSubmissionStore: SubmissionStore = {
         },
       }),
     );
+  },
+  // 荒らし対策（2026-11-26）。どちらもサーバー専用の文書（firestore.rulesに許可が無く、既定で拒否）
+  async isBlocked(uid) {
+    return (await db.collection("themePackSubmissionBlocks").doc(uid).get()).exists;
+  },
+  async getFailures(uid) {
+    const snap = await db.collection("themePackSubmitFailures").doc(uid).get();
+    const raw = snap.data()?.failedAtMillis;
+    return Array.isArray(raw) ? raw.filter((n): n is number => typeof n === "number") : [];
+  },
+  async recordFailure(uid, nowMillis) {
+    const ref = db.collection("themePackSubmitFailures").doc(uid);
+    await db.runTransaction(async (t) => {
+      const snap = await t.get(ref);
+      const raw = snap.data()?.failedAtMillis;
+      const before = Array.isArray(raw) ? raw.filter((n): n is number => typeof n === "number") : [];
+      const next = [...recentFailures(before, nowMillis), nowMillis].slice(-FAILURE_LIMIT);
+      t.set(ref, { failedAtMillis: next });
+    });
   },
 };
 
@@ -2052,6 +2095,169 @@ export const submitThemePack = onCall(
       await projectCreatorProfile(request.auth!.uid, userDoc.data()!);
     }
     return result;
+  },
+);
+
+/**
+ * アカウント削除で、意匠パックを全て削除する窓口（2026-11-26）。本体は
+ * `themePackAccountDeletion.ts`（Firebase非依存）。`deleteAccount`から呼ぶ。
+ */
+const themePackAccountDeletionStore: AccountDeletionStore = {
+  async listCreatorPackIds(uid) {
+    const [subs, packs] = await Promise.all([
+      db.collection("themePackSubmissions").where("creatorId", "==", uid).select("packId").get(),
+      db.collection("themePacks").where("creatorId", "==", uid).select().get(),
+    ]);
+    const ids = new Set<string>();
+    for (const d of subs.docs) {
+      const id = d.data().packId;
+      if (typeof id === "string") ids.add(id);
+    }
+    for (const d of packs.docs) ids.add(d.id);
+    return [...ids];
+  },
+  async deleteOwnedRecords(packId, limit) {
+    const snap = await db
+      .collectionGroup("ownedThemePacks")
+      .where("packId", "==", packId)
+      .limit(limit)
+      .get();
+    if (snap.empty) return 0;
+    const batch = db.batch();
+    for (const d of snap.docs) batch.delete(d.ref);
+    await batch.commit();
+    return snap.size;
+  },
+  async deletePrefix(prefix) {
+    await getStorage().bucket().deleteFiles({ prefix, force: true });
+  },
+  async deletePackDoc(packId) {
+    await db.collection("themePacks").doc(packId).delete();
+  },
+  async deleteSubmissionDocs(uid, limit) {
+    const snap = await db.collection("themePackSubmissions").where("creatorId", "==", uid).limit(limit).get();
+    if (snap.empty) return 0;
+    const batch = db.batch();
+    for (const d of snap.docs) batch.delete(d.ref);
+    await batch.commit();
+    return snap.size;
+  },
+  async listOwnedPackIds(uid) {
+    const snap = await db.collection("users").doc(uid).collection("ownedThemePacks").select().get();
+    return snap.docs.map((d) => d.id);
+  },
+  async releaseOwnedPack(uid, packId) {
+    const ownedRef = db.collection("users").doc(uid).collection("ownedThemePacks").doc(packId);
+    const packRef = db.collection("themePacks").doc(packId);
+    await db.runTransaction(async (t) => {
+      const [owned, pack] = await Promise.all([t.get(ownedRef), t.get(packRef)]);
+      if (!owned.exists) return; // 再実行で、二重に減らさない
+      if (pack.exists) {
+        t.update(packRef, { ownerCount: Math.max(0, Number(pack.data()?.ownerCount ?? 0) - 1) });
+      }
+      t.delete(ownedRef);
+    });
+  },
+  async deleteAbuseRecords(uid) {
+    await Promise.all([
+      db.collection("themePackSubmitFailures").doc(uid).delete(),
+      db.collection("themePackSubmissionBlocks").doc(uid).delete(),
+    ]);
+  },
+};
+
+/**
+ * 提出されないまま残った意匠パックの素材の掃除（2026-11-26）。HomePageは、素材を先に置いてから
+ * `submitThemePack`を呼ぶ。提出されなかった素材（同じIDの`themePackSubmissions`が無い）を、
+ * 最後の書き込みから24時間後に消す。置いた直後の素材と、文書が有る素材（承認・差し戻し・
+ * 取り下げを含む）は消さない。1回に消す数は上限があり、残りは翌日に回す。
+ */
+const themePackOrphanStore: OrphanCleanupStore = {
+  async listAssetDirs() {
+    const [files] = await getStorage().bucket().getFiles({ prefix: "themePackSubmissions/" });
+    const dirs = new Map<string, { prefix: string; submissionId: string; newestMillis: number }>();
+    for (const f of files) {
+      const parts = f.name.split("/");
+      // themePackSubmissions/{uid}/{submissionId}/{file}
+      if (parts.length !== 4 || !parts[1] || !parts[2] || !parts[3]) continue;
+      const created = Date.parse(String(f.metadata.timeCreated ?? ""));
+      if (!Number.isFinite(created)) continue;
+      const prefix = `${parts[0]}/${parts[1]}/${parts[2]}`;
+      const cur = dirs.get(prefix);
+      if (cur) cur.newestMillis = Math.max(cur.newestMillis, created);
+      else dirs.set(prefix, { prefix, submissionId: parts[2], newestMillis: created });
+    }
+    return [...dirs.values()];
+  },
+  async existingSubmissionIds(ids) {
+    const found = new Set<string>();
+    for (let i = 0; i < ids.length; i += 300) {
+      const refs = ids.slice(i, i + 300).map((id) => db.collection("themePackSubmissions").doc(id));
+      const snaps = await db.getAll(...refs);
+      for (const s of snaps) if (s.exists) found.add(s.id);
+    }
+    return found;
+  },
+  async deleteDir(prefix) {
+    await getStorage().bucket().deleteFiles({ prefix: `${prefix}/`, force: true });
+  },
+};
+
+export const cleanupOrphanThemePackAssets = onSchedule(
+  { schedule: "0 4 * * *", timeZone: "Asia/Tokyo", region: "asia-northeast1", timeoutSeconds: 540 },
+  async () => {
+    const { deleted, failed } = await cleanupOrphanSubmissionAssets(themePackOrphanStore, Date.now());
+    logger.info(`提出されなかった意匠パックの素材を掃除: 削除${deleted.length}件、失敗${failed.length}件`);
+    if (failed.length > 0) logger.warn("掃除に失敗した素材", failed);
+  },
+);
+
+/**
+ * 運営による、意匠パックの投稿の停止・解除（管理者のみ、2026-11-26）。荒らしの利用者の投稿を止める。
+ * 保存先は、`users`の項目ではなく、サーバー専用の`themePackSubmissionBlocks/{uid}`。
+ * `users`は全ログインユーザーが読めるため、停止の事実を公開しない。他の機能（メッセージ等）は止めない。
+ */
+export const setThemePackSubmissionBlocked = onCall(
+  { region: "asia-northeast1" },
+  async (request) => {
+    assertAdmin(request);
+    const targetUserId = request.data?.targetUserId;
+    if (typeof targetUserId !== "string" || !targetUserId || targetUserId.includes("/")) {
+      throw new HttpsError("invalid-argument", "targetUserIdが必要です");
+    }
+    const blocked = request.data?.blocked;
+    if (typeof blocked !== "boolean") {
+      throw new HttpsError("invalid-argument", "blockedが必要です");
+    }
+    const reasonRaw = request.data?.reason;
+    const reason = typeof reasonRaw === "string" && reasonRaw.trim() ? reasonRaw.trim().slice(0, 200) : undefined;
+    if (targetUserId === request.auth!.uid) {
+      throw new HttpsError("invalid-argument", "自分自身は対象にできません");
+    }
+    if (!(await db.collection("users").doc(targetUserId).get()).exists) {
+      throw new HttpsError("not-found", "住人が見つかりません");
+    }
+    const ref = db.collection("themePackSubmissionBlocks").doc(targetUserId);
+    if (blocked) {
+      const target = await getAuth().getUser(targetUserId).catch(() => null);
+      if (target?.customClaims?.admin === true) {
+        throw new HttpsError("failed-precondition", "管理者は対象にできません");
+      }
+      await ref.set({
+        blockedAt: FieldValue.serverTimestamp(),
+        blockedBy: request.auth!.uid,
+        ...(reason ? { reason } : {}),
+      });
+    } else {
+      await ref.delete();
+    }
+    await writeAdminAuditLog({
+      adminUid: request.auth!.uid,
+      action: blocked ? "blockThemePackSubmission" : "unblockThemePackSubmission",
+      targetUserIds: [targetUserId],
+      ...(reason ? { reason } : {}),
+    });
+    logger.info(`意匠パックの投稿を${blocked ? "停止" : "再開"}: ${targetUserId}`);
   },
 );
 
@@ -3926,7 +4132,9 @@ async function writeAdminAuditLog(entry: {
     | "resolveReport"
     | "approveThemePack"
     | "rejectThemePack"
-    | "suspendThemePack";
+    | "suspendThemePack"
+    | "blockThemePackSubmission"
+    | "unblockThemePackSubmission";
   targetUserIds: string[];
   reason?: string;
   note?: string;

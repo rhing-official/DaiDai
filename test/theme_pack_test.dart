@@ -1,7 +1,6 @@
 import 'dart:convert';
 
 import 'package:daidai/theme_pack/theme_pack.dart';
-import 'package:daidai/theme_pack/theme_pack_repository.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -151,28 +150,6 @@ void main() {
           reason: bad,
         );
       }
-    });
-  });
-
-  group('BundledThemePackRepository', () {
-    test('同梱の公式パックを全て読める', () async {
-      final repo = BundledThemePackRepository();
-      final list = await repo.list();
-      expect(
-        list.map((e) => e.id),
-        containsAll(['sakura', 'yoru', 'mizutama']),
-      );
-      for (final summary in list) {
-        final pack = await repo.load(summary.id);
-        expect(pack.id, summary.id);
-      }
-      expect((await repo.load('sakura')).backgroundImage, isNotNull);
-    });
-
-    test('無いパックと不正なidは、理由付きで失敗する', () async {
-      final repo = BundledThemePackRepository();
-      expect(() => repo.load('nothing'), throwsA(isA<ThemePackException>()));
-      expect(() => repo.load('../x'), throwsA(isA<ThemePackException>()));
     });
   });
 }

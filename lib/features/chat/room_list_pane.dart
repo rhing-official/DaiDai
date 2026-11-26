@@ -535,11 +535,9 @@ class _RoomListPaneState extends ConsumerState<RoomListPane> {
                     // ヘッダー直下のDividerに（同日追加）接して重なって
                     // 見えないよう余白を持たせる。上余白12pxは劇画UI分岐
                     // （上の`SingleChildScrollView`、2026-08-04追加）と揃えた。
-                    padding: EdgeInsets.fromLTRB(
-                      8,
-                      widget.listTopPadding,
-                      8,
-                      0,
+                    padding: ringListPadding(
+                      ringFit,
+                      top: widget.listTopPadding,
                     ),
                     children: [for (final room in _rooms) buildRoomTile(room)],
                   ),
@@ -562,11 +560,9 @@ class _RoomListPaneState extends ConsumerState<RoomListPane> {
                     buildDefaultDragHandles: false,
                     // 上下端で跳ね返らないようにする（2026-11-23追加）。
                     physics: const ClampingScrollPhysics(),
-                    padding: EdgeInsets.fromLTRB(
-                      8,
-                      widget.listTopPadding,
-                      8,
-                      0,
+                    padding: ringListPadding(
+                      ringFit,
+                      top: widget.listTopPadding,
                     ),
                     onReorderItem: _handleReorder,
                     proxyDecorator: (child, index, animation) =>

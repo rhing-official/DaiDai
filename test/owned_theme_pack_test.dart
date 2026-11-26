@@ -10,7 +10,6 @@ import 'package:daidai/theme/block/block_tokens.dart';
 import 'package:daidai/theme_pack/owned_theme_pack_repository.dart';
 import 'package:daidai/theme_pack/theme_pack.dart';
 import 'package:daidai/theme_pack/theme_pack_cache.dart';
-import 'package:daidai/theme_pack/theme_pack_repository.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -72,17 +71,6 @@ class _FakeSource implements OwnedThemePackSource {
   }
 }
 
-class _FakeBundled implements ThemePackRepository {
-  @override
-  Future<List<ThemePackSummary>> list() async => const [
-    ThemePackSummary(id: 'sakura', name: '桜', author: ''),
-  ];
-
-  @override
-  Future<ThemePack> load(String id) async =>
-      throw const ThemePackException('x');
-}
-
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
@@ -101,19 +89,15 @@ void main() {
   });
 
   group('一覧の組み立て', () {
-    test('同梱と取得済みを並べ、新しい版を印にする', () async {
-      final repo = CompositeThemePackRepository(
-        bundled: _FakeBundled(),
-        owned: OwnedThemePackRepository(
-          source: _FakeSource(latest: 2),
-          cache: MemoryThemePackCache(),
-        ),
+    test('取得済みだけを並べ、新しい版を印にする', () async {
+      final repo = OwnedThemePackRepository(
+        source: _FakeSource(latest: 2),
+        cache: MemoryThemePackCache(),
       );
       final list = await repo.list();
-      expect(list.map((e) => e.id), ['sakura', _packId]);
-      expect(list.last.owned, isTrue);
-      expect(list.last.updateAvailable, isTrue);
-      expect(list.first.owned, isFalse);
+      expect(list.map((e) => e.id), [_packId]);
+      expect(list.single.owned, isTrue);
+      expect(list.single.updateAvailable, isTrue);
     });
 
     test('配信停止の意匠は出さない', () async {
@@ -132,20 +116,30 @@ void main() {
       expect((await repo.list()).single.id, _packId);
     });
 
-    test('読めない時や未ログインは、同梱だけ', () async {
-      final offline = CompositeThemePackRepository(
-        bundled: _FakeBundled(),
-        owned: OwnedThemePackRepository(
-          source: _FakeSource(offline: true),
-          cache: MemoryThemePackCache(),
-        ),
+    test('読めない時や未ログインは、空', () async {
+      final offline = OwnedThemePackRepository(
+        source: _FakeSource(offline: true),
+        cache: MemoryThemePackCache(),
       );
-      expect((await offline.list()).map((e) => e.id), ['sakura']);
-      final loggedOut = CompositeThemePackRepository(
-        bundled: _FakeBundled(),
-        owned: OwnedThemePackRepository(cache: MemoryThemePackCache()),
+      expect(await offline.list(), isEmpty);
+      final loggedOut = OwnedThemePackRepository(cache: MemoryThemePackCache());
+      expect(await loggedOut.list(), isEmpty);
+    });
+
+    test('廃止した同梱の公式パックの選択は、理由を出さずに外して起動する', () async {
+      SharedPreferences.setMockInitialValues({
+        'themePackId': 'sakura',
+        'appUiStyle': AppUiStyle.block.name,
+      });
+      final state = await loadInitialThemePack(
+        repository: OwnedThemePackRepository(cache: MemoryThemePackCache()),
       );
-      expect((await loggedOut.list()).map((e) => e.id), ['sakura']);
+      expect(state.pack, isNull);
+      expect(state.fallbackReason, isNull);
+      expect(
+        (await SharedPreferences.getInstance()).getString('themePackId'),
+        isNull,
+      );
     });
   });
 
@@ -246,10 +240,7 @@ void main() {
       final cache = MemoryThemePackCache();
       await OwnedThemePackRepository(source: src, cache: cache).load(_packId);
       final initial = await loadInitialThemePack(
-        repository: CompositeThemePackRepository(
-          bundled: _FakeBundled(),
-          owned: OwnedThemePackRepository(cache: cache),
-        ),
+        repository: OwnedThemePackRepository(cache: cache),
       );
       expect(initial.pack?.id, _packId);
       final container = ProviderContainer(
@@ -258,10 +249,7 @@ void main() {
           initialThemePackProvider.overrideWithValue(initial),
           initialAppUiStyleProvider.overrideWithValue(AppUiStyle.block),
           themePackRepositoryProvider.overrideWithValue(
-            CompositeThemePackRepository(
-              bundled: _FakeBundled(),
-              owned: OwnedThemePackRepository(source: src, cache: cache),
-            ),
+            OwnedThemePackRepository(source: src, cache: cache),
           ),
         ],
       );

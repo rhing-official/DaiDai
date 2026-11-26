@@ -49,6 +49,8 @@ import '../../widgets/home_tab_swipe.dart';
 import '../../widgets/slide_select_list.dart';
 import '../../theme/block/block_theme.dart';
 import '../../providers/text_size_provider.dart';
+import '../../providers/selection_motion_provider.dart';
+import '../../widgets/ring_list_scope.dart';
 import '../../utils/sidebar_width.dart';
 import '../../widgets/gekiga/gekiga_panel_box.dart';
 import '../../widgets/gekiga/gekiga_section_header.dart';
@@ -64,7 +66,7 @@ import '../../widgets/profile_card_picker.dart';
 import '../../widgets/profile_card_view.dart';
 import '../../widgets/slide_drilldown.dart';
 import '../chat/conversation_profile_card_dialog.dart';
-import '../chat/talks_tab.dart' show CategoryTab;
+import '../chat/talks_tab.dart' show CategoryTab, kIconSplitHandleWidth;
 import '../../l10n/tutorial_content.dart';
 import '../guide/tutorial/tutorial_controller.dart';
 import '../guide/tutorial/tutorial_target.dart';
@@ -874,7 +876,14 @@ class _ProfileTabState extends ConsumerState<ProfileTab> {
                     setState(() => _selectedSection = category.section),
               ),
             ),
-            const VerticalDivider(width: 1),
+            // 囲みの大きなブロックの右端が区切り線に重ならないよう、語らい一覧と同じ幅の
+            // 余白を、線の左右に取る（2026-11-26、ユーザー指示）。
+            ref.watch(navBandMergedProvider)
+                ? const SizedBox(
+                    width: kIconSplitHandleWidth,
+                    child: Center(child: VerticalDivider(width: 1)),
+                  )
+                : const VerticalDivider(width: 1),
             Expanded(child: _buildContent(selected.section, strings, vocab)),
           ],
         ),
@@ -1069,6 +1078,7 @@ class _ProfileCategoryList extends ConsumerWidget {
           LiquidTileGroup(
             itemCount: categories.length,
             selectedIndex: selectedTile,
+            ringRadius: kRingListOutlineRadius,
             child: ListView(
               // 内容量どおりに縮め、alignCategoryListのAlignで上下左右へ動かせる
               // ようにする（2026-11-23、画面の広さを問わず常時true）。
@@ -1076,7 +1086,10 @@ class _ProfileCategoryList extends ConsumerWidget {
               // 一覧自体はスクロールさせない（2026-11-11、2026-11-23に画面の
               // 広さを問わず常時適用へ変更。上のGekiga版と同じ理由）。
               physics: const NeverScrollableScrollPhysics(),
-              padding: const EdgeInsets.fromLTRB(8, 0, 8, 8),
+              padding: ringListPadding(
+                ref.watch(navBandMergedProvider),
+                bottom: 8,
+              ),
               children: [
                 for (var i = 0; i < categories.length; i++)
                   KeyedSubtree(

@@ -75,6 +75,7 @@ import '../../utils/sidebar_width.dart';
 import '../../providers/custom_appearance_provider.dart';
 import '../../providers/custom_background_colors_provider.dart';
 import '../../providers/selection_motion_provider.dart';
+import '../../widgets/ring_list_scope.dart';
 import '../../providers/slide_pick_enabled_provider.dart';
 import '../../providers/slide_transition_style_provider.dart';
 import '../../providers/talks_list_layout_style_provider.dart';
@@ -137,7 +138,7 @@ import '../chat/announcement_screen.dart';
 import '../chat/join_group_screen.dart';
 import '../../utils/community_group.dart';
 import '../chat/group_member_list_screen.dart';
-import '../chat/talks_tab.dart' show isTalksSplitLayout;
+import '../chat/talks_tab.dart' show isTalksSplitLayout, kIconSplitHandleWidth;
 import 'owned_sticker_packs_popup.dart';
 import 'ai_integration_dialog.dart';
 import 'passkey_management_dialog.dart';
@@ -574,7 +575,14 @@ class _SettingsTabState extends ConsumerState<SettingsTab> {
                 onSelect: _onCategorySelected,
               ),
             ),
-            const VerticalDivider(width: 1),
+            // 囲みの大きなブロックの右端が区切り線に重ならないよう、語らい一覧と同じ幅の
+            // 余白を、線の左右に取る（2026-11-26、ユーザー指示）。
+            ref.watch(navBandMergedProvider)
+                ? const SizedBox(
+                    width: kIconSplitHandleWidth,
+                    child: Center(child: VerticalDivider(width: 1)),
+                  )
+                : const VerticalDivider(width: 1),
             Expanded(child: contentColumns),
           ],
         ),
@@ -841,6 +849,7 @@ class _CategoryList extends ConsumerWidget {
           LiquidTileGroup(
             itemCount: categories.length,
             selectedIndex: selectedTile,
+            ringRadius: kRingListOutlineRadius,
             child: ListView(
               // 内容量どおりに縮め、alignCategoryListのAlignで上下左右へ動かせる
               // ようにする（2026-11-23、画面の広さを問わず常時true）。
@@ -851,7 +860,10 @@ class _CategoryList extends ConsumerWidget {
               // 一覧がスクロールできてしまっていた為、ON/OFF・画面幅を
               // 問わず統一した）。
               physics: const NeverScrollableScrollPhysics(),
-              padding: const EdgeInsets.fromLTRB(8, 0, 8, 8),
+              padding: ringListPadding(
+                ref.watch(navBandMergedProvider),
+                bottom: 8,
+              ),
               children: [
                 for (var i = 0; i < categories.length; i++)
                   KeyedSubtree(

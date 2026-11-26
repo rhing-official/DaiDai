@@ -164,6 +164,24 @@ Widget ringBlockBackground(BuildContext context, AppUiStyle style) {
   }
 }
 
+/// 囲みの大きなブロックの内側の余白（2026-11-26）。小ブロック（選択中の枠）と大ブロックの線が、
+/// 手描きの揺れで接して見えないよう、左右を12px、上下を最低12pxにする。囲み以外は従来の8px。
+const double kRingListInset = 12;
+
+/// 一覧（`ListView`）の余白。囲みの時だけ、[kRingListInset]にする。
+EdgeInsets ringListPadding(bool ring, {double top = 0, double bottom = 0}) =>
+    ring
+    ? EdgeInsets.fromLTRB(
+        kRingListInset,
+        top < kRingListInset ? kRingListInset : top,
+        kRingListInset,
+        bottom < kRingListInset ? kRingListInset : bottom,
+      )
+    : EdgeInsets.fromLTRB(8, top, 8, bottom);
+
+/// 一覧の選択中の枠の角丸。大ブロックの角丸（16）から余白（12）を引いた4に近い、6。
+const double kRingListOutlineRadius = 6;
+
 /// 選択中の項目を囲む、線の角丸の枠（塗らない）。アクセントカラーの線（劇画は白）。メニューチップの丸と同じ。
 class RingOutline extends StatelessWidget {
   const RingOutline({required this.style, this.radius = 12, super.key});
@@ -212,7 +230,7 @@ class RingOutline extends StatelessWidget {
 class RingHitExtender extends SingleChildRenderObjectWidget {
   const RingHitExtender({
     required Widget super.child,
-    this.edgeInset = 8,
+    this.edgeInset = kRingListInset,
     this.edgeInsetY = 12,
     this.gapProbe = 3,
     super.key,
@@ -429,7 +447,10 @@ class RingSlideHostState extends State<RingSlideHost>
                           // 元の位置を覚えている時だけ。覚えていない時（並べ替えで持ち上げた後など）は、
                           // 古い位置に枠が一瞬出てしまう。
                           isHidden: () => !_pending || _lastRect == null,
-                          child: RingOutline(style: widget.style),
+                          child: RingOutline(
+                            style: widget.style,
+                            radius: kRingListOutlineRadius,
+                          ),
                         ),
                       ),
                     AnimatedBuilder(
@@ -452,7 +473,10 @@ class RingSlideHostState extends State<RingSlideHost>
                                 ? SizedBox(
                                     width: size.width,
                                     height: size.height,
-                                    child: RingOutline(style: widget.style),
+                                    child: RingOutline(
+                                      style: widget.style,
+                                      radius: kRingListOutlineRadius,
+                                    ),
                                   )
                                 : _RingToTargetSize(style: widget.style),
                           ),
@@ -564,7 +588,12 @@ class _RingSelectedMarkerState extends State<RingSelectedMarker> {
         children: [
           widget.child,
           Positioned.fill(
-            child: IgnorePointer(child: RingOutline(style: widget.style)),
+            child: IgnorePointer(
+              child: RingOutline(
+                style: widget.style,
+                radius: kRingListOutlineRadius,
+              ),
+            ),
           ),
         ],
       );

@@ -3115,7 +3115,7 @@ class _TalksTabState extends ConsumerState<TalksTab>
         // VerticalDividerに接して重なって見えないよう左右に余白を持たせる
         // （2026-08-12追加、settings_tab.dart/profile_tab.dartの一覧と
         // 同じ手法）。
-        padding: const EdgeInsets.symmetric(horizontal: 8),
+        padding: ringListPadding(ringFit),
         children: [
           for (final request in incomingRequests)
             _pendingRequestTile(request, compact: false),
@@ -3226,7 +3226,7 @@ class _TalksTabState extends ConsumerState<TalksTab>
         // VerticalDividerに接して重なって見えないよう左右に余白を持たせる
         // （2026-08-12追加、settings_tab.dart/profile_tab.dartの一覧と
         // 同じ手法）。
-        padding: const EdgeInsets.symmetric(horizontal: 8),
+        padding: ringListPadding(ringFit),
         children: [
           for (final request in pendingRequests)
             _PendingGroupJoinRequestTile(

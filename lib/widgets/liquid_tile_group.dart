@@ -30,6 +30,7 @@ class LiquidTileGroup extends ConsumerStatefulWidget {
     required this.selectedIndex,
     required this.child,
     this.enabled = true,
+    this.ringRadius = 12,
     super.key,
   });
 
@@ -37,6 +38,9 @@ class LiquidTileGroup extends ConsumerStatefulWidget {
   final int? selectedIndex;
   final Widget child;
   final bool enabled;
+
+  /// 囲みの時の、選択中の枠の角丸。一覧は、大ブロックの内側の余白に合わせて小さくする。
+  final double ringRadius;
 
   /// 並びの水の計算（無ければ`null`）。劇画の箱の並びが、箱の塗りを水で描くのに使う。
   static LiquidSim? simOf(BuildContext context) =>
@@ -229,7 +233,10 @@ extension on _LiquidTileGroupState {
                     children: [
                       Positioned.fromRect(
                         rect: (r ?? rect).deflate(1),
-                        child: RingOutline(style: style),
+                        child: RingOutline(
+                          style: style,
+                          radius: widget.ringRadius,
+                        ),
                       ),
                     ],
                   ),

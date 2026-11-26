@@ -16,13 +16,27 @@ import { pngBytes, samplePackJson, text } from "./themePackTestBytes";
 const UID = "user-a";
 const SID = "11111111-2222-4333-8444-555555555555";
 
-type Doc = SubmissionRecord & { status: string; assetPath?: string };
+type Doc = SubmissionRecord & { status: string; assetPath?: string; createdAt?: number };
 
 /** 保存先と文書を、メモリの上で再現する。transaction は、そのまま実行するだけ */
 class FakeStore implements SubmissionStore {
   files = new Map<string, { bytes: Uint8Array; contentType: string }>();
   docs = new Map<string, Doc>();
   created: string[] = [];
+  /** 文書の作成時刻に入れる、仮の現在時刻 */
+  now = Date.now();
+  blocked = new Set<string>();
+  failures = new Map<string, number[]>();
+
+  async isBlocked(uid: string) {
+    return this.blocked.has(uid);
+  }
+  async getFailures(uid: string) {
+    return this.failures.get(uid) ?? [];
+  }
+  async recordFailure(uid: string, nowMillis: number) {
+    this.failures.set(uid, [...(this.failures.get(uid) ?? []), nowMillis]);
+  }
 
   put(uid: string, sid: string, name: string, bytes: Uint8Array, contentType: string) {
     this.files.set(`themePackSubmissions/${uid}/${sid}/${name}`, { bytes, contentType });
@@ -49,11 +63,14 @@ class FakeStore implements SubmissionStore {
       async countActive(creatorId) {
         return [...self.docs.values()].filter((d) => d.creatorId === creatorId && (ACTIVE_STATUSES as readonly string[]).includes(d.status)).length;
       },
+      async countSince(creatorId, sinceMillis) {
+        return [...self.docs.values()].filter((d) => d.creatorId === creatorId && d.createdAt !== undefined && d.createdAt >= sinceMillis).length;
+      },
       async maxVersion(packId) {
         return Math.max(0, ...[...self.docs.values()].filter((d) => d.packId === packId).map((d) => d.version));
       },
       create(id, record) {
-        self.docs.set(id, { ...record, status: "submitted" });
+        self.docs.set(id, { ...record, status: "submitted", createdAt: self.now });
         self.created.push(id);
       },
     });
@@ -196,4 +213,86 @@ test("提出: 同じ submissionId の再送は、二重に作らず、同じ結�
   const again = await submitThemePack(s, args());
   assert.deepEqual(again, first);
   assert.deepEqual(s.created, [SID]);
+});
+
+const HOUR = 60 * 60 * 1000;
+const T0 = 1_800_000_000_000;
+
+/** 時刻を固定して提出する。別の submissionId を使い、毎回新しい提出にする */
+function submitAt(s: FakeStore, t: number, n: number) {
+  s.now = t;
+  const sid = `11111111-2222-4333-8444-${String(n).padStart(12, "0")}`;
+  s.putGood(UID, sid);
+  return submitThemePack(s, { uid: UID, data: { submissionId: sid, rightsAccepted: true }, now: t });
+}
+
+test("1日の上限: 24時間に5回まで通り、6回目は resource-exhausted。却下された物も数える", async () => {
+  const s = new FakeStore();
+  for (let i = 1; i <= 5; i++) {
+    await submitAt(s, T0 + i * 1000, i);
+    // 公開中・審査中の上限（5件）に当たらないよう、状態を却下へ変える
+    for (const d of s.docs.values()) d.status = "rejected";
+  }
+  await assert.rejects(submitAt(s, T0 + 10_000, 6), (e) => e instanceof SubmitError && e.code === "resource-exhausted" && e.message.includes("24時間"));
+  assert.equal(s.docs.size, 5);
+});
+
+test("1日の上限: 24時間が過ぎると、また出せる。他人の投稿は数えない", async () => {
+  const s = new FakeStore();
+  for (let i = 1; i <= 5; i++) {
+    await submitAt(s, T0, i);
+    for (const d of s.docs.values()) d.status = "rejected";
+  }
+  await submitAt(s, T0 + 24 * HOUR + 1, 6);
+  const other = new FakeStore();
+  for (let i = 0; i < 9; i++) other.docs.set(`o${i}`, { creatorId: "other", packId: `other__p${i}`, version: 1, status: "rejected", createdAt: T0 });
+  await submitAt(other, T0, 1);
+});
+
+test("1日の上限: 作成済みの submissionId の再送は、上限でも通る", async () => {
+  const s = new FakeStore();
+  const first = await submitAt(s, T0, 1);
+  for (let i = 2; i <= 5; i++) s.docs.set(`x${i}`, { creatorId: UID, packId: `${UID}__x${i}`, version: 1, status: "rejected", createdAt: T0 });
+  const again = await submitThemePack(s, { uid: UID, data: { submissionId: first.submissionId, rightsAccepted: true }, now: T0 + 1000 });
+  assert.deepEqual(again, first);
+});
+
+test("失敗の回数: 検査に落ちる度に記録し、10回で1時間止まる。止めている間は回数に足さない", async () => {
+  const s = new FakeStore(); // 素材を置かない＝毎回 invalid-argument
+  const sid = (n: number) => `11111111-2222-4333-8444-${String(n).padStart(12, "0")}`;
+  const call = (n: number, t: number) => submitThemePack(s, { uid: UID, data: { submissionId: sid(n), rightsAccepted: true }, now: t });
+  for (let i = 0; i < 9; i++) await rejects(call(i, T0 + i * 1000), "invalid-argument");
+  assert.equal(s.failures.get(UID)!.length, 9);
+  await rejects(call(9, T0 + 9000), "invalid-argument"); // 10回目も、検査の失敗として扱う
+  assert.equal(s.failures.get(UID)!.length, 10);
+  await assert.rejects(call(10, T0 + 10_000), (e) => e instanceof SubmitError && e.code === "resource-exhausted" && e.message.includes("失敗が続いた"));
+  assert.equal(s.failures.get(UID)!.length, 10); // 止めている間は足さない
+  // 最後の失敗（T0+9000）から1時間後に解除される。その時は、検査に進む
+  await rejects(call(11, T0 + 9000 + HOUR - 1), "resource-exhausted");
+  await rejects(call(12, T0 + 9000 + HOUR), "invalid-argument");
+});
+
+test("失敗の回数: 1時間より古い失敗は数えない", async () => {
+  const s = new FakeStore();
+  s.failures.set(UID, Array.from({ length: 10 }, (_, i) => T0 + i));
+  s.putGood();
+  // 10回は2時間前。停止は、最後の失敗から1時間で終わっている
+  await submitThemePack(s, { uid: UID, data: { submissionId: SID, rightsAccepted: true }, now: T0 + 2 * HOUR });
+  assert.ok(s.docs.has(SID));
+});
+
+test("運営の停止: 停止中は permission-denied。再送も受け付けず、解除すれば通る", async () => {
+  const s = new FakeStore();
+  s.putGood();
+  s.blocked.add(UID);
+  await rejects(submitThemePack(s, args()), "permission-denied");
+  assert.equal(s.docs.size, 0);
+  s.blocked.delete(UID);
+  await submitThemePack(s, args());
+  s.blocked.add(UID);
+  await rejects(submitThemePack(s, args()), "permission-denied"); // 作成済みの再送も止める
+  const other = new FakeStore();
+  other.putGood("user-b", SID);
+  other.blocked.add(UID); // 他人の停止は、関係しない
+  await submitThemePack(other, { uid: "user-b", data: { submissionId: SID, rightsAccepted: true } });
 });

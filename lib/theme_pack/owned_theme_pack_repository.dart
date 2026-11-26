@@ -49,7 +49,7 @@ class ThemePackNotCachedException extends ThemePackException {
   const ThemePackNotCachedException() : super('');
 }
 
-/// 取得済みの意匠の識別子は、`{投稿者}__{pack.jsonのid}`。同梱の公式パックは`__`を含まない。
+/// 取得済みの意匠の識別子は、`{投稿者}__{pack.jsonのid}`。
 bool isOwnedThemePackId(String id) => id.contains('__');
 
 /// 識別子から、pack.jsonのidを取り出す。
@@ -187,35 +187,5 @@ class OwnedThemePackRepository implements ThemePackRepository {
     final bytes = files[image];
     if (bytes == null) throw const ThemePackException('背景画像が見つかりません');
     return pack.withBackgroundImage(MemoryImage(bytes));
-  }
-}
-
-/// 同梱の公式パックと、取得済みの意匠を束ねる。
-class CompositeThemePackRepository implements ThemePackRepository {
-  CompositeThemePackRepository({required this.bundled, this.owned});
-
-  final ThemePackRepository bundled;
-  final ThemePackRepository? owned;
-
-  @override
-  Future<List<ThemePackSummary>> list() async {
-    final base = await bundled.list();
-    List<ThemePackSummary> extra = const [];
-    try {
-      extra = await owned?.list() ?? const [];
-    } catch (_) {
-      // 取得済みを読めなくても、同梱だけは出す。
-    }
-    return [...base, ...extra];
-  }
-
-  @override
-  Future<ThemePack> load(String id) {
-    if (isOwnedThemePackId(id)) {
-      final o = owned;
-      if (o == null) throw const ThemePackNotCachedException();
-      return o.load(id);
-    }
-    return bundled.load(id);
   }
 }
