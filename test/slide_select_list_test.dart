@@ -170,36 +170,26 @@ void _bottomAlignTests() {
     ),
   );
 
-  testWidgets('横の揃えを渡さない（広い画面）と、ブロックは幅いっぱいのまま左揃え', (
-    tester,
-  ) async {
+  testWidgets('横の揃えを渡さない（広い画面）と、ブロックは幅いっぱいのまま左揃え', (tester) async {
     await tester.pumpWidget(
       MaterialApp(
         home: Scaffold(
-          body: alignCategoryList(
-            const SizedBox(width: 120, height: 60),
-          ),
+          body: alignCategoryList(const SizedBox(width: 120, height: 60)),
         ),
       ),
     );
     expect(tester.getTopLeft(find.byType(SizedBox)).dx, 0);
   });
 
-  testWidgets('横の揃え=右だと、ブロック（制限後の幅）の右端が画面の右端に揃う', (
-    tester,
-  ) async {
-    await tester.pumpWidget(
-      horizontalHost(horizontal: NavChipAlignment.end),
-    );
+  testWidgets('横の揃え=右だと、ブロック（制限後の幅）の右端が画面の右端に揃う', (tester) async {
+    await tester.pumpWidget(horizontalHost(horizontal: NavChipAlignment.end));
     final screenWidth =
         tester.view.physicalSize.width / tester.view.devicePixelRatio;
     final right = tester.getTopRight(find.byType(Container)).dx;
     expect(right, closeTo(screenWidth, 0.5));
   });
 
-  testWidgets('横の揃え=中央だと、ブロック（制限後の幅）の中心が画面の中心に揃う', (
-    tester,
-  ) async {
+  testWidgets('横の揃え=中央だと、ブロック（制限後の幅）の中心が画面の中心に揃う', (tester) async {
     await tester.pumpWidget(
       horizontalHost(horizontal: NavChipAlignment.center),
     );
@@ -211,9 +201,7 @@ void _bottomAlignTests() {
     expect(blockCenter, closeTo(screenWidth / 2, 0.5));
   });
 
-  testWidgets('横の揃え=右・縦の揃え=下を組み合わせると、画面の右下の角に寄る', (
-    tester,
-  ) async {
+  testWidgets('横の揃え=右・縦の揃え=下を組み合わせると、画面の右下の角に寄る', (tester) async {
     await tester.pumpWidget(
       horizontalHost(
         horizontal: NavChipAlignment.end,

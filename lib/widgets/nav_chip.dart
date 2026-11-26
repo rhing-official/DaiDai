@@ -13,7 +13,7 @@ import 'glass/glass_surface.dart';
 import '../providers/selection_motion_provider.dart';
 import '../theme/chalk/chalk_paint.dart';
 import 'chalk_nav_bar.dart';
-import 'washi_nav_bar.dart';
+import 'kinari_nav_bar.dart';
 import 'liquid_chip_highlight.dart';
 
 /// ナビチップの直径と、チップ同士・画面端との間隔（ホーム画面
@@ -74,9 +74,9 @@ class NavChip extends ConsumerWidget {
     final isGekiga = uiStyle == AppUiStyle.gekiga;
     final isGlass = uiStyle == AppUiStyle.glass;
     final isBlock = uiStyle == AppUiStyle.block;
-    // チョーク・和紙: チップ自体は塗らない。印・枠は、帯（[ChalkNavBar]・[WashiNavBar]）が描く。
+    // チョーク・生成り: チップ自体は塗らない。印・枠は、帯（[ChalkNavBar]・[KinariNavBar]）が描く。
     final isChalk = uiStyle == AppUiStyle.chalk;
-    final isWashi = uiStyle == AppUiStyle.washi;
+    final isKinari = uiStyle == AppUiStyle.kinari;
     // 「丸で囲む」の時は、帯が1本になり、チップは塗らない（印・輪は帯が描く）。
     final merged = ref.watch(navBandMergedProvider);
     final brightness = Theme.of(context).brightness;
@@ -113,7 +113,7 @@ class NavChip extends ConsumerWidget {
       AppUiStyle.block => colorScheme.onSurface,
       AppUiStyle.gekiga => GekigaColors.onPanel,
       AppUiStyle.chalk => colorScheme.onSurface,
-      AppUiStyle.washi => colorScheme.onSurface,
+      AppUiStyle.kinari => colorScheme.onSurface,
     };
     final chip = merged
         ? Material(
@@ -173,10 +173,10 @@ class NavChip extends ConsumerWidget {
               ),
             ),
           )
-        : isWashi
-        // 和紙（分ける時）: へこんだ丸。選択中（なし）は、ざらつきのある印を重ねる。
+        : isKinari
+        // 生成り（分ける時）: へこんだ丸。選択中（なし）は、ざらつきのある印を重ねる。
         ? CustomPaint(
-            painter: WashiInsetChipPainter(
+            painter: KinariInsetChipPainter(
               base: colorScheme.surface,
               fill: sel ? colorScheme.primary : null,
             ),

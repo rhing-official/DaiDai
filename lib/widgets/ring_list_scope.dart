@@ -10,7 +10,7 @@ import '../theme/block/block_theme.dart';
 import '../theme/chalk/chalk_paint.dart';
 import '../theme/gekiga/gekiga_colors.dart';
 import 'glass/glass_surface.dart';
-import 'washi_nav_bar.dart';
+import 'kinari_nav_bar.dart';
 
 /// 「丸で囲む」の時の項目の並び（2026-11-26）。項目の箱を1つの大きなブロックにまとめ、選択中の
 /// 項目を線の枠（角丸）で囲む。この範囲の中の項目は、自分の箱・塗りを描かない（枠と塗りは、
@@ -149,9 +149,9 @@ Widget ringBlockBackground(BuildContext context, AppUiStyle style) {
           lineWidth: 2.4,
         ),
       );
-    case AppUiStyle.washi:
+    case AppUiStyle.kinari:
       // メニューチップの帯と同じ: へこんだ面。
-      return CustomPaint(painter: WashiInsetBlockPainter(scheme.surface, 16));
+      return CustomPaint(painter: KinariInsetBlockPainter(scheme.surface, 16));
     case AppUiStyle.gekiga:
       return const SizedBox.shrink();
     case AppUiStyle.flat:
@@ -210,7 +210,7 @@ class RingOutline extends StatelessWidget {
         BlockTheme.borderWidth,
       ),
       AppUiStyle.gekiga => (GekigaColors.onPanel, 3),
-      AppUiStyle.washi => (scheme.primary, 1.8),
+      AppUiStyle.kinari => (scheme.primary, 1.8),
       _ => (scheme.primary, 2),
     };
     return DecoratedBox(

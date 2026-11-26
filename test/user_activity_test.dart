@@ -11,9 +11,7 @@ void main() {
   });
 
   test('古い操作は、操作中に数えない', () {
-    activity.debugRecord(
-      DateTime.now().millisecondsSinceEpoch - 10000,
-    );
+    activity.debugRecord(DateTime.now().millisecondsSinceEpoch - 10000);
     expect(activity.touchedWithin(const Duration(seconds: 3)), isFalse);
   });
 

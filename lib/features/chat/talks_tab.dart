@@ -42,6 +42,7 @@ import '../../providers/selection_motion_provider.dart';
 import '../../providers/icon_split_layout_provider.dart';
 import '../../providers/text_size_provider.dart';
 import '../../utils/sidebar_width.dart';
+import '../../widgets/chalk_banner.dart';
 import '../../widgets/nav_chip.dart';
 import '../../widgets/liquid_tile_group.dart';
 import '../../widgets/ring_list_scope.dart';
@@ -3534,7 +3535,7 @@ class _TalksTabState extends ConsumerState<TalksTab>
             ),
           ),
         );
-      case AppUiStyle.washi:
+      case AppUiStyle.kinari:
       case AppUiStyle.flat:
         // ガラスと同じ形（角丸24・枠線なし）で、半透明にはせず不透明の面で塗る
         // （2026-11-01）。
@@ -3944,8 +3945,8 @@ class _PendingApprovalBanner extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Material(
-      color: Theme.of(context).colorScheme.surfaceContainerHighest,
+    return plainBannerSurface(
+      context,
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
         child: Text(message, style: Theme.of(context).textTheme.bodyMedium),
@@ -4000,8 +4001,8 @@ class _FriendRequestDecisionBannerState
     final strings = ref.watch(appStringsProvider);
     final theme = Theme.of(context);
     final message = widget.request.message?.trim();
-    return Material(
-      color: theme.colorScheme.surfaceContainerHighest,
+    return plainBannerSurface(
+      context,
       child: Padding(
         padding: const EdgeInsets.fromLTRB(16, 10, 16, 10),
         child: Column(
@@ -4242,8 +4243,8 @@ class _GroupJoinStatusBannerState
     for (final r in requests.value ?? const <GroupJoinRequest>[]) {
       if (r.groupId == widget.groupId) declined = r;
     }
-    return Material(
-      color: Theme.of(context).colorScheme.surfaceContainerHighest,
+    return plainBannerSurface(
+      context,
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
         child: Row(
@@ -5519,7 +5520,7 @@ class _ConversationGesturesState extends ConsumerState<_ConversationGestures> {
                       color: menuTheme.colorScheme.surface,
                       child: list,
                     );
-                  case AppUiStyle.washi:
+                  case AppUiStyle.kinari:
                   case AppUiStyle.flat:
                     return Material(
                       color: menuTheme.colorScheme.surface,

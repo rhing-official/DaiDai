@@ -5,6 +5,7 @@ import '../../models/app_ui_style.dart';
 import '../../providers/app_ui_style_provider.dart';
 import '../../theme/block/block_theme.dart';
 import '../../theme/gekiga/gekiga_colors.dart';
+import '../../widgets/chalk_banner.dart';
 import '../../widgets/glass/glass_surface.dart';
 
 /// 絶縁・既読オン/オフの提案バナー（`chat_panes.dart`）の共通レイアウト
@@ -59,6 +60,8 @@ class ProposalBannerLayout extends ConsumerWidget {
           child: content(colorScheme.onSurface),
         );
       case AppUiStyle.chalk:
+        // 塗らず、チョークの線の枠で囲む（2026-11-27）。以前は版画と同じ太い黒枠だった。
+        return ChalkBannerFrame(child: content(colorScheme.onSurface));
       case AppUiStyle.block:
         return Container(
           decoration: BoxDecoration(
@@ -70,7 +73,7 @@ class ProposalBannerLayout extends ConsumerWidget {
           ),
           child: content(colorScheme.onSurface),
         );
-      case AppUiStyle.washi:
+      case AppUiStyle.kinari:
       case AppUiStyle.flat:
         return Container(
           decoration: BoxDecoration(

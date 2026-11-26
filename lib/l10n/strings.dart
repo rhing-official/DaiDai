@@ -103,7 +103,7 @@ class Strings {
     required this.settingsUiStyleGlassLabel,
     required this.settingsUiStyleBlockLabel,
     required this.settingsUiStyleChalkLabel,
-    required this.settingsUiStyleWashiLabel,
+    required this.settingsUiStyleKinariLabel,
     required this.settingsDesignPin,
     required this.settingsDesignUnpin,
     required this.settingsThemePackFallbackTemplate,
@@ -1453,7 +1453,7 @@ class Strings {
   final String settingsUiStyleGlassLabel;
   final String settingsUiStyleBlockLabel;
   final String settingsUiStyleChalkLabel;
-  final String settingsUiStyleWashiLabel;
+  final String settingsUiStyleKinariLabel;
 
   /// 設定>UIのデザイン一覧のピン留め（2026-11-26）。
   final String settingsDesignPin;
@@ -3149,7 +3149,7 @@ class Strings {
     settingsUiStyleGlassLabel: 'ガラス',
     settingsUiStyleBlockLabel: '版画',
     settingsUiStyleChalkLabel: 'チョーク',
-    settingsUiStyleWashiLabel: '和紙',
+    settingsUiStyleKinariLabel: '生成り',
     settingsDesignPin: 'ピン留め',
     settingsDesignUnpin: 'ピン留めを外す',
     settingsThemePackFallbackTemplate: (reason) =>
@@ -4589,7 +4589,7 @@ class Strings {
     settingsUiStyleGlassLabel: 'Glass',
     settingsUiStyleBlockLabel: 'Woodcut',
     settingsUiStyleChalkLabel: 'Chalk',
-    settingsUiStyleWashiLabel: 'Washi',
+    settingsUiStyleKinariLabel: 'Ecru',
     settingsDesignPin: 'Pin',
     settingsDesignUnpin: 'Unpin',
     settingsThemePackFallbackTemplate: (reason) =>

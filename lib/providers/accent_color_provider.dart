@@ -28,6 +28,12 @@ Future<Color> loadInitialAccentColor() async {
 
 String _styleKey(AppUiStyle style) => '${_prefsKey}_${style.name}';
 
+/// 生成りの、旧名（和紙、`washi`）で保存された色（2026-11-27の改名）。
+int? _legacyInt(SharedPreferences prefs, AppUiStyle style) =>
+    style == AppUiStyle.kinari
+    ? prefs.getInt('${_prefsKey}_${AppUiStyle.legacyKinariName}')
+    : null;
+
 /// 端末に保存されているUIスタイル別のアクセントカラー（2026-11-08）。保存値が
 /// 無いスタイルは含めない（[initialAccentColorProvider]に従う）。
 final initialAccentColorsByStyleProvider = Provider<Map<AppUiStyle, Color>>(
@@ -38,7 +44,8 @@ Future<Map<AppUiStyle, Color>> loadInitialAccentColorsByStyle() async {
   final prefs = await SharedPreferences.getInstance();
   return {
     for (final style in AppUiStyle.values)
-      if (prefs.getInt(_styleKey(style)) case final argb32?)
+      if (prefs.getInt(_styleKey(style)) ?? _legacyInt(prefs, style)
+          case final argb32?)
         style: Color(argb32),
   };
 }
@@ -83,7 +90,10 @@ class AccentColorNotifier extends Notifier<Color> {
   Future<void> syncFromRemote({Map<String, int>? byStyle, int? legacy}) async {
     final prefs = await SharedPreferences.getInstance();
     for (final style in AppUiStyle.values) {
-      final argb32 = byStyle?[style.name];
+      int? argb32 = byStyle?[style.name];
+      if (argb32 == null && style == AppUiStyle.kinari) {
+        argb32 = byStyle?[AppUiStyle.legacyKinariName];
+      }
       if (argb32 != null) {
         _colors[style] = Color(argb32);
         await prefs.setInt(_styleKey(style), argb32);

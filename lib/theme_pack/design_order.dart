@@ -10,7 +10,7 @@ const List<AppUiStyle> kStandardDesignOrder = [
   AppUiStyle.block,
   AppUiStyle.chalk,
   AppUiStyle.glass,
-  AppUiStyle.washi,
+  AppUiStyle.kinari,
   AppUiStyle.flat,
   AppUiStyle.gekiga,
 ];
@@ -19,6 +19,12 @@ const List<AppUiStyle> kStandardDesignOrder = [
 const int kDesignVisibleCount = 3;
 
 String styleDesignId(AppUiStyle style) => 'style:${style.name}';
+
+/// 旧名`style:washi`（2026-11-27に生成りへ改名）を`style:kinari`へ読み替える。
+String _normalizeDesignId(String id) =>
+    id == 'style:${AppUiStyle.legacyKinariName}'
+    ? styleDesignId(AppUiStyle.kinari)
+    : id;
 String packDesignId(String packId) => 'pack:$packId';
 
 /// [ownedPackIds]は、購入した素材パックのid。新しく購入した順に渡す。
@@ -37,8 +43,8 @@ List<String> sortDesignIds({
     if (available.contains(id) && !out.contains(id)) out.add(id);
   }
 
-  add(selectedId);
-  pins.forEach(add);
+  add(_normalizeDesignId(selectedId));
+  pins.map(_normalizeDesignId).forEach(add);
   for (final id in ownedPackIds) {
     add(packDesignId(id));
   }

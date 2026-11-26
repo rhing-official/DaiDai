@@ -5,9 +5,9 @@ import 'package:flutter/material.dart';
 import '../../models/dark_variant.dart';
 import '../app_theme.dart';
 
-/// 「和紙」スタイルの固定色（2026-11-26）。生成りの紙に、濃紺の線・文字。
-class WashiColors {
-  WashiColors._();
+/// 「生成り」スタイルの固定色（2026-11-26）。生成りの紙に、濃紺の線・文字。
+class KinariColors {
+  KinariColors._();
 
   /// 紙（背景）。
   static const paper = Color(0xFFEFE9DD);
@@ -19,15 +19,15 @@ class WashiColors {
   static const ink = Color(0xFF1F2A5A);
 }
 
-/// 和紙スタイルのThemeData。ライト/ダークによらず、紙の色に固定する。
-class WashiTheme {
-  WashiTheme._();
+/// 生成りスタイルのThemeData。ライト/ダークによらず、紙の色に固定する。
+class KinariTheme {
+  KinariTheme._();
 
   /// 背景に応じた線・文字の色。暗い背景では、明るい色にする。
   static Color inkFor(Color background) =>
       ThemeData.estimateBrightnessForColor(background) == Brightness.dark
       ? const Color(0xFFEDE8DC)
-      : WashiColors.ink;
+      : KinariColors.ink;
 
   /// [background]を渡すと、紙の代わりに、その色の背景で描く（設定>背景）。
   static ThemeData build(
@@ -38,14 +38,14 @@ class WashiTheme {
   }) {
     final palette = background == null
         ? const AppearancePalette(
-            background: WashiColors.paper,
-            surface: WashiColors.surface,
-            glassBackground: WashiColors.paper,
-            glassSurface: WashiColors.surface,
+            background: KinariColors.paper,
+            surface: KinariColors.surface,
+            glassBackground: KinariColors.paper,
+            glassSurface: KinariColors.surface,
           )
         : AppearancePalette.fromBackground(background);
     final ink = inkFor(palette.background);
-    final dark = ink != WashiColors.ink;
+    final dark = ink != KinariColors.ink;
     final base = dark
         ? AppTheme.dark(
             accentColor,
@@ -108,8 +108,8 @@ class WashiTheme {
 }
 
 /// 紙に混ざった繊維を、ごく薄く画面全体へ重ねる層（タッチは通さない）。大きさが変わる時だけ描き直す。
-class WashiPaperFibers extends StatelessWidget {
-  const WashiPaperFibers({required this.color, super.key});
+class KinariPaperFibers extends StatelessWidget {
+  const KinariPaperFibers({required this.color, super.key});
 
   final Color color;
 

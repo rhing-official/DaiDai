@@ -86,7 +86,7 @@ import 'theme/app_theme.dart';
 import 'theme/block/block_theme.dart';
 import 'theme/chalk/chalk_paint.dart';
 import 'theme/chalk/chalk_theme.dart';
-import 'theme/washi/washi_theme.dart';
+import 'theme/kinari/kinari_theme.dart';
 import 'theme/gekiga/gekiga_theme.dart';
 import 'theme/glass/glass_theme.dart';
 import 'utils/web_redirect_sign_in.dart';
@@ -453,7 +453,7 @@ class DaiDaiApp extends ConsumerWidget {
         fontFamily,
         background: custom.enabled ? custom.color : null,
       ),
-      AppUiStyle.washi => WashiTheme.build(
+      AppUiStyle.kinari => KinariTheme.build(
         accentColor,
         fontFamily,
         background: custom.enabled ? custom.color : null,
@@ -496,7 +496,7 @@ class DaiDaiApp extends ConsumerWidget {
         fontFamily,
         background: custom.enabled ? custom.color : null,
       ),
-      AppUiStyle.washi => WashiTheme.build(
+      AppUiStyle.kinari => KinariTheme.build(
         accentColor,
         fontFamily,
         background: custom.enabled ? custom.color : null,
@@ -601,12 +601,12 @@ class DaiDaiApp extends ConsumerWidget {
                       ),
                     ),
                   ),
-                // 和紙: 紙に混ざった繊維を、ごく薄く重ねる（2026-11-26）。
-                if (uiStyle == AppUiStyle.washi)
+                // 生成り: 紙に混ざった繊維を、ごく薄く重ねる（2026-11-26）。
+                if (uiStyle == AppUiStyle.kinari)
                   Positioned.fill(
-                    child: WashiPaperFibers(
-                      color: WashiTheme.inkFor(
-                        custom.enabled ? custom.color : WashiColors.paper,
+                    child: KinariPaperFibers(
+                      color: KinariTheme.inkFor(
+                        custom.enabled ? custom.color : KinariColors.paper,
                       ),
                     ),
                   ),

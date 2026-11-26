@@ -5,6 +5,7 @@ import '../../models/app_ui_style.dart';
 import '../../providers/app_ui_style_provider.dart';
 import '../../providers/audio_playback_provider.dart';
 import '../../theme/gekiga/gekiga_colors.dart';
+import '../../widgets/chalk_banner.dart';
 import '../../widgets/glass/glass_surface.dart';
 
 /// 音声添付を再生している間、語らい上部（予定などのバナーのさらに下）に出すバナー
@@ -25,7 +26,13 @@ class AudioPlaybackBanner extends ConsumerWidget {
     final isGekiga = uiStyle == AppUiStyle.gekiga;
     final isGlass = uiStyle == AppUiStyle.glass;
     final background = isGekiga ? GekigaColors.panel : colorScheme.primary;
-    final foreground = isGekiga ? GekigaColors.onPanel : colorScheme.onPrimary;
+    // チョークは、塗らず、チョークの線の枠で囲む。文字はチョークの色（onSurface）。
+    final isChalk = uiStyle == AppUiStyle.chalk;
+    final foreground = isGekiga
+        ? GekigaColors.onPanel
+        : isChalk
+        ? colorScheme.onSurface
+        : colorScheme.onPrimary;
     final notifier = ref.read(audioPlaybackProvider.notifier);
     final duration = playback.duration;
     final durationMs = duration?.inMilliseconds.toDouble();
@@ -111,6 +118,8 @@ class AudioPlaybackBanner extends ConsumerWidget {
         ],
       ),
     );
+
+    if (isChalk) return ChalkBannerFrame(child: content);
 
     if (isGlass) {
       return GlassSurface(

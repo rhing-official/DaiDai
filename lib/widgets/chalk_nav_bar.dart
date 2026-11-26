@@ -10,7 +10,7 @@ import '../theme/chalk/chalk_paint.dart';
 import 'liquid_chip_highlight.dart';
 import 'nav_chip.dart';
 import 'ring_nav_bar.dart';
-import 'washi_nav_bar.dart';
+import 'kinari_nav_bar.dart';
 
 /// 帯の内側の余白。
 const double _kPad = 6;
@@ -143,7 +143,7 @@ class _ChalkBarPainter extends CustomPainter {
       old.ringColor != ringColor;
 }
 
-/// チップの帯。チョークスタイルは[ChalkNavBar]、和紙は[WashiNavBar]、他は水が流れ込む[LiquidChipStrip]。
+/// チップの帯。チョークスタイルは[ChalkNavBar]、生成りは[KinariNavBar]、他は水が流れ込む[LiquidChipStrip]。
 class NavChipBand extends ConsumerWidget {
   const NavChipBand({
     required this.child,
@@ -171,7 +171,7 @@ class NavChipBand extends ConsumerWidget {
           vertical: vertical,
           child: child,
         ),
-        AppUiStyle.washi => WashiNavBar(
+        AppUiStyle.kinari => KinariNavBar(
           count: entries.length,
           selectedIndex: selectedIndex,
           vertical: vertical,

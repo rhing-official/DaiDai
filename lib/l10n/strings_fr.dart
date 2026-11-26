@@ -109,7 +109,7 @@ final Strings _stringsFr = Strings._(
   settingsUiStyleGlassLabel: 'Verre',
   settingsUiStyleBlockLabel: 'Gravure',
   settingsUiStyleChalkLabel: 'Craie',
-  settingsUiStyleWashiLabel: 'Papier washi',
+  settingsUiStyleKinariLabel: 'Écru',
   settingsDesignPin: 'Épingler',
   settingsDesignUnpin: 'Désépingler',
   settingsThemePackFallbackTemplate: (reason) =>

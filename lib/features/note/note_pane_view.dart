@@ -2333,7 +2333,7 @@ SelectionMenuStyle _insertMenuStyle(ThemeData theme, AppUiStyle ui) {
       selectedBg = scheme.primary.withValues(alpha: 0.45);
       selectedText = scheme.onSurface;
     case AppUiStyle.block:
-    case AppUiStyle.washi:
+    case AppUiStyle.kinari:
     case AppUiStyle.flat:
     case AppUiStyle.chalk:
       bg = theme.brightness == Brightness.light && ui == AppUiStyle.block
@@ -2395,7 +2395,7 @@ Widget Function(Widget child) _insertMenuSurface(
             ),
           ),
         );
-      case AppUiStyle.washi:
+      case AppUiStyle.kinari:
       case AppUiStyle.flat:
         return Material(
           color: style.selectionMenuBackgroundColor,
@@ -2512,7 +2512,7 @@ class _CursorLineAddButtonState extends ConsumerState<_CursorLineAddButton> {
             child: Icon(Icons.add, size: 18, color: scheme.onSurface),
           ),
         );
-      case AppUiStyle.washi:
+      case AppUiStyle.kinari:
       case AppUiStyle.flat:
         return Material(
           color: scheme.primary,

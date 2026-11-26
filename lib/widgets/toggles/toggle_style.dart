@@ -93,7 +93,7 @@ class ToggleColors {
           borderWidth: BlockTheme.borderWidth,
           check: isDark ? const Color(0xFF121212) : Colors.white,
         );
-      case AppUiStyle.washi:
+      case AppUiStyle.kinari:
       case AppUiStyle.flat:
         return ToggleColors(
           onFill: accent,

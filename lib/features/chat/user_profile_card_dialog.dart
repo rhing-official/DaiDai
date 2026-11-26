@@ -356,7 +356,7 @@ class _UserProfileCardDialogState extends ConsumerState<UserProfileCardDialog> {
                     color: theme.colorScheme.surface,
                     child: list,
                   );
-                case AppUiStyle.washi:
+                case AppUiStyle.kinari:
                 case AppUiStyle.flat:
                   return Material(
                     color: theme.colorScheme.surface,

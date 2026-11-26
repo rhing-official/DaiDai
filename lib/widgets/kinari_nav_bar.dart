@@ -9,14 +9,14 @@ import 'nav_chip.dart';
 /// 帯の内側の余白。
 const double _kPad = 6;
 
-/// メニューチップの帯を、和紙にへこんだ帯にする（2026-11-26、和紙スタイル）。選ばれた項目には、
+/// メニューチップの帯を、紙にへこんだ帯にする（2026-11-26、生成りスタイル）。選ばれた項目には、
 /// 粒状のざらつきのある、アクセントカラーの丸い印が重なり、選択が移ると滑る。「選択の動き」が
 /// 「なし」なら、その場で移る。柔らかい内側の影とわずかな浮きは、このスタイルのこの帯だけの例外。
 ///
 /// [child]は、チップを並べたRow/Column。チップ同士の間は[kNavChipGap]、1つの大きさは
 /// [kNavChipSize]として、印の位置を計算する。
-class WashiNavBar extends ConsumerWidget {
-  const WashiNavBar({
+class KinariNavBar extends ConsumerWidget {
+  const KinariNavBar({
     required this.child,
     required this.count,
     required this.selectedIndex,
@@ -38,7 +38,7 @@ class WashiNavBar extends ConsumerWidget {
       duration: const Duration(milliseconds: 320),
       curve: Curves.easeOutCubic,
       builder: (context, position, child) => CustomPaint(
-        painter: _WashiBarPainter(
+        painter: _KinariBarPainter(
           position: position,
           vertical: vertical,
           base: scheme.surface,
@@ -51,8 +51,8 @@ class WashiNavBar extends ConsumerWidget {
   }
 }
 
-class _WashiBarPainter extends CustomPainter {
-  _WashiBarPainter({
+class _KinariBarPainter extends CustomPainter {
+  _KinariBarPainter({
     required this.position,
     required this.vertical,
     required this.base,
@@ -85,7 +85,7 @@ class _WashiBarPainter extends CustomPainter {
     // へこんだ帯: 紙より少し濃い色に、内側の影（上）と明かり（下）。
     // 画面では、どちらの向きでも、左上の縁の内側に影が落ちる（回した分を打ち消した向き）。
     final shadowOffset = vertical ? const Offset(3, -2) : const Offset(2, 3);
-    paintWashiInset(canvas, rrect, base, shadowOffset);
+    paintKinariInset(canvas, rrect, base, shadowOffset);
 
     if (position >= 0) {
       final center =
@@ -110,7 +110,7 @@ class _WashiBarPainter extends CustomPainter {
   }
 
   @override
-  bool shouldRepaint(covariant _WashiBarPainter old) =>
+  bool shouldRepaint(covariant _KinariBarPainter old) =>
       old.position != position ||
       old.vertical != vertical ||
       old.base != base ||
@@ -118,7 +118,7 @@ class _WashiBarPainter extends CustomPainter {
 }
 
 /// へこみ（紙より少し濃い面に、内側の影と明かり）を描く。[offset]は、影の向き。
-void paintWashiInset(Canvas canvas, RRect rrect, Color base, Offset offset) {
+void paintKinariInset(Canvas canvas, RRect rrect, Color base, Offset offset) {
   canvas.drawRRect(
     rrect,
     Paint()..color = Color.lerp(base, Colors.black, 0.04)!,
@@ -144,7 +144,7 @@ void paintWashiInset(Canvas canvas, RRect rrect, Color base, Offset offset) {
 }
 
 /// 粒状のざらつきのある、わずかに浮いた印（丸い角）を描く。
-void paintWashiPill(Canvas canvas, Rect rect, Color pill) {
+void paintKinariPill(Canvas canvas, Rect rect, Color pill) {
   final pillRRect = RRect.fromRectAndRadius(
     rect,
     Radius.circular(rect.shortestSide / 2),
@@ -201,10 +201,10 @@ void paintWashiPill(Canvas canvas, Rect rect, Color pill) {
   canvas.restore();
 }
 
-/// 分けた（液体・なし）和紙のメニューチップ1つ分の、へこんだ丸。[fill]があれば（なしで選択中）、
+/// 分けた（液体・なし）生成りスタイルのメニューチップ1つ分の、へこんだ丸。[fill]があれば（なしで選択中）、
 /// 印を重ねる。
-class WashiInsetChipPainter extends CustomPainter {
-  WashiInsetChipPainter({required this.base, this.fill});
+class KinariInsetChipPainter extends CustomPainter {
+  KinariInsetChipPainter({required this.base, this.fill});
 
   final Color base;
   final Color? fill;
@@ -215,26 +215,26 @@ class WashiInsetChipPainter extends CustomPainter {
       Offset.zero & size,
       Radius.circular(size.shortestSide / 2),
     );
-    paintWashiInset(canvas, rrect, base, const Offset(2, 3));
+    paintKinariInset(canvas, rrect, base, const Offset(2, 3));
     final f = fill;
-    if (f != null) paintWashiPill(canvas, (Offset.zero & size).deflate(4), f);
+    if (f != null) paintKinariPill(canvas, (Offset.zero & size).deflate(4), f);
   }
 
   @override
-  bool shouldRepaint(covariant WashiInsetChipPainter old) =>
+  bool shouldRepaint(covariant KinariInsetChipPainter old) =>
       old.base != base || old.fill != fill;
 }
 
 /// 大きなブロック（一覧の背景）の、へこんだ面。メニューチップの帯と同じ描き方。
-class WashiInsetBlockPainter extends CustomPainter {
-  WashiInsetBlockPainter(this.base, this.radius);
+class KinariInsetBlockPainter extends CustomPainter {
+  KinariInsetBlockPainter(this.base, this.radius);
 
   final Color base;
   final double radius;
 
   @override
   void paint(Canvas canvas, Size size) {
-    paintWashiInset(
+    paintKinariInset(
       canvas,
       RRect.fromRectAndRadius(Offset.zero & size, Radius.circular(radius)),
       base,
@@ -243,6 +243,6 @@ class WashiInsetBlockPainter extends CustomPainter {
   }
 
   @override
-  bool shouldRepaint(covariant WashiInsetBlockPainter old) =>
+  bool shouldRepaint(covariant KinariInsetBlockPainter old) =>
       old.base != base || old.radius != radius;
 }

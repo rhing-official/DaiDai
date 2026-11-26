@@ -16,7 +16,9 @@ void main() {
       ProviderScope(
         overrides: [
           initialAppUiStyleProvider.overrideWithValue(AppUiStyle.chalk),
-          initialSelectionMotionProvider.overrideWithValue(SelectionMotion.ring),
+          initialSelectionMotionProvider.overrideWithValue(
+            SelectionMotion.ring,
+          ),
         ],
         child: MaterialApp(
           home: Scaffold(
@@ -60,7 +62,8 @@ void main() {
     );
     await tester.pumpAndSettle();
     final tops = [
-      for (var k = 0; k < 3; k++) tester.getTopLeft(find.byType(ListTile).at(k)).dy,
+      for (var k = 0; k < 3; k++)
+        tester.getTopLeft(find.byType(ListTile).at(k)).dy,
     ];
     for (final order in [1, 2, 0, 1, 2, 0]) {
       await tester.tapAt(Offset(260, tops[order] + 28));

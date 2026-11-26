@@ -12,7 +12,7 @@ void main() {
     AppUiStyle.flat,
     AppUiStyle.block,
     AppUiStyle.chalk,
-    AppUiStyle.washi,
+    AppUiStyle.kinari,
     AppUiStyle.gekiga,
   ]) {
     testWidgets('丸で囲む（$style）: 項目を1つのブロックにまとめ、選択中を枠で囲む', (tester) async {
@@ -38,10 +38,8 @@ void main() {
                       for (var k = 0; k < 3; k++)
                         LiquidTile(
                           index: k,
-                          builder: (context, sel) => ListTile(
-                            title: Text('項目$k'),
-                            selected: sel,
-                          ),
+                          builder: (context, sel) =>
+                              ListTile(title: Text('項目$k'), selected: sel),
                         ),
                     ],
                   ),

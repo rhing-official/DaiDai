@@ -4259,7 +4259,7 @@ class _UiStyleFolderState extends ConsumerState<UiStyleFolder> {
     AppUiStyle.glass => strings.settingsUiStyleGlassLabel,
     AppUiStyle.block => strings.settingsUiStyleBlockLabel,
     AppUiStyle.chalk => strings.settingsUiStyleChalkLabel,
-    AppUiStyle.washi => strings.settingsUiStyleWashiLabel,
+    AppUiStyle.kinari => strings.settingsUiStyleKinariLabel,
     AppUiStyle.gekiga => strings.settingsUiStyleGekigaLabel,
   };
 

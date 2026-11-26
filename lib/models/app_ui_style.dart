@@ -31,12 +31,17 @@ enum AppUiStyle {
   /// （2026-11-26追加、第1段階＝テーマとメニューチップ）。ライト/ダークによらず黒板の色に固定する。
   chalk,
 
-  /// 生成りの和紙に、濃紺の線・文字。メニューチップの帯は、へこんだ帯に、粒状のざらつきの
-  /// ある印が滑る（2026-11-26追加、第1段階＝テーマとメニューチップ。名前は仮）。柔らかい内側の
+  /// 生成りの紙に、濃紺の線・文字。メニューチップの帯は、へこんだ帯に、粒状のざらつきの
+  /// ある印が滑る（2026-11-26に「和紙」の仮名で追加、2026-11-27に「生成り」へ改名。第1段階＝テーマとメニューチップ）。柔らかい内側の
   /// 影はこのスタイルのメニューチップだけの例外。
-  washi;
+  kinari;
+
+  /// 2026-11-27に`washi`（和紙）を`kinari`（生成り）へ改名した。保存済みの旧い値を読み替える。
+  /// `washi`は、後で作る本物の和紙の為に空けてある。
+  static const String legacyKinariName = 'washi';
 
   static AppUiStyle fromName(String? name) {
+    if (name == legacyKinariName) return AppUiStyle.kinari;
     return AppUiStyle.values.firstWhere(
       (style) => style.name == name,
       // 未設定（新規・保存値なし）の既定は版画（2026-11-14、以前はガラス）。保存済みの設定は変えない。

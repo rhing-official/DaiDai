@@ -69,7 +69,7 @@ Widget paneHamburgerMenu<T>({
             ),
             AppUiStyle.block ||
             AppUiStyle.chalk => const BlockIconBadge(icon: Icons.menu),
-            AppUiStyle.flat || AppUiStyle.washi => const Icon(Icons.menu),
+            AppUiStyle.flat || AppUiStyle.kinari => const Icon(Icons.menu),
           },
           // 押下はPressDragMenuButton（Listener）が受ける。
           onPressed: enabled ? () {} : null,

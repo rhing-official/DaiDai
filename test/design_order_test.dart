@@ -6,21 +6,21 @@ void main() {
   final block = styleDesignId(AppUiStyle.block);
   final chalk = styleDesignId(AppUiStyle.chalk);
   final glass = styleDesignId(AppUiStyle.glass);
-  final washi = styleDesignId(AppUiStyle.washi);
+  final kinari = styleDesignId(AppUiStyle.kinari);
   final flat = styleDesignId(AppUiStyle.flat);
   final gekiga = styleDesignId(AppUiStyle.gekiga);
 
-  test('何も無ければ、標準の並び（版画・チョーク・ガラス・和紙・フラット・劇画）', () {
+  test('何も無ければ、標準の並び（版画・チョーク・ガラス・生成り・フラット・劇画）', () {
     expect(
       sortDesignIds(selectedId: block, pins: const [], ownedPackIds: const []),
-      [block, chalk, glass, washi, flat, gekiga],
+      [block, chalk, glass, kinari, flat, gekiga],
     );
   });
 
   test('選択中が最上に移る', () {
     expect(
       sortDesignIds(selectedId: flat, pins: const [], ownedPackIds: const []),
-      [flat, block, chalk, glass, washi, gekiga],
+      [flat, block, chalk, glass, kinari, gekiga],
     );
   });
 
@@ -33,7 +33,7 @@ void main() {
         pins: [gekiga, sakura],
         ownedPackIds: ['yoru', 'sakura'],
       ),
-      [glass, gekiga, sakura, yoru, block, chalk, washi, flat],
+      [glass, gekiga, sakura, yoru, block, chalk, kinari, flat],
     );
   });
 
@@ -44,7 +44,7 @@ void main() {
         pins: [chalk, flat],
         ownedPackIds: const [],
       ),
-      [chalk, flat, block, glass, washi, gekiga],
+      [chalk, flat, block, glass, kinari, gekiga],
     );
   });
 
@@ -55,7 +55,7 @@ void main() {
         pins: [packDesignId('gone'), 'style:nothing'],
         ownedPackIds: const [],
       ),
-      [block, chalk, glass, washi, flat, gekiga],
+      [block, chalk, glass, kinari, flat, gekiga],
     );
   });
 
@@ -69,5 +69,21 @@ void main() {
       ).first,
       sakura,
     );
+  });
+
+  test('旧名style:washiは、生成りとして読み替える', () {
+    expect(
+      sortDesignIds(
+        selectedId: 'style:washi',
+        pins: const ['style:washi'],
+        ownedPackIds: const [],
+      ),
+      [kinari, block, chalk, glass, flat, gekiga],
+    );
+  });
+
+  test('旧い保存値washiは生成りを返す', () {
+    expect(AppUiStyle.fromName('washi'), AppUiStyle.kinari);
+    expect(AppUiStyle.fromName('kinari'), AppUiStyle.kinari);
   });
 }

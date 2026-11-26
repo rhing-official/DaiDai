@@ -17,6 +17,7 @@ import '../../providers/repository_providers.dart';
 import '../../theme/gekiga/gekiga_colors.dart';
 import '../../widgets/gekiga/gekiga_icon_badge.dart';
 import '../../widgets/glass/glass_icon_badge.dart';
+import '../../widgets/chalk_banner.dart';
 import '../../widgets/glass/glass_surface.dart';
 import '../calendar/calendar_event_detail_dialog.dart';
 import '../calendar/schedule_coordination_detail_dialog.dart';
@@ -518,7 +519,13 @@ class _ChatTaskBannerState extends ConsumerState<ChatTaskBanner> {
     // `accentColor`そのものに明示上書き済みの為、ここでは`primary`/
     // `onPrimary`を使う。劇画は元々アクセントカラーの概念が無く固定配色。
     final background = isGekiga ? GekigaColors.panel : colorScheme.primary;
-    final foreground = isGekiga ? GekigaColors.onPanel : colorScheme.onPrimary;
+    // チョークは、塗らず、チョークの線の枠で囲む。文字はチョークの色（onSurface）。
+    final isChalk = uiStyle == AppUiStyle.chalk;
+    final foreground = isGekiga
+        ? GekigaColors.onPanel
+        : isChalk
+        ? colorScheme.onSurface
+        : colorScheme.onPrimary;
 
     Widget arrowButton() => switch (uiStyle) {
       AppUiStyle.gekiga => GekigaIconButton(
@@ -531,7 +538,7 @@ class _ChatTaskBannerState extends ConsumerState<ChatTaskBanner> {
         onPressed: () => setState(() => _expanded = !_expanded),
       ),
       AppUiStyle.flat ||
-      AppUiStyle.washi ||
+      AppUiStyle.kinari ||
       AppUiStyle.chalk ||
       AppUiStyle.block => IconButton(
         tooltip: '',
@@ -606,6 +613,8 @@ class _ChatTaskBannerState extends ConsumerState<ChatTaskBanner> {
         ],
       ],
     );
+
+    if (isChalk) return ChalkBannerFrame(child: barContent);
 
     if (isGlass) {
       // 背景の塗り自体はフラットと同じ`background`（アクセントカラー

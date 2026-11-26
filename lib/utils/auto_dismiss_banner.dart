@@ -2,6 +2,9 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 
+import '../theme/chalk/chalk_theme.dart';
+import '../widgets/chalk_banner.dart';
+
 /// 現在画面に浮いている通知バナー（あれば1件のみ）。新しいバナーを表示する
 /// 際・[dismissAutoDismissBanner]呼び出し時に即座に取り除く。
 OverlayEntry? _activeEntry;
@@ -95,6 +98,36 @@ class _FloatingBanner extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
+    final body = Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Flexible(
+            child: Text(
+              stripBannerTrailingPeriod(message),
+              textAlign: TextAlign.center,
+              style: TextStyle(color: colorScheme.onSurface),
+            ),
+          ),
+          ...actions,
+        ],
+      ),
+    );
+    // チョーク: 黒板の地の色で塗り（下の内容が透けて読めなくならないように）、チョークの線で囲む。
+    // 影は使わない。
+    final card = isChalkTheme(context)
+        ? ChalkBannerFrame(
+            color: colorScheme.surface,
+            margin: EdgeInsets.zero,
+            child: body,
+          )
+        : Material(
+            color: colorScheme.surfaceContainerHigh,
+            elevation: 6,
+            borderRadius: BorderRadius.circular(12),
+            child: body,
+          );
     return Positioned(
       top: 0,
       left: 0,
@@ -102,32 +135,7 @@ class _FloatingBanner extends StatelessWidget {
       child: SafeArea(
         child: Padding(
           padding: const EdgeInsets.all(12),
-          child: Center(
-            child: Material(
-              color: colorScheme.surfaceContainerHigh,
-              elevation: 6,
-              borderRadius: BorderRadius.circular(12),
-              child: Padding(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 16,
-                  vertical: 12,
-                ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Flexible(
-                      child: Text(
-                        stripBannerTrailingPeriod(message),
-                        textAlign: TextAlign.center,
-                        style: TextStyle(color: colorScheme.onSurface),
-                      ),
-                    ),
-                    ...actions,
-                  ],
-                ),
-              ),
-            ),
-          ),
+          child: Center(child: card),
         ),
       ),
     );

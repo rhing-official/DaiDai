@@ -803,7 +803,7 @@ class MessageSearchHitTile extends ConsumerWidget {
             ),
           ),
         );
-      case AppUiStyle.washi:
+      case AppUiStyle.kinari:
       case AppUiStyle.flat:
       case AppUiStyle.chalk:
       case AppUiStyle.block:

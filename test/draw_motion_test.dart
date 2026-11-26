@@ -13,7 +13,9 @@ Widget _app(Widget child, AppUiStyle style) => ProviderScope(
     initialAppUiStyleProvider.overrideWithValue(style),
     initialSelectionMotionProvider.overrideWithValue(SelectionMotion.draw),
   ],
-  child: MaterialApp(home: Scaffold(body: Center(child: child))),
+  child: MaterialApp(
+    home: Scaffold(body: Center(child: child)),
+  ),
 );
 
 void main() {
@@ -33,10 +35,8 @@ void main() {
                   for (var k = 0; k < 3; k++)
                     LiquidTile(
                       index: k,
-                      builder: (context, sel) => ListTile(
-                        title: Text('項目$k'),
-                        selected: sel,
-                      ),
+                      builder: (context, sel) =>
+                          ListTile(title: Text('項目$k'), selected: sel),
                     ),
                 ],
               ),

@@ -11,6 +11,7 @@ import '../../providers/group_join_request_providers.dart';
 import '../../theme/gekiga/gekiga_colors.dart';
 import '../../utils/group_permissions.dart';
 import '../../widgets/glass/glass_dialog.dart';
+import '../../widgets/chalk_banner.dart';
 import '../../widgets/glass/glass_surface.dart';
 import 'group_member_list_screen.dart';
 import '../../widgets/app_dialog.dart';
@@ -49,7 +50,13 @@ class JoinRequestBanner extends ConsumerWidget {
     final isGekiga = uiStyle == AppUiStyle.gekiga;
     final isGlass = uiStyle == AppUiStyle.glass;
     final background = isGekiga ? GekigaColors.panel : colorScheme.primary;
-    final foreground = isGekiga ? GekigaColors.onPanel : colorScheme.onPrimary;
+    // チョークは、塗らず、チョークの線の枠で囲む。文字はチョークの色（onSurface）。
+    final isChalk = uiStyle == AppUiStyle.chalk;
+    final foreground = isGekiga
+        ? GekigaColors.onPanel
+        : isChalk
+        ? colorScheme.onSurface
+        : colorScheme.onPrimary;
 
     final content = InkWell(
       onTap: () => _openRequests(context, ref),
@@ -70,6 +77,8 @@ class JoinRequestBanner extends ConsumerWidget {
         ),
       ),
     );
+
+    if (isChalk) return ChalkBannerFrame(child: content);
 
     if (isGlass) {
       return GlassSurface(

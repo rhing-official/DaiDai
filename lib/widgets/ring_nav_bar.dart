@@ -16,7 +16,7 @@ const double _kRingSize = 46;
 
 /// 「丸で囲む」時の、フラット・ガラス・版画・劇画のメニューチップの帯（2026-11-26）。チップを
 /// 1本の帯にまとめ、選択中を、そのスタイルらしい線の丸（劇画は角の小さい四角）で囲む（塗らない）。選択が移ると、
-/// 丸が次の項目へ、少し遅れて滑る。チョークは[ChalkNavBar]、和紙は[WashiNavBar]が描く。
+/// 丸が次の項目へ、少し遅れて滑る。チョークは[ChalkNavBar]、生成りは[KinariNavBar]が描く。
 class RingNavBar extends ConsumerWidget {
   const RingNavBar({
     required this.child,
