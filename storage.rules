@@ -175,6 +175,16 @@ service firebase.storage {
         && request.resource.contentType in ['application/json', 'image/png', 'image/webp', 'image/jpeg'];
     }
 
+    // themePacks/{packId}/{version}/{file}: 公開中の素材パックの素材（2026-11-26追加）。
+    // 承認の時に、Cloud Functions（approveThemePack）が、投稿の場所からコピーする。
+    // 取得（get）は誰でも可（アプリ・Webが表示に使う）。一覧（list）は管理者のみ
+    // （`contactAttachments`の先例）。書き込みは不可（Admin SDKだけが書く）。
+    match /themePacks/{packId}/{version}/{file} {
+      allow get: if true;
+      allow list: if request.auth != null && request.auth.token.admin == true;
+      allow write: if false;
+    }
+
     // daidaiYokochoProfile/{userId}/...: daidai横丁専用のプロフィールアイコン
     // （2026-08-16追加）。DaiDai本体の身だしなみ（profileMaterials）とは独立した
     // 任意設定のため、あえて別パスにする。未ログインの一般訪問者にもクリエイター

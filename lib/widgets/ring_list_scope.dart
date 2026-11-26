@@ -41,6 +41,7 @@ class RingListBlock extends ConsumerWidget {
   const RingListBlock({
     required this.child,
     this.withBackground = true,
+    this.fitContent = false,
     super.key,
   });
 
@@ -48,6 +49,11 @@ class RingListBlock extends ConsumerWidget {
 
   /// 大きなブロックの背景を、ここで描くか。`false`なら、呼び出し側が描く（枠だけ重ねる）。
   final bool withBackground;
+
+  /// 大きなブロックを、中身（項目）の高さまでで区切るか（2026-11-26）。`false`なら、置かれた領域の
+  /// 下まで広げる。`true`の時は、[child]を、中身の高さに縮める形（`ListView`なら`shrinkWrap: true`）に
+  /// すること。中身が領域より高い時は、領域の高さで止まり、中でスクロールする。
+  final bool fitContent;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -59,6 +65,8 @@ class RingListBlock extends ConsumerWidget {
     final scheme = theme.colorScheme;
     // 項目の塗り（面の色）は透明にする。枠付きの箱の判定（拡張）も外す。
     final plain = theme.copyWith(
+      // 項目にホバーしても、半透明の色を重ねない（2026-11-26）。
+      hoverColor: Colors.transparent,
       colorScheme: scheme.copyWith(
         surface: Colors.transparent,
         // 版画・チョークの項目は、文字を、設定のフォントカラー（onSurface）で描く。フラット扱いに
@@ -82,12 +90,18 @@ class RingListBlock extends ConsumerWidget {
       ),
     );
     if (!withBackground) return body;
-    return Stack(
+    final block = Stack(
       clipBehavior: Clip.none,
       children: [
         Positioned.fill(child: ringBlockBackground(context, style)),
         body,
       ],
+    );
+    if (!fitContent) return block;
+    // 背景は、中身の高さまで。領域より高ければ、領域の高さで止まる。
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [Flexible(child: block)],
     );
   }
 }

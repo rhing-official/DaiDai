@@ -338,6 +338,16 @@ service cloud.firestore {
       allow write: if false;
     }
 
+    // themePacks/{packId}: 公開中の素材パック（デザイン）（2026-11-26追加）。入るのは
+    // `status == "approved"`（承認済み）と、配信停止後の`suspended`だけ。未承認の素材は
+    // `themePackSubmissions`に置き、ここへ混ぜない。誰でも読める為、秘密になる項目
+    // （個人情報・メールアドレス等）は持たせない。書き込みは、Cloud Functions
+    // （approveThemePack・suspendThemePack）のみ。
+    match /themePacks/{packId} {
+      allow read: if true;
+      allow write: if false;
+    }
+
     // packDeletionRequests/{packId}: 出品済みパックの削除の申請（2026-11-17追加）。
     // 利用者のいるパックは、出品者が運営へ申請し、運営（管理者）が日時を指定して承認する。
     // 出品者本人と管理者が読める。書き込みは、Cloud Functions（requestStickerPackDeletion・

@@ -48,6 +48,13 @@ import {
   submitThemePack as submitThemePackBody,
 } from "./themePackSubmit";
 import {
+  type ReviewStore,
+  ReviewError,
+  approveThemePack as approveThemePackBody,
+  rejectThemePack as rejectThemePackBody,
+  suspendThemePack as suspendThemePackBody,
+} from "./themePackReview";
+import {
   CallRecordResult,
   dmCallRecordResult,
   groupCallRecordResult,
@@ -2007,6 +2014,8 @@ const themePackSubmissionStore: SubmissionStore = {
             version: record.version,
             status: "submitted",
             assetPath: record.assetPath,
+            name: record.name,
+            brightness: record.brightness,
             rightsAcceptedAt: FieldValue.serverTimestamp(),
             createdAt: FieldValue.serverTimestamp(),
           });
@@ -2036,6 +2045,207 @@ export const submitThemePack = onCall(
       await projectCreatorProfile(request.auth!.uid, userDoc.data()!);
     }
     return result;
+  },
+);
+
+/**
+ * 素材パックの審査結果（承認・差し戻し・配信停止、2026-11-26）。本体は`themePackReview.ts`
+ * （Firebase非依存）。ここは、Firestore・Storageの窓口と、エラーの変換、管理者の確認、
+ * 監査ログだけを持つ。公開用の`themePacks`は承認済みと配信停止後のものだけ（未承認を混ぜない）。
+ * お知らせは`users/{uid}/notices`に書くだけで、FCMのプッシュは送らない。
+ */
+const themePackReviewStore: ReviewStore = {
+  listFiles: (prefix) => themePackSubmissionStore.listFiles(prefix),
+  readFile: (prefix, name) => themePackSubmissionStore.readFile(prefix, name),
+  async copyFile(fromPrefix, toPrefix, name) {
+    const bucket = getStorage().bucket();
+    await bucket.file(`${fromPrefix}/${name}`).copy(bucket.file(`${toPrefix}/${name}`));
+  },
+  runTransaction(fn) {
+    const subs = db.collection("themePackSubmissions");
+    const packs = db.collection("themePacks");
+    return db.runTransaction((t) => {
+      // Firestoreのtransactionは、読み取りを全て済ませてから書く。書き込みは、
+      // 最後にまとめて実行する（本体は、読み取りの後に書き込みの関数を呼ぶ）
+      const writes: (() => void)[] = [];
+      const result = fn({
+        async getSubmission(id) {
+          const snap = await t.get(subs.doc(id));
+          if (!snap.exists) return null;
+          const d = snap.data()!;
+          return {
+            creatorId: String(d.creatorId),
+            packId: String(d.packId),
+            version: Number(d.version),
+            status: String(d.status),
+            assetPath: String(d.assetPath),
+            name: typeof d.name === "string" ? d.name : undefined,
+            brightness: typeof d.brightness === "string" ? d.brightness : undefined,
+          };
+        },
+        async getPublicPack(packId) {
+          const snap = await t.get(packs.doc(packId));
+          if (!snap.exists) return null;
+          const d = snap.data()!;
+          return {
+            creatorId: String(d.creatorId),
+            name: String(d.name),
+            version: Number(d.version),
+            status: String(d.status),
+          };
+        },
+        async findSubmission(packId, version) {
+          const snap = await t.get(
+            subs.where("packId", "==", packId).where("version", "==", version).limit(1),
+          );
+          return snap.empty ? null : { id: snap.docs[0].id, status: String(snap.docs[0].data().status) };
+        },
+        updateSubmission(id, patch) {
+          writes.push(() =>
+            t.update(subs.doc(id), {
+              ...patch,
+              ...(patch.status !== undefined ? { decidedAt: FieldValue.serverTimestamp() } : {}),
+            }),
+          );
+        },
+        createPublicPack(packId, data) {
+          writes.push(() =>
+            t.set(packs.doc(packId), {
+              ...data,
+              status: "approved",
+              price: 0,
+              ownerCount: 0,
+              createdAt: FieldValue.serverTimestamp(),
+              approvedAt: FieldValue.serverTimestamp(),
+            }),
+          );
+        },
+        updatePublicPack(packId, data) {
+          writes.push(() =>
+            t.update(packs.doc(packId), {
+              ...data,
+              status: "approved",
+              approvedAt: FieldValue.serverTimestamp(),
+            }),
+          );
+        },
+        suspendPublicPack(packId) {
+          writes.push(() =>
+            t.update(packs.doc(packId), { status: "suspended", suspendedAt: FieldValue.serverTimestamp() }),
+          );
+        },
+        addNotice(uid, notice) {
+          writes.push(() =>
+            t.set(db.collection("users").doc(uid).collection("notices").doc(), {
+              content: notice.content,
+              kind: notice.kind,
+              packId: notice.packId,
+              createdAt: FieldValue.serverTimestamp(),
+            }),
+          );
+        },
+      });
+      return result.then((value) => {
+        for (const w of writes) w();
+        return value;
+      });
+    });
+  },
+  async listOwnerUids(packId) {
+    const snap = await db.collectionGroup("ownedThemePacks").where("packId", "==", packId).get();
+    const uids: string[] = [];
+    for (const doc of snap.docs) {
+      const uid = doc.ref.parent.parent?.id;
+      if (uid) uids.push(uid);
+    }
+    return uids;
+  },
+  async writeNoticeBatch(uids, notice) {
+    const batch = db.batch();
+    for (const uid of uids) {
+      const col = db.collection("users").doc(uid).collection("notices");
+      batch.set(notice.id ? col.doc(notice.id) : col.doc(), {
+        content: notice.content,
+        kind: notice.kind,
+        packId: notice.packId,
+        createdAt: FieldValue.serverTimestamp(),
+      });
+    }
+    await batch.commit();
+  },
+};
+
+async function runThemePackReview<T>(fn: () => Promise<T>): Promise<T> {
+  try {
+    return await fn();
+  } catch (e) {
+    if (e instanceof ReviewError) throw new HttpsError(e.code, e.message);
+    throw e;
+  }
+}
+
+export const approveThemePack = onCall(
+  { region: "asia-northeast1", memory: "512MiB" },
+  async (request) => {
+    assertAdmin(request);
+    const adminUid = request.auth!.uid;
+    const result = await runThemePackReview(() =>
+      approveThemePackBody(themePackReviewStore, { adminUid, data: request.data }),
+    );
+    if (result.changed) {
+      await writeAdminAuditLog({
+        adminUid,
+        action: "approveThemePack",
+        targetUserIds: [result.creatorId],
+        note: `packId=${result.packId} version=${result.version} submissionId=${result.submissionId}`,
+      });
+    }
+    return {
+      submissionId: result.submissionId,
+      packId: result.packId,
+      version: result.version,
+      status: result.status,
+    };
+  },
+);
+
+export const rejectThemePack = onCall(
+  { region: "asia-northeast1" },
+  async (request) => {
+    assertAdmin(request);
+    const adminUid = request.auth!.uid;
+    const result = await runThemePackReview(() =>
+      rejectThemePackBody(themePackReviewStore, { adminUid, data: request.data }),
+    );
+    await writeAdminAuditLog({
+      adminUid,
+      action: "rejectThemePack",
+      targetUserIds: [result.creatorId],
+      reason: String(request.data.reason).trim(),
+      note: `packId=${result.packId} submissionId=${result.submissionId}`,
+    });
+    return { submissionId: result.submissionId, status: result.status };
+  },
+);
+
+export const suspendThemePack = onCall(
+  { region: "asia-northeast1", timeoutSeconds: 300 },
+  async (request) => {
+    assertAdmin(request);
+    const adminUid = request.auth!.uid;
+    const result = await runThemePackReview(() =>
+      suspendThemePackBody(themePackReviewStore, { adminUid, data: request.data }),
+    );
+    if (result.changed) {
+      await writeAdminAuditLog({
+        adminUid,
+        action: "suspendThemePack",
+        targetUserIds: [result.creatorId],
+        reason: String(request.data.reason).trim(),
+        note: `packId=${result.packId}`,
+      });
+    }
+    return { packId: result.packId, status: result.status, notifiedOwners: result.notifiedOwners };
   },
 );
 
@@ -3611,7 +3821,10 @@ async function writeAdminAuditLog(entry: {
     | "approvePackDeletion"
     | "rejectPackDeletion"
     | "cancelPackDeletion"
-    | "resolveReport";
+    | "resolveReport"
+    | "approveThemePack"
+    | "rejectThemePack"
+    | "suspendThemePack";
   targetUserIds: string[];
   reason?: string;
   note?: string;

@@ -75,6 +75,8 @@ test("提出: 正常なら、packId・版1で作られ、status は submitted", 
   assert.equal(doc.status, "submitted");
   assert.equal(doc.creatorId, UID);
   assert.equal(doc.assetPath, `themePackSubmissions/${UID}/${SID}`);
+  assert.equal((doc as unknown as Record<string, unknown>).name, "テスト");
+  assert.equal((doc as unknown as Record<string, unknown>).brightness, "light");
 });
 
 test("提出: 未ログインは unauthenticated", async () => {

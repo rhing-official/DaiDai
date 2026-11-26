@@ -3,7 +3,7 @@
  * トリガー側（`index.ts`）は、`SubmissionStore` の実装と、`SubmitError` から `HttpsError` への変換だけを持つ。
  * 自前化の時に、この本体だけを別サーバーへ移せるようにする（`CLAUDE.md` の方針）。
  */
-import { THEME_PACK_LIMITS, validateThemePackFiles } from "./themePack";
+import { THEME_PACK_LIMITS, validateThemePackFiles, type ThemePackBrightness } from "./themePack";
 
 export type SubmitErrorCode =
   | "unauthenticated"
@@ -47,7 +47,10 @@ export interface SubmissionTx {
   countActive(creatorId: string): Promise<number>;
   /** 同じ `packId` の既存の投稿の最大の版。無ければ 0 */
   maxVersion(packId: string): Promise<number>;
-  create(submissionId: string, record: SubmissionRecord & { assetPath: string }): void;
+  create(
+    submissionId: string,
+    record: SubmissionRecord & { assetPath: string; name: string; brightness: ThemePackBrightness },
+  ): void;
 }
 
 export interface SubmissionStore {
@@ -127,7 +130,14 @@ export async function submitThemePack(store: SubmissionStore, input: SubmitInput
       throw new SubmitError("resource-exhausted", "投稿できる数の上限に達しています。");
     }
     const version = (await tx.maxVersion(packId)) + 1;
-    tx.create(submissionId, { creatorId: uid, packId, version, assetPath: prefix });
+    tx.create(submissionId, {
+      creatorId: uid,
+      packId,
+      version,
+      assetPath: prefix,
+      name: checked.pack.name,
+      brightness: checked.pack.brightness,
+    });
     return { creatorId: uid, packId, version };
   });
   return resultOf(uid, submissionId, created);

@@ -38,6 +38,7 @@ import '../../models/group_role.dart';
 import '../../models/message.dart';
 import '../../models/nav_chip_layout.dart';
 import '../../providers/nav_chip_layout_provider.dart';
+import '../../providers/selection_motion_provider.dart';
 import '../../providers/icon_split_layout_provider.dart';
 import '../../providers/text_size_provider.dart';
 import '../../utils/sidebar_width.dart';
@@ -1994,41 +1995,68 @@ class _TalksTabState extends ConsumerState<TalksTab>
                                         ),
                                       ),
                                     )
-                                  : LiquidTileGroup(
-                                      itemCount: 2,
-                                      selectedIndex:
-                                          _category == _TalksCategory.dm
-                                          ? 0
-                                          : 1,
-                                      child: Row(
-                                        mainAxisSize: MainAxisSize.min,
-                                        children: [
-                                          CategoryTab(
-                                            liquidIndex: 0,
-                                            tutorialTargetId: TutorialTargetIds
-                                                .talkCategoryDm,
-                                            label: vocab.dm,
-                                            count: directMessages.length,
-                                            selected:
-                                                _category == _TalksCategory.dm,
-                                            onTap: () =>
-                                                _setCategory(_TalksCategory.dm),
-                                          ),
-                                          const SizedBox(width: 6),
-                                          CategoryTab(
-                                            liquidIndex: 1,
-                                            tutorialTargetId: TutorialTargetIds
-                                                .talkCategoryGroup,
-                                            label: vocab.plaza,
-                                            count: groups.length,
-                                            selected:
-                                                _category ==
-                                                _TalksCategory.group,
-                                            onTap: () => _setCategory(
-                                              _TalksCategory.group,
-                                            ),
-                                          ),
-                                        ],
+                                  // 囲みの大きなブロックは、置かれた幅いっぱいに広がるため、
+                                  // 左に寄せて、タブの幅までで区切る（2026-11-26）。
+                                  : Align(
+                                      alignment: Alignment.centerLeft,
+                                      heightFactor: 1,
+                                      child: LiquidTileGroup(
+                                        itemCount: 2,
+                                        selectedIndex:
+                                            _category == _TalksCategory.dm
+                                            ? 0
+                                            : 1,
+                                        child: () {
+                                          // 囲みの時は、2つのタブを同じ幅にする（広場の方が
+                                          // 長く、枠の大きさが違って見えた、2026-11-26）。
+                                          final equal = ref.watch(
+                                            navBandMergedProvider,
+                                          );
+                                          Widget fit(Widget tab) => equal
+                                              ? Expanded(child: tab)
+                                              : tab;
+                                          final row = Row(
+                                            mainAxisSize: MainAxisSize.min,
+                                            children: [
+                                              fit(
+                                                CategoryTab(
+                                                  liquidIndex: 0,
+                                                  tutorialTargetId:
+                                                      TutorialTargetIds
+                                                          .talkCategoryDm,
+                                                  label: vocab.dm,
+                                                  count: directMessages.length,
+                                                  selected:
+                                                      _category ==
+                                                      _TalksCategory.dm,
+                                                  onTap: () => _setCategory(
+                                                    _TalksCategory.dm,
+                                                  ),
+                                                ),
+                                              ),
+                                              const SizedBox(width: 6),
+                                              fit(
+                                                CategoryTab(
+                                                  liquidIndex: 1,
+                                                  tutorialTargetId:
+                                                      TutorialTargetIds
+                                                          .talkCategoryGroup,
+                                                  label: vocab.plaza,
+                                                  count: groups.length,
+                                                  selected:
+                                                      _category ==
+                                                      _TalksCategory.group,
+                                                  onTap: () => _setCategory(
+                                                    _TalksCategory.group,
+                                                  ),
+                                                ),
+                                              ),
+                                            ],
+                                          );
+                                          return equal
+                                              ? IntrinsicWidth(child: row)
+                                              : row;
+                                        }(),
                                       ),
                                     ),
                             ),
@@ -3074,8 +3102,12 @@ class _TalksTabState extends ConsumerState<TalksTab>
       );
     }
 
+    // 囲みの時は、大きなブロックを、語らいの有る所までで区切る（2026-11-26）。
+    final ringFit = ref.watch(navBandMergedProvider);
     return RingListBlock(
+      fitContent: true,
       child: ListView(
+        shrinkWrap: ringFit,
         key: const PageStorageKey<String>('talksDmList'),
         // 上下端で跳ね返らないようにする（2026-11-23追加）。
         physics: const ClampingScrollPhysics(),
@@ -3181,8 +3213,12 @@ class _TalksTabState extends ConsumerState<TalksTab>
       );
     }
 
+    // 囲みの時は、大きなブロックを、語らいの有る所までで区切る（2026-11-26）。
+    final ringFit = ref.watch(navBandMergedProvider);
     return RingListBlock(
+      fitContent: true,
       child: ListView(
+        shrinkWrap: ringFit,
         key: const PageStorageKey<String>('talksGroupList'),
         // 上下端で跳ね返らないようにする（2026-11-23追加）。
         physics: const ClampingScrollPhysics(),
@@ -3829,12 +3865,16 @@ class CategoryTab extends ConsumerWidget {
       // 「一対」「広場」より幅を取る）でも横スクロール無しで260px幅の
       // サイドバーに収まるようにした（2026-08-27変更）。
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
-      child: Text(
-        '$label $count',
-        style: TextStyle(
-          fontWeight: selected ? FontWeight.bold : FontWeight.normal,
-          color: foreground,
-          fontSize: 13,
+      // 幅が文字より広い時（囲みで2つのタブを同じ幅にした時）は、文字を中央に置く（2026-11-26）。
+      child: Align(
+        heightFactor: 1,
+        child: Text(
+          '$label $count',
+          style: TextStyle(
+            fontWeight: selected ? FontWeight.bold : FontWeight.normal,
+            color: foreground,
+            fontSize: 13,
+          ),
         ),
       ),
     );
