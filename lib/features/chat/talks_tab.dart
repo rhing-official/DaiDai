@@ -798,6 +798,20 @@ class _TalksTabState extends ConsumerState<TalksTab>
 
   /// 一対・広場を横断して検索する為の入力欄（2026-08-30追加）。
   final _searchController = TextEditingController();
+
+  /// 寄合一覧が有る語らい⇄無い語らいの切り替えの動き（2026-11-26、コンピューターの左右分割）。
+  /// 有る→無い: 前の語らいの寄合一覧だけが、左へスライドして消える（[_exitingKey]）。
+  /// 無い→有る: 新しい語らいの寄合一覧が、左からスライドして現れる（[_entryKey]）。
+  late final AnimationController _roomSlideCtl = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 280),
+  );
+  bool _searchHolding = false;
+  String? _exitingKey;
+  String? _entryKey;
+  String? _lastActiveKey;
+  bool _lastActiveRooms = false;
+
   final _searchOverlay = OverlayPortalController();
   final _searchLink = LayerLink();
   final _searchBoxKey = GlobalKey();
@@ -874,6 +888,7 @@ class _TalksTabState extends ConsumerState<TalksTab>
 
   @override
   void dispose() {
+    _roomSlideCtl.dispose();
     _categoryPageController.dispose();
     _searchController.dispose();
     _messageSearchDebounce?.cancel();
@@ -2304,36 +2319,116 @@ class _TalksTabState extends ConsumerState<TalksTab>
       }
     }
 
+    // 寄合一覧が有る語らい⇄無い語らいへ移った時の、寄合一覧のスライド。
+    bool roomsOf(String? key) {
+      if (key == null) return false;
+      if (key.startsWith('dm-')) {
+        return directMessages
+                .firstWhereOrNull((d) => d.dmId == key.substring('dm-'.length))
+                ?.roomsEnabled ??
+            false;
+      }
+      return groups
+              .firstWhereOrNull(
+                (g) => g.groupId == key.substring('group-'.length),
+              )
+              ?.roomsEnabled ??
+          false;
+    }
+
+    final activeRooms = roomsOf(activeKey);
+    if (activeKey != _lastActiveKey) {
+      final previousKey = _lastActiveKey;
+      if (previousKey != null && activeKey != null) {
+        if (_lastActiveRooms && !activeRooms) {
+          _exitingKey = previousKey;
+          _entryKey = null;
+          _roomSlideCtl.value = 0;
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (!mounted) return;
+            _roomSlideCtl.forward(from: 0).whenComplete(() {
+              if (mounted) setState(() => _exitingKey = null);
+            });
+          });
+        } else if (!_lastActiveRooms && activeRooms) {
+          _entryKey = activeKey;
+          _exitingKey = null;
+          _roomSlideCtl.value = 0;
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (!mounted) return;
+            _roomSlideCtl.forward(from: 0).whenComplete(() {
+              if (mounted) setState(() => _entryKey = null);
+            });
+          });
+        }
+      }
+      _lastActiveKey = activeKey;
+      _lastActiveRooms = activeRooms;
+    }
+    final slotWidth = _roomSlotWidth();
+
     final visitedList = _visitedConversationKeys.toList();
-    final children = <Widget>[
-      const _EmptyDetailPlaceholder(),
+    // 消えていく寄合一覧は、新しい語らいの上に重ねる（最後に描く）。
+    final ordered = [
       for (final key in visitedList)
+        if (key != _exitingKey) key,
+      if (_exitingKey != null && visitedList.contains(_exitingKey))
+        _exitingKey!,
+    ];
+    final children = <Widget>[
+      Offstage(
+        offstage: activeKey != null,
+        child: const _EmptyDetailPlaceholder(),
+      ),
+      for (final key in ordered)
         // 非選択の会話もマウントされたままの為、見えている会話だけを
         // `PaneVisibility`で「表示中」と伝える（通話ミニ表示の出し分け用）。
-        PaneVisibility(
-          key: ValueKey('visibility-$key'),
-          visible: key == activeKey,
-          child: key.startsWith('dm-')
-              ? _DmDetailWithRooms(
-                  key: ValueKey(key),
-                  currentUser: widget.currentUser,
-                  dm: directMessages.firstWhere(
-                    (d) => d.dmId == key.substring('dm-'.length),
-                  ),
-                )
-              : _GroupDetailWithRooms(
-                  key: ValueKey(key),
-                  currentUser: widget.currentUser,
-                  group: groups.firstWhere(
-                    (g) => g.groupId == key.substring('group-'.length),
-                  ),
-                ),
+        Offstage(
+          key: ValueKey('offstage-$key'),
+          offstage: key != activeKey && key != _exitingKey,
+          child: PaneVisibility(
+            key: ValueKey('visibility-$key'),
+            visible: key == activeKey,
+            child: _RoomPaneExit(
+              animation: key == _exitingKey ? _roomSlideCtl : null,
+              slotWidth: slotWidth,
+              child: key.startsWith('dm-')
+                  ? _DmDetailWithRooms(
+                      key: ValueKey(key),
+                      currentUser: widget.currentUser,
+                      roomEntry: key == _entryKey ? _roomSlideCtl : null,
+                      dm: directMessages.firstWhere(
+                        (d) => d.dmId == key.substring('dm-'.length),
+                      ),
+                    )
+                  : _GroupDetailWithRooms(
+                      key: ValueKey(key),
+                      currentUser: widget.currentUser,
+                      roomEntry: key == _entryKey ? _roomSlideCtl : null,
+                      group: groups.firstWhere(
+                        (g) => g.groupId == key.substring('group-'.length),
+                      ),
+                    ),
+            ),
+          ),
         ),
     ];
-    final activeIndex = activeKey == null
-        ? 0
-        : 1 + visitedList.indexOf(activeKey);
-    return IndexedStack(index: activeIndex, children: children);
+    return ClipRect(child: Stack(children: children));
+  }
+
+  /// 寄合一覧と区切り線の幅（左右分割）。
+  double _roomSlotWidth() {
+    final media = MediaQuery.of(context);
+    final drag = ref.read(iconSplitDragProvider);
+    final list =
+        drag?.list ??
+        iconSplitWidths(
+          scale: ref.read(appTextSizeProvider).scale,
+          screenWidth: media.size.width,
+          layout: ref.read(iconSplitLayoutProvider),
+          showPeek: true,
+        ).list;
+    return list + kIconSplitHandleWidth;
   }
 
   /// 新レイアウト（`TalksListLayoutStyle.iconSplit`、設定＞語らいで選択可能、
@@ -3183,6 +3278,16 @@ class _TalksTabState extends ConsumerState<TalksTab>
     // 通常の（縦画面と同じ）検索欄のままにする（2026-11-23変更、ユーザー指示）。
     final split = _isSplit;
     final wide = _searchWide;
+    // 寄合一覧が有る語らい→無い語らいへ移った時は、検索欄を、左へスライドして縮める
+    // （寄合一覧のスライドと同じ動き、2026-11-26）。縮み終わるまで、浮いた検索欄を残す。
+    if (split && !wide && _searchOverlay.isShowing && !_searchHolding) {
+      _searchHolding = true;
+      Future<void>.delayed(const Duration(milliseconds: 300), () {
+        if (!mounted) return;
+        setState(() => _searchHolding = false);
+      });
+    }
+    final overlayTree = split && (wide || _searchHolding);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
       if (split && wide) {
@@ -3198,11 +3303,11 @@ class _TalksTabState extends ConsumerState<TalksTab>
           // 検索欄の実際の高さ（UIスタイルで違う）を一度だけ測り直す。
           setState(() => _searchFieldHeight = box.size.height);
         }
-      } else if (_searchOverlay.isShowing) {
+      } else if (_searchOverlay.isShowing && !overlayTree) {
         _searchOverlay.hide();
       }
     });
-    if (!split || !wide) return _buildSearchField(strings);
+    if (!overlayTree) return _buildSearchField(strings);
     return CompositedTransformTarget(
       key: _searchBoxKey,
       link: _searchLink,
@@ -3251,21 +3356,28 @@ class _TalksTabState extends ConsumerState<TalksTab>
               // 常に寄合一覧の右端の手前とぴったり揃う（2026-11-23、全画面化
               // した状態でわずかにメッセージ画面側へはみ出していた不具合の修正）。
               final collapsedWidth = roomListWidth - _kSearchRightGap;
-              final targetWidth =
-                  (wideWidth - (wideWidth - collapsedWidth) * chatExpand).clamp(
-                    collapsedWidth,
-                    avail,
-                  );
+              // 寄合一覧が無い語らいでは、通常の幅（語らい一覧の幅）まで縮む。
+              final narrowWidth = _searchPlaceholderWidth;
+              final targetWidth = wide
+                  ? (wideWidth - (wideWidth - collapsedWidth) * chatExpand)
+                        .clamp(collapsedWidth, avail)
+                  : narrowWidth;
               return CompositedTransformFollower(
                 link: _searchLink,
                 showWhenUnlinked: false,
                 child: Align(
                   alignment: Alignment.topLeft,
                   // 左端を固定して、右へスライドして伸びる・縮む。
-                  child: AnimatedContainer(
+                  // 最初の幅は通常の幅から始める（寄合一覧が現れる時、検索欄が右へ伸びる）。
+                  child: TweenAnimationBuilder<double>(
+                    tween: Tween(
+                      begin: narrowWidth,
+                      end: targetWidth.toDouble(),
+                    ),
                     duration: const Duration(milliseconds: 260),
                     curve: Curves.easeOutCubic,
-                    width: targetWidth.toDouble(),
+                    builder: (context, width, child) =>
+                        SizedBox(width: width, child: child),
                     child: Material(
                       type: MaterialType.transparency,
                       child: _buildSearchField(strings),
@@ -4347,20 +4459,23 @@ class DirectMessageTile extends ConsumerWidget {
     }
 
     return gestures(
-      BlockTalkTileWrap(
+      DrawSelectionTile(
         selected: selected,
-        child: ListTile(
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(12),
+        builder: (context, sel) => BlockTalkTileWrap(
+          selected: sel,
+          child: ListTile(
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
+            ),
+            // 「丸で囲む」の時は、塗らず、枠で囲む（[BlockTalkTileWrap]）。
+            selected: sel && RingListScope.styleOf(context) == null,
+            selectedTileColor: colorScheme.primary,
+            selectedColor: colorScheme.onPrimary,
+            leading: leadingWidget,
+            title: _ConversationTitle(text: label, suffix: trailingWidget),
+            subtitle: subtitleWidget,
+            onTap: onTap,
           ),
-          // 「丸で囲む」の時は、塗らず、枠で囲む（[BlockTalkTileWrap]）。
-          selected: selected && RingListScope.styleOf(context) == null,
-          selectedTileColor: colorScheme.primary,
-          selectedColor: colorScheme.onPrimary,
-          leading: leadingWidget,
-          title: _ConversationTitle(text: label, suffix: trailingWidget),
-          subtitle: subtitleWidget,
-          onTap: onTap,
         ),
       ),
     );
@@ -4560,20 +4675,26 @@ class GroupTile extends ConsumerWidget {
       userId: currentUserId,
       pinned: pinned,
       muted: muted,
-      child: BlockTalkTileWrap(
+      child: DrawSelectionTile(
         selected: selected,
-        child: ListTile(
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(12),
+        builder: (context, sel) => BlockTalkTileWrap(
+          selected: sel,
+          child: ListTile(
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
+            ),
+            // 「丸で囲む」の時は、塗らず、枠で囲む（[BlockTalkTileWrap]）。
+            selected: sel && RingListScope.styleOf(context) == null,
+            selectedTileColor: colorScheme.primary,
+            selectedColor: colorScheme.onPrimary,
+            leading: leadingWidget,
+            title: _ConversationTitle(
+              text: displayName,
+              suffix: trailingWidget,
+            ),
+            subtitle: subtitleWidget,
+            onTap: onTap,
           ),
-          // 「丸で囲む」の時は、塗らず、枠で囲む（[BlockTalkTileWrap]）。
-          selected: selected && RingListScope.styleOf(context) == null,
-          selectedTileColor: colorScheme.primary,
-          selectedColor: colorScheme.onPrimary,
-          leading: leadingWidget,
-          title: _ConversationTitle(text: displayName, suffix: trailingWidget),
-          subtitle: subtitleWidget,
-          onTap: onTap,
         ),
       ),
     );
@@ -6033,6 +6154,7 @@ class _DmDetailWithRooms extends ConsumerStatefulWidget {
     required this.currentUser,
     required this.dm,
     this.roomListOnly = false,
+    this.roomEntry,
     this.collapseProgress,
     this.mirrored = false,
     this.onExpandTap,
@@ -6041,6 +6163,10 @@ class _DmDetailWithRooms extends ConsumerStatefulWidget {
 
   final AppUser currentUser;
   final DirectMessage dm;
+
+  /// 寄合一覧が無い語らいから、有る語らいへ移った時だけ渡す。寄合一覧が左からスライドして現れる
+  /// （1が出し切った状態、2026-11-26、コンピューターの左右分割）。
+  final Animation<double>? roomEntry;
 
   /// trueの場合、チャット本体は埋め込先ず寄合一覧のみをペイン全幅で表示し、
   /// 寄合をタップするとフルスクリーンチャットへ遷移する（縦表示のアイコン＋
@@ -6470,7 +6596,7 @@ class _DmDetailWithRoomsState extends ConsumerState<_DmDetailWithRooms> {
             // `DirectMessage.roomsEnabled`参照）。寄合を増やす操作は
             // ハンバーガーメニューから行う（`_DmMenuButton`参照）。
             if (dm.roomsEnabled) ...[
-              roomListBox,
+              _RoomPaneEntry(animation: widget.roomEntry, child: roomListBox),
               if (collapseProgress == null)
                 listDivider
               else
@@ -6521,6 +6647,7 @@ class _GroupDetailWithRooms extends ConsumerStatefulWidget {
     required this.currentUser,
     required this.group,
     this.roomListOnly = false,
+    this.roomEntry,
     this.collapseProgress,
     this.mirrored = false,
     this.onExpandTap,
@@ -6529,6 +6656,10 @@ class _GroupDetailWithRooms extends ConsumerStatefulWidget {
 
   final AppUser currentUser;
   final Group group;
+
+  /// 寄合一覧が無い語らいから、有る語らいへ移った時だけ渡す。寄合一覧が左からスライドして現れる
+  /// （1が出し切った状態、2026-11-26、コンピューターの左右分割）。
+  final Animation<double>? roomEntry;
 
   /// [_DmDetailWithRooms.roomListOnly]と同じ（2026-09-11追加）。
   final bool roomListOnly;
@@ -6861,7 +6992,7 @@ class _GroupDetailWithRoomsState extends ConsumerState<_GroupDetailWithRooms> {
             // `Group.roomsEnabled`参照）。「広場自体の設定」・寄合を増やす
             // 操作はハンバーガーメニューから行う（`_GroupMenuButton`参照）。
             if (group.roomsEnabled) ...[
-              roomListBox,
+              _RoomPaneEntry(animation: widget.roomEntry, child: roomListBox),
               if (collapseProgress == null)
                 listDivider
               else
@@ -7221,4 +7352,87 @@ class _NoHorizontalOverscrollBehavior extends MaterialScrollBehavior {
     }
     return super.buildOverscrollIndicator(context, child, details);
   }
+}
+
+/// 寄合一覧が、左からスライドして現れる（[animation]が0→1）。無ければ、そのまま。木の形は変えない
+/// （チャット本体の状態を保つ為）。
+class _RoomPaneEntry extends StatelessWidget {
+  const _RoomPaneEntry({required this.animation, required this.child});
+
+  final Animation<double>? animation;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: animation ?? kAlwaysCompleteAnimation,
+      builder: (context, child) {
+        final t = Curves.easeOutCubic.transform(
+          (animation ?? kAlwaysCompleteAnimation).value,
+        );
+        return ClipRect(
+          child: FractionalTranslation(
+            translation: Offset(-(1 - t), 0),
+            child: child,
+          ),
+        );
+      },
+      child: child,
+    );
+  }
+}
+
+/// 寄合一覧が有る語らいから、無い語らいへ移った時、前の語らいの寄合一覧だけを残し、左へスライド
+/// して消す（[animation]が0→1。nullなら何もしない）。チャット本体は、クリップで隠す
+/// （状態は保つ為、木の形は変えない）。
+class _RoomPaneExit extends StatelessWidget {
+  const _RoomPaneExit({
+    required this.animation,
+    required this.slotWidth,
+    required this.child,
+  });
+
+  final Animation<double>? animation;
+
+  /// 寄合一覧と区切り線の幅。
+  final double slotWidth;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    final ghost = animation != null;
+    return AnimatedBuilder(
+      animation: animation ?? kAlwaysDismissedAnimation,
+      builder: (context, child) {
+        final t = Curves.easeInCubic.transform(
+          (animation ?? kAlwaysDismissedAnimation).value,
+        );
+        return IgnorePointer(
+          ignoring: ghost,
+          child: Transform.translate(
+            offset: Offset(-t * slotWidth, 0),
+            child: ClipRect(
+              clipper: _LeftSlotClipper(ghost ? slotWidth : null),
+              child: child,
+            ),
+          ),
+        );
+      },
+      child: child,
+    );
+  }
+}
+
+class _LeftSlotClipper extends CustomClipper<Rect> {
+  _LeftSlotClipper(this.width);
+
+  final double? width;
+
+  @override
+  Rect getClip(Size size) => width == null
+      ? Offset.zero & size
+      : Rect.fromLTWH(0, 0, width!, size.height);
+
+  @override
+  bool shouldReclip(covariant _LeftSlotClipper old) => old.width != width;
 }

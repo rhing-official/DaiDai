@@ -6878,13 +6878,6 @@ class _SelectionMotionChoice extends ConsumerWidget {
           ),
         ),
         control,
-        Padding(
-          padding: const EdgeInsets.fromLTRB(16, 4, 16, 8),
-          child: Text(
-            strings.settingsWaterMotionSubtitle,
-            style: TextStyle(fontSize: 12, color: Theme.of(context).hintColor),
-          ),
-        ),
       ],
     );
   }

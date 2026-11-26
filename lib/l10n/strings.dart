@@ -3180,7 +3180,7 @@ class Strings {
         'メニューチップや語らいのボタンを押したまま指を滑らせ、離した所を選びます。\nオフにすると、1回ずつタップして操作します。',
     settingsWaterMotionTitle: '選択の動き',
     settingsMotionLiquid: '液体',
-    settingsMotionNone: 'なし',
+    settingsMotionNone: '無し',
     settingsMotionRing: '囲み',
     settingsMotionDraw: '描き',
     settingsWaterMotionSubtitle:

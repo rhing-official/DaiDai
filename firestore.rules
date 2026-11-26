@@ -328,6 +328,16 @@ service cloud.firestore {
       allow write: if false;
     }
 
+    // themePackSubmissions/{submissionId}: 素材パック（デザイン）の投稿（2026-11-26追加）。
+    // 審査中・差し戻し等も含む。未承認の素材を誰でも読めるコレクションに混ぜないため、
+    // 公開用とは別にしてある。読めるのは投稿者本人（`creatorId`で絞ったクエリ）と管理者。
+    // 書き込みは、Cloud Functions（submitThemePack）のみ。
+    match /themePackSubmissions/{submissionId} {
+      allow read: if request.auth != null
+        && (resource.data.creatorId == request.auth.uid || isAdmin());
+      allow write: if false;
+    }
+
     // packDeletionRequests/{packId}: 出品済みパックの削除の申請（2026-11-17追加）。
     // 利用者のいるパックは、出品者が運営へ申請し、運営（管理者）が日時を指定して承認する。
     // 出品者本人と管理者が読める。書き込みは、Cloud Functions（requestStickerPackDeletion・

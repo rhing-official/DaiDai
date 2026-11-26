@@ -1,4 +1,5 @@
 import 'call_presence_mark.dart';
+import '../../widgets/liquid_tile_group.dart';
 import '../../widgets/ring_list_scope.dart';
 import '../../widgets/pick_zone.dart';
 import '../../theme/block/block_theme.dart';
@@ -246,8 +247,11 @@ class _RoomListPaneState extends ConsumerState<RoomListPane> {
 
     // [index]は並べ替え有効時（[RoomListPane.onReorderRooms]非null）のみ
     // 渡され、`leading`にドラッグハンドルを追加する（2026-09-08追加）。
-    Widget buildRoomTile(RoomListEntry room, {int? index}) {
-      final isSelected = room.roomId == widget.selectedRoomId;
+    Widget buildRoomTileBody(
+      RoomListEntry room,
+      bool isSelected, {
+      int? index,
+    }) {
       final tagIcon = index == null
           ? const Icon(Icons.tag)
           : Row(
@@ -363,6 +367,11 @@ class _RoomListPaneState extends ConsumerState<RoomListPane> {
       }
       return tile;
     }
+
+    Widget buildRoomTile(RoomListEntry room, {int? index}) => DrawSelectionTile(
+      selected: room.roomId == widget.selectedRoomId,
+      builder: (context, sel) => buildRoomTileBody(room, sel, index: index),
+    );
 
     final zone = widget.headerZoneHeight != null;
     final paneContent = Column(

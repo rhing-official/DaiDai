@@ -5,14 +5,14 @@ import 'package:flutter/rendering.dart';
 
 /// ペンで往復して塗る、「描き」の描画部品（2026-11-26）。
 ///
-/// 長方形[rect]を、太いペンで、上から下へ、横に往復しながら塗りつぶす経路。[progress]（0〜1）まで
+/// 長方形[rect]を、太いペンで、左下から右上へ向かって、下から上へ横に往復しながら塗りつぶす経路。[progress]（0〜1）まで
 /// 進んだ分だけの経路を返す。先は丸く、縁は少し荒い（位置から決まる揺れ）。1の時は、全体を覆う。
 class ScribblePen {
   ScribblePen._();
 
   /// 往復の回数。小さい項目は3、大きい項目は、高さに合わせて5まで。
-  static int rowsFor(Size size) =>
-      size.height < 80 ? 3 : (size.height < 140 ? 4 : 5);
+  /// 往復は、奇数回（3か5）。左下から始めて、右上で終わる為。
+  static int rowsFor(Size size) => size.height < 80 ? 3 : 5;
 
   static double penWidthFor(Size size, int rows) =>
       (size.height / rows) * 1.45 + 2;
@@ -26,9 +26,10 @@ class ScribblePen {
     final top = rect.top + pen / 3;
     final bottom = rect.bottom - pen / 3;
     for (var r = 0; r < rows; r++) {
+      // 下の行から上の行へ（左下から右上へ向かって描く）。
       final y = rows == 1
           ? rect.center.dy
-          : top + (bottom - top) * r / (rows - 1);
+          : bottom - (bottom - top) * r / (rows - 1);
       // 位置から決まる、小さな揺れ。
       final jitter = math.sin(r * 12.9898 + rect.width * 0.37) * 1.6;
       final toRight = r.isEven;

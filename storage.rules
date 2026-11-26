@@ -163,6 +163,18 @@ service firebase.storage {
       allow delete: if request.auth != null && request.auth.uid == creatorId;
     }
 
+    // themePackSubmissions/{creatorId}/{submissionId}/{file}: 素材パック（デザイン）の
+    // 投稿の素材（pack.jsonと背景画像、2026-11-26追加）。作成は本人のみ・1ファイル2MB以下・
+    // json/png/webp/jpegのみ。読めるのは本人と管理者だけ（未承認のため）。上書き・削除は不可。
+    // ルールでは中身を見られないため、提出時にCloud Functions（submitThemePack）が再検査する。
+    match /themePackSubmissions/{creatorId}/{submissionId}/{file} {
+      allow read: if request.auth != null
+        && (request.auth.uid == creatorId || request.auth.token.admin == true);
+      allow create: if request.auth != null && request.auth.uid == creatorId
+        && request.resource.size <= 2 * 1024 * 1024
+        && request.resource.contentType in ['application/json', 'image/png', 'image/webp', 'image/jpeg'];
+    }
+
     // daidaiYokochoProfile/{userId}/...: daidai横丁専用のプロフィールアイコン
     // （2026-08-16追加）。DaiDai本体の身だしなみ（profileMaterials）とは独立した
     // 任意設定のため、あえて別パスにする。未ログインの一般訪問者にもクリエイター

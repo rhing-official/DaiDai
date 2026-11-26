@@ -98,6 +98,14 @@
         { "fieldPath": "status", "order": "ASCENDING" },
         { "fieldPath": "scheduledDeleteAt", "order": "ASCENDING" }
       ]
+    },
+    {
+      "collectionGroup": "themePackSubmissions",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "packId", "order": "ASCENDING" },
+        { "fieldPath": "version", "order": "DESCENDING" }
+      ]
     }
   ],
   "fieldOverrides": [

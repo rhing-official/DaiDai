@@ -42,6 +42,12 @@ import { path as ffmpegPath } from "@ffmpeg-installer/ffmpeg";
 import Stripe from "stripe";
 import { parseKiwamiReference } from "./kiwamiReference";
 import {
+  ACTIVE_STATUSES,
+  SubmitError,
+  type SubmissionStore,
+  submitThemePack as submitThemePackBody,
+} from "./themePackSubmit";
+import {
   CallRecordResult,
   dmCallRecordResult,
   groupCallRecordResult,
@@ -1948,6 +1954,88 @@ export const createStickerPack = onCall(
     }
 
     return { packId: ref.id };
+  },
+);
+
+/**
+ * 素材パック（コードを含まないデザインの設定ファイルと画像1枚）の提出（2026-11-26）。
+ * HomePage（daidai横丁）が`themePackSubmissions/{uid}/{submissionId}/`へ置いたファイルを
+ * サーバーで読み直して再検査し、`themePackSubmissions/{submissionId}`を`submitted`で作る。
+ * 本体は`themePackSubmit.ts`（Firebase非依存）。ここは、Firestore・Storageの窓口と、
+ * エラーの変換だけを持つ。承認・差し戻し等は別の関数（今回は無し）。
+ * `themePackSubmissions`は、`stickerPacks`のような誰でも読めるコレクションとは別（未承認を混ぜない）。
+ */
+const themePackSubmissionStore: SubmissionStore = {
+  async listFiles(prefix) {
+    const [files] = await getStorage().bucket().getFiles({ prefix: `${prefix}/` });
+    return files
+      .filter((f) => !f.name.endsWith("/"))
+      .map((f) => ({
+        name: f.name.slice(prefix.length + 1),
+        size: Number(f.metadata.size ?? 0),
+        contentType: typeof f.metadata.contentType === "string" ? f.metadata.contentType : undefined,
+      }));
+  },
+  async readFile(prefix, name) {
+    const [buf] = await getStorage().bucket().file(`${prefix}/${name}`).download();
+    return new Uint8Array(buf);
+  },
+  runTransaction(fn) {
+    const col = db.collection("themePackSubmissions");
+    return db.runTransaction((t) =>
+      fn({
+        async getSubmission(submissionId) {
+          const snap = await t.get(col.doc(submissionId));
+          if (!snap.exists) return null;
+          const d = snap.data()!;
+          return { creatorId: String(d.creatorId), packId: String(d.packId), version: Number(d.version) };
+        },
+        async countActive(creatorId) {
+          const snap = await t.get(
+            col.where("creatorId", "==", creatorId).where("status", "in", [...ACTIVE_STATUSES]).select(),
+          );
+          return snap.size;
+        },
+        async maxVersion(packId) {
+          const snap = await t.get(col.where("packId", "==", packId).orderBy("version", "desc").limit(1));
+          return snap.empty ? 0 : Number(snap.docs[0].data().version);
+        },
+        create(submissionId, record) {
+          t.set(col.doc(submissionId), {
+            packId: record.packId,
+            creatorId: record.creatorId,
+            version: record.version,
+            status: "submitted",
+            assetPath: record.assetPath,
+            rightsAcceptedAt: FieldValue.serverTimestamp(),
+            createdAt: FieldValue.serverTimestamp(),
+          });
+        },
+      }),
+    );
+  },
+};
+
+export const submitThemePack = onCall(
+  { region: "asia-northeast1" },
+  async (request) => {
+    let result;
+    try {
+      result = await submitThemePackBody(themePackSubmissionStore, {
+        uid: request.auth?.uid,
+        data: request.data,
+      });
+    } catch (e) {
+      if (e instanceof SubmitError) throw new HttpsError(e.code, e.message);
+      throw e;
+    }
+    // 初めての投稿のタイミングで、daidai横丁の公開プロフィールミラー（creatorProfiles）を
+    // 作る（`createStickerPack`と同じ作法）。以後の変更は`syncCreatorProfile`が追随する。
+    const userDoc = await db.collection("users").doc(request.auth!.uid).get();
+    if (userDoc.exists) {
+      await projectCreatorProfile(request.auth!.uid, userDoc.data()!);
+    }
+    return result;
   },
 );
 

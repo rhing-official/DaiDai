@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../models/app_ui_style.dart';
 import '../providers/app_ui_style_provider.dart';
 import '../providers/selection_motion_provider.dart';
+import '../theme/block/block_theme.dart';
 import '../theme/chalk/chalk_paint.dart';
 import '../theme/gekiga/gekiga_colors.dart';
 import 'liquid_chip_highlight.dart';
@@ -125,6 +126,8 @@ class _DrawChipHighlightState extends ConsumerState<DrawChipHighlight>
         fill: fill,
         iconColor: iconColor,
         square: style == AppUiStyle.gekiga,
+        // 版画: 太い枠線（白い丸の縁）は残し、その内側だけを塗る。
+        inset: style == AppUiStyle.block ? BlockTheme.borderWidth : 0,
         chalk: style == AppUiStyle.chalk,
         repaint: Listenable.merge([_rects, ..._controllers.values]),
       ),
@@ -140,6 +143,7 @@ class _DrawPainter extends CustomPainter {
     required this.fill,
     required this.iconColor,
     required this.square,
+    required this.inset,
     required this.chalk,
     required Listenable repaint,
   }) : super(repaint: repaint);
@@ -150,6 +154,7 @@ class _DrawPainter extends CustomPainter {
   final Color fill;
   final Color iconColor;
   final bool square;
+  final double inset;
   final bool chalk;
 
   Path _shape(Rect r) => square
@@ -169,7 +174,8 @@ class _DrawPainter extends CustomPainter {
       final p = entry.value.value;
       if (r == null || p <= 0) continue;
       any = true;
-      ScribblePen.paint(canvas, r, fill, p, clip: _shape(r));
+      final inner = r.deflate(inset);
+      ScribblePen.paint(canvas, inner, fill, p, clip: _shape(inner));
     }
     if (!any) {
       canvas.restore();
@@ -215,6 +221,7 @@ class _DrawPainter extends CustomPainter {
       old.fill != fill ||
       old.iconColor != iconColor ||
       old.square != square ||
+      old.inset != inset ||
       old.chalk != chalk ||
       old.entries != entries;
 }

@@ -493,6 +493,27 @@ class _RenderOutsideWaterClip extends RenderProxyBox {
   }
 }
 
+/// 一覧の行用。選択の動きが「描き」の時だけ、選ばれた見た目を、ペンで塗るように現す。
+/// それ以外は、そのまま[builder]を呼ぶ。
+class DrawSelectionTile extends ConsumerWidget {
+  const DrawSelectionTile({
+    required this.selected,
+    required this.builder,
+    super.key,
+  });
+
+  final bool selected;
+  final Widget Function(BuildContext context, bool selected) builder;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    if (ref.watch(selectionMotionProvider) != SelectionMotion.draw) {
+      return builder(context, selected);
+    }
+    return _DrawTile(selected: selected, builder: builder);
+  }
+}
+
 /// 描き: 選ばれた見た目を、ペンが往復して塗るように現す（選択が外れた時は、塗りが短く消える）。
 class _DrawTile extends StatefulWidget {
   const _DrawTile({required this.selected, required this.builder});
@@ -519,7 +540,7 @@ class _DrawTileState extends State<_DrawTile>
       _c.value = 0;
       _c.animateTo(
         1,
-        duration: const Duration(milliseconds: 450),
+        duration: const Duration(milliseconds: 800),
         curve: Curves.easeInOut,
       );
     } else {
