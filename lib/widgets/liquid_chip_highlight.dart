@@ -8,6 +8,7 @@ import '../models/app_ui_style.dart';
 import '../providers/app_ui_style_provider.dart';
 import '../providers/selection_motion_provider.dart';
 import '../theme/block/block_theme.dart';
+import '../theme/chalk/chalk_paint.dart';
 import '../theme/gekiga/gekiga_colors.dart';
 import 'gekiga/monochrome_box.dart';
 import 'liquid_paint.dart';
@@ -218,6 +219,7 @@ class _LiquidChipHighlightState extends ConsumerState<LiquidChipHighlight>
         square: style == AppUiStyle.gekiga,
         layerAlpha: 1.0,
         glassInChip: style == AppUiStyle.glass,
+        chalk: style == AppUiStyle.chalk,
       ),
     );
   }
@@ -235,6 +237,7 @@ class _WaterPainter extends CustomPainter {
     required this.square,
     required this.layerAlpha,
     required this.glassInChip,
+    this.chalk = false,
   }) : super(repaint: sim);
 
   final LiquidSim sim;
@@ -251,6 +254,9 @@ class _WaterPainter extends CustomPainter {
 
   /// ガラスは、水を[NavChip]の中で描く。
   final bool glassInChip;
+
+  /// チョーク: 水の塗りを、チョークで塗った質感にする（粉の抜け・斜めのかすれ）。
+  final bool chalk;
 
   Path _shapeOf(Offset center, double half) => square
       ? (Path()..addRRect(
@@ -322,6 +328,15 @@ class _WaterPainter extends CustomPainter {
 
     paintLiquidStreamAndDrops(canvas, sim, fill, square: square);
 
+    if (chalk) {
+      Rect? area;
+      for (final r in rects) {
+        if (r == null) continue;
+        area = area == null ? r : area.expandToInclude(r);
+      }
+      if (area != null) ChalkPaint.punchGrain(canvas, area.inflate(40));
+    }
+
     if (recolorIcons) {
       // 水の上にだけ、選択中の文字色でアイコンを描き直す。
       canvas.saveLayer(bounds, Paint()..blendMode = BlendMode.srcATop);
@@ -359,6 +374,7 @@ class _WaterPainter extends CustomPainter {
       old.square != square ||
       old.layerAlpha != layerAlpha ||
       old.glassInChip != glassInChip ||
+      old.chalk != chalk ||
       old.inset != inset ||
       old.entries != entries;
 }

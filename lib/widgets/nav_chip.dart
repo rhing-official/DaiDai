@@ -146,23 +146,27 @@ class NavChip extends ConsumerWidget {
           )
         : isChalk
         // チョーク（分ける時）: チョークで引いた丸の縁。選択中の塗りはアクセントカラー。
-        ? Material(
-            color: sel ? colorScheme.primary : Colors.transparent,
-            shape: ChalkShapeBorder(
-              borderRadius: BorderRadius.circular(kNavChipSize / 2),
-              color: colorScheme.onSurface,
-              width: 2,
-            ),
-            child: InkWell(
-              onTap: onTap,
-              customBorder: const CircleBorder(),
-              child: SizedBox(
-                width: kNavChipSize,
-                height: kNavChipSize,
-                child: Icon(
-                  icon,
-                  size: iconSize,
-                  color: sel ? colorScheme.onPrimary : colorScheme.onSurface,
+        ? CustomPaint(
+            // 選択中（なし）の塗りは、チョークで塗った質感にする。
+            painter: sel ? _ChalkFillPainter(colorScheme.primary) : null,
+            child: Material(
+              color: Colors.transparent,
+              shape: ChalkShapeBorder(
+                borderRadius: BorderRadius.circular(kNavChipSize / 2),
+                color: colorScheme.onSurface,
+                width: 2,
+              ),
+              child: InkWell(
+                onTap: onTap,
+                customBorder: const CircleBorder(),
+                child: SizedBox(
+                  width: kNavChipSize,
+                  height: kNavChipSize,
+                  child: Icon(
+                    icon,
+                    size: iconSize,
+                    color: sel ? colorScheme.onPrimary : colorScheme.onSurface,
+                  ),
                 ),
               ),
             ),
@@ -550,4 +554,23 @@ class _ChipNavShellState extends State<ChipNavShell> {
       ],
     );
   }
+}
+
+/// チョークの丸いチップの塗り（チョークで塗った質感）。
+class _ChalkFillPainter extends CustomPainter {
+  _ChalkFillPainter(this.color);
+
+  final Color color;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    ChalkPaint.fillPath(
+      canvas,
+      Path()..addOval((Offset.zero & size).deflate(1)),
+      color,
+    );
+  }
+
+  @override
+  bool shouldRepaint(covariant _ChalkFillPainter old) => old.color != color;
 }

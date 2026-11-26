@@ -14,6 +14,62 @@ class ChalkPaint {
     return (v - v.floorToDouble()) * 2 - 1;
   }
 
+  /// 塗りを、チョークで塗ったような質感にする。[area]の中に、粉の抜け（細かい点）と、斜めのかすれ
+  /// （チョークを寝かせてこすった跡）を、塗りの透けとして彫る。`saveLayer`の中で、塗りを描いた
+  /// 後に呼ぶ。位置から決まる乱数なので、動かしてもちらつかない。
+  static void punchGrain(Canvas canvas, Rect area) {
+    if (area.isEmpty) return;
+    final random = math.Random(5);
+    final dots = <Offset>[];
+    final n = (area.width * area.height / 9).clamp(200, 9000).toInt();
+    for (var i = 0; i < n; i++) {
+      dots.add(
+        Offset(
+          area.left + random.nextDouble() * area.width,
+          area.top + random.nextDouble() * area.height,
+        ),
+      );
+    }
+    canvas.drawPoints(
+      PointMode.points,
+      dots,
+      Paint()
+        ..strokeWidth = 1.5
+        ..strokeCap = StrokeCap.round
+        ..blendMode = BlendMode.dstOut
+        ..color = const Color(0x73000000),
+    );
+    final streaks = Path();
+    final m = (area.width * area.height / 700).clamp(30, 1200).toInt();
+    for (var i = 0; i < m; i++) {
+      final x = area.left + random.nextDouble() * area.width;
+      final y = area.top + random.nextDouble() * area.height;
+      final len = 7 + random.nextDouble() * 16;
+      final a = -0.62 + (random.nextDouble() - 0.5) * 0.3;
+      streaks
+        ..moveTo(x, y)
+        ..lineTo(x + math.cos(a) * len, y + math.sin(a) * len);
+    }
+    canvas.drawPath(
+      streaks,
+      Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 1.7
+        ..strokeCap = StrokeCap.round
+        ..blendMode = BlendMode.dstOut
+        ..color = const Color(0x59000000),
+    );
+  }
+
+  /// [path]を[color]で、チョークで塗ったような質感で塗る。
+  static void fillPath(Canvas canvas, Path path, Color color) {
+    final bounds = path.getBounds().inflate(2);
+    canvas.saveLayer(bounds, Paint());
+    canvas.drawPath(path, Paint()..color = color);
+    punchGrain(canvas, bounds);
+    canvas.restore();
+  }
+
   /// 線を、細かい揺れでずらした折れ線にする。[amount]は揺れの大きさ（px）。
   static Path roughen(Path path, {double shift = 0, double amount = 0.7}) {
     final out = Path();
