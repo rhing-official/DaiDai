@@ -2,7 +2,7 @@
  * 素材パックの審査結果（承認・差し戻し・配信停止）の本体（2026-11-26）。Firebase の SDK に依存しない。
  * トリガー側（`index.ts`）は、`ReviewStore` の実装と、`ReviewError` から `HttpsError` への変換、
  * 管理者の確認、監査ログだけを持つ。自前化の時に、この本体だけを別サーバーへ移せるようにする。
- * 取得・取り下げ・アンインストールは、別の依頼で作る（ここには無い）。
+ * 取得・取り下げ・アンインストールは、`themePackOwnership.ts`。
  */
 import { parseThemePack, validateThemePackFiles, type ThemePackBrightness } from "./themePack";
 
@@ -318,7 +318,8 @@ export async function suspendThemePack(store: ReviewStore, input: ApproveInput):
     const pub = await tx.getPublicPack(packId);
     if (!pub) throw new ReviewError("not-found", "公開中のパックが見つかりません。");
     if (pub.status === "suspended") return { pub, changed: false };
-    if (pub.status !== "approved") {
+    // 取り下げ済み（withdrawn）でも、取得した人が使い続けている間は、権利侵害などで停止できる
+    if (pub.status !== "approved" && pub.status !== "withdrawn") {
       throw new ReviewError("failed-precondition", "このパックは、配信を停止できる状態ではありません。");
     }
     const sub = await tx.findSubmission(packId, pub.version);

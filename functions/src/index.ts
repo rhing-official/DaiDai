@@ -55,6 +55,13 @@ import {
   suspendThemePack as suspendThemePackBody,
 } from "./themePackReview";
 import {
+  type OwnershipStore,
+  OwnershipError,
+  acquireThemePack as acquireThemePackBody,
+  uninstallThemePack as uninstallThemePackBody,
+  withdrawThemePack as withdrawThemePackBody,
+} from "./themePackOwnership";
+import {
   CallRecordResult,
   dmCallRecordResult,
   groupCallRecordResult,
@@ -2246,6 +2253,101 @@ export const suspendThemePack = onCall(
       });
     }
     return { packId: result.packId, status: result.status, notifiedOwners: result.notifiedOwners };
+  },
+);
+
+/**
+ * 意匠パックの取得・アンインストール・取り下げ（2026-11-26）。本体は`themePackOwnership.ts`
+ * （Firebase非依存）。ここは、Firestoreの窓口と、エラーの変換だけを持つ。
+ * 取得済みの記録は`users/{uid}/ownedThemePacks/{packId}`（ぺったんの`ownedStickerPacks`とは別）。
+ * 本体は、読み取りを全て済ませてから書き込みを呼ぶので、窓口は直接`t`へ書いてよい。
+ */
+const themePackOwnershipStore: OwnershipStore = {
+  runTransaction(fn) {
+    const packs = db.collection("themePacks");
+    const subs = db.collection("themePackSubmissions");
+    const ownedRef = (uid: string, packId: string) =>
+      db.collection("users").doc(uid).collection("ownedThemePacks").doc(packId);
+    return db.runTransaction((t) =>
+      fn({
+        async getPack(packId) {
+          const snap = await t.get(packs.doc(packId));
+          if (!snap.exists) return null;
+          const d = snap.data()!;
+          return {
+            creatorId: String(d.creatorId),
+            version: Number(d.version),
+            status: String(d.status),
+            price: typeof d.price === "number" ? d.price : 0,
+            ownerCount: typeof d.ownerCount === "number" ? d.ownerCount : 0,
+          };
+        },
+        async hasOwned(uid, packId) {
+          return (await t.get(ownedRef(uid, packId))).exists;
+        },
+        async findSubmission(packId, version) {
+          const snap = await t.get(
+            subs.where("packId", "==", packId).where("version", "==", version).limit(1),
+          );
+          return snap.empty ? null : { id: snap.docs[0].id, status: String(snap.docs[0].data().status) };
+        },
+        setOwned(uid, packId, version) {
+          t.set(ownedRef(uid, packId), { packId, version, grantedAt: FieldValue.serverTimestamp() });
+        },
+        deleteOwned(uid, packId) {
+          t.delete(ownedRef(uid, packId));
+        },
+        setOwnerCount(packId, count) {
+          t.update(packs.doc(packId), { ownerCount: count });
+        },
+        setPackStatus(packId, status) {
+          t.update(packs.doc(packId), { status, withdrawnAt: FieldValue.serverTimestamp() });
+        },
+        setSubmissionStatus(submissionId, status) {
+          t.update(subs.doc(submissionId), { status, decidedAt: FieldValue.serverTimestamp() });
+        },
+      }),
+    );
+  },
+};
+
+async function runThemePackOwnership<T>(fn: () => Promise<T>): Promise<T> {
+  try {
+    return await fn();
+  } catch (e) {
+    if (e instanceof OwnershipError) throw new HttpsError(e.code, e.message);
+    throw e;
+  }
+}
+
+export const acquireThemePack = onCall(
+  { region: "asia-northeast1" },
+  (request) =>
+    runThemePackOwnership(() =>
+      acquireThemePackBody(
+        themePackOwnershipStore,
+        { uid: request.auth?.uid, data: request.data },
+        { paidPacksEnabled: PAID_PACKS_ENABLED },
+      ),
+    ),
+);
+
+export const uninstallThemePack = onCall(
+  { region: "asia-northeast1" },
+  (request) =>
+    runThemePackOwnership(() =>
+      uninstallThemePackBody(themePackOwnershipStore, { uid: request.auth?.uid, data: request.data }),
+    ),
+);
+
+export const withdrawThemePack = onCall(
+  { region: "asia-northeast1" },
+  async (request) => {
+    // 返り値は、changedを除いた形（HomePageが使うのはpackIdとstatus）
+    const { packId, status } = await runThemePackOwnership(() =>
+      withdrawThemePackBody(themePackOwnershipStore, { uid: request.auth?.uid, data: request.data }),
+    );
+    return { packId, status };
   },
 );
 

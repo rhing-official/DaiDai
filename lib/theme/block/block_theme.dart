@@ -1,4 +1,5 @@
 import 'package:flutter/rendering.dart';
+import '../../widgets/ring_list_scope.dart';
 import 'package:flutter/material.dart';
 
 import '../chalk/chalk_paint.dart';
@@ -592,13 +593,20 @@ Widget blockFitWidth(
   Widget box, {
   NavChipAlignment horizontal = NavChipAlignment.start,
 }) {
-  return Align(
-    alignment: switch (horizontal) {
-      NavChipAlignment.start => Alignment.centerLeft,
-      NavChipAlignment.center => Alignment.center,
-      NavChipAlignment.end => Alignment.centerRight,
+  return Builder(
+    builder: (context) {
+      // 囲みの大きなブロックの中では、項目が自前の箱を描かず、選択の枠も項目の幅いっぱいに
+      // 描く。文字の幅に縮めると、文字の部分しか押せなくなるので、縮めない（2026-11-26）。
+      if (RingListScope.styleOf(context) != null) return box;
+      return Align(
+        alignment: switch (horizontal) {
+          NavChipAlignment.start => Alignment.centerLeft,
+          NavChipAlignment.center => Alignment.center,
+          NavChipAlignment.end => Alignment.centerRight,
+        },
+        child: _BlockFitWidth(child: box),
+      );
     },
-    child: _BlockFitWidth(child: box),
   );
 }
 

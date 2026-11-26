@@ -284,6 +284,18 @@ test("差し戻し: submitted/inReview 以外と、存在しない投稿は拒�
   await rejects(reject(s, { submissionId: SID2, reason: "x" }), "not-found");
 });
 
+test("配信停止: 取り下げ済み（withdrawn）のパックも停止でき、現行版の投稿はsuspendedになる", async () => {
+  const s = ready();
+  await approve(s);
+  s.packs.get(PACK)!.status = "withdrawn";
+  s.subs.get(SID)!.status = "withdrawn";
+  const r = await suspend(s, { packId: PACK, reason: "権利の侵害" });
+  assert.equal(r.status, "suspended");
+  assert.equal(r.changed, true);
+  assert.equal(s.packs.get(PACK)!.status, "suspended");
+  assert.equal(s.subs.get(SID)!.status, "suspended");
+});
+
 test("配信停止: 取得者0件でも動き、themePacksと投稿を停止し、出品者へ理由つきで知らせる。素材は残す", async () => {
   const s = ready();
   await approve(s);

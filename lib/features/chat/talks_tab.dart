@@ -7332,14 +7332,7 @@ class BlockTalkTileWrap extends StatelessWidget {
     final ringStyle = RingListScope.styleOf(context);
     if (ringStyle != null) {
       if (!selected) return child;
-      return Stack(
-        children: [
-          child,
-          Positioned.fill(
-            child: IgnorePointer(child: RingOutline(style: ringStyle)),
-          ),
-        ],
-      );
+      return RingSelectedMarker(style: ringStyle, child: child);
     }
     if (!isBlockTheme(context)) return child;
     final scheme = Theme.of(context).colorScheme;

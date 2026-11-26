@@ -31,6 +31,8 @@ import 'package:daidai/providers/send_key_mode_provider.dart';
 import 'package:daidai/models/talks_list_layout_style.dart';
 import 'package:daidai/providers/sticker_send_mode_provider.dart';
 import 'package:daidai/providers/talks_list_layout_style_provider.dart';
+import 'package:daidai/providers/selection_motion_provider.dart';
+import 'package:daidai/widgets/ring_list_scope.dart';
 import 'package:daidai/providers/theme_mode_provider.dart';
 import 'package:daidai/models/residence.dart';
 import 'package:daidai/providers/repository_providers.dart';
@@ -39,8 +41,10 @@ import 'package:daidai/widgets/interactive_swipe_back.dart';
 import 'package:daidai/widgets/slide_drilldown.dart';
 import 'package:flutter/foundation.dart';
 import 'package:package_info_plus/package_info_plus.dart';
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_riverpod/misc.dart' show Override;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -61,7 +65,11 @@ class _FakeResidenceRepository implements ResidenceRepository {
   Future<void> saveResidence(String userId, Residence residence) async {}
 }
 
-Future<void> _pumpSettingsTab(WidgetTester tester) async {
+Future<void> _pumpSettingsTab(
+  WidgetTester tester, {
+  List<Override> extraOverrides = const [],
+  AppUiStyle uiStyle = AppUiStyle.flat,
+}) async {
   SharedPreferences.setMockInitialValues({});
   tester.view.physicalSize = const Size(1400, 900);
   tester.view.devicePixelRatio = 1;
@@ -106,7 +114,7 @@ Future<void> _pumpSettingsTab(WidgetTester tester) async {
         initialHolidaySettingsProvider.overrideWithValue(
           const HolidaySettings(),
         ),
-        initialAppUiStyleProvider.overrideWithValue(AppUiStyle.flat),
+        initialAppUiStyleProvider.overrideWithValue(uiStyle),
         initialFontDesignProvider.overrideWithValue(FontDesign.hannariMincho),
         initialRingtoneSoundProvider.overrideWithValue(null),
         initialCallingSoundProvider.overrideWithValue(null),
@@ -118,6 +126,7 @@ Future<void> _pumpSettingsTab(WidgetTester tester) async {
         residenceRepositoryProvider.overrideWithValue(
           _FakeResidenceRepository(),
         ),
+        ...extraOverrides,
       ],
       child: const MaterialApp(
         home: Scaffold(
@@ -204,6 +213,42 @@ Future<void> _pumpSettingsTabNarrow(WidgetTester tester) async {
 }
 
 void main() {
+  testWidgets('囲み: 一覧の項目は、文字の外（横いっぱい）を何回押しても選べる', (tester) async {
+    await _pumpSettingsTab(
+      tester,
+      uiStyle: AppUiStyle.chalk,
+      extraOverrides: [
+        initialSelectionMotionProvider.overrideWithValue(SelectionMotion.ring),
+      ],
+    );
+    Future<void> tapBlank(String title) async {
+      final tile = find
+          .ancestor(of: find.text(title).first, matching: find.byType(ListTile))
+          .first;
+      final rect = tester.getRect(tile);
+      // 文字から離れた、行の右寄り
+      final at = Offset(rect.right - 20, rect.center.dy);
+      final mouse = await tester.createGesture(kind: PointerDeviceKind.mouse);
+      await mouse.addPointer(location: Offset.zero);
+      await mouse.moveTo(at);
+      await tester.pump();
+      await mouse.down(at);
+      await tester.pump(const Duration(milliseconds: 40));
+      await mouse.up();
+      await mouse.removePointer();
+      await tester.pumpAndSettle();
+      // 選択中の枠が、押した行に移っている
+      final ring = tester.getRect(find.byType(RingOutline).first);
+      expect(ring.center.dy, closeTo(rect.center.dy, 2), reason: title);
+    }
+
+    for (final title in ['使い心地', '語らい', '通知', 'アカウント', '使い心地', '運営']) {
+      await tapBlank(title);
+    }
+    // 最後に押した「運営」が選ばれている（選択中の枠が、その行にある）
+    expect(find.byType(SettingsTab), findsOneWidget);
+  });
+
   testWidgets('ライセンスのパッケージ詳細を開いた状態で戻ると、アプリについてではなくライセンス一覧へ1階層だけ戻る', (
     tester,
   ) async {

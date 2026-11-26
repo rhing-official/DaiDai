@@ -356,14 +356,7 @@ class _RoomListPaneState extends ConsumerState<RoomListPane> {
         onTap: () => widget.onSelectRoom(room),
       );
       if (ringStyle != null && isSelected) {
-        return Stack(
-          children: [
-            tile,
-            Positioned.fill(
-              child: IgnorePointer(child: RingOutline(style: ringStyle)),
-            ),
-          ],
-        );
+        return RingSelectedMarker(style: ringStyle, child: tile);
       }
       return tile;
     }
