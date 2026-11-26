@@ -110,6 +110,10 @@ final Strings _stringsFr = Strings._(
   settingsUiStyleBlockLabel: 'Gravure',
   settingsUiStyleChalkLabel: 'Craie',
   settingsUiStyleWashiLabel: 'Papier washi',
+  settingsDesignPin: 'Épingler',
+  settingsDesignUnpin: 'Désépingler',
+  settingsThemePackFallbackTemplate: (reason) =>
+      'Le pack de design n’a pas pu être chargé ; la gravure standard a été rétablie. $reason',
   settingsCustomAppearanceInvalid: 'Saisissez un code couleur à 6 chiffres.',
   settingsBackgroundPresetBoard: 'Tableau noir',
   settingsChatLayoutTitle: 'Affichage des messages',

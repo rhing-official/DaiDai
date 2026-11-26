@@ -32,6 +32,8 @@ class AppUserPreferences {
     this.slideTransitionStyle,
     this.messageTimeFormat,
     this.appUiStyle,
+    this.designPins,
+    this.fontPins,
     this.customAccentColorsArgb,
     this.customBackgroundColorsArgb,
     this.customFontColorsArgb,
@@ -110,6 +112,12 @@ class AppUserPreferences {
 
   final String? messageTimeFormat;
   final String? appUiStyle;
+
+  /// 設定>UIでピン留めしたデザインのid（2026-11-26、`style:<名>`・`pack:<id>`、留めた順）。
+  final List<String>? designPins;
+
+  /// 設定>フォントデザインで、ピン留めしたフォント（`FontDesign.name`、留めた順、2026-11-26追加）。
+  final List<String>? fontPins;
 
   /// ユーザーが自分で登録したアクセントカラーの一覧（`accentColorArgb`
   /// とは別に、繰り返し使うために保存した色。2026-08-29追加）。
@@ -207,6 +215,12 @@ class AppUserPreferences {
       slideTransitionStyle: json['slideTransitionStyle'] as String?,
       messageTimeFormat: json['messageTimeFormat'] as String?,
       appUiStyle: json['appUiStyle'] as String?,
+      designPins: (json['designPins'] as List<dynamic>?)
+          ?.map((e) => e as String)
+          .toList(),
+      fontPins: (json['fontPins'] as List<dynamic>?)
+          ?.map((e) => e as String)
+          .toList(),
       customAccentColorsArgb: (json['customAccentColorsArgb'] as List<dynamic>?)
           ?.map((e) => e as int)
           .toList(),
@@ -272,6 +286,8 @@ class AppUserPreferences {
         'slideTransitionStyle': slideTransitionStyle,
       if (messageTimeFormat != null) 'messageTimeFormat': messageTimeFormat,
       if (appUiStyle != null) 'appUiStyle': appUiStyle,
+      if (designPins != null) 'designPins': designPins,
+      if (fontPins != null) 'fontPins': fontPins,
       if (customAccentColorsArgb != null)
         'customAccentColorsArgb': customAccentColorsArgb,
       if (customBackgroundColorsArgb != null)

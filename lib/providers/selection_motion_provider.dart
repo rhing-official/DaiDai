@@ -80,9 +80,9 @@ final selectionWaterMotionProvider = Provider<bool>(
   (ref) => ref.watch(selectionMotionProvider) == SelectionMotion.liquid,
 );
 
-/// メニューチップの選択色を、水が流れ込むように移すか（液体と、丸で囲む）。
+/// メニューチップの選択色を、水が流れ込むように移すか（液体の時だけ。丸で囲む時は、丸が滑る）。
 final navWaterMotionProvider = Provider<bool>(
-  (ref) => ref.watch(selectionMotionProvider) != SelectionMotion.none,
+  (ref) => ref.watch(selectionMotionProvider) == SelectionMotion.liquid,
 );
 
 /// メニューチップの帯を1本にするか（丸で囲む時だけ）。分ける時は、チップが1つずつ独立する。

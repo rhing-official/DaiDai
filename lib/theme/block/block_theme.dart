@@ -7,6 +7,7 @@ import '../../models/dark_variant.dart';
 import '../../models/nav_chip_layout.dart';
 import '../app_theme.dart';
 import '../app_theme_extras.dart';
+import 'block_tokens.dart';
 
 /// 「ブロック」UI用のThemeDataを組み立てる（2026-11-06追加）。太い黒枠・ぼかしの無い
 /// ずらした硬い影・アクセントの淡い面と濃いボタン（ネオブルータリズム風）。
@@ -111,13 +112,13 @@ Widget blockCardWrap(
 /// `Material`の`shape`に渡す）。影は形の外側だけに描く（塗りの上には重ねない）。
 /// ブロック以外のスタイルでは使わない（このスタイルだけの例外）。
 class BlockShapeBorder extends OutlinedBorder {
-  const BlockShapeBorder({
+  BlockShapeBorder({
     required this.borderRadius,
     required this.lineColor,
     required this.shadowColor,
-    this.shadowOffset = BlockTheme.shadowOffset,
+    Offset? shadowOffset,
     super.side = BorderSide.none,
-  });
+  }) : shadowOffset = shadowOffset ?? BlockTheme.shadowOffset;
 
   final BorderRadius borderRadius;
   final Color lineColor;
@@ -175,18 +176,18 @@ class BlockShapeBorder extends OutlinedBorder {
 class BlockTheme {
   BlockTheme._();
 
-  /// 枠線の太さ。
-  static const borderWidth = 2.5;
+  /// 枠線の太さ。素材パックを適用中は、パックの値（[BlockTokens.current]）。
+  static double get borderWidth => BlockTokens.current.borderWidth;
 
   /// 角丸。
-  static const radius = 8.0;
+  static double get radius => BlockTokens.current.radius;
 
   /// 硬い影のずらし量。
-  static const shadowOffset = Offset(4, 4);
+  static Offset get shadowOffset => BlockTokens.current.shadowOffset;
 
-  /// ライトの枠・影の色（黒）／ダークの枠・影の色（明るい線）。
-  static const lightLine = Colors.black;
-  static const darkLine = Color(0xFFEDEDED);
+  /// ライトの枠・影の色（既定は黒）／ダークの枠・影の色（既定は明るい線）。
+  static Color get lightLine => BlockTokens.current.lightLine;
+  static Color get darkLine => BlockTokens.current.darkLine;
 
   /// [accent]の色相を保ち、明度だけを[lightness]にした色（面の淡い色用）。
   static Color tint(
@@ -420,21 +421,30 @@ Widget blockMaterialBox(
   BuildContext context, {
   required Widget child,
   Color? color,
-  double radius = BlockTheme.radius,
+  double? radius,
   Offset shadowOffset = const Offset(3, 3),
 }) {
+  radius ??= BlockTheme.radius;
   final theme = Theme.of(context);
   if (isChalkTheme(context)) {
     // チョーク: 影は無く、縁をチョークの線で描く。
+    final fill = color ?? theme.colorScheme.surface;
+    // アクセントカラーの塗り（選択中の項目）は、チョークで塗った質感にする。
+    final textured = fill == theme.colorScheme.primary;
     return Material(
-      color: color ?? theme.colorScheme.surface,
+      color: textured ? Colors.transparent : fill,
       shape: ChalkShapeBorder(
         borderRadius: BorderRadius.circular(radius),
         width: 1.8,
         color: theme.colorScheme.onSurface,
       ),
       clipBehavior: Clip.antiAlias,
-      child: child,
+      child: textured
+          ? CustomPaint(
+              painter: ChalkRRectFillPainter(fill, radius),
+              child: child,
+            )
+          : child,
     );
   }
   final line = BlockTheme.lineColor(theme.brightness);

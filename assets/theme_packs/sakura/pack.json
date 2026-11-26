@@ -1,0 +1,28 @@
+{
+  "formatVersion": 1,
+  "id": "sakura",
+  "name": "桜",
+  "author": "DaiDai公式",
+  "brightness": "light",
+  "shape": {
+    "borderWidth": 2.5,
+    "radius": 14,
+    "shadowOffset": [
+      4,
+      4
+    ]
+  },
+  "colors": {
+    "light": {
+      "accent": "#D6457A",
+      "background": "#FFF1F5",
+      "panel": "#FDE3EB",
+      "text": "#3A1F2A",
+      "onAccent": "#FFFFFF",
+      "line": "#3A1F2A"
+    }
+  },
+  "images": {
+    "background": "background.png"
+  }
+}

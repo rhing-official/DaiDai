@@ -6,13 +6,17 @@ import '../providers/app_ui_style_provider.dart';
 import '../theme/block/block_theme.dart';
 import '../theme/gekiga/gekiga_colors.dart';
 import 'glass/glass_surface.dart';
+import 'nav_chip.dart';
 
-const double _kPad = 12;
+const double _kPad = 6;
 const double _kBarRadius = 28;
 
+/// 丸の直径（チップより小さい。帯の厚みを狭めた分に合わせる）。
+const double _kRingSize = 46;
+
 /// 「丸で囲む」時の、フラット・ガラス・版画・劇画のメニューチップの帯（2026-11-26）。チップを
-/// 1本の帯にまとめる。選択中の丸（劇画は角の小さい四角）は、LiquidChipStripの水が流れ込んで
-/// 塗る（この帯は背景だけを描く）。チョークは[ChalkNavBar]、和紙は[WashiNavBar]が描く。
+/// 1本の帯にまとめ、選択中を、そのスタイルらしい線の丸（劇画は角の小さい四角）で囲む（塗らない）。選択が移ると、
+/// 丸が次の項目へ、少し遅れて滑る。チョークは[ChalkNavBar]、和紙は[WashiNavBar]が描く。
 class RingNavBar extends ConsumerWidget {
   const RingNavBar({
     required this.child,
@@ -66,9 +70,63 @@ class RingNavBar extends ConsumerWidget {
       ),
     };
 
+    // 丸は、塗らず、線だけで囲む。
+    Widget ring() => switch (style) {
+      AppUiStyle.glass => DecoratedBox(
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          border: Border.all(
+            color: scheme.onSurface.withValues(alpha: 0.7),
+            width: 1.6,
+          ),
+        ),
+      ),
+      AppUiStyle.block => DecoratedBox(
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          border: Border.all(
+            color: BlockTheme.lineColor(brightness),
+            width: BlockTheme.borderWidth,
+          ),
+        ),
+      ),
+      AppUiStyle.gekiga => DecoratedBox(
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(3),
+          border: Border.all(color: GekigaColors.onPanel, width: 3),
+        ),
+      ),
+      _ => DecoratedBox(
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          border: Border.all(color: scheme.onSurface, width: 2),
+        ),
+      ),
+    };
+
+    final target = (selectedIndex ?? -1).toDouble();
     return Stack(
       children: [
         Positioned.fill(child: barBackground()),
+        TweenAnimationBuilder<double>(
+          tween: Tween(end: target),
+          duration: const Duration(milliseconds: 320),
+          curve: Curves.easeOutCubic,
+          builder: (context, position, _) {
+            if (position < 0) return const SizedBox.shrink();
+            // 丸は、チップの中心に置く。
+            final inset = (kNavChipSize - _kRingSize) / 2;
+            final offset =
+                _kPad + position * (kNavChipSize + kNavChipGap) + inset;
+            return Positioned(
+              left: vertical ? _kPad + inset : offset,
+              top: vertical ? offset : _kPad + inset,
+              width: _kRingSize,
+              height: _kRingSize,
+              child: IgnorePointer(child: ring()),
+            );
+          },
+        ),
         Padding(padding: const EdgeInsets.all(_kPad), child: child),
       ],
     );

@@ -104,14 +104,16 @@ class NavChip extends ConsumerWidget {
     // （2026-08-04変更。以前は選択中のみアクセントカラー塗りのバッジだったが、
     // アクセントカラーは劇画UI選択中は変更不可にした為、この画面だけ
     // 固定色になったアクセントカラーが残るのは一貫しない）。
+    // 丸で囲む時は、丸は塗らない（線だけ）ので、選択中も文字色のまま。
     final mergedIconColor = switch (uiStyle) {
       AppUiStyle.flat =>
-        sel ? colorScheme.onPrimary : colorScheme.onSurfaceVariant,
-      AppUiStyle.glass => colorScheme.onSurfaceVariant,
-      AppUiStyle.block => sel ? colorScheme.onPrimary : colorScheme.onSurface,
-      AppUiStyle.gekiga => sel ? GekigaColors.panel : GekigaColors.onPanel,
+        sel ? colorScheme.onSurface : colorScheme.onSurfaceVariant,
+      AppUiStyle.glass =>
+        sel ? colorScheme.onSurface : colorScheme.onSurfaceVariant,
+      AppUiStyle.block => colorScheme.onSurface,
+      AppUiStyle.gekiga => GekigaColors.onPanel,
       AppUiStyle.chalk => colorScheme.onSurface,
-      AppUiStyle.washi => sel ? colorScheme.onPrimary : colorScheme.onSurface,
+      AppUiStyle.washi => colorScheme.onSurface,
     };
     final chip = merged
         ? Material(

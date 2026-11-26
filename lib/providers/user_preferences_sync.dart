@@ -18,6 +18,8 @@ import '../models/sticker_send_mode.dart';
 import 'accent_color_provider.dart';
 import 'app_locale_provider.dart';
 import 'app_ui_style_provider.dart';
+import 'design_pins_provider.dart';
+import 'font_pins_provider.dart';
 import 'calendar_system_provider.dart';
 import 'calendar_week_start_provider.dart';
 import 'holiday_settings_provider.dart';
@@ -169,6 +171,14 @@ void applyRemoteUserPreferences(WidgetRef ref, AppUserPreferences preferences) {
     ref
         .read(appUiStyleProvider.notifier)
         .syncFromRemote(AppUiStyle.fromName(preferences.appUiStyle));
+  }
+  if (preferences.designPins != null) {
+    ref
+        .read(designPinsProvider.notifier)
+        .syncFromRemote(preferences.designPins!);
+  }
+  if (preferences.fontPins != null) {
+    ref.read(fontPinsProvider.notifier).syncFromRemote(preferences.fontPins!);
   }
   if (preferences.stickerSendMode != null) {
     ref

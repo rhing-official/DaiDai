@@ -104,6 +104,9 @@ class Strings {
     required this.settingsUiStyleBlockLabel,
     required this.settingsUiStyleChalkLabel,
     required this.settingsUiStyleWashiLabel,
+    required this.settingsDesignPin,
+    required this.settingsDesignUnpin,
+    required this.settingsThemePackFallbackTemplate,
     required this.settingsCustomAppearanceInvalid,
     required this.settingsBackgroundPresetBoard,
     required this.settingsChatLayoutTitle,
@@ -1448,6 +1451,13 @@ class Strings {
   final String settingsUiStyleBlockLabel;
   final String settingsUiStyleChalkLabel;
   final String settingsUiStyleWashiLabel;
+
+  /// 設定>UIのデザイン一覧のピン留め（2026-11-26）。
+  final String settingsDesignPin;
+  final String settingsDesignUnpin;
+
+  /// 選んだ素材パックを読めず、標準の版画へ戻した時の1行。`reason`は読めなかった理由。
+  final String Function(String reason) settingsThemePackFallbackTemplate;
   final String settingsCustomAppearanceInvalid;
   final String settingsBackgroundPresetBoard;
 
@@ -3130,6 +3140,10 @@ class Strings {
     settingsUiStyleBlockLabel: '版画',
     settingsUiStyleChalkLabel: 'チョーク',
     settingsUiStyleWashiLabel: '和紙',
+    settingsDesignPin: 'ピン留め',
+    settingsDesignUnpin: 'ピン留めを外す',
+    settingsThemePackFallbackTemplate: (reason) =>
+        '素材パックを読み込めなかった為、標準の版画に戻しました。$reason',
     settingsCustomAppearanceInvalid: '6桁のカラーコードで入力してください。',
     settingsBackgroundPresetBoard: '黒板',
     settingsChatLayoutTitle: 'メッセージの表示',
@@ -4563,6 +4577,10 @@ class Strings {
     settingsUiStyleBlockLabel: 'Woodcut',
     settingsUiStyleChalkLabel: 'Chalk',
     settingsUiStyleWashiLabel: 'Washi',
+    settingsDesignPin: 'Pin',
+    settingsDesignUnpin: 'Unpin',
+    settingsThemePackFallbackTemplate: (reason) =>
+        'The design pack could not be loaded, so the standard woodcut was restored. $reason',
     settingsCustomAppearanceInvalid: 'Enter a 6-digit colour code.',
     settingsBackgroundPresetBoard: 'Blackboard',
     settingsChatLayoutTitle: 'Message display',

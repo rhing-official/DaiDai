@@ -7,7 +7,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'nav_chip.dart';
 
 /// 帯の内側の余白。
-const double _kPad = 12;
+const double _kPad = 6;
 
 /// メニューチップの帯を、和紙にへこんだ帯にする（2026-11-26、和紙スタイル）。選ばれた項目には、
 /// 粒状のざらつきのある、アクセントカラーの丸い印が重なり、選択が移ると滑る。「選択の動き」が
@@ -42,7 +42,7 @@ class WashiNavBar extends ConsumerWidget {
           position: position,
           vertical: vertical,
           base: scheme.surface,
-          pill: scheme.primary,
+          pill: scheme.onSurface,
         ),
         child: child,
       ),
@@ -87,6 +87,25 @@ class _WashiBarPainter extends CustomPainter {
     final shadowOffset = vertical ? const Offset(3, -2) : const Offset(2, 3);
     paintWashiInset(canvas, rrect, base, shadowOffset);
 
+    if (position >= 0) {
+      final center =
+          _kPad + position * (kNavChipSize + kNavChipGap) + kNavChipSize / 2;
+      final w = kNavChipSize * 1.2;
+      final h = math.min(kNavChipSize - 14, thickness - 12);
+      final rect = Rect.fromCenter(
+        center: Offset(center, thickness / 2),
+        width: w,
+        height: h,
+      );
+      // 印は塗らず、濃い線で囲む（へこんだ帯の中に、細い線の丸）。
+      canvas.drawRRect(
+        RRect.fromRectAndRadius(rect, Radius.circular(h / 2)),
+        Paint()
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 1.8
+          ..color = pill,
+      );
+    }
     canvas.restore();
   }
 

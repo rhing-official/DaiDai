@@ -57,6 +57,11 @@ import '../../providers/calling_sound_provider.dart';
 import '../../providers/custom_accent_colors_provider.dart';
 import '../../providers/app_locale_provider.dart';
 import '../../providers/app_ui_style_provider.dart';
+import '../../providers/theme_pack_provider.dart';
+import '../../providers/design_pins_provider.dart';
+import '../../providers/font_pins_provider.dart';
+import '../../providers/settings_expansion_provider.dart';
+import '../../theme_pack/design_order.dart';
 import '../../providers/call_display_provider.dart';
 import '../../providers/call_sound_enabled_provider.dart';
 import '../../providers/dark_variant_provider.dart';
@@ -4220,142 +4225,182 @@ class UiStyleFolder extends ConsumerWidget {
 
   final Strings strings;
 
+  String _styleLabel(AppUiStyle style) => switch (style) {
+    AppUiStyle.flat => strings.settingsUiStyleFlatLabel,
+    AppUiStyle.glass => strings.settingsUiStyleGlassLabel,
+    AppUiStyle.block => strings.settingsUiStyleBlockLabel,
+    AppUiStyle.chalk => strings.settingsUiStyleChalkLabel,
+    AppUiStyle.washi => strings.settingsUiStyleWashiLabel,
+    AppUiStyle.gekiga => strings.settingsUiStyleGekigaLabel,
+  };
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final style = ref.watch(appUiStyleProvider);
+    final packState = ref.watch(themePackProvider);
+    final packs = ref.watch(themePackListProvider).value ?? const [];
+    final pins = ref.watch(designPinsProvider);
     final isGekiga = style == AppUiStyle.gekiga;
+    final expanded = ref
+        .watch(settingsExpansionProvider)
+        .expandedOr(_designExpansionKey, false);
 
-    void select(AppUiStyle value) =>
-        ref.read(appUiStyleProvider.notifier).setStyle(value);
+    // 今のデザイン。素材パックは版画に流し込むので、版画で、パックが有効な時だけ、パックが選択中。
+    final activePackId = style == AppUiStyle.block ? packState.pack?.id : null;
+    final selectedId = activePackId != null
+        ? packDesignId(activePackId)
+        : styleDesignId(style);
+
+    final packNames = {for (final p in packs) p.id: p.name};
+    final ordered = sortDesignIds(
+      selectedId: selectedId,
+      pins: pins,
+      ownedPackIds: [for (final p in packs) p.id],
+    );
+    final hasMore = ordered.length > kDesignVisibleCount;
+    final visible = expanded
+        ? ordered
+        : ordered.take(kDesignVisibleCount).toList();
+    final remaining = ordered.length - visible.length;
+    void toggleExpanded() => ref
+        .read(settingsExpansionProvider.notifier)
+        .set(_designExpansionKey, !expanded);
+
+    String labelOf(String id) {
+      if (id.startsWith('pack:')) {
+        return packNames[id.substring(5)] ?? id.substring(5);
+      }
+      return _styleLabel(AppUiStyle.fromName(id.substring(6)));
+    }
+
+    // どのスタイルを選んでも素材パックは外れ、パックを選ぶと版画へ流し込む。
+    void select(String id) {
+      if (id.startsWith('pack:')) {
+        ref.read(themePackProvider.notifier).select(id.substring(5));
+      } else {
+        ref.read(themePackProvider.notifier).clear();
+        ref
+            .read(appUiStyleProvider.notifier)
+            .setStyle(AppUiStyle.fromName(id.substring(6)));
+      }
+    }
+
+    Widget pinButton(String id, {Color? color}) {
+      final pinned = pins.contains(id);
+      return IconButton(
+        tooltip: pinned
+            ? strings.settingsDesignUnpin
+            : strings.settingsDesignPin,
+        visualDensity: VisualDensity.compact,
+        icon: Icon(
+          pinned ? Icons.push_pin : Icons.push_pin_outlined,
+          size: 20,
+          color: color,
+        ),
+        onPressed: () => ref.read(designPinsProvider.notifier).toggle(id),
+      );
+    }
 
     // 劇画スタイル選択中は、この選択肢自体もギザギザ枠（選択中=白地黒字）
     // で表示する。選んだ瞬間に見た目が切り替わるので選択結果がそのまま
     // プレビューになる（2026-08-03、選択肢の見た目統一のため追加）。
-    if (isGekiga) {
-      return GekigaJointedTileList(
-        seeds: [
-          AppUiStyle.flat.hashCode,
-          AppUiStyle.glass.hashCode,
-          AppUiStyle.block.hashCode,
-          AppUiStyle.chalk.hashCode,
-          AppUiStyle.washi.hashCode,
-          AppUiStyle.gekiga.hashCode,
-        ],
-        selectedFlags: [
-          style == AppUiStyle.flat,
-          style == AppUiStyle.glass,
-          style == AppUiStyle.block,
-          style == AppUiStyle.chalk,
-          style == AppUiStyle.washi,
-          style == AppUiStyle.gekiga,
-        ],
-        children: [
-          GekigaTileContent(
-            selected: style == AppUiStyle.flat,
-            leading: AppRadioMark(
-              selected: style == AppUiStyle.flat,
-              color: (style == AppUiStyle.flat)
-                  ? GekigaColors.panel
-                  : GekigaColors.onPanel,
+    final Widget list = isGekiga
+        ? GekigaJointedTileList(
+            seeds: [
+              for (final id in visible) id.hashCode,
+              if (hasMore) 'uiDesignShowMore'.hashCode,
+            ],
+            selectedFlags: [
+              for (final id in visible) id == selectedId,
+              if (hasMore) false,
+            ],
+            children: [
+              for (final id in visible)
+                GekigaTileContent(
+                  selected: id == selectedId,
+                  leading: AppRadioMark(
+                    selected: id == selectedId,
+                    color: id == selectedId
+                        ? GekigaColors.panel
+                        : GekigaColors.onPanel,
+                  ),
+                  title: Text(labelOf(id)),
+                  trailing: pinButton(
+                    id,
+                    color: id == selectedId
+                        ? GekigaColors.panel
+                        : GekigaColors.onPanel,
+                  ),
+                  onTap: () => select(id),
+                ),
+              if (hasMore)
+                GekigaTileContent(
+                  leading: Icon(
+                    expanded ? Icons.expand_less : Icons.expand_more,
+                  ),
+                  title: Text(
+                    expanded
+                        ? strings.showLess
+                        : strings.fontDesignShowMoreTemplate(remaining),
+                  ),
+                  onTap: toggleExpanded,
+                ),
+            ],
+          )
+        : RadioGroup<String>(
+            groupValue: selectedId,
+            onChanged: (value) {
+              if (value != null) select(value);
+            },
+            child: Column(
+              children: [
+                for (final id in visible)
+                  AppRadioListTile<String>(
+                    key: ValueKey(id),
+                    value: id,
+                    title: Text(labelOf(id)),
+                    secondary: pinButton(id),
+                  ),
+                if (hasMore)
+                  SettingsTile(
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 16),
+                    leading: Icon(
+                      expanded ? Icons.expand_less : Icons.expand_more,
+                    ),
+                    title: Text(
+                      expanded
+                          ? strings.showLess
+                          : strings.fontDesignShowMoreTemplate(remaining),
+                    ),
+                    onTap: toggleExpanded,
+                  ),
+              ],
             ),
-            title: Text(strings.settingsUiStyleFlatLabel),
-            onTap: () => select(AppUiStyle.flat),
-          ),
-          GekigaTileContent(
-            selected: style == AppUiStyle.glass,
-            leading: AppRadioMark(
-              selected: style == AppUiStyle.glass,
-              color: (style == AppUiStyle.glass)
-                  ? GekigaColors.panel
-                  : GekigaColors.onPanel,
-            ),
-            title: Text(strings.settingsUiStyleGlassLabel),
-            onTap: () => select(AppUiStyle.glass),
-          ),
-          GekigaTileContent(
-            selected: style == AppUiStyle.block,
-            leading: AppRadioMark(
-              selected: style == AppUiStyle.block,
-              color: (style == AppUiStyle.block)
-                  ? GekigaColors.panel
-                  : GekigaColors.onPanel,
-            ),
-            title: Text(strings.settingsUiStyleBlockLabel),
-            onTap: () => select(AppUiStyle.block),
-          ),
-          GekigaTileContent(
-            selected: style == AppUiStyle.chalk,
-            leading: AppRadioMark(
-              selected: style == AppUiStyle.chalk,
-              color: (style == AppUiStyle.chalk)
-                  ? GekigaColors.panel
-                  : GekigaColors.onPanel,
-            ),
-            title: Text(strings.settingsUiStyleChalkLabel),
-            onTap: () => select(AppUiStyle.chalk),
-          ),
-          GekigaTileContent(
-            selected: style == AppUiStyle.washi,
-            leading: AppRadioMark(
-              selected: style == AppUiStyle.washi,
-              color: (style == AppUiStyle.washi)
-                  ? GekigaColors.panel
-                  : GekigaColors.onPanel,
-            ),
-            title: Text(strings.settingsUiStyleWashiLabel),
-            onTap: () => select(AppUiStyle.washi),
-          ),
-          GekigaTileContent(
-            selected: style == AppUiStyle.gekiga,
-            leading: AppRadioMark(
-              selected: style == AppUiStyle.gekiga,
-              color: (style == AppUiStyle.gekiga)
-                  ? GekigaColors.panel
-                  : GekigaColors.onPanel,
-            ),
-            title: Text(strings.settingsUiStyleGekigaLabel),
-            onTap: () => select(AppUiStyle.gekiga),
-          ),
-        ],
-      );
-    }
+          );
 
-    return RadioGroup<AppUiStyle>(
-      groupValue: style,
-      onChanged: (value) {
-        if (value != null) select(value);
-      },
-      child: Column(
-        children: [
-          AppRadioListTile<AppUiStyle>(
-            value: AppUiStyle.flat,
-            title: Text(strings.settingsUiStyleFlatLabel),
+    final theme = Theme.of(context);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        list,
+        if (packState.fallbackReason != null)
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 4, 16, 8),
+            child: Text(
+              strings.settingsThemePackFallbackTemplate(
+                packState.fallbackReason!,
+              ),
+              style: theme.textTheme.bodySmall,
+            ),
           ),
-          AppRadioListTile<AppUiStyle>(
-            value: AppUiStyle.glass,
-            title: Text(strings.settingsUiStyleGlassLabel),
-          ),
-          AppRadioListTile<AppUiStyle>(
-            value: AppUiStyle.block,
-            title: Text(strings.settingsUiStyleBlockLabel),
-          ),
-          AppRadioListTile<AppUiStyle>(
-            value: AppUiStyle.chalk,
-            title: Text(strings.settingsUiStyleChalkLabel),
-          ),
-          AppRadioListTile<AppUiStyle>(
-            value: AppUiStyle.washi,
-            title: Text(strings.settingsUiStyleWashiLabel),
-          ),
-          AppRadioListTile<AppUiStyle>(
-            value: AppUiStyle.gekiga,
-            title: Text(strings.settingsUiStyleGekigaLabel),
-          ),
-        ],
-      ),
+      ],
     );
   }
 }
+
+// 設定>UIのデザイン一覧の開閉（別のカテゴリへ移って戻っても保つ）。
+const _designExpansionKey = 'application.uiDesign';
 
 /// フォントデザインの選択（2026-09-06追加、2026-09-07に劇画も対象化、
 /// 2026-09-15に「もっと見る」展開式に変更）。他の選択項目
@@ -4412,11 +4457,37 @@ class _FontDesignFolderState extends ConsumerState<FontDesignFolder> {
     // 一本化した（以前はここに25分岐のswitchを直書きしていた）。
     String labelFor(FontDesign value) => strings.fontDesignLabel(value);
 
-    final hasMore = available.length > kFontDesignPreviewCount;
+    // 並び: 選択中を最上部、次にピン留めした順、残りは標準の順（設定>UIのデザイン一覧と同じ）。
+    final pins = ref.watch(fontPinsProvider);
+    final ordered = <FontDesign>[
+      if (available.contains(design)) design,
+      for (final name in pins)
+        for (final v in available)
+          if (v.name == name && v != design) v,
+      for (final v in available)
+        if (v != design && !pins.contains(v.name)) v,
+    ];
+    Widget pinButton(FontDesign value, {Color? color}) {
+      final pinned = pins.contains(value.name);
+      return IconButton(
+        tooltip: pinned
+            ? strings.settingsDesignUnpin
+            : strings.settingsDesignPin,
+        visualDensity: VisualDensity.compact,
+        icon: Icon(
+          pinned ? Icons.push_pin : Icons.push_pin_outlined,
+          size: 20,
+          color: color,
+        ),
+        onPressed: () => ref.read(fontPinsProvider.notifier).toggle(value.name),
+      );
+    }
+
+    final hasMore = ordered.length > kFontDesignPreviewCount;
     final visibleDesigns = _expanded
-        ? available
-        : available.take(kFontDesignPreviewCount);
-    final remaining = available.length - visibleDesigns.length;
+        ? ordered
+        : ordered.take(kFontDesignPreviewCount).toList();
+    final remaining = ordered.length - visibleDesigns.length;
 
     if (isGekiga) {
       return GekigaJointedTileList(
@@ -4448,6 +4519,12 @@ class _FontDesignFolderState extends ConsumerState<FontDesignFolder> {
                       style: TextStyle(fontFamily: value.fontFamily),
                     )
                   : null,
+              trailing: pinButton(
+                value,
+                color: design == value
+                    ? GekigaColors.panel
+                    : GekigaColors.onPanel,
+              ),
               onTap: () => select(value),
             ),
           if (hasMore)
@@ -4473,7 +4550,9 @@ class _FontDesignFolderState extends ConsumerState<FontDesignFolder> {
         children: [
           for (final value in visibleDesigns)
             AppRadioListTile<FontDesign>(
+              key: ValueKey(value),
               value: value,
+              secondary: pinButton(value),
               title: Text(
                 labelFor(value),
                 style: TextStyle(fontFamily: value.fontFamily),

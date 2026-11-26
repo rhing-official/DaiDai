@@ -1,0 +1,25 @@
+{
+  "formatVersion": 1,
+  "id": "yoru",
+  "name": "夜",
+  "author": "DaiDai公式",
+  "brightness": "dark",
+  "shape": {
+    "borderWidth": 2,
+    "radius": 4,
+    "shadowOffset": [
+      3,
+      3
+    ]
+  },
+  "colors": {
+    "dark": {
+      "accent": "#7C9CFF",
+      "background": "#0F1226",
+      "panel": "#1A1E3A",
+      "text": "#E8ECFF",
+      "onAccent": "#0F1226",
+      "line": "#7C9CFF"
+    }
+  }
+}

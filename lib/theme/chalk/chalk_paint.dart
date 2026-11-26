@@ -218,6 +218,29 @@ class ChalkShapeBorder extends OutlinedBorder {
   }
 }
 
+/// 角丸の箱を、チョークで塗ったような質感で塗る（選択中の項目の、アクセントカラーの塗り）。
+class ChalkRRectFillPainter extends CustomPainter {
+  ChalkRRectFillPainter(this.color, this.radius);
+
+  final Color color;
+  final double radius;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    ChalkPaint.fillPath(
+      canvas,
+      Path()..addRRect(
+        RRect.fromRectAndRadius(Offset.zero & size, Radius.circular(radius)),
+      ),
+      color,
+    );
+  }
+
+  @override
+  bool shouldRepaint(covariant ChalkRRectFillPainter old) =>
+      old.color != color || old.radius != radius;
+}
+
 /// 黒板の上に、消し残したチョークの粉と、細かい粒を薄く重ねる層。タッチは通さない。
 /// 大きさが変わった時だけ描き直す。
 class ChalkBoardDust extends StatelessWidget {

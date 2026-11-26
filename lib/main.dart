@@ -36,6 +36,10 @@ import 'providers/kiwami_providers.dart';
 import 'providers/accent_color_provider.dart';
 import 'providers/room_list_swipe_action_provider.dart';
 import 'providers/app_locale_provider.dart';
+import 'providers/design_pins_provider.dart';
+import 'providers/font_pins_provider.dart';
+import 'providers/theme_pack_provider.dart';
+import 'theme/block/block_tokens.dart';
 import 'providers/app_ui_style_provider.dart';
 import 'providers/calling_sound_provider.dart';
 import 'providers/chat_layout_style_provider.dart';
@@ -227,6 +231,9 @@ Future<void> _launchApp({required bool firstLaunch}) async {
   final initialCallMiniStyle = await loadInitialCallMiniStyle();
   final initialCallPipPolicy = await loadInitialCallPipPolicy();
   final initialAppUiStyle = await loadInitialAppUiStyle();
+  final initialThemePack = await loadInitialThemePack();
+  final initialDesignPins = await loadInitialDesignPins();
+  final initialFontPins = await loadInitialFontPins();
   final initialConversationSortOrder = await loadInitialConversationSortOrder();
   final initialFontDesign = await loadInitialFontDesign();
   final initialRingtoneSound = await loadInitialRingtoneSound();
@@ -342,6 +349,9 @@ Future<void> _launchApp({required bool firstLaunch}) async {
         initialCallMiniStyleProvider.overrideWithValue(initialCallMiniStyle),
         initialCallPipPolicyProvider.overrideWithValue(initialCallPipPolicy),
         initialAppUiStyleProvider.overrideWithValue(initialAppUiStyle),
+        initialThemePackProvider.overrideWithValue(initialThemePack),
+        initialDesignPinsProvider.overrideWithValue(initialDesignPins),
+        initialFontPinsProvider.overrideWithValue(initialFontPins),
         initialConversationSortOrderProvider.overrideWithValue(
           initialConversationSortOrder,
         ),
@@ -391,6 +401,11 @@ class DaiDaiApp extends ConsumerWidget {
     final themeMode = ref.watch(appThemeModeProvider);
     final darkVariant = ref.watch(darkVariantProvider);
     final uiStyle = ref.watch(appUiStyleProvider);
+    // 素材パック（2026-11-26）。版画の間だけ、パックの色・枠の数値・背景画像を流し込む。
+    final activePack = uiStyle == AppUiStyle.block
+        ? ref.watch(themePackProvider).pack
+        : null;
+    BlockTokens.current = activePack?.tokens ?? const BlockTokens();
     // 設定タブの「フォントデザイン」（2026-09-06追加、2026-09-07に劇画も
     // 対象化）。
     // 極みでない住人は、極み限定フォントを選んでいても表示は標準に戻す
@@ -445,11 +460,13 @@ class DaiDaiApp extends ConsumerWidget {
         onAccentColor: onAccentColorLight,
       ),
       AppUiStyle.block => BlockTheme.light(
-        accentColor,
-        textColor: custom.enabled ? null : textColorLight,
-        onAccentColor: onAccentColorLight,
+        activePack?.light.accent ?? accentColor,
+        textColor: activePack != null
+            ? activePack.light.text
+            : (custom.enabled ? null : textColorLight),
+        onAccentColor: activePack?.light.onAccent ?? onAccentColorLight,
         fontFamily: fontFamily,
-        palette: palette,
+        palette: activePack?.paletteFor(Brightness.light) ?? palette,
       ),
     };
     final darkTheme = switch (uiStyle) {
@@ -486,25 +503,35 @@ class DaiDaiApp extends ConsumerWidget {
         onAccentColor: onAccentColorLight,
       ),
       AppUiStyle.block => BlockTheme.dark(
-        accentColor,
-        textColor: custom.enabled ? null : textColorDark,
-        onAccentColor: onAccentColorDark,
+        activePack?.dark.accent ?? accentColor,
+        textColor: activePack != null
+            ? activePack.dark.text
+            : (custom.enabled ? null : textColorDark),
+        onAccentColor: activePack?.dark.onAccent ?? onAccentColorDark,
         fontFamily: fontFamily,
-        palette: palette,
+        palette: activePack?.paletteFor(Brightness.dark) ?? palette,
         variant: darkVariant,
       ),
     };
+    // 背景画像を持つパックは、画面の塗りを透明にして、後ろの画像を見せる。
+    final packImage = activePack?.backgroundImage;
     return MaterialApp.router(
       title: 'DaiDai',
       debugShowCheckedModeBanner: false,
-      theme: theme,
-      darkTheme: darkTheme,
-      themeMode: custom.enabled
-          ? (ThemeData.estimateBrightnessForColor(custom.color) ==
-                    Brightness.dark
-                ? ThemeMode.dark
-                : ThemeMode.light)
-          : themeMode,
+      theme: packImage == null
+          ? theme
+          : theme.copyWith(scaffoldBackgroundColor: Colors.transparent),
+      darkTheme: packImage == null
+          ? darkTheme
+          : darkTheme.copyWith(scaffoldBackgroundColor: Colors.transparent),
+      themeMode:
+          activePack?.forcedThemeMode ??
+          (custom.enabled
+              ? (ThemeData.estimateBrightnessForColor(custom.color) ==
+                        Brightness.dark
+                    ? ThemeMode.dark
+                    : ThemeMode.light)
+              : themeMode),
       locale: appLocale.locale,
       supportedLocales: AppLocale.values.map((l) => l.locale),
       localizationsDelegates: const [
@@ -533,6 +560,29 @@ class DaiDaiApp extends ConsumerWidget {
           child: PipHost(
             child: Stack(
               children: [
+                // 素材パックの背景画像の層。パックの有無で子の数が変わると、Stackは子を位置で
+                // 対応付ける為、下の本体の木（設定画面の「今のカテゴリ」等の状態）が作り直されて
+                // 設定>アカウントへ戻ってしまう。常に同じ位置に1つの層を置き、中身だけ替える。
+                Positioned.fill(
+                  child: packImage == null
+                      ? const SizedBox.shrink()
+                      : Stack(
+                          fit: StackFit.expand,
+                          children: [
+                            ColoredBox(
+                              color: Theme.of(context).colorScheme.surface,
+                            ),
+                            IgnorePointer(
+                              child: Image(
+                                image: packImage,
+                                fit: BoxFit.cover,
+                                errorBuilder: (_, _, _) =>
+                                    const SizedBox.shrink(),
+                              ),
+                            ),
+                          ],
+                        ),
+                ),
                 Positioned.fill(
                   child: MouseBackForwardListener(
                     child: CallOverlayFocusGuard(

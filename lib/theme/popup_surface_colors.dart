@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 
 import '../models/app_ui_style.dart';
 import 'block/block_theme.dart';
+import 'chalk/chalk_paint.dart';
+import 'chalk/chalk_theme.dart';
 import 'gekiga/gekiga_colors.dart';
 import 'glass/glass_colors.dart';
 
@@ -22,6 +24,10 @@ import 'glass/glass_colors.dart';
 /// 個別に重複実装されていたのを共通化、2026-08-31）。
 Color popupCardBackground(Brightness brightness, AppUiStyle uiStyle) {
   if (uiStyle == AppUiStyle.gekiga) return GekigaColors.panel;
+  // チョーク: 黒板より少し明るい面。
+  if (uiStyle == AppUiStyle.chalk && brightness == Brightness.dark) {
+    return ChalkColors.surface;
+  }
   return brightness == Brightness.dark
       ? const Color(0xFF2C2C34)
       : const Color(0xFFE7E7EC);
@@ -37,6 +43,8 @@ Color popupCardForeground(Brightness brightness, AppUiStyle uiStyle) {
 Color popupCardBorder(Brightness brightness, AppUiStyle uiStyle) {
   if (uiStyle == AppUiStyle.gekiga) return GekigaColors.onPanel;
   if (uiStyle == AppUiStyle.block) return BlockTheme.lineColor(brightness);
+  // チョーク: 縁は、[ChalkBoxDecoration]が、チョークの線で描く。
+  if (uiStyle == AppUiStyle.chalk) return Colors.transparent;
   return brightness == Brightness.dark
       ? Colors.white.withValues(alpha: 0.14)
       : Colors.black.withValues(alpha: 0.14);
@@ -50,6 +58,13 @@ BoxDecoration popupCardDecoration(
   AppUiStyle uiStyle,
 ) {
   final isBlock = uiStyle == AppUiStyle.block;
+  if (uiStyle == AppUiStyle.chalk) {
+    return ChalkBoxDecoration(
+      color: popupCardBackground(brightness, uiStyle),
+      borderRadius: BorderRadius.circular(16),
+      lineColor: Theme.of(context).colorScheme.onSurface,
+    );
+  }
   return BoxDecoration(
     color: popupCardBackground(brightness, uiStyle),
     border: Border.all(

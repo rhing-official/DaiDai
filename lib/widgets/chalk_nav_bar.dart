@@ -13,7 +13,7 @@ import 'ring_nav_bar.dart';
 import 'washi_nav_bar.dart';
 
 /// 帯の内側の余白。
-const double _kPad = 12;
+const double _kPad = 6;
 
 /// メニューチップの帯を、黒板にチョークで描いた1本の枠にする（2026-11-26、チョークスタイル）。
 /// 選ばれた項目は、アクセントカラー（黄色のチョーク）の輪で囲み、選択が移ると、輪が次の項目へ滑る。
@@ -48,7 +48,7 @@ class ChalkNavBar extends ConsumerWidget {
           count: count,
           vertical: vertical,
           color: Theme.of(context).colorScheme.onSurface,
-          ringColor: Theme.of(context).colorScheme.primary,
+          ringColor: Theme.of(context).colorScheme.onSurface,
         ),
         child: child,
       ),
@@ -88,8 +88,8 @@ class _ChalkBarPainter extends CustomPainter {
 
   /// 選ばれた項目を囲む輪（少し横長の、ゆがんだ楕円）。
   Path _ring(double center, double thickness) {
-    final w = kNavChipSize * 1.3;
-    final h = math.min(kNavChipSize + 10, thickness - 6);
+    final w = kNavChipSize * 1.05;
+    final h = math.min(kNavChipSize - 4, thickness - 4);
     final cy = thickness / 2;
     // 手で描いた輪の様に、始点と終点が少しずれて重なる。
     final path = Path();
@@ -163,8 +163,8 @@ class NavChipBand extends ConsumerWidget {
     final style = ref.watch(appUiStyleProvider);
     // 「丸で囲む」の時だけ、帯を1本にする。それ以外（液体・なし）は、チップを1つずつ分ける。
     if (ref.watch(navBandMergedProvider)) {
-      // 帯を1本にして、選択中の丸は、水が流れ込んで塗る（チョークは、手描きの輪も重ねる）。
-      final bar = switch (style) {
+      // 帯を1本にして、選択中の丸が、次の項目へ滑る（水の動きは使わない）。
+      return switch (style) {
         AppUiStyle.chalk => ChalkNavBar(
           count: entries.length,
           selectedIndex: selectedIndex,
@@ -183,12 +183,6 @@ class NavChipBand extends ConsumerWidget {
           child: child,
         ),
       };
-      return LiquidChipStrip(
-        entries: entries,
-        selectedIndex: selectedIndex,
-        vertical: vertical,
-        child: bar,
-      );
     }
     return LiquidChipStrip(
       entries: entries,
