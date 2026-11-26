@@ -3079,6 +3079,7 @@ class _CustomAppearanceEditorState
       strings.darkVariantBlack,
       strings.settingsBackgroundPresetBoard,
     ];
+    final isGekiga = ref.watch(appUiStyleProvider) == AppUiStyle.gekiga;
     final current = widget.shownColor.withAlpha(0xFF);
     final saved = ref.watch(customBackgroundColorsProvider);
     return Column(
@@ -3092,56 +3093,143 @@ class _CustomAppearanceEditorState
             children: [
               SizedBox(
                 width: 296,
-                child: TextField(
-                  controller: _controller,
-                  textCapitalization: TextCapitalization.characters,
-                  inputFormatters: [
-                    FilteringTextInputFormatter.allow(RegExp('[0-9a-fA-F]')),
-                    LengthLimitingTextInputFormatter(6),
-                  ],
-                  decoration: InputDecoration(
-                    prefixText: '#',
-                    hintText: _hex(current),
-                    counterText: '',
-                    errorText: _error,
-                    filled: !isBlockTheme(context),
-                    fillColor: _colorFieldFill(
-                      context,
-                      ref,
-                    ).withValues(alpha: 0.65),
-                    border: isBlockTheme(context)
-                        ? InputBorder.none
-                        : OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(16),
-                            borderSide: BorderSide(
-                              color: ref
-                                  .watch(accentColorProvider)
-                                  .withValues(alpha: 0.3),
+                child: isGekiga
+                    ? GekigaJointedTileList(
+                        seeds: [_controller.hashCode],
+                        selectedFlags: const [false],
+                        children: [
+                          Padding(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 12,
+                              vertical: 8,
+                            ),
+                            child: Row(
+                              children: [
+                                Expanded(
+                                  child: TextField(
+                                    controller: _controller,
+                                    textCapitalization:
+                                        TextCapitalization.characters,
+                                    inputFormatters: [
+                                      FilteringTextInputFormatter.allow(
+                                        RegExp('[0-9a-fA-F]'),
+                                      ),
+                                      LengthLimitingTextInputFormatter(6),
+                                    ],
+                                    style: const TextStyle(
+                                      color: GekigaColors.onPanel,
+                                    ),
+                                    cursorColor: GekigaColors.onPanel,
+                                    decoration: InputDecoration(
+                                      prefixText: '#',
+                                      prefixStyle: const TextStyle(
+                                        color: GekigaColors.onPanel,
+                                      ),
+                                      hintText: _hex(current),
+                                      hintStyle: TextStyle(
+                                        color: GekigaColors.onPanel.withValues(
+                                          alpha: 0.5,
+                                        ),
+                                      ),
+                                      errorText: _error,
+                                      isDense: true,
+                                      filled: false,
+                                      border: InputBorder.none,
+                                      enabledBorder: InputBorder.none,
+                                      focusedBorder: InputBorder.none,
+                                      errorBorder: InputBorder.none,
+                                      focusedErrorBorder: InputBorder.none,
+                                    ),
+                                    onChanged: (text) {
+                                      if (text.length == 6) _apply(text);
+                                    },
+                                    onSubmitted: _apply,
+                                  ),
+                                ),
+                                GekigaIconButton(
+                                  icon: Icons.hexagon_outlined,
+                                  onPressed: () async {
+                                    final picked =
+                                        await showHoneycombColorDialog(
+                                          context,
+                                          current: tryParseHexColor(
+                                            _controller.text,
+                                          ),
+                                          doneLabel:
+                                              widget.strings.workshopFocalDone,
+                                        );
+                                    if (picked != null) _pick(picked);
+                                  },
+                                ),
+                                CopyIconButton(
+                                  gekiga: true,
+                                  textBuilder: () =>
+                                      hexCopyText(_controller.text),
+                                ),
+                                GekigaIconButton(
+                                  icon: Icons.add,
+                                  onPressed: _register,
+                                ),
+                              ],
                             ),
                           ),
-                    suffixIcon: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        HoneycombColorButton(
-                          current: tryParseHexColor(_controller.text),
-                          onPicked: _pick,
+                        ],
+                      )
+                    : BlockFieldFrame(
+                        child: TextField(
+                          controller: _controller,
+                          textCapitalization: TextCapitalization.characters,
+                          inputFormatters: [
+                            FilteringTextInputFormatter.allow(
+                              RegExp('[0-9a-fA-F]'),
+                            ),
+                            LengthLimitingTextInputFormatter(6),
+                          ],
+                          decoration: InputDecoration(
+                            prefixText: '#',
+                            hintText: _hex(current),
+                            counterText: '',
+                            errorText: _error,
+                            filled: !isBlockTheme(context),
+                            fillColor: _colorFieldFill(
+                              context,
+                              ref,
+                            ).withValues(alpha: 0.65),
+                            border: isBlockTheme(context)
+                                ? InputBorder.none
+                                : OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(16),
+                                    borderSide: BorderSide(
+                                      color: ref
+                                          .watch(accentColorProvider)
+                                          .withValues(alpha: 0.3),
+                                    ),
+                                  ),
+                            suffixIcon: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                HoneycombColorButton(
+                                  current: tryParseHexColor(_controller.text),
+                                  onPicked: _pick,
+                                ),
+                                CopyIconButton(
+                                  textBuilder: () =>
+                                      hexCopyText(_controller.text),
+                                ),
+                                IconButton(
+                                  icon: const Icon(Icons.add),
+                                  tooltip: '',
+                                  onPressed: _register,
+                                ),
+                              ],
+                            ),
+                          ),
+                          onChanged: (text) {
+                            if (text.length == 6) _apply(text);
+                          },
+                          onSubmitted: _apply,
                         ),
-                        CopyIconButton(
-                          textBuilder: () => hexCopyText(_controller.text),
-                        ),
-                        IconButton(
-                          icon: const Icon(Icons.add),
-                          tooltip: '',
-                          onPressed: _register,
-                        ),
-                      ],
-                    ),
-                  ),
-                  onChanged: (text) {
-                    if (text.length == 6) _apply(text);
-                  },
-                  onSubmitted: _apply,
-                ),
+                      ),
               ),
             ],
           ),
