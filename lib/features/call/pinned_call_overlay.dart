@@ -218,6 +218,48 @@ RTCVideoRenderer? pickCallRenderer(ActiveCallSession session) {
   }
 }
 
+/// OS標準のPiPの小窓に出す内容（2026-11-26）。[renderer]がnullなら、相手のアバターを出す。
+/// [isScreen]の時は、共有画面を切り取らないよう全体を収めて出す。
+class PipContent {
+  const PipContent({this.renderer, this.isScreen = false});
+
+  final RTCVideoRenderer? renderer;
+  final bool isScreen;
+}
+
+/// PiPの小窓に出すもの。相手の共有画面、相手のカメラ、相手のアバターの順で、
+/// 自分のカメラ・自分の共有は出さない（アプリ内のミニ表示の[pickCallRenderer]とは別）。
+PipContent pickPipContent(ActiveCallSession session) {
+  switch (session) {
+    case OneToOneCallSession(:final controller):
+      if (controller.remoteScreenReady) {
+        return PipContent(
+          renderer: controller.remoteScreenRenderer,
+          isScreen: true,
+        );
+      }
+      if (controller.remoteVideoShown) {
+        return PipContent(renderer: controller.remoteRenderer);
+      }
+      return const PipContent();
+    case GroupCallSession(:final controller):
+      final sharer = controller.remoteParticipants.firstWhereOrNull(
+        controller.remoteScreenReady,
+      );
+      if (sharer != null) {
+        return PipContent(
+          renderer: controller.screenRenderers[sharer.userId],
+          isScreen: true,
+        );
+      }
+      final pinned = controller.pinnedParticipant;
+      if (pinned != null && pinned.isVideo) {
+        return PipContent(renderer: controller.remoteRenderers[pinned.userId]);
+      }
+      return const PipContent();
+  }
+}
+
 /// 映像が無い間（音声のみの通話、又はビデオ通話でも相手・自分どちらも
 /// 映像を出していない間）に中央へ表示するアバター情報（userId・rhingSeed・
 /// 会話id）。通話画面の音声通話時（`CallScreen._audioBody`/

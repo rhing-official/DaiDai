@@ -228,6 +228,8 @@ final Strings _stringsFr = Strings._(
   settingsCallPipVideoLabel: 'Seulement avec vidéo ou partage d’écran',
   settingsCallPipAlwaysLabel: 'Toujours',
   settingsCallPipNeverLabel: 'Jamais',
+  settingsCallPipHint:
+      'L’image dans l’image n’apparaît qu’après un retour à l’écran d’accueil. Elle n’apparaît pas quand vous passez directement à une autre application depuis l’écran des applications récentes, à cause d’une limite d’Android',
   settingsRingtoneEnabledTitle: 'Jouer la sonnerie',
   settingsRingbackEnabledTitle: 'Jouer la tonalité d’appel',
   settingsRingEnabledSubtitle:

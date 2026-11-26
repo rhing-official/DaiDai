@@ -5744,6 +5744,7 @@ class _NotificationsPage extends ConsumerWidget {
         if (!kIsWeb && defaultTargetPlatform == TargetPlatform.android)
           _SettingsChoiceList<CallPipPolicy>(
             title: strings.settingsCallPipTitle,
+            hint: strings.settingsCallPipHint,
             value: ref.watch(callPipPolicyProvider),
             options: [
               (CallPipPolicy.video, strings.settingsCallPipVideoLabel),

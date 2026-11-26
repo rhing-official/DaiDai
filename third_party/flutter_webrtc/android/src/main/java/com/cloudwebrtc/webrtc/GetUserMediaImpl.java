@@ -600,7 +600,24 @@ public class GetUserMediaImpl {
         info.isScreenCapture = true;
         info.capturer = videoCapturer;
 
-        videoCapturer.startCapture(info.width, info.height, info.fps);
+        try {
+            videoCapturer.startCapture(info.width, info.height, info.fps);
+        } catch (Throwable t) {
+            // Android 14以降で前面サービスの型が間に合わない等、MediaProjectionを始められない時は、
+            // アプリごと落とさず（通話が切れ、相手だけが通話中のまま残る）、画面共有の失敗として返す。
+            Log.w(TAG, "screen capture start failed: " + t);
+            try {
+                videoCapturer.dispose();
+            } catch (Throwable ignored) {
+            }
+            try {
+                surfaceTextureHelper.dispose();
+                videoSource.dispose();
+            } catch (Throwable ignored) {
+            }
+            resultError("getDisplayMedia", "ScreenCaptureStartFailed: " + t, result);
+            return;
+        }
         Log.d(TAG, "OrientationAwareScreenCapturer.startCapture: " + info.width + "x" + info.height + "@" + info.fps);
 
         String trackId = stateProvider.getNextTrackUUID();

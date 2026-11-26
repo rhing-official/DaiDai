@@ -201,6 +201,7 @@ class Strings {
     required this.settingsCallPipVideoLabel,
     required this.settingsCallPipAlwaysLabel,
     required this.settingsCallPipNeverLabel,
+    required this.settingsCallPipHint,
     required this.settingsRingtoneEnabledTitle,
     required this.settingsRingbackEnabledTitle,
     required this.settingsRingEnabledSubtitle,
@@ -1545,6 +1546,7 @@ class Strings {
   final String settingsCallPipVideoLabel;
   final String settingsCallPipAlwaysLabel;
   final String settingsCallPipNeverLabel;
+  final String settingsCallPipHint;
   final String settingsRingtoneEnabledTitle;
   final String settingsRingbackEnabledTitle;
   final String settingsRingEnabledSubtitle;
@@ -3221,6 +3223,8 @@ class Strings {
     settingsCallPipVideoLabel: '映像・画面共有がある時だけ',
     settingsCallPipAlwaysLabel: '常に出す',
     settingsCallPipNeverLabel: '出さない',
+    settingsCallPipHint:
+        'ピクチャーインピクチャーは、アプリから一度ホームに戻ってからでないと出ません。最近のアプリ画面から別のアプリへ直接移る時は、Androidの制約で出ません',
     settingsRingtoneEnabledTitle: '着信音を鳴らす',
     settingsRingbackEnabledTitle: '呼出音を鳴らす',
     settingsRingEnabledSubtitle:
@@ -4652,6 +4656,8 @@ class Strings {
     settingsCallPipVideoLabel: 'Only with video or screen sharing',
     settingsCallPipAlwaysLabel: 'Always',
     settingsCallPipNeverLabel: 'Never',
+    settingsCallPipHint:
+        'Picture-in-picture only appears after going back to the home screen first. It does not appear when you switch straight to another app from the recent apps screen, because of an Android limitation',
     settingsRingtoneEnabledTitle: 'Play the ringtone',
     settingsRingbackEnabledTitle: 'Play the calling tone',
     settingsRingEnabledSubtitle:

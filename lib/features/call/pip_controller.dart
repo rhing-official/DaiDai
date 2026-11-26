@@ -199,7 +199,8 @@ class _PipCallView extends StatelessWidget {
     return ListenableBuilder(
       listenable: session.controllerListenable,
       builder: (context, _) {
-        final renderer = pickCallRenderer(session);
+        final content = pickPipContent(session);
+        final renderer = content.renderer;
         final info = callPlaceholderInfo(session);
         return ColoredBox(
           color: Colors.black,
@@ -207,7 +208,9 @@ class _PipCallView extends StatelessWidget {
               ? RTCVideoView(
                   key: ObjectKey(renderer),
                   renderer,
-                  objectFit: RTCVideoViewObjectFit.RTCVideoViewObjectFitCover,
+                  objectFit: content.isScreen
+                      ? RTCVideoViewObjectFit.RTCVideoViewObjectFitContain
+                      : RTCVideoViewObjectFit.RTCVideoViewObjectFitCover,
                 )
               : Center(
                   child: CallParticipantAvatar(

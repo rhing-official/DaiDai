@@ -462,6 +462,10 @@ class MainActivity : FlutterFragmentActivity() {
 
     override fun onUserLeaveHint() {
         super.onUserLeaveHint()
+        android.util.Log.i(
+            "DaiDaiCall",
+            "onUserLeaveHint: callActive=$callActive pipAllowed=$pipAllowed inPip=$isInPictureInPictureMode",
+        )
         // Android 8〜11は自動で入れないため、離れる時に手動で入る。Android 12以降も、自動入室は
         // 「ホームへ戻る」でしか働かず、最近のアプリ画面からの切り替えでは入らないため、手動で入る
         // （既に入っている・入りかけの時は何もしない）。
@@ -469,7 +473,12 @@ class MainActivity : FlutterFragmentActivity() {
             Build.VERSION.SDK_INT >= Build.VERSION_CODES.O &&
             !isInPictureInPictureMode
         ) {
-            buildPipParams()?.let { enterPictureInPictureMode(it) }
+            try {
+                val entered = buildPipParams()?.let { enterPictureInPictureMode(it) }
+                android.util.Log.i("DaiDaiCall", "enterPictureInPictureMode -> $entered")
+            } catch (e: Exception) {
+                android.util.Log.w("DaiDaiCall", "enterPictureInPictureMode failed: $e")
+            }
         }
     }
 

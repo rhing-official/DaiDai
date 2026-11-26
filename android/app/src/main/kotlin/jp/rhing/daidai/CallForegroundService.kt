@@ -48,6 +48,7 @@ class CallForegroundService : Service() {
             }
         } catch (e: Exception) {
             // 前面サービスを始められなくても（型を切り替えられなくても）、通話自体は続ける。
+            android.util.Log.w("DaiDaiCall", "startForeground failed (projection=$projection): $e")
             if (n === notification && !projection) stopSelf()
         }
     }
@@ -145,7 +146,12 @@ class CallForegroundService : Service() {
 
         /** 画面共有の間だけ`mediaProjection`型にする／戻す。サービスが動いていなければ何もしない。 */
         fun setProjection(active: Boolean) {
-            val service = instance ?: return
+            val service = instance
+            if (service == null) {
+                // 前面サービスが動いていない。この後のMediaProjectionの開始は失敗しうる。
+                android.util.Log.w("DaiDaiCall", "setProjection($active): foreground service not running")
+                return
+            }
             service.projection = active
             service.applyForegroundType()
         }
