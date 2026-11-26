@@ -76,7 +76,7 @@ final Strings _stringsFr = Strings._(
       'Utilisée comme couleur de fond dans le style d’interface Gekiga.',
   settingsAppearanceGekigaLockedHint:
       'Impossible à modifier tant que le style d’interface Gekiga est sélectionné',
-  settingsAppearance: 'Apparence',
+  settingsAppearance: 'Arrière-plan',
   settingsAppearanceLight: 'Craie',
   settingsAppearanceDark: 'Sombre',
   settingsAppearanceSystem: 'Suivre l’appareil',
@@ -87,7 +87,7 @@ final Strings _stringsFr = Strings._(
   settingsColorPresets: 'Préréglages',
   settingsTextColorTitle: 'Couleur du texte',
   settingsTextColorDescription:
-      'Définissez la couleur du texte de l’apparence actuelle avec un code couleur. Une couleur trop proche du fond rendra le texte difficile à lire.',
+      'Définissez la couleur du texte de l’arrière-plan actuel avec un code couleur. Une couleur trop proche du fond rendra le texte difficile à lire.',
   settingsTextColorLightLabel: '',
   settingsOnAccentColorLabel: 'Sur l’accent',
   settingsOnAccentColorAuto: 'Auto',
@@ -108,6 +108,9 @@ final Strings _stringsFr = Strings._(
   settingsUiStyleGekigaLabel: 'Gekiga',
   settingsUiStyleGlassLabel: 'Verre',
   settingsUiStyleBlockLabel: 'Gravure',
+  settingsUiStyleChalkLabel: 'Craie',
+  settingsCustomAppearanceInvalid: 'Saisissez un code couleur à 6 chiffres.',
+  settingsBackgroundPresetBoard: 'Tableau noir',
   settingsChatLayoutTitle: 'Affichage des messages',
   settingsChatLayoutSideBySide: 'Vous à droite, les autres à gauche',
   settingsChatLayoutSideBySideDescription:
@@ -133,6 +136,11 @@ final Strings _stringsFr = Strings._(
   settingsSlidePickTitle: 'Appuyer et glisser pour choisir',
   settingsSlidePickSubtitle:
       'Appuyez sur une pastille du menu ou un bouton des discussions, faites glisser le doigt, puis relâchez sur votre choix. Désactivez pour toucher une fois à la fois.',
+  settingsWaterMotionTitle: 'Mouvement de sélection',
+  settingsMotionLiquid: 'Liquide',
+  settingsMotionNone: 'Aucun',
+  settingsWaterMotionSubtitle:
+      "La couleur coule vers la pastille, l'élément ou l'onglet suivant comme un liquide. Avec Liquide, les pastilles ne ressortent pas quand vous glissez dessus. Avec Aucun, le changement est instantané et elles ressortent de nouveau. Aucun au départ si l'appareil réduit les animations.",
   settingsTalksListMirrorTitle: "Inverser gauche et droite",
   settingsTalksListMirrorSubtitle:
       "Avec « Icônes + liste des salons », place la colonne d’icônes à droite et les messages à gauche.",

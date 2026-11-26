@@ -388,6 +388,7 @@ class _SegmentTile extends ConsumerWidget {
         foreground = selected ? scheme.onPrimary : scheme.onSurface;
         fill = selected ? scheme.primary : null;
       case AppUiStyle.flat:
+      case AppUiStyle.chalk:
         foreground = selected ? scheme.onPrimary : scheme.onSurfaceVariant;
         fill = selected ? scheme.primary : scheme.surface;
     }
@@ -447,11 +448,17 @@ class _SegmentTile extends ConsumerWidget {
           variant: GlassVariant.chrome,
           borderRadius: BorderRadius.circular(16),
           accentColorOverride: selected ? scheme.primary : null,
-          child: Material(
-            color: fill ?? Colors.transparent,
-            borderRadius: BorderRadius.circular(16),
-            clipBehavior: Clip.antiAlias,
-            child: tappable,
+          // 面の中は、ゆるい制約で組まれる為、区画いっぱいへ広げないと、選択中の塗りが
+          // 中身の大きさにしか付かない。
+          child: SizedBox(
+            width: double.infinity,
+            height: double.infinity,
+            child: Material(
+              color: fill ?? Colors.transparent,
+              borderRadius: BorderRadius.circular(16),
+              clipBehavior: Clip.antiAlias,
+              child: Center(child: tappable),
+            ),
           ),
         );
       case AppUiStyle.gekiga:
@@ -468,6 +475,7 @@ class _SegmentTile extends ConsumerWidget {
           child: Material(color: Colors.transparent, child: tappable),
         );
       case AppUiStyle.flat:
+      case AppUiStyle.chalk:
         return Material(
           color: fill,
           borderRadius: BorderRadius.circular(12),

@@ -134,7 +134,9 @@ class BlockShapeBorder extends OutlinedBorder {
     canvas.clipPath(
       Path()
         ..fillType = PathFillType.evenOdd
-        ..addRect(Rect.fromLTWH(-100000, -100000, 200000, 200000))
+        // 影が収まる分だけの大きさにする。巨大な矩形（20万px四方）は、描画の精度の都合で、
+        // 文字の下側が薄れるなどの乱れが時々出る疑いが有った（2026-11-26、再現性が無い）。
+        ..addRect(rect.expandToInclude(rect.shift(shadowOffset)).inflate(2))
         ..addRRect(rrect),
     );
     canvas.drawRRect(rrect.shift(shadowOffset), Paint()..color = shadowColor);
@@ -196,16 +198,19 @@ class BlockTheme {
     Color? textColor,
     Color? onAccentColor,
     String? fontFamily,
+    AppearancePalette? palette,
   }) => _build(
     AppTheme.light(
       accentColor,
       textColor: textColor,
       onAccentColor: onAccentColor,
       fontFamily: fontFamily,
+      palette: palette,
     ),
     accentColor,
     Brightness.light,
     DarkVariant.standard,
+    palette: palette,
   );
 
   static ThemeData dark(
@@ -214,6 +219,7 @@ class BlockTheme {
     Color? onAccentColor,
     String? fontFamily,
     DarkVariant variant = DarkVariant.standard,
+    AppearancePalette? palette,
   }) => _build(
     AppTheme.dark(
       accentColor,
@@ -221,18 +227,22 @@ class BlockTheme {
       onAccentColor: onAccentColor,
       fontFamily: fontFamily,
       variant: variant,
+      palette: palette,
     ),
     accentColor,
     Brightness.dark,
     variant,
+    palette: palette,
   );
 
   static ThemeData _build(
     ThemeData base,
     Color accent,
     Brightness brightness,
-    DarkVariant variant,
-  ) {
+    DarkVariant variant, {
+    AppearancePalette? palette,
+  }) {
+    final pal = palette ?? variant.palette;
     final isDark = brightness == Brightness.dark;
     // 透明度付きのアクセント（#RRGGBBAA）だと背景が透けて灰色っぽく見える為、
     // このスタイルでは常に不透明にする。
@@ -247,12 +257,12 @@ class BlockTheme {
     );
     // 背景は淡い色、パネル（カード・ダイアログ・メニュー）はそれより少し濃い色。
     final background = isDark
-        ? variant.background
-        : tint(accent, 0.975, maxSaturation: 0.8);
+        ? pal.background
+        : (palette?.background ?? tint(accent, 0.975, maxSaturation: 0.8));
     final panel = isDark
-        ? variant.surface
-        : tint(accent, 0.945, maxSaturation: 0.8);
-    final field = isDark ? variant.surface : tint(accent, 0.985);
+        ? pal.surface
+        : (palette?.surface ?? tint(accent, 0.945, maxSaturation: 0.8));
+    final field = isDark ? pal.surface : tint(accent, 0.985);
     final scheme = base.colorScheme.copyWith(
       primary: accent,
       surface: background,
@@ -293,7 +303,7 @@ class BlockTheme {
         ),
       ),
       chipTheme: base.chipTheme.copyWith(
-        backgroundColor: isDark ? variant.surface : Colors.white,
+        backgroundColor: isDark ? pal.surface : Colors.white,
         selectedColor: accent,
         disabledColor: panel,
         surfaceTintColor: Colors.transparent,

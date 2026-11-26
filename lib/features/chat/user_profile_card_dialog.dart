@@ -356,6 +356,7 @@ class _UserProfileCardDialogState extends ConsumerState<UserProfileCardDialog> {
                     child: list,
                   );
                 case AppUiStyle.flat:
+                case AppUiStyle.chalk:
                   return Material(
                     color: theme.colorScheme.surface,
                     clipBehavior: Clip.antiAlias,

@@ -67,6 +67,9 @@ import '../../providers/home_shell_providers.dart';
 import '../../providers/icon_split_layout_provider.dart';
 import '../../providers/text_size_provider.dart';
 import '../../utils/sidebar_width.dart';
+import '../../providers/custom_appearance_provider.dart';
+import '../../providers/custom_background_colors_provider.dart';
+import '../../providers/selection_motion_provider.dart';
 import '../../providers/slide_pick_enabled_provider.dart';
 import '../../providers/slide_transition_style_provider.dart';
 import '../../providers/talks_list_layout_style_provider.dart';
@@ -75,6 +78,7 @@ import '../../models/nav_chip_layout.dart';
 import '../../models/room_list_swipe_action.dart';
 import '../../providers/category_list_alignment_provider.dart';
 import '../../providers/settings_expansion_provider.dart';
+import '../../widgets/liquid_tile_group.dart';
 import '../../widgets/nav_chip.dart';
 import '../../widgets/home_tab_swipe.dart';
 import '../../widgets/slide_select_list.dart';
@@ -95,6 +99,7 @@ import '../../providers/theme_mode_provider.dart';
 import '../../providers/user_providers.dart';
 import '../../services/google_calendar_auth_service.dart';
 import '../../services/google_calendar_link_coordinator.dart';
+import '../../theme/chalk/chalk_theme.dart';
 import '../../theme/gekiga/gekiga_colors.dart';
 import '../../theme/glass/glass_colors.dart';
 import '../../utils/auto_dismiss_banner.dart';
@@ -781,63 +786,85 @@ class _CategoryList extends ConsumerWidget {
             // スクロールは2026-11-23にNeverScrollableScrollPhysicsで止めた為、
             // SingleChildScrollViewの代わりにPaddingで足りる（内容量どおりに
             // 縮むので、alignCategoryListのAlignで上下左右へ動かせる）。
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 8),
-              child: GekigaJointedTileList(
-                horizontal: tileHorizontal,
-                seeds: [
-                  for (final category in categories) category.title.hashCode,
-                ],
-                selectedFlags: [
-                  for (var i = 0; i < categories.length; i++) isSelected(i),
-                ],
-                children: [
-                  for (var i = 0; i < categories.length; i++)
-                    KeyedSubtree(
-                      key: keyFor(i),
-                      child: _FolderTile(
-                        icon: categories[i].icon,
-                        title: categories[i].title,
-                        selected: isSelected(i),
-                        trailingChevron: false,
-                        large: large,
-                        horizontal: tileHorizontal,
-                        onTap: () => onSelect(categories[i]),
+            LiquidTileGroup(
+              itemCount: categories.length,
+              selectedIndex: [
+                for (var i = 0; i < categories.length; i++)
+                  if (isSelected(i)) i,
+              ].firstOrNull,
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 8),
+                child: GekigaJointedTileList(
+                  horizontal: tileHorizontal,
+                  seeds: [
+                    for (final category in categories) category.title.hashCode,
+                  ],
+                  selectedFlags: [
+                    for (var i = 0; i < categories.length; i++) isSelected(i),
+                  ],
+                  children: [
+                    for (var i = 0; i < categories.length; i++)
+                      KeyedSubtree(
+                        key: keyFor(i),
+                        child: LiquidTile(
+                          index: i,
+                          builder: (context, sel) => _FolderTile(
+                            icon: categories[i].icon,
+                            title: categories[i].title,
+                            selected: sel,
+                            trailingChevron: false,
+                            large: large,
+                            horizontal: tileHorizontal,
+                            onTap: () => onSelect(categories[i]),
+                          ),
+                        ),
                       ),
-                    ),
-                ],
+                  ],
+                ),
               ),
             ),
           );
         }
+        final selectedTile = [
+          for (var i = 0; i < categories.length; i++)
+            if (isSelected(i)) i,
+        ].firstOrNull;
         return alignCategoryList(
           vertical: vertical,
           horizontal: horizontal,
-          ListView(
-            // 内容量どおりに縮め、alignCategoryListのAlignで上下左右へ動かせる
-            // ようにする（2026-11-23、画面の広さを問わず常時true）。
-            shrinkWrap: true,
-            // 一覧自体はスクロールさせない（2026-11-11、2026-11-23に画面の
-            // 広さを問わず常時適用へ変更。以前は狭い画面＝滑らせて選ぶ操作
-            // 専用だったが、広い画面でも「滑らせて選ぶ」をOFFにした時に
-            // 一覧がスクロールできてしまっていた為、ON/OFF・画面幅を
-            // 問わず統一した）。
-            physics: const NeverScrollableScrollPhysics(),
-            padding: const EdgeInsets.fromLTRB(8, 0, 8, 8),
-            children: [
-              for (var i = 0; i < categories.length; i++)
-                KeyedSubtree(
-                  key: keyFor(i),
-                  child: _FolderTile(
-                    icon: categories[i].icon,
-                    title: categories[i].title,
-                    selected: isSelected(i),
-                    trailingChevron: false,
-                    horizontal: tileHorizontal,
-                    onTap: () => onSelect(categories[i]),
+          // 選択色は、水が流れ込むように移す（2026-11-26）。
+          LiquidTileGroup(
+            itemCount: categories.length,
+            selectedIndex: selectedTile,
+            child: ListView(
+              // 内容量どおりに縮め、alignCategoryListのAlignで上下左右へ動かせる
+              // ようにする（2026-11-23、画面の広さを問わず常時true）。
+              shrinkWrap: true,
+              // 一覧自体はスクロールさせない（2026-11-11、2026-11-23に画面の
+              // 広さを問わず常時適用へ変更。以前は狭い画面＝滑らせて選ぶ操作
+              // 専用だったが、広い画面でも「滑らせて選ぶ」をOFFにした時に
+              // 一覧がスクロールできてしまっていた為、ON/OFF・画面幅を
+              // 問わず統一した）。
+              physics: const NeverScrollableScrollPhysics(),
+              padding: const EdgeInsets.fromLTRB(8, 0, 8, 8),
+              children: [
+                for (var i = 0; i < categories.length; i++)
+                  KeyedSubtree(
+                    key: keyFor(i),
+                    child: LiquidTile(
+                      index: i,
+                      builder: (context, sel) => _FolderTile(
+                        icon: categories[i].icon,
+                        title: categories[i].title,
+                        selected: sel,
+                        trailingChevron: false,
+                        horizontal: tileHorizontal,
+                        onTap: () => onSelect(categories[i]),
+                      ),
+                    ),
                   ),
-                ),
-            ],
+              ],
+            ),
           ),
         );
       },
@@ -886,26 +913,29 @@ class _FolderTile extends ConsumerWidget {
       final foreground = colorScheme.onSurfaceVariant;
       return Padding(
         padding: const EdgeInsets.symmetric(vertical: 3),
-        child: GlassSurface(
-          borderRadius: BorderRadius.circular(12),
-          accentColorOverride: selected ? colorScheme.primary : null,
-          child: Material(
-            color: selected
-                ? colorScheme.primary.withValues(alpha: 0.45)
-                : Colors.transparent,
-            child: ListTile(
-              contentPadding: const EdgeInsets.symmetric(
-                horizontal: 16,
-                vertical: 8,
+        child: blockFitWidth(
+          horizontal: horizontal,
+          GlassSurface(
+            borderRadius: BorderRadius.circular(12),
+            accentColorOverride: selected ? colorScheme.primary : null,
+            child: Material(
+              color: selected
+                  ? colorScheme.primary.withValues(alpha: 0.45)
+                  : Colors.transparent,
+              child: ListTile(
+                contentPadding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 8,
+                ),
+                selected: selected,
+                selectedColor: foreground,
+                iconColor: foreground,
+                textColor: foreground,
+                leading: Icon(icon),
+                title: Text(title),
+                trailing: trailingWidget,
+                onTap: onTap,
               ),
-              selected: selected,
-              selectedColor: foreground,
-              iconColor: foreground,
-              textColor: foreground,
-              leading: Icon(icon),
-              title: Text(title),
-              trailing: trailingWidget,
-              onTap: onTap,
             ),
           ),
         ),
@@ -964,19 +994,27 @@ class _FolderTile extends ConsumerWidget {
         : colorScheme.onSurfaceVariant;
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 3),
-      child: ListTile(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-        tileColor: colorScheme.surface,
-        selectedTileColor: colorScheme.primary,
-        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-        selected: selected,
-        selectedColor: colorScheme.onPrimary,
-        iconColor: foreground,
-        textColor: foreground,
-        leading: Icon(icon),
-        title: Text(title),
-        trailing: trailingWidget,
-        onTap: onTap,
+      child: blockFitWidth(
+        horizontal: horizontal,
+        ListTile(
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+          ),
+          tileColor: colorScheme.surface,
+          selectedTileColor: colorScheme.primary,
+          contentPadding: const EdgeInsets.symmetric(
+            horizontal: 16,
+            vertical: 8,
+          ),
+          selected: selected,
+          selectedColor: colorScheme.onPrimary,
+          iconColor: foreground,
+          textColor: foreground,
+          leading: Icon(icon),
+          title: Text(title),
+          trailing: trailingWidget,
+          onTap: onTap,
+        ),
       ),
     );
   }
@@ -2579,6 +2617,7 @@ class _ApplicationPage extends ConsumerWidget {
                 ),
               ),
               UiStyleFolder(strings: strings),
+              _SelectionMotionChoice(strings: strings),
             ],
           ),
         ),
@@ -2866,83 +2905,15 @@ class AppearanceFolder extends ConsumerWidget {
     final isGekiga = ref.watch(appUiStyleProvider) == AppUiStyle.gekiga;
     final appearanceLocked = isGekiga;
 
-    void selectThemeMode(ThemeMode mode) =>
-        ref.read(appThemeModeProvider.notifier).setMode(mode);
-
-    // 外観は1つの一覧（ライト／ダークの3種類）。「端末に合わせる」は2026-11-18に
-    // 廃止し、初回は端末の明るさでライトかダーク（標準）になる。
+    // 外観は背景色のカラーコードとプリセットだけで決める（上のラジオは2026-11-26に廃止）。
     final variant = ref.watch(darkVariantProvider);
-    final appearanceOptions =
-        <({ThemeMode mode, DarkVariant? variant, String label})>[
-          (
-            mode: ThemeMode.light,
-            variant: null,
-            label: strings.settingsAppearanceLight,
-          ),
-          (
-            mode: ThemeMode.dark,
-            variant: DarkVariant.standard,
-            label: strings.darkVariantStandard,
-          ),
-          (
-            mode: ThemeMode.dark,
-            variant: DarkVariant.soft,
-            label: strings.darkVariantSoft,
-          ),
-          (
-            mode: ThemeMode.dark,
-            variant: DarkVariant.black,
-            label: strings.darkVariantBlack,
-          ),
-        ];
-    int selectedIndex = themeMode == ThemeMode.dark
-        ? 1 + DarkVariant.values.indexOf(variant)
-        : 0;
-    void select(int i) {
-      final option = appearanceOptions[i];
-      if (option.variant != null) {
-        ref.read(darkVariantProvider.notifier).setVariant(option.variant!);
-      }
-      selectThemeMode(option.mode);
-    }
-
-    final appearanceControl = isGekiga
-        ? GekigaJointedTileList(
-            seeds: [for (var i = 0; i < appearanceOptions.length; i++) i],
-            selectedFlags: [
-              for (var i = 0; i < appearanceOptions.length; i++)
-                selectedIndex == i,
-            ],
-            children: [
-              for (var i = 0; i < appearanceOptions.length; i++)
-                GekigaTileContent(
-                  selected: selectedIndex == i,
-                  leading: AppRadioMark(
-                    selected: selectedIndex == i,
-                    color: (selectedIndex == i)
-                        ? GekigaColors.panel
-                        : GekigaColors.onPanel,
-                  ),
-                  title: Text(appearanceOptions[i].label),
-                  onTap: () => select(i),
-                ),
-            ],
-          )
-        : RadioGroup<int>(
-            groupValue: selectedIndex,
-            onChanged: (value) {
-              if (value != null) select(value);
-            },
-            child: Column(
-              children: [
-                for (var i = 0; i < appearanceOptions.length; i++)
-                  AppRadioListTile<int>(
-                    value: i,
-                    title: Text(appearanceOptions[i].label),
-                  ),
-              ],
-            ),
-          );
+    final custom = ref.watch(customAppearanceProvider);
+    // カラーコード欄に出す色。カスタムなら決めた色、そうでなければ今の外観の背景色。
+    final shownColor = custom.enabled
+        ? custom.color
+        : (themeMode == ThemeMode.dark
+              ? variant.background
+              : GlassColors.lightBackground);
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -2973,8 +2944,264 @@ class AppearanceFolder extends ConsumerWidget {
             // 左右の余白は付けない（他のラジオの一覧と同じ位置に揃える、2026-11-06）。
             child: Padding(
               padding: const EdgeInsets.only(bottom: 16),
-              child: appearanceControl,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // 最初からカラーコードを出す（編集すると、カスタムの外観になる）。
+                  CustomAppearanceEditor(
+                    strings: strings,
+                    shownColor: shownColor,
+                  ),
+                ],
+              ),
             ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+/// カラーコード欄の塗り色。今の背景（カスタムの背景色やチョークの黒板を含む）に沿わせる。
+/// ダークは、テーマの面の色（どのスタイルも、アクセントの色味が付かない固定色）。ライトは、
+/// カスタムの背景色があればその面の色、なければガラスの固定色。
+Color _colorFieldFill(BuildContext context, WidgetRef ref) {
+  final theme = Theme.of(context);
+  if (theme.brightness == Brightness.dark) {
+    return theme.colorScheme.surfaceContainerHighest;
+  }
+  final custom = ref.watch(customAppearanceProvider);
+  return custom.enabled
+      ? AppearancePalette.fromBackground(custom.color).surface
+      : GlassColors.lightSurfaceBase;
+}
+
+/// カスタムの外観の背景色（カラーコード）と、プリセット（2026-11-26）。プリセットは、既存の4つの
+/// 外観の背景色。押すと、その色がカラーコードに入る。
+class CustomAppearanceEditor extends ConsumerStatefulWidget {
+  const CustomAppearanceEditor({
+    required this.strings,
+    required this.shownColor,
+    super.key,
+  });
+
+  final Strings strings;
+
+  /// 欄に出す色（今の背景色）。
+  final Color shownColor;
+
+  @override
+  ConsumerState<CustomAppearanceEditor> createState() =>
+      _CustomAppearanceEditorState();
+}
+
+class _CustomAppearanceEditorState
+    extends ConsumerState<CustomAppearanceEditor> {
+  late final TextEditingController _controller;
+  String? _error;
+
+  static String _hex(Color c) =>
+      (c.toARGB32() & 0xFFFFFF).toRadixString(16).padLeft(6, '0').toUpperCase();
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = TextEditingController(text: _hex(widget.shownColor));
+  }
+
+  @override
+  void didUpdateWidget(covariant CustomAppearanceEditor old) {
+    super.didUpdateWidget(old);
+    // 外観を選び直した時など、外から色が変わったら、欄の文字も合わせる。
+    if (widget.shownColor != old.shownColor &&
+        tryParseHexColor(_controller.text) != widget.shownColor) {
+      _controller.text = _hex(widget.shownColor);
+      _error = null;
+    }
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  void _apply(String text) {
+    final color = tryParseHexColor(text);
+    if (color == null) {
+      setState(() => _error = widget.strings.settingsCustomAppearanceInvalid);
+      return;
+    }
+    setState(() => _error = null);
+    ref.read(customAppearanceProvider.notifier).setColor(color);
+  }
+
+  /// ハニカムの選択。
+  void _pick(Color picked) {
+    _controller.text = _hex(picked);
+    _apply(_hex(picked));
+  }
+
+  /// 今の背景色を、登録色に加える。
+  Future<void> _register() async {
+    final color = widget.shownColor.withAlpha(0xFF);
+    final saved = ref.read(customBackgroundColorsProvider);
+    if (_fixedPresets.any((c) => c == color) || saved.contains(color)) return;
+    final added = await ref
+        .read(customBackgroundColorsProvider.notifier)
+        .addColor(color);
+    if (!added && mounted) {
+      showAutoDismissBanner(
+        context,
+        message: widget.strings.settingsCustomColorLimitReachedTemplate(
+          kMaxCustomBackgroundColors,
+        ),
+      );
+    }
+  }
+
+  /// 既存の外観の背景色（固定のプリセット）。
+  static final _fixedPresets = <Color>[
+    GlassColors.lightBackground,
+    DarkVariant.standard.background,
+    DarkVariant.soft.background,
+    DarkVariant.black.background,
+    ChalkColors.board,
+  ];
+
+  @override
+  Widget build(BuildContext context) {
+    final strings = widget.strings;
+    final names = [
+      strings.settingsAppearanceLight,
+      strings.darkVariantStandard,
+      strings.darkVariantSoft,
+      strings.darkVariantBlack,
+      strings.settingsBackgroundPresetBoard,
+    ];
+    final current = widget.shownColor.withAlpha(0xFF);
+    final saved = ref.watch(customBackgroundColorsProvider);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // アクセントカラー・フォントカラーと同じ並び（色見本の丸＋幅を絞った入力欄）。
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Container(
+                width: 48,
+                height: 48,
+                margin: const EdgeInsets.only(top: 4),
+                decoration: BoxDecoration(
+                  color: current,
+                  shape: BoxShape.circle,
+                  border: Border.all(color: Colors.black12),
+                ),
+              ),
+              const SizedBox(width: 16),
+              SizedBox(
+                width: 296,
+                child: TextField(
+                  controller: _controller,
+                  textCapitalization: TextCapitalization.characters,
+                  inputFormatters: [
+                    FilteringTextInputFormatter.allow(RegExp('[0-9a-fA-F]')),
+                    LengthLimitingTextInputFormatter(6),
+                  ],
+                  decoration: InputDecoration(
+                    prefixText: '#',
+                    hintText: _hex(current),
+                    counterText: '',
+                    errorText: _error,
+                    filled: !isBlockTheme(context),
+                    fillColor: _colorFieldFill(
+                      context,
+                      ref,
+                    ).withValues(alpha: 0.65),
+                    border: isBlockTheme(context)
+                        ? InputBorder.none
+                        : OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(16),
+                            borderSide: BorderSide(
+                              color: ref
+                                  .watch(accentColorProvider)
+                                  .withValues(alpha: 0.3),
+                            ),
+                          ),
+                    suffixIcon: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        HoneycombColorButton(
+                          current: tryParseHexColor(_controller.text),
+                          onPicked: _pick,
+                        ),
+                        CopyIconButton(
+                          textBuilder: () => hexCopyText(_controller.text),
+                        ),
+                        IconButton(
+                          icon: const Icon(Icons.add),
+                          tooltip: '',
+                          onPressed: _register,
+                        ),
+                      ],
+                    ),
+                  ),
+                  onChanged: (text) {
+                    if (text.length == 6) _apply(text);
+                  },
+                  onSubmitted: _apply,
+                ),
+              ),
+            ],
+          ),
+        ),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 0, 16, 0),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                strings.settingsColorPresets,
+                style: const TextStyle(
+                  fontWeight: FontWeight.bold,
+                  fontSize: 13,
+                ),
+              ),
+              const SizedBox(height: 8),
+              Wrap(
+                spacing: 12,
+                runSpacing: 12,
+                children: [
+                  for (var i = 0; i < _fixedPresets.length; i++)
+                    Tooltip(
+                      message: names[i],
+                      child: PresetColorSwatch(
+                        hex: _hex(_fixedPresets[i]),
+                        selected: _fixedPresets[i] == current,
+                        onTap: () => _pick(_fixedPresets[i]),
+                      ),
+                    ),
+                  for (final color in saved)
+                    PresetColorSwatch(
+                      hex: _hex(color),
+                      selected: color == current,
+                      onTap: () => _pick(color),
+                      onLongPress: () async {
+                        final confirmed = await confirmDeletePresetColor(
+                          context,
+                          strings,
+                        );
+                        if (!confirmed) return;
+                        ref
+                            .read(customBackgroundColorsProvider.notifier)
+                            .removeColor(color);
+                      },
+                    ),
+                ],
+              ),
+            ],
           ),
         ),
       ],
@@ -3284,11 +3511,10 @@ class _AccentColorFolderState extends ConsumerState<AccentColorFolder> {
                 // ズレていた為、`GlassColors`の固定値を直接参照して
                 // UIスタイルに関係なく常に同じ色にする（2026-09-15修正）。
                 filled: !isBlockTheme(context),
-                fillColor:
-                    (Theme.of(context).brightness == Brightness.dark
-                            ? ref.watch(darkVariantProvider).glassSurface
-                            : GlassColors.lightSurfaceBase)
-                        .withValues(alpha: 0.65),
+                fillColor: _colorFieldFill(
+                  context,
+                  ref,
+                ).withValues(alpha: 0.65),
                 border: isBlockTheme(context)
                     ? InputBorder.none
                     : OutlineInputBorder(
@@ -3652,13 +3878,10 @@ class _AppearanceColorEditorState
                         hintText: _hexOf(defaultColor),
                         counterText: '',
                         filled: !isBlockTheme(context),
-                        fillColor:
-                            (Theme.of(context).brightness == Brightness.dark
-                                    ? ref
-                                          .watch(darkVariantProvider)
-                                          .glassSurface
-                                    : GlassColors.lightSurfaceBase)
-                                .withValues(alpha: 0.65),
+                        fillColor: _colorFieldFill(
+                          context,
+                          ref,
+                        ).withValues(alpha: 0.65),
                         border: isBlockTheme(context)
                             ? InputBorder.none
                             : OutlineInputBorder(
@@ -3923,12 +4146,14 @@ class UiStyleFolder extends ConsumerWidget {
           AppUiStyle.flat.hashCode,
           AppUiStyle.glass.hashCode,
           AppUiStyle.block.hashCode,
+          AppUiStyle.chalk.hashCode,
           AppUiStyle.gekiga.hashCode,
         ],
         selectedFlags: [
           style == AppUiStyle.flat,
           style == AppUiStyle.glass,
           style == AppUiStyle.block,
+          style == AppUiStyle.chalk,
           style == AppUiStyle.gekiga,
         ],
         children: [
@@ -3966,6 +4191,17 @@ class UiStyleFolder extends ConsumerWidget {
             onTap: () => select(AppUiStyle.block),
           ),
           GekigaTileContent(
+            selected: style == AppUiStyle.chalk,
+            leading: AppRadioMark(
+              selected: style == AppUiStyle.chalk,
+              color: (style == AppUiStyle.chalk)
+                  ? GekigaColors.panel
+                  : GekigaColors.onPanel,
+            ),
+            title: Text(strings.settingsUiStyleChalkLabel),
+            onTap: () => select(AppUiStyle.chalk),
+          ),
+          GekigaTileContent(
             selected: style == AppUiStyle.gekiga,
             leading: AppRadioMark(
               selected: style == AppUiStyle.gekiga,
@@ -3998,6 +4234,10 @@ class UiStyleFolder extends ConsumerWidget {
           AppRadioListTile<AppUiStyle>(
             value: AppUiStyle.block,
             title: Text(strings.settingsUiStyleBlockLabel),
+          ),
+          AppRadioListTile<AppUiStyle>(
+            value: AppUiStyle.chalk,
+            title: Text(strings.settingsUiStyleChalkLabel),
           ),
           AppRadioListTile<AppUiStyle>(
             value: AppUiStyle.gekiga,
@@ -6360,6 +6600,77 @@ class _SlidePickSwitch extends ConsumerWidget {
       title: Text(strings.settingsSlidePickTitle),
       subtitle: Text(strings.settingsSlidePickSubtitle),
       onChanged: setEnabled,
+    );
+  }
+}
+
+/// 選択の動き（液体／なし）のラジオ（2026-11-26）。横の位置は、UIスタイルなど、他のラジオの
+/// 一覧に合わせる（見出し・説明だけ16の余白、選択肢は余白なし）。
+class _SelectionMotionChoice extends ConsumerWidget {
+  const _SelectionMotionChoice({required this.strings});
+
+  final Strings strings;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final liquid = ref.watch(selectionWaterMotionProvider);
+    final isGekiga = ref.watch(appUiStyleProvider) == AppUiStyle.gekiga;
+    void select(bool value) =>
+        ref.read(selectionWaterMotionProvider.notifier).setEnabled(value);
+    final options = [
+      (true, strings.settingsMotionLiquid),
+      (false, strings.settingsMotionNone),
+    ];
+    final control = isGekiga
+        ? GekigaJointedTileList(
+            seeds: [for (var i = 0; i < options.length; i++) i],
+            selectedFlags: [for (final o in options) o.$1 == liquid],
+            children: [
+              for (final o in options)
+                GekigaTileContent(
+                  selected: o.$1 == liquid,
+                  leading: AppRadioMark(
+                    selected: o.$1 == liquid,
+                    color: o.$1 == liquid
+                        ? GekigaColors.panel
+                        : GekigaColors.onPanel,
+                  ),
+                  title: Text(o.$2),
+                  onTap: () => select(o.$1),
+                ),
+            ],
+          )
+        : RadioGroup<bool>(
+            groupValue: liquid,
+            onChanged: (v) {
+              if (v != null) select(v);
+            },
+            child: Column(
+              children: [
+                for (final o in options)
+                  AppRadioListTile<bool>(value: o.$1, title: Text(o.$2)),
+              ],
+            ),
+          );
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
+          child: Text(
+            strings.settingsWaterMotionTitle,
+            style: Theme.of(context).textTheme.bodyMedium,
+          ),
+        ),
+        control,
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 4, 16, 8),
+          child: Text(
+            strings.settingsWaterMotionSubtitle,
+            style: TextStyle(fontSize: 12, color: Theme.of(context).hintColor),
+          ),
+        ),
+      ],
     );
   }
 }

@@ -804,6 +804,7 @@ class MessageSearchHitTile extends ConsumerWidget {
           ),
         );
       case AppUiStyle.flat:
+      case AppUiStyle.chalk:
       case AppUiStyle.block:
         return BlockTalkTileWrap(
           selected: false,

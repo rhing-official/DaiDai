@@ -10,6 +10,10 @@ import '../theme/block/block_theme.dart';
 import '../theme/gekiga/gekiga_colors.dart';
 import 'gekiga/gekiga_badge.dart';
 import 'glass/glass_surface.dart';
+import '../providers/selection_motion_provider.dart';
+import '../theme/chalk/chalk_theme.dart';
+import 'chalk_nav_bar.dart';
+import 'liquid_chip_highlight.dart';
 
 /// ナビチップの直径と、チップ同士・画面端との間隔（ホーム画面
 /// `lib/features/home/home_screen.dart`と管理画面で共通）。
@@ -36,6 +40,7 @@ class NavChip extends ConsumerWidget {
     required this.popped,
     required this.vertical,
     required this.onTap,
+    this.liquid = false,
     super.key,
   });
 
@@ -53,22 +58,46 @@ class NavChip extends ConsumerWidget {
 
   final VoidCallback onTap;
 
+  /// 選択色を、このチップでは塗らない（2026-11-26）。帯の上に重ねた`LiquidChipHighlight`が、
+  /// 水が流れ込むように、選択中のチップへ塗りを移す。
+  final bool liquid;
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    // 塗りを層に任せる時（`liquid`）は、選択の見た目（色・文字色）をここでは出さない。
+    // 影の高さだけは、選択に従う。
+    final elevated = selected;
+    final sel =
+        selected && !(liquid && ref.watch(selectionWaterMotionProvider));
     final colorScheme = Theme.of(context).colorScheme;
     final uiStyle = ref.watch(appUiStyleProvider);
     final isGekiga = uiStyle == AppUiStyle.gekiga;
     final isGlass = uiStyle == AppUiStyle.glass;
     final isBlock = uiStyle == AppUiStyle.block;
+    final isChalk = uiStyle == AppUiStyle.chalk;
     final brightness = Theme.of(context).brightness;
-    final background = selected ? colorScheme.primary : colorScheme.surface;
-    final foreground = selected
+    final glassWater =
+        liquid && isGlass && ref.watch(selectionWaterMotionProvider)
+        ? LiquidChipScope.of(context, key)
+        : null;
+    // ガラスの選択色は、背景にアクセント色を45%で重ねた、不透明な色にする。半透明のままだと、
+    // 下のぼかしや重ね方で色が変わり、水で塗った時と「なし」の時で、色が違って見えた。
+    final glassSelectedFill = glassSelectedChipFill(context);
+    final background = sel ? colorScheme.primary : colorScheme.surface;
+    final foreground = sel
         ? colorScheme.onPrimary
         : colorScheme.onSurfaceVariant;
 
     // popped中は帯から浮き出させ、指を離す（popped=falseに戻る）と
     // AnimatedSlideが規定位置までスライドして戻す。
-    final offset = popped
+    final offset = isChalk
+        // チョーク: 選ばれたチップは、枠の出っ張りの方へ持ち上がる。
+        ? (selected
+              ? (vertical
+                    ? const Offset(kChalkLift / kNavChipSize, 0)
+                    : const Offset(0, -kChalkLift / kNavChipSize))
+              : Offset.zero)
+        : popped && !(liquid && ref.watch(selectionWaterMotionProvider))
         ? (vertical ? const Offset(0.35, 0) : const Offset(0, -0.35))
         : Offset.zero;
 
@@ -77,7 +106,27 @@ class NavChip extends ConsumerWidget {
     // （2026-08-04変更。以前は選択中のみアクセントカラー塗りのバッジだったが、
     // アクセントカラーは劇画UI選択中は変更不可にした為、この画面だけ
     // 固定色になったアクセントカラーが残るのは一貫しない）。
-    final chip = isGekiga
+    final chip = isChalk
+        // チョーク: チップ自体は塗らない。白いチョークのアイコンで、選択中だけアクセント色
+        // （黄色のチョーク）。枠は[ChalkNavBar]が1本で描く。
+        ? Material(
+            color: Colors.transparent,
+            shape: const CircleBorder(),
+            child: InkWell(
+              onTap: onTap,
+              customBorder: const CircleBorder(),
+              child: SizedBox(
+                width: kNavChipSize,
+                height: kNavChipSize,
+                child: Icon(
+                  icon,
+                  size: iconSize,
+                  color: selected ? colorScheme.primary : ChalkColors.chalk,
+                ),
+              ),
+            ),
+          )
+        : isGekiga
         ? Material(
             color: Colors.transparent,
             shape: const RoundedRectangleBorder(
@@ -89,13 +138,13 @@ class NavChip extends ConsumerWidget {
                 width: kNavChipSize,
                 height: kNavChipSize,
                 child: GekigaBadgeShape(
-                  color: selected ? GekigaColors.onPanel : GekigaColors.panel,
+                  color: sel ? GekigaColors.onPanel : GekigaColors.panel,
                   seed: icon.hashCode,
-                  invert: selected,
+                  invert: sel,
                   child: Icon(
                     icon,
                     size: iconSize,
-                    color: selected ? GekigaColors.panel : GekigaColors.onPanel,
+                    color: sel ? GekigaColors.panel : GekigaColors.onPanel,
                   ),
                 ),
               ),
@@ -103,27 +152,44 @@ class NavChip extends ConsumerWidget {
           )
         : isGlass
         ? GlassSurface(
-            variant: GlassVariant.chrome,
+            // 選択中は、ぼかさない面にする。ぼかすと、隣の選択色の項目の色が回り込み、塗りの
+            // 色が場所で変わって、一覧の選択色と違って見える（2026-11-26）。
+            variant: selected ? GlassVariant.card : GlassVariant.chrome,
             borderRadius: BorderRadius.circular(kNavChipSize / 2),
             child: Material(
-              color: selected
-                  ? colorScheme.primary.withValues(alpha: 0.45)
-                  : Colors.transparent,
+              color: sel ? glassSelectedFill : Colors.transparent,
               shape: const CircleBorder(),
-              child: InkWell(
-                onTap: onTap,
-                customBorder: const CircleBorder(),
-                child: SizedBox(
-                  width: kNavChipSize,
-                  height: kNavChipSize,
-                  // 選択・非選択で文字色は変えない（背景の塗りだけで選択状態を
-                  // 表す、2026-08-29変更）。
-                  child: Icon(
-                    icon,
-                    size: iconSize,
-                    color: colorScheme.onSurfaceVariant,
+              child: Stack(
+                children: [
+                  // 水で移す時は、塗りをここで描く（選択色の塗りと同じ重ね方になる）。
+                  if (glassWater != null)
+                    Positioned.fill(
+                      child: IgnorePointer(
+                        child: CustomPaint(
+                          painter: LiquidGlassFillPainter(
+                            glassWater.$1,
+                            glassWater.$2,
+                            glassSelectedFill,
+                          ),
+                        ),
+                      ),
+                    ),
+                  InkWell(
+                    onTap: onTap,
+                    customBorder: const CircleBorder(),
+                    child: SizedBox(
+                      width: kNavChipSize,
+                      height: kNavChipSize,
+                      // 選択・非選択で文字色は変えない（背景の塗りだけで選択状態を
+                      // 表す、2026-08-29変更）。
+                      child: Icon(
+                        icon,
+                        size: iconSize,
+                        color: colorScheme.onSurfaceVariant,
+                      ),
+                    ),
                   ),
-                ),
+                ],
               ),
             ),
           )
@@ -136,7 +202,7 @@ class NavChip extends ConsumerWidget {
             ),
             child: Material(
               // ライトは灰色を重ねず、選択中=アクセント・非選択=白にする。
-              color: selected
+              color: sel
                   ? colorScheme.primary
                   : (brightness == Brightness.light
                         ? Colors.white
@@ -162,7 +228,7 @@ class NavChip extends ConsumerWidget {
         : Material(
             color: background,
             shape: const CircleBorder(),
-            elevation: selected ? 8 : 4,
+            elevation: elevated ? 8 : 4,
             shadowColor: colorScheme.primary.withValues(alpha: 0.4),
             child: InkWell(
               onTap: onTap,
@@ -338,9 +404,19 @@ class _ChipNavShellState extends State<ChipNavShell> {
             popped: _isDragging && _poppedIndexes.contains(i),
             vertical: isWide,
             onTap: () => widget.onSelected(i),
+            liquid: true,
           );
           return wrap == null ? chip : wrap(i, chip);
         }(),
+    ];
+    // 選択色は、水が流れ込むように移す（ホームと同じ、2026-11-26）。
+    final liquidEntries = [
+      for (var i = 0; i < widget.icons.length; i++)
+        LiquidChipEntry(
+          chipKey: _chipKeys[i],
+          icon: widget.icons[i],
+          iconSize: widget.iconSizes[i],
+        ),
     ];
 
     final content = Padding(
@@ -363,14 +439,19 @@ class _ChipNavShellState extends State<ChipNavShell> {
             child: _wrapWithSwipe(
               vertical: true,
               Center(
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    for (var i = 0; i < chips.length; i++) ...[
-                      if (i > 0) const SizedBox(height: kNavChipGap),
-                      chips[i],
+                child: NavChipBand(
+                  entries: liquidEntries,
+                  selectedIndex: widget.selectedIndex,
+                  vertical: true,
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      for (var i = 0; i < chips.length; i++) ...[
+                        if (i > 0) const SizedBox(height: kNavChipGap),
+                        chips[i],
+                      ],
                     ],
-                  ],
+                  ),
                 ),
               ),
             ),
@@ -383,14 +464,19 @@ class _ChipNavShellState extends State<ChipNavShell> {
             child: _wrapWithSwipe(
               vertical: false,
               Center(
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    for (var i = 0; i < chips.length; i++) ...[
-                      if (i > 0) const SizedBox(width: kNavChipGap),
-                      chips[i],
+                child: NavChipBand(
+                  entries: liquidEntries,
+                  selectedIndex: widget.selectedIndex,
+                  vertical: false,
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      for (var i = 0; i < chips.length; i++) ...[
+                        if (i > 0) const SizedBox(width: kNavChipGap),
+                        chips[i],
+                      ],
                     ],
-                  ],
+                  ),
                 ),
               ),
             ),

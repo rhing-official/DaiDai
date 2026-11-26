@@ -8,6 +8,9 @@ import '../providers/text_size_provider.dart';
 ///
 /// 2026-11-12: 語らいの「一対／広場」タブ行（`talks_tab.dart`）が小でも23px溢れた為（余白・
 /// ボタン分を除くと90pxしか残らず、タブは約113px要る）、小230・中270・大310へ広げた。
+///
+/// 2026-11-26: 項目のブロックを約20%長くするため小276・中324・大372へ広げたが、全スタイルで
+/// ブロックを文字の幅に合わせる方針にしたため、同日、元の小230・中270・大310へ戻した。
 const double kSidebarWidthSmall = 230.0;
 const double kSidebarWidthMedium = 270.0;
 const double kSidebarWidthLarge = 310.0;

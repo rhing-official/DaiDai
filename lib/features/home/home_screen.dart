@@ -18,6 +18,8 @@ import '../../providers/home_shell_providers.dart';
 import '../../providers/slide_pick_enabled_provider.dart';
 import '../../providers/icon_split_mirrored_provider.dart';
 import '../../providers/talks_list_layout_style_provider.dart';
+import '../../widgets/liquid_chip_highlight.dart';
+import '../../widgets/chalk_nav_bar.dart';
 import '../../widgets/nav_chip.dart';
 import '../../widgets/pane_visibility.dart';
 import '../chat/talks_tab.dart';
@@ -519,8 +521,21 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
           popped: _isDragging && _poppedIndexes.contains(i),
           vertical: isWide,
           onTap: () => setState(() => _setSelectedIndex(i)),
+          liquid: true,
         ),
     ];
+    // 選択色は、水が流れ込むように、前のチップから次のチップへ移す（2026-11-26）。
+    final liquidEntries = [
+      for (final i in displayOrder)
+        LiquidChipEntry(
+          chipKey: _chipKeys[i],
+          icon: _icons[i],
+          iconSize: _iconSizes[i],
+        ),
+    ];
+    final liquidSelected = displayOrder.contains(_selectedIndex)
+        ? displayOrder.indexOf(_selectedIndex)
+        : null;
 
     // タブ切り替えは、チップの帯（帯の上でのなぞり操作）のみで受け付ける。
     // タブのコンテンツ領域は各タブ固有のスワイプ操作（設定・身だしなみ・
@@ -705,14 +720,19 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
                         padding: const EdgeInsets.symmetric(
                           vertical: _chipMargin,
                         ),
-                        child: Column(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            for (var i = 0; i < chips.length; i++) ...[
-                              if (i > 0) const SizedBox(height: _chipGap),
-                              chips[i],
+                        child: NavChipBand(
+                          entries: liquidEntries,
+                          selectedIndex: liquidSelected,
+                          vertical: true,
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              for (var i = 0; i < chips.length; i++) ...[
+                                if (i > 0) const SizedBox(height: _chipGap),
+                                chips[i],
+                              ],
                             ],
-                          ],
+                          ),
                         ),
                       ),
                     ),
@@ -735,14 +755,19 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
                         padding: const EdgeInsets.symmetric(
                           horizontal: _chipMargin,
                         ),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            for (var i = 0; i < chips.length; i++) ...[
-                              if (i > 0) const SizedBox(width: _chipGap),
-                              chips[i],
+                        child: NavChipBand(
+                          entries: liquidEntries,
+                          selectedIndex: liquidSelected,
+                          vertical: false,
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              for (var i = 0; i < chips.length; i++) ...[
+                                if (i > 0) const SizedBox(width: _chipGap),
+                                chips[i],
+                              ],
                             ],
-                          ],
+                          ),
                         ),
                       ),
                     ),

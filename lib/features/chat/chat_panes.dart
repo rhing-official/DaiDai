@@ -1302,7 +1302,8 @@ class _AlbumButtonState extends ConsumerState<_AlbumButton> {
         AppUiStyle.block => const BlockIconBadge(
           icon: Icons.photo_library_outlined,
         ),
-        AppUiStyle.flat => const Icon(Icons.photo_library_outlined),
+        AppUiStyle.flat ||
+        AppUiStyle.chalk => const Icon(Icons.photo_library_outlined),
       },
       onPressed: _openAlbumPopup,
     );
@@ -1543,7 +1544,7 @@ class _CalendarButtonState extends ConsumerState<_CalendarButton> {
           opaque: true,
         ),
         AppUiStyle.block => const BlockIconBadge(icon: Icons.event_outlined),
-        AppUiStyle.flat => const Icon(Icons.event_outlined),
+        AppUiStyle.flat || AppUiStyle.chalk => const Icon(Icons.event_outlined),
       },
       onPressed: _openCalendarPopup,
     );
@@ -1646,7 +1647,8 @@ class _PollButtonState extends ConsumerState<_PollButton> {
         AppUiStyle.block => const BlockIconBadge(
           icon: Icons.how_to_vote_outlined,
         ),
-        AppUiStyle.flat => const Icon(Icons.how_to_vote_outlined),
+        AppUiStyle.flat ||
+        AppUiStyle.chalk => const Icon(Icons.how_to_vote_outlined),
       },
       onPressed: _openPollPopup,
     );
@@ -1745,7 +1747,8 @@ class _NoteButtonState extends ConsumerState<_NoteButton> {
           opaque: true,
         ),
         AppUiStyle.block => const BlockIconBadge(icon: Icons.note_alt_outlined),
-        AppUiStyle.flat => const Icon(Icons.note_alt_outlined),
+        AppUiStyle.flat ||
+        AppUiStyle.chalk => const Icon(Icons.note_alt_outlined),
       },
       onPressed: _openNotePopup,
     );
@@ -2126,7 +2129,7 @@ class _DmMenuButtonState extends ConsumerState<_DmMenuButton> {
           opaque: true,
         ),
         AppUiStyle.block => const BlockIconBadge(icon: Icons.menu),
-        AppUiStyle.flat => const Icon(Icons.menu),
+        AppUiStyle.flat || AppUiStyle.chalk => const Icon(Icons.menu),
       },
       onPressed: _openMenu,
     );
@@ -3603,7 +3606,7 @@ class _GroupMenuButtonState extends ConsumerState<_GroupMenuButton> {
           opaque: true,
         ),
         AppUiStyle.block => const BlockIconBadge(icon: Icons.menu),
-        AppUiStyle.flat => const Icon(Icons.menu),
+        AppUiStyle.flat || AppUiStyle.chalk => const Icon(Icons.menu),
       },
       onPressed: _openMenu,
     );

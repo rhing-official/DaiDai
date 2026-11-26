@@ -35,6 +35,14 @@ class MonochromeBoxPainter extends CustomPainter {
   /// （2026-08-09追加、既定はfalseで既存の全呼び出し元の見た目は変わらない）。
   final bool invert;
 
+  /// 塗りが枠の内側へ入る余白（水が流れ込む塗りを、枠の内側に収める為）。
+  static double fillInsetFor(double thicknessBase, int? seed) {
+    final scale = seed == null
+        ? 1.0
+        : 0.7 + math.Random(seed).nextDouble() * 0.3;
+    return thicknessBase * 0.18 * scale;
+  }
+
   @override
   void paint(Canvas canvas, Size size) {
     final boxSeed = seed;

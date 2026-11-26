@@ -6,6 +6,38 @@ import 'package:flutter/material.dart';
 /// 「標準」は従来のダークと同じ値（既存の見た目は変えない）。フラット・版画は
 /// [background]/[surface]、ガラスは専用パレットの[glassBackground]/
 /// [glassSurface]を使う。劇画は固定の見た目のため対象外。
+/// 外観の背景・面・枠の色の組（2026-11-26）。[DarkVariant]の値、または、カスタムの外観
+/// （背景色のカラーコード）から作る。テーマは、この組を使って色を決める。
+@immutable
+class AppearancePalette {
+  const AppearancePalette({
+    required this.background,
+    required this.surface,
+    required this.glassBackground,
+    required this.glassSurface,
+    this.outline,
+  });
+
+  /// 背景色[c]から、面の色を導く。[c]の明るさで、面を明るく（暗い背景）か、暗く（明るい背景）
+  /// する。
+  factory AppearancePalette.fromBackground(Color c) {
+    final dark = ThemeData.estimateBrightnessForColor(c) == Brightness.dark;
+    final surface = Color.lerp(c, dark ? Colors.white : Colors.black, 0.07)!;
+    return AppearancePalette(
+      background: c,
+      surface: surface,
+      glassBackground: c,
+      glassSurface: surface,
+    );
+  }
+
+  final Color background;
+  final Color surface;
+  final Color glassBackground;
+  final Color glassSurface;
+  final Color? outline;
+}
+
 enum DarkVariant {
   /// 墨（Ink）。従来のダーク。
   standard(
@@ -55,6 +87,14 @@ enum DarkVariant {
 
   /// カード等に付ける枠線の色。null=枠線を足さない。
   final Color? outline;
+
+  AppearancePalette get palette => AppearancePalette(
+    background: background,
+    surface: surface,
+    glassBackground: glassBackground,
+    glassSurface: glassSurface,
+    outline: outline,
+  );
 
   static DarkVariant fromName(String? name) => DarkVariant.values.firstWhere(
     (v) => v.name == name,

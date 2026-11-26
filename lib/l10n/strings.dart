@@ -102,6 +102,9 @@ class Strings {
     required this.settingsUiStyleGekigaLabel,
     required this.settingsUiStyleGlassLabel,
     required this.settingsUiStyleBlockLabel,
+    required this.settingsUiStyleChalkLabel,
+    required this.settingsCustomAppearanceInvalid,
+    required this.settingsBackgroundPresetBoard,
     required this.settingsChatLayoutTitle,
     required this.settingsChatLayoutSideBySide,
     required this.settingsChatLayoutSideBySideDescription,
@@ -124,6 +127,10 @@ class Strings {
     required this.settingsIconSplitAdjustButton,
     required this.settingsSlidePickTitle,
     required this.settingsSlidePickSubtitle,
+    required this.settingsWaterMotionTitle,
+    required this.settingsMotionLiquid,
+    required this.settingsMotionNone,
+    required this.settingsWaterMotionSubtitle,
     required this.settingsTalksListMirrorTitle,
     required this.settingsTalksListMirrorSubtitle,
     required this.settingsRoomListSwipeTitle,
@@ -1437,6 +1444,9 @@ class Strings {
   final String settingsUiStyleGekigaLabel;
   final String settingsUiStyleGlassLabel;
   final String settingsUiStyleBlockLabel;
+  final String settingsUiStyleChalkLabel;
+  final String settingsCustomAppearanceInvalid;
+  final String settingsBackgroundPresetBoard;
 
   /// 「メッセージの表示」（2026-07-30改名、旧称: 語らいの表示）。旧「入力」
   /// カテゴリ廃止に伴い、語らいカテゴリへ移動した（settings_tab.dart参照）。
@@ -1464,6 +1474,10 @@ class Strings {
   final String settingsIconSplitAdjustButton;
   final String settingsSlidePickTitle;
   final String settingsSlidePickSubtitle;
+  final String settingsWaterMotionTitle;
+  final String settingsMotionLiquid;
+  final String settingsMotionNone;
+  final String settingsWaterMotionSubtitle;
   final String settingsTalksListMirrorTitle;
   final String settingsTalksListMirrorSubtitle;
   final String settingsRoomListSwipeTitle;
@@ -3079,7 +3093,7 @@ class Strings {
     settingsAccentColor: 'アクセントカラー',
     settingsAccentColorGekigaHint: '劇画UIでは背景色として使われます',
     settingsAppearanceGekigaLockedHint: '劇画UIを選択中は変更出来ません',
-    settingsAppearance: '外観',
+    settingsAppearance: '背景',
     settingsAppearanceLight: '胡粉',
     settingsAppearanceDark: 'ダーク',
     settingsAppearanceSystem: '端末に合わせる',
@@ -3090,7 +3104,7 @@ class Strings {
     settingsColorPresets: 'プリセット',
     settingsTextColorTitle: 'フォントカラー',
     settingsTextColorDescription:
-        '今の外観の文字色をカラーコードで指定出来ます。\n背景に近い色を選ぶと読みにくくなるため注意して下さい。',
+        '今の背景の文字色をカラーコードで指定出来ます。\n背景に近い色を選ぶと読みにくくなるため注意して下さい。',
     settingsTextColorLightLabel: '',
     settingsOnAccentColorLabel: 'アクセント上',
     settingsOnAccentColorAuto: '自動',
@@ -3110,6 +3124,9 @@ class Strings {
     settingsUiStyleGekigaLabel: '劇画',
     settingsUiStyleGlassLabel: 'ガラス',
     settingsUiStyleBlockLabel: '版画',
+    settingsUiStyleChalkLabel: 'チョーク',
+    settingsCustomAppearanceInvalid: '6桁のカラーコードで入力してください。',
+    settingsBackgroundPresetBoard: '黒板',
     settingsChatLayoutTitle: 'メッセージの表示',
     settingsChatLayoutSideBySide: '自分は右・相手は左',
     settingsChatLayoutSideBySideDescription:
@@ -3140,6 +3157,11 @@ class Strings {
     settingsSlidePickTitle: '押したまま滑らせて選ぶ',
     settingsSlidePickSubtitle:
         'メニューチップや語らいのボタンを押したまま指を滑らせ、離した所を選びます。\nオフにすると、1回ずつタップして操作します。',
+    settingsWaterMotionTitle: '選択の動き',
+    settingsMotionLiquid: '液体',
+    settingsMotionNone: 'なし',
+    settingsWaterMotionSubtitle:
+        'メニューチップ・一覧・タブの選択色を、液体が流れ込むように移します。\n「液体」の間は、なぞってもチップは浮き出ません。\n「なし」にすると、その場で切り替わり、なぞるとチップが浮き出ます。端末の「動きを減らす」設定がオンの時は、初めから「なし」です。',
     settingsTalksListMirrorTitle: '左右を反転する',
     settingsTalksListMirrorSubtitle: '「アイコン＋寄合一覧」の時、アイコン列を右端に、メッセージ画面を左にします。',
     settingsRoomListSwipeTitle: '寄合一覧の横スワイプ',
@@ -4501,7 +4523,7 @@ class Strings {
         'Used as the background colour in Gekiga UI style.',
     settingsAppearanceGekigaLockedHint:
         'Cannot be changed while the Gekiga UI style is selected',
-    settingsAppearance: 'Appearance',
+    settingsAppearance: 'Background',
     settingsAppearanceLight: 'Chalk',
     settingsAppearanceDark: 'Dark',
     settingsAppearanceSystem: 'Match device',
@@ -4512,7 +4534,7 @@ class Strings {
     settingsColorPresets: 'Presets',
     settingsTextColorTitle: 'Font colour',
     settingsTextColorDescription:
-        'Set the text colour for the current appearance using a colour code. Choosing a colour too close to the background will make text hard to read.',
+        'Set the text colour for the current background using a colour code. Choosing a colour too close to the background will make text hard to read.',
     settingsTextColorLightLabel: '',
     settingsOnAccentColorLabel: 'On accent',
     settingsOnAccentColorAuto: 'Auto',
@@ -4533,6 +4555,9 @@ class Strings {
     settingsUiStyleGekigaLabel: 'Gekiga',
     settingsUiStyleGlassLabel: 'Glass',
     settingsUiStyleBlockLabel: 'Woodcut',
+    settingsUiStyleChalkLabel: 'Chalk',
+    settingsCustomAppearanceInvalid: 'Enter a 6-digit colour code.',
+    settingsBackgroundPresetBoard: 'Blackboard',
     settingsChatLayoutTitle: 'Message display',
     settingsChatLayoutSideBySide: 'You on the right, others on the left',
     settingsChatLayoutSideBySideDescription:
@@ -4565,6 +4590,11 @@ class Strings {
     settingsSlidePickTitle: 'Press and slide to choose',
     settingsSlidePickSubtitle:
         'Press a menu chip or a talks button and slide your finger, then lift it over your choice. Turn this off to tap once at a time.',
+    settingsWaterMotionTitle: 'Selection motion',
+    settingsMotionLiquid: 'Liquid',
+    settingsMotionNone: 'None',
+    settingsWaterMotionSubtitle:
+        'Colour flows into the next chip, list item or tab like a liquid. With Liquid, chips do not pop out as you slide over them. With None, colour switches instantly and chips pop out again. It starts on None when the device asks to reduce motion.',
     settingsTalksListMirrorTitle: 'Flip left and right',
     settingsTalksListMirrorSubtitle:
         'With "Icon + room list", puts the icon column on the right and the messages on the left.',

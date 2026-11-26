@@ -41,6 +41,10 @@ import 'providers/calling_sound_provider.dart';
 import 'providers/chat_layout_style_provider.dart';
 import 'providers/icon_split_layout_provider.dart';
 import 'providers/text_size_provider.dart';
+import 'models/dark_variant.dart';
+import 'providers/custom_appearance_provider.dart';
+import 'providers/custom_background_colors_provider.dart';
+import 'providers/selection_motion_provider.dart';
 import 'providers/slide_pick_enabled_provider.dart';
 import 'providers/slide_transition_style_provider.dart';
 import 'providers/conversation_sort_order_provider.dart';
@@ -76,6 +80,7 @@ import 'utils/always_animate_binding.dart';
 import 'utils/android_notification_sound_sync.dart';
 import 'theme/app_theme.dart';
 import 'theme/block/block_theme.dart';
+import 'theme/chalk/chalk_theme.dart';
 import 'theme/gekiga/gekiga_theme.dart';
 import 'theme/glass/glass_theme.dart';
 import 'utils/web_redirect_sign_in.dart';
@@ -194,6 +199,10 @@ Future<void> _launchApp({required bool firstLaunch}) async {
   final initialJoinVideoCameraOn = await loadInitialJoinVideoCameraOn();
   final initialIconSplitMirrored = await loadInitialIconSplitMirrored();
   final initialSlidePickEnabled = await loadInitialSlidePickEnabled();
+  final initialSelectionWaterMotion = await loadInitialSelectionWaterMotion();
+  final initialCustomAppearance = await loadInitialCustomAppearance();
+  final initialCustomBackgroundColors =
+      await loadInitialCustomBackgroundColors();
   final initialAppTextSize = await loadInitialAppTextSize();
   final initialIconSplitLayout = await loadInitialIconSplitLayout();
   final initialCategoryListVertical = await loadInitialCategoryListVertical();
@@ -268,6 +277,15 @@ Future<void> _launchApp({required bool firstLaunch}) async {
         ),
         initialJoinVideoCameraOnProvider.overrideWithValue(
           initialJoinVideoCameraOn,
+        ),
+        initialCustomBackgroundColorsProvider.overrideWithValue(
+          initialCustomBackgroundColors,
+        ),
+        initialCustomAppearanceProvider.overrideWithValue(
+          initialCustomAppearance,
+        ),
+        initialSelectionWaterMotionProvider.overrideWithValue(
+          initialSelectionWaterMotion,
         ),
         initialSlidePickEnabledProvider.overrideWithValue(
           initialSlidePickEnabled,
@@ -387,54 +405,70 @@ class DaiDaiApp extends ConsumerWidget {
     // 既存方針をアプリ全体に拡張したもの）。switch式にしているのは、新しい
     // スタイルを追加した際に対応漏れをコンパイラが検知出来るようにする為。
     // 劇画は独自の固定モノクロ配色のため文字色設定の対象外（既存方針）。
+    // カスタムの外観: 背景色のカラーコードから、面の色を導く。背景色の明るさで、ライトかダークかが
+    // 決まり、ライト/ダークの選択はこの間は使わない。
+    final custom = ref.watch(customAppearanceProvider);
+    final palette = custom.enabled
+        ? AppearancePalette.fromBackground(custom.color)
+        : null;
     final theme = switch (uiStyle) {
       AppUiStyle.flat => AppTheme.light(
         accentColor,
-        textColor: textColorLight,
+        textColor: custom.enabled ? null : textColorLight,
         onAccentColor: onAccentColorLight,
         fontFamily: fontFamily,
+        palette: palette,
       ),
+      // チョーク: ライト/ダークによらず、黒板の色に固定する（文字は白いチョーク色）。
+      AppUiStyle.chalk => ChalkTheme.build(accentColor, fontFamily),
       AppUiStyle.gekiga => GekigaTheme.build(
         gekigaBackgroundColor,
         fontFamily: fontFamily,
       ),
       AppUiStyle.glass => GlassTheme.light(
         accentColor,
-        textColor: textColorLight,
+        textColor: custom.enabled ? null : textColorLight,
         onAccentColor: onAccentColorLight,
         fontFamily: fontFamily,
+        palette: palette,
       ),
       AppUiStyle.block => BlockTheme.light(
         accentColor,
-        textColor: textColorLight,
+        textColor: custom.enabled ? null : textColorLight,
         onAccentColor: onAccentColorLight,
         fontFamily: fontFamily,
+        palette: palette,
       ),
     };
     final darkTheme = switch (uiStyle) {
       AppUiStyle.flat => AppTheme.dark(
         accentColor,
-        textColor: textColorDark,
+        textColor: custom.enabled ? null : textColorDark,
         onAccentColor: onAccentColorDark,
         fontFamily: fontFamily,
+        palette: palette,
         variant: darkVariant,
       ),
+      // チョーク: ライト/ダークによらず、黒板の色に固定する（文字は白いチョーク色）。
+      AppUiStyle.chalk => ChalkTheme.build(accentColor, fontFamily),
       AppUiStyle.gekiga => GekigaTheme.build(
         gekigaBackgroundColor,
         fontFamily: fontFamily,
       ),
       AppUiStyle.glass => GlassTheme.dark(
         accentColor,
-        textColor: textColorDark,
+        textColor: custom.enabled ? null : textColorDark,
         onAccentColor: onAccentColorDark,
         fontFamily: fontFamily,
+        palette: palette,
         variant: darkVariant,
       ),
       AppUiStyle.block => BlockTheme.dark(
         accentColor,
-        textColor: textColorDark,
+        textColor: custom.enabled ? null : textColorDark,
         onAccentColor: onAccentColorDark,
         fontFamily: fontFamily,
+        palette: palette,
         variant: darkVariant,
       ),
     };
@@ -443,7 +477,12 @@ class DaiDaiApp extends ConsumerWidget {
       debugShowCheckedModeBanner: false,
       theme: theme,
       darkTheme: darkTheme,
-      themeMode: themeMode,
+      themeMode: custom.enabled
+          ? (ThemeData.estimateBrightnessForColor(custom.color) ==
+                    Brightness.dark
+                ? ThemeMode.dark
+                : ThemeMode.light)
+          : themeMode,
       locale: appLocale.locale,
       supportedLocales: AppLocale.values.map((l) => l.locale),
       localizationsDelegates: const [

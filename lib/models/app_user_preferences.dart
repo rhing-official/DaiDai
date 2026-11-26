@@ -24,11 +24,15 @@ class AppUserPreferences {
     this.bgmTab,
     this.iconSplitMirrored,
     this.slidePickEnabled,
+    this.selectionWaterMotion,
+    this.customAppearanceEnabled,
+    this.customAppearanceColor,
     this.chatLayoutStyle,
     this.slideTransitionStyle,
     this.messageTimeFormat,
     this.appUiStyle,
     this.customAccentColorsArgb,
+    this.customBackgroundColorsArgb,
     this.customFontColorsArgb,
     this.removedDefaultColorPresetsHex,
     this.conversationSortOrder,
@@ -88,6 +92,13 @@ class AppUserPreferences {
   /// 押したまま指を滑らせて選ぶ操作を使うか（2026-11-05追加、null=標準のオン）。
   final bool? slidePickEnabled;
 
+  /// 選択色を水で移すか（2026-11-26追加、null=端末の既定）。
+  final bool? selectionWaterMotion;
+
+  /// カスタムの外観（背景色のカラーコード）を使うか、その色（ARGB、2026-11-26追加）。
+  final bool? customAppearanceEnabled;
+  final int? customAppearanceColor;
+
   final String? chatLayoutStyle;
 
   /// 画面遷移の動きの種類（2026-11-04追加、null=標準の「スライド＋滲み」）。
@@ -99,6 +110,9 @@ class AppUserPreferences {
   /// ユーザーが自分で登録したアクセントカラーの一覧（`accentColorArgb`
   /// とは別に、繰り返し使うために保存した色。2026-08-29追加）。
   final List<int>? customAccentColorsArgb;
+
+  /// 背景色の登録色（2026-11-26追加、[customAccentColorsArgb]と同じ形式）。
+  final List<int>? customBackgroundColorsArgb;
 
   /// カードの文字色の登録色（2026-10-31追加、[customAccentColorsArgb]と同じ形式）。
   final List<int>? customFontColorsArgb;
@@ -181,6 +195,9 @@ class AppUserPreferences {
       bgmTab: (json['bgmTab'] as num?)?.toInt(),
       iconSplitMirrored: json['iconSplitMirrored'] as bool?,
       slidePickEnabled: json['slidePickEnabled'] as bool?,
+      selectionWaterMotion: json['selectionWaterMotion'] as bool?,
+      customAppearanceEnabled: json['customAppearanceEnabled'] as bool?,
+      customAppearanceColor: (json['customAppearanceColor'] as num?)?.toInt(),
       chatLayoutStyle: json['chatLayoutStyle'] as String?,
       slideTransitionStyle: json['slideTransitionStyle'] as String?,
       messageTimeFormat: json['messageTimeFormat'] as String?,
@@ -188,6 +205,10 @@ class AppUserPreferences {
       customAccentColorsArgb: (json['customAccentColorsArgb'] as List<dynamic>?)
           ?.map((e) => e as int)
           .toList(),
+      customBackgroundColorsArgb:
+          (json['customBackgroundColorsArgb'] as List<dynamic>?)
+              ?.map((e) => e as int)
+              .toList(),
       customFontColorsArgb: (json['customFontColorsArgb'] as List<dynamic>?)
           ?.map((e) => e as int)
           .toList(),
@@ -234,6 +255,12 @@ class AppUserPreferences {
       if (bgmTab != null) 'bgmTab': bgmTab,
       if (iconSplitMirrored != null) 'iconSplitMirrored': iconSplitMirrored,
       if (slidePickEnabled != null) 'slidePickEnabled': slidePickEnabled,
+      if (selectionWaterMotion != null)
+        'selectionWaterMotion': selectionWaterMotion,
+      if (customAppearanceEnabled != null)
+        'customAppearanceEnabled': customAppearanceEnabled,
+      if (customAppearanceColor != null)
+        'customAppearanceColor': customAppearanceColor,
       if (chatLayoutStyle != null) 'chatLayoutStyle': chatLayoutStyle,
       if (slideTransitionStyle != null)
         'slideTransitionStyle': slideTransitionStyle,
@@ -241,6 +268,8 @@ class AppUserPreferences {
       if (appUiStyle != null) 'appUiStyle': appUiStyle,
       if (customAccentColorsArgb != null)
         'customAccentColorsArgb': customAccentColorsArgb,
+      if (customBackgroundColorsArgb != null)
+        'customBackgroundColorsArgb': customBackgroundColorsArgb,
       if (customFontColorsArgb != null)
         'customFontColorsArgb': customFontColorsArgb,
       if (removedDefaultColorPresetsHex != null)

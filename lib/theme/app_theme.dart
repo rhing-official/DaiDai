@@ -36,6 +36,7 @@ class AppTheme {
     Color? textColor,
     Color? onAccentColor,
     String? fontFamily,
+    AppearancePalette? palette,
   }) => _build(
     accentColor,
     Brightness.light,
@@ -43,6 +44,7 @@ class AppTheme {
     textColor,
     onAccentColor,
     DarkVariant.standard,
+    palette: palette,
   );
 
   static ThemeData dark(
@@ -51,6 +53,7 @@ class AppTheme {
     Color? onAccentColor,
     String? fontFamily,
     DarkVariant variant = DarkVariant.standard,
+    AppearancePalette? palette,
   }) => _build(
     accentColor,
     Brightness.dark,
@@ -58,6 +61,7 @@ class AppTheme {
     textColor,
     onAccentColor,
     variant,
+    palette: palette,
   );
 
   static ThemeData _build(
@@ -66,8 +70,11 @@ class AppTheme {
     String? fontFamily,
     Color? textColor,
     Color? onAccentColor,
-    DarkVariant variant,
-  ) {
+    DarkVariant variant, {
+    AppearancePalette? palette,
+  }) {
+    final darkBackgroundColor = palette?.background ?? variant.background;
+    final darkSurfaceColor = palette?.surface ?? variant.surface;
     final isDark = brightness == Brightness.dark;
     // ユーザーが設定タブで指定した文字色（未設定なら既存の固定色
     // `TextProminence.light/darkPrimary`のまま、2026-09-14追加）。
@@ -113,12 +120,12 @@ class AppTheme {
     // アクセントカラーに依存しない固定色に揃える。
     if (isDark) {
       colorScheme = colorScheme.copyWith(
-        surface: variant.background,
-        surfaceContainerLowest: variant.background,
-        surfaceContainerLow: variant.background,
-        surfaceContainer: variant.surface,
-        surfaceContainerHigh: variant.surface,
-        surfaceContainerHighest: variant.surface,
+        surface: darkBackgroundColor,
+        surfaceContainerLowest: darkBackgroundColor,
+        surfaceContainerLow: darkBackgroundColor,
+        surfaceContainer: darkSurfaceColor,
+        surfaceContainerHigh: darkSurfaceColor,
+        surfaceContainerHighest: darkSurfaceColor,
         onSurface: resolvedTextColor,
         onSurfaceVariant: textSecondary,
       );
@@ -130,21 +137,24 @@ class AppTheme {
       // ダイアログ等（surfaceContainer/surfaceContainerHigh/Highest）は
       // 引き続きアクセントカラーの色相を残す従来方針のまま変更しない。
       colorScheme = colorScheme.copyWith(
-        surface: GlassColors.lightBackground,
-        surfaceContainerLowest: GlassColors.lightBackground,
-        surfaceContainerLow: GlassColors.lightBackground,
-        surfaceContainer: colorScheme.surfaceContainerHighest,
-        surfaceContainerHigh: colorScheme.surfaceContainerHighest,
+        surface: palette?.background ?? GlassColors.lightBackground,
+        surfaceContainerLowest:
+            palette?.background ?? GlassColors.lightBackground,
+        surfaceContainerLow: palette?.background ?? GlassColors.lightBackground,
+        surfaceContainer:
+            palette?.surface ?? colorScheme.surfaceContainerHighest,
+        surfaceContainerHigh:
+            palette?.surface ?? colorScheme.surfaceContainerHighest,
         onSurface: resolvedTextColor,
         onSurfaceVariant: textSecondary,
       );
     }
-    final backgroundColor = isDark ? variant.background : colorScheme.surface;
+    final backgroundColor = isDark ? darkBackgroundColor : colorScheme.surface;
     final cardColor = isDark
-        ? variant.surface
-        : colorScheme.surfaceContainerHighest;
+        ? darkSurfaceColor
+        : (palette?.surface ?? colorScheme.surfaceContainerHighest);
     // 漆黒は面が背景に溶けるため、カードに細い枠線を足す（2026-11-17）。
-    final darkOutline = isDark ? variant.outline : null;
+    final darkOutline = isDark ? (palette?.outline ?? variant.outline) : null;
 
     final floatingShadow = [
       BoxShadow(

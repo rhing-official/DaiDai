@@ -391,7 +391,7 @@ class _Message extends ConsumerWidget {
       AppUiStyle.glass => GlassIconBadge(icon: icon, size: _badgeSize),
       AppUiStyle.block => BlockIconBadge(icon: icon, size: _badgeSize),
       // アクセントカラーは地として使い、アイコンは設定の「アクセント上の文字色」に従う。
-      AppUiStyle.flat => Container(
+      AppUiStyle.flat || AppUiStyle.chalk => Container(
         width: _badgeSize,
         height: _badgeSize,
         decoration: BoxDecoration(

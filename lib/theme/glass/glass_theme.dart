@@ -21,6 +21,7 @@ class GlassTheme {
     Color? textColor,
     Color? onAccentColor,
     String? fontFamily,
+    AppearancePalette? palette,
   }) => _build(
     accentColor,
     Brightness.light,
@@ -28,6 +29,7 @@ class GlassTheme {
     textColor,
     onAccentColor,
     DarkVariant.standard,
+    palette: palette,
   );
 
   static ThemeData dark(
@@ -36,6 +38,7 @@ class GlassTheme {
     Color? onAccentColor,
     String? fontFamily,
     DarkVariant variant = DarkVariant.standard,
+    AppearancePalette? palette,
   }) => _build(
     accentColor,
     Brightness.dark,
@@ -43,6 +46,7 @@ class GlassTheme {
     textColor,
     onAccentColor,
     variant,
+    palette: palette,
   );
 
   static ThemeData _build(
@@ -51,8 +55,10 @@ class GlassTheme {
     String? fontFamily,
     Color? textColor,
     Color? onAccentColor,
-    DarkVariant variant,
-  ) {
+    DarkVariant variant, {
+    AppearancePalette? palette,
+  }) {
+    final pal = palette ?? variant.palette;
     final isDark = brightness == Brightness.dark;
     // ユーザーが設定タブで指定した文字色（未設定なら既存の固定色のまま、
     // 2026-09-14追加、フラットと同じ方針）。
@@ -95,30 +101,32 @@ class GlassTheme {
     // `darkForeground`と同じ値のTier1を維持することで見た目を変えない。
     if (isDark) {
       colorScheme = colorScheme.copyWith(
-        surface: variant.glassBackground,
-        surfaceContainerLowest: variant.glassBackground,
-        surfaceContainerLow: variant.glassBackground,
-        surfaceContainer: variant.glassSurface,
-        surfaceContainerHigh: variant.glassSurface,
-        surfaceContainerHighest: variant.glassSurface,
+        surface: pal.glassBackground,
+        surfaceContainerLowest: pal.glassBackground,
+        surfaceContainerLow: pal.glassBackground,
+        surfaceContainer: pal.glassSurface,
+        surfaceContainerHigh: pal.glassSurface,
+        surfaceContainerHighest: pal.glassSurface,
         onSurface: resolvedTextColor,
         onSurfaceVariant: textSecondary,
       );
     } else {
       colorScheme = colorScheme.copyWith(
-        surface: GlassColors.lightBackground,
-        surfaceContainerLowest: GlassColors.lightBackground,
-        surfaceContainerLow: GlassColors.lightBackground,
-        surfaceContainer: GlassColors.lightSurfaceBase,
-        surfaceContainerHigh: GlassColors.lightSurfaceBase,
-        surfaceContainerHighest: GlassColors.lightSurfaceBase,
+        surface: palette?.background ?? GlassColors.lightBackground,
+        surfaceContainerLowest:
+            palette?.background ?? GlassColors.lightBackground,
+        surfaceContainerLow: palette?.background ?? GlassColors.lightBackground,
+        surfaceContainer: palette?.surface ?? GlassColors.lightSurfaceBase,
+        surfaceContainerHigh: palette?.surface ?? GlassColors.lightSurfaceBase,
+        surfaceContainerHighest:
+            palette?.surface ?? GlassColors.lightSurfaceBase,
         onSurface: resolvedTextColor,
         onSurfaceVariant: textSecondary,
       );
     }
     final backgroundColor = isDark
-        ? variant.glassBackground
-        : GlassColors.lightBackground;
+        ? pal.glassBackground
+        : (palette?.background ?? GlassColors.lightBackground);
 
     final extras = GlassThemeExtras(
       chromeBlurSigma: 20,
@@ -218,7 +226,9 @@ class GlassTheme {
       inputDecorationTheme: InputDecorationTheme(
         filled: true,
         fillColor:
-            (isDark ? variant.glassSurface : GlassColors.lightSurfaceBase)
+            (isDark
+                    ? pal.glassSurface
+                    : (palette?.surface ?? GlassColors.lightSurfaceBase))
                 .withValues(alpha: extras.cardTintAlpha),
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(16),

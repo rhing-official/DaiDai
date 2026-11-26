@@ -25,7 +25,11 @@ enum AppUiStyle {
   /// ネオブルータリズム風（2026-11-06追加、第1段階＝テーマと主な共通部品のみ。
   /// 画面毎の寄せは段階的に行う）。硬い影はこのスタイルだけの例外
   /// （他のスタイルは影を使わない、CLAUDE.md参照）。
-  block;
+  block,
+
+  /// 黒板にチョークで描いたような、手描きの白い線・黄色のチョークの選択
+  /// （2026-11-26追加、第1段階＝テーマとメニューチップ）。ライト/ダークによらず黒板の色に固定する。
+  chalk;
 
   static AppUiStyle fromName(String? name) {
     return AppUiStyle.values.firstWhere(

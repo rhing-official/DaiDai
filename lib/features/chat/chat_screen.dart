@@ -3362,9 +3362,8 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                                   AppUiStyle.block => const BlockIconBadge(
                                     icon: Icons.call_outlined,
                                   ),
-                                  AppUiStyle.flat => const Icon(
-                                    Icons.call_outlined,
-                                  ),
+                                  AppUiStyle.flat || AppUiStyle.chalk =>
+                                    const Icon(Icons.call_outlined),
                                 }),
                                 onPressed: onCall,
                               ),
@@ -3394,9 +3393,8 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                                     AppUiStyle.block => const BlockIconBadge(
                                       icon: Icons.videocam_outlined,
                                     ),
-                                    AppUiStyle.flat => const Icon(
-                                      Icons.videocam_outlined,
-                                    ),
+                                    AppUiStyle.flat || AppUiStyle.chalk =>
+                                      const Icon(Icons.videocam_outlined),
                                   },
                                   onPressed: onVideoCall,
                                 ),
@@ -3420,7 +3418,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                               AppUiStyle.block => const BlockIconBadge(
                                 icon: Icons.push_pin_outlined,
                               ),
-                              AppUiStyle.flat => const Icon(
+                              AppUiStyle.flat || AppUiStyle.chalk => const Icon(
                                 Icons.push_pin_outlined,
                               ),
                             },
@@ -4727,7 +4725,7 @@ class _DateSeparator extends StatelessWidget {
           ),
         ),
       ),
-      AppUiStyle.gekiga || AppUiStyle.flat => Container(
+      AppUiStyle.gekiga || AppUiStyle.flat || AppUiStyle.chalk => Container(
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
         decoration: BoxDecoration(
           color: uiStyle == AppUiStyle.gekiga
@@ -4749,7 +4747,9 @@ class _DateSeparator extends StatelessWidget {
     AppUiStyle.gekiga => GekigaColors.onPanel,
     // 選択状態を持たないため常時同じ色にする（アクセントカラーは使わない）。
     AppUiStyle.glass => colorScheme.onSurfaceVariant,
-    AppUiStyle.flat || AppUiStyle.block => colorScheme.onPrimary,
+    AppUiStyle.flat ||
+    AppUiStyle.chalk ||
+    AppUiStyle.block => colorScheme.onPrimary,
   };
 }
 
@@ -5674,6 +5674,7 @@ class _MessageRow extends ConsumerWidget {
     final onBubbleColor = switch (uiStyle) {
       AppUiStyle.gekiga => isMe ? Colors.black : Colors.white,
       AppUiStyle.flat ||
+      AppUiStyle.chalk ||
       AppUiStyle.block => _readableTextColorOn(bubbleFill, colorScheme.surface),
       AppUiStyle.glass => _readableTextColorOn(bubbleFill, colorScheme.surface),
     };
@@ -5986,7 +5987,9 @@ class _MessageRow extends ConsumerWidget {
                 extraTopPadding: gekigaTopExtra,
                 child: child,
               ),
-              AppUiStyle.flat || AppUiStyle.block => Container(
+              AppUiStyle.flat ||
+              AppUiStyle.chalk ||
+              AppUiStyle.block => Container(
                 padding: const EdgeInsets.symmetric(
                   horizontal: 16,
                   vertical: 10,
@@ -6264,7 +6267,7 @@ class _MessageRow extends ConsumerWidget {
         ),
         child: bubbleContent,
       ),
-      AppUiStyle.flat => Container(
+      AppUiStyle.flat || AppUiStyle.chalk => Container(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
         decoration: BoxDecoration(
           // ブロックメッセージ（`skipBubbleFrame`）は自前の独立したカード
@@ -6312,7 +6315,9 @@ class _MessageRow extends ConsumerWidget {
     // 同じ赤になっており、そのままでは背景に溶け込んでほぼ見えなかった）。
     final readBadgeFg = switch (uiStyle) {
       AppUiStyle.gekiga => GekigaColors.onPanel,
-      AppUiStyle.flat || AppUiStyle.block => colorScheme.onSurface,
+      AppUiStyle.flat ||
+      AppUiStyle.chalk ||
+      AppUiStyle.block => colorScheme.onSurface,
       AppUiStyle.glass => colorScheme.onSurface,
     };
     final badgeContent = isSimpleDmReadMark
@@ -6337,7 +6342,9 @@ class _MessageRow extends ConsumerWidget {
       decoration: BoxDecoration(
         color: switch (uiStyle) {
           AppUiStyle.gekiga => GekigaColors.panel,
-          AppUiStyle.flat || AppUiStyle.block => colorScheme.surface,
+          AppUiStyle.flat ||
+          AppUiStyle.chalk ||
+          AppUiStyle.block => colorScheme.surface,
           AppUiStyle.glass => colorScheme.surface.withValues(alpha: 0.72),
         },
         borderRadius: BorderRadius.circular(999),

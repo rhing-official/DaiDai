@@ -23,6 +23,9 @@ import 'calendar_week_start_provider.dart';
 import 'holiday_settings_provider.dart';
 import 'calling_sound_provider.dart';
 import 'chat_layout_style_provider.dart';
+import 'custom_appearance_provider.dart';
+import 'custom_background_colors_provider.dart';
+import 'selection_motion_provider.dart';
 import 'slide_pick_enabled_provider.dart';
 import 'slide_transition_style_provider.dart';
 import 'conversation_sort_order_provider.dart';
@@ -64,6 +67,13 @@ void applyRemoteUserPreferences(WidgetRef ref, AppUserPreferences preferences) {
         .read(customAccentColorsProvider.notifier)
         .syncFromRemote(
           preferences.customAccentColorsArgb!.map(Color.new).toList(),
+        );
+  }
+  if (preferences.customBackgroundColorsArgb != null) {
+    ref
+        .read(customBackgroundColorsProvider.notifier)
+        .syncFromRemote(
+          preferences.customBackgroundColorsArgb!.map(Color.new).toList(),
         );
   }
   if (preferences.customFontColorsArgb != null) {
@@ -174,6 +184,20 @@ void applyRemoteUserPreferences(WidgetRef ref, AppUserPreferences preferences) {
     ref
         .read(slidePickEnabledProvider.notifier)
         .syncFromRemote(preferences.slidePickEnabled!);
+  }
+  if (preferences.customAppearanceEnabled != null ||
+      preferences.customAppearanceColor != null) {
+    ref
+        .read(customAppearanceProvider.notifier)
+        .syncFromRemote(
+          enabled: preferences.customAppearanceEnabled,
+          color: preferences.customAppearanceColor,
+        );
+  }
+  if (preferences.selectionWaterMotion != null) {
+    ref
+        .read(selectionWaterMotionProvider.notifier)
+        .syncFromRemote(preferences.selectionWaterMotion!);
   }
   if (preferences.iconSplitMirrored != null) {
     ref

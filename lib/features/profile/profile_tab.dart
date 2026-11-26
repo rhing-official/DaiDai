@@ -12,6 +12,7 @@ import 'package:image_picker/image_picker.dart';
 
 import '../../providers/kiwami_providers.dart';
 import '../../utils/kiwami.dart';
+import '../../widgets/liquid_tile_group.dart';
 import '../../widgets/kiwami_only_dialog.dart';
 import '../../router/back_stack.dart';
 import '../../l10n/strings.dart';
@@ -1016,60 +1017,87 @@ class _ProfileCategoryList extends ConsumerWidget {
             // スクロールは2026-11-23にNeverScrollableScrollPhysicsで止めた為、
             // SingleChildScrollViewの代わりにPaddingで足りる（内容量どおりに
             // 縮むので、alignCategoryListのAlignで上下左右へ動かせる）。
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 8),
-              child: GekigaJointedTileList(
-                horizontal: tileHorizontal,
-                seeds: [
-                  for (final category in categories) category.title.hashCode,
-                ],
-                selectedFlags: [
-                  for (var i = 0; i < categories.length; i++) isSelected(i),
-                ],
-                children: [
-                  for (var i = 0; i < categories.length; i++)
-                    KeyedSubtree(
-                      key: keyFor(i),
-                      child: _ProfileCategoryTile(
-                        icon: categories[i].icon,
-                        title: categories[i].title,
-                        selected: isSelected(i),
-                        large: large,
-                        horizontal: tileHorizontal,
-                        tutorialTargetId: _tutorialIdOf(categories[i]),
-                        onTap: () => onSelect(categories[i]),
+            LiquidTileGroup(
+              itemCount: categories.length,
+              selectedIndex: [
+                for (var i = 0; i < categories.length; i++)
+                  if (isSelected(i)) i,
+              ].firstOrNull,
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 8),
+                child: GekigaJointedTileList(
+                  horizontal: tileHorizontal,
+                  seeds: [
+                    for (final category in categories) category.title.hashCode,
+                  ],
+                  selectedFlags: [
+                    for (var i = 0; i < categories.length; i++) isSelected(i),
+                  ],
+                  children: [
+                    for (var i = 0; i < categories.length; i++)
+                      KeyedSubtree(
+                        key: keyFor(i),
+                        child: LiquidTile(
+                          index: i,
+                          builder: (context, sel) => _ProfileCategoryTile(
+                            icon: categories[i].icon,
+                            title: categories[i].title,
+                            selected: sel,
+                            large: large,
+                            horizontal: tileHorizontal,
+                            tutorialTargetId: sel
+                                ? null
+                                : _tutorialIdOf(categories[i]),
+                            onTap: () => onSelect(categories[i]),
+                          ),
+                        ),
                       ),
-                    ),
-                ],
+                  ],
+                ),
               ),
             ),
           );
         }
+        final selectedTile = [
+          for (var i = 0; i < categories.length; i++)
+            if (isSelected(i)) i,
+        ].firstOrNull;
         return alignCategoryList(
           vertical: vertical,
           horizontal: horizontal,
-          ListView(
-            // 内容量どおりに縮め、alignCategoryListのAlignで上下左右へ動かせる
-            // ようにする（2026-11-23、画面の広さを問わず常時true）。
-            shrinkWrap: true,
-            // 一覧自体はスクロールさせない（2026-11-11、2026-11-23に画面の
-            // 広さを問わず常時適用へ変更。上のGekiga版と同じ理由）。
-            physics: const NeverScrollableScrollPhysics(),
-            padding: const EdgeInsets.fromLTRB(8, 0, 8, 8),
-            children: [
-              for (var i = 0; i < categories.length; i++)
-                KeyedSubtree(
-                  key: keyFor(i),
-                  child: _ProfileCategoryTile(
-                    icon: categories[i].icon,
-                    title: categories[i].title,
-                    selected: isSelected(i),
-                    horizontal: tileHorizontal,
-                    tutorialTargetId: _tutorialIdOf(categories[i]),
-                    onTap: () => onSelect(categories[i]),
+          // 選択色は、水が流れ込むように移す（2026-11-26）。
+          LiquidTileGroup(
+            itemCount: categories.length,
+            selectedIndex: selectedTile,
+            child: ListView(
+              // 内容量どおりに縮め、alignCategoryListのAlignで上下左右へ動かせる
+              // ようにする（2026-11-23、画面の広さを問わず常時true）。
+              shrinkWrap: true,
+              // 一覧自体はスクロールさせない（2026-11-11、2026-11-23に画面の
+              // 広さを問わず常時適用へ変更。上のGekiga版と同じ理由）。
+              physics: const NeverScrollableScrollPhysics(),
+              padding: const EdgeInsets.fromLTRB(8, 0, 8, 8),
+              children: [
+                for (var i = 0; i < categories.length; i++)
+                  KeyedSubtree(
+                    key: keyFor(i),
+                    child: LiquidTile(
+                      index: i,
+                      builder: (context, sel) => _ProfileCategoryTile(
+                        icon: categories[i].icon,
+                        title: categories[i].title,
+                        selected: sel,
+                        horizontal: tileHorizontal,
+                        // 目印の鍵は、重ねた2枚のうち選ばれていない方だけに付ける（二重にしない）。
+                        tutorialTargetId: sel
+                            ? null
+                            : _tutorialIdOf(categories[i]),
+                        onTap: () => onSelect(categories[i]),
+                      ),
+                    ),
                   ),
-                ),
-            ],
+              ],
+            ),
           ),
         );
       },
@@ -1137,25 +1165,28 @@ class _ProfileCategoryTile extends ConsumerWidget {
       final foreground = colorScheme.onSurfaceVariant;
       return Padding(
         padding: const EdgeInsets.symmetric(vertical: 3),
-        child: GlassSurface(
-          borderRadius: BorderRadius.circular(12),
-          accentColorOverride: selected ? colorScheme.primary : null,
-          child: Material(
-            color: selected
-                ? colorScheme.primary.withValues(alpha: 0.45)
-                : Colors.transparent,
-            child: ListTile(
-              contentPadding: const EdgeInsets.symmetric(
-                horizontal: 16,
-                vertical: 8,
+        child: blockFitWidth(
+          horizontal: horizontal,
+          GlassSurface(
+            borderRadius: BorderRadius.circular(12),
+            accentColorOverride: selected ? colorScheme.primary : null,
+            child: Material(
+              color: selected
+                  ? colorScheme.primary.withValues(alpha: 0.45)
+                  : Colors.transparent,
+              child: ListTile(
+                contentPadding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 8,
+                ),
+                selected: selected,
+                selectedColor: foreground,
+                iconColor: foreground,
+                textColor: foreground,
+                leading: Icon(icon),
+                title: Text(title),
+                onTap: onTap,
               ),
-              selected: selected,
-              selectedColor: foreground,
-              iconColor: foreground,
-              textColor: foreground,
-              leading: Icon(icon),
-              title: Text(title),
-              onTap: onTap,
             ),
           ),
         ),
@@ -1196,18 +1227,26 @@ class _ProfileCategoryTile extends ConsumerWidget {
     }
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 3),
-      child: ListTile(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-        tileColor: colorScheme.surface,
-        selectedTileColor: colorScheme.primary,
-        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-        selected: selected,
-        selectedColor: colorScheme.onPrimary,
-        iconColor: foreground,
-        textColor: foreground,
-        leading: Icon(icon),
-        title: Text(title),
-        onTap: onTap,
+      child: blockFitWidth(
+        horizontal: horizontal,
+        ListTile(
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+          ),
+          tileColor: colorScheme.surface,
+          selectedTileColor: colorScheme.primary,
+          contentPadding: const EdgeInsets.symmetric(
+            horizontal: 16,
+            vertical: 8,
+          ),
+          selected: selected,
+          selectedColor: colorScheme.onPrimary,
+          iconColor: foreground,
+          textColor: foreground,
+          leading: Icon(icon),
+          title: Text(title),
+          onTap: onTap,
+        ),
       ),
     );
   }

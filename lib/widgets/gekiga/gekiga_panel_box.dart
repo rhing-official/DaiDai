@@ -4,6 +4,8 @@ import 'package:flutter/rendering.dart';
 
 import '../../models/nav_chip_layout.dart';
 import '../../theme/gekiga/gekiga_colors.dart';
+import '../liquid_sim.dart';
+import '../liquid_tile_group.dart';
 import 'monochrome_box.dart';
 
 /// [GekigaTileContent]で使う「アイコン＋タイトル／サブタイトル＋末尾
@@ -214,9 +216,12 @@ class _GekigaJointedList extends MultiChildRenderObjectWidget {
     required this.seeds,
     required this.selectedFlags,
     required this.horizontal,
+    required this.water,
     required super.children,
   });
 
+  /// 選択色を水で移す時の、水の計算（無ければ、従来どおり即時に切り替える）。
+  final LiquidSim? water;
   final Axis axis;
   final NavChipAlignment horizontal;
   final List<int> seeds;
@@ -229,6 +234,7 @@ class _GekigaJointedList extends MultiChildRenderObjectWidget {
       seeds: seeds,
       selectedFlags: selectedFlags,
       horizontal: horizontal,
+      water: water,
     );
   }
 
@@ -241,7 +247,8 @@ class _GekigaJointedList extends MultiChildRenderObjectWidget {
       ..axis = axis
       ..seeds = seeds
       ..selectedFlags = selectedFlags
-      ..horizontal = horizontal;
+      ..horizontal = horizontal
+      ..water = water;
   }
 }
 
@@ -287,6 +294,7 @@ class GekigaJointedTileList extends StatelessWidget {
       seeds: seeds,
       selectedFlags: selectedFlags,
       horizontal: horizontal,
+      water: LiquidTileGroup.simOf(context),
       children: children,
     );
   }
@@ -318,6 +326,7 @@ class GekigaJointedPair extends StatelessWidget {
       seeds: [leftSeed, rightSeed],
       selectedFlags: [leftSelected, rightSelected],
       horizontal: NavChipAlignment.start,
+      water: LiquidTileGroup.simOf(context),
       children: [left, right],
     );
   }
@@ -338,7 +347,9 @@ class _RenderGekigaJointedList extends RenderBox
     required List<int> seeds,
     required List<bool> selectedFlags,
     required NavChipAlignment horizontal,
-  }) : _axis = axis,
+    LiquidSim? water,
+  }) : _water = water,
+       _axis = axis,
        _seeds = seeds,
        _selectedFlags = selectedFlags,
        _horizontal = horizontal;
@@ -372,6 +383,27 @@ class _RenderGekigaJointedList extends RenderBox
     if (_horizontal == value) return;
     _horizontal = value;
     markNeedsLayout();
+  }
+
+  LiquidSim? _water;
+  set water(LiquidSim? value) {
+    if (identical(_water, value)) return;
+    if (attached) _water?.removeListener(markNeedsPaint);
+    _water = value;
+    if (attached) _water?.addListener(markNeedsPaint);
+    markNeedsPaint();
+  }
+
+  @override
+  void attach(PipelineOwner owner) {
+    super.attach(owner);
+    _water?.addListener(markNeedsPaint);
+  }
+
+  @override
+  void detach() {
+    _water?.removeListener(markNeedsPaint);
+    super.detach();
   }
 
   List<int> _seeds;
@@ -474,19 +506,53 @@ class _RenderGekigaJointedList extends RenderBox
         Offset(0, box.size.height),
       ];
       final selected = _selectedFlags[i];
+      final water = _water;
       context.canvas
         ..save()
         ..translate(
           offset.dx + childParentData.offset.dx,
           offset.dy + childParentData.offset.dy,
         );
-      MonochromeBoxPainter(
-        vertices: vertices,
-        thicknessBase: _fixedThicknessBase,
-        fillColor: selected ? GekigaColors.onPanel : GekigaColors.panel,
-        seed: _seeds[i],
-        invert: selected,
-      ).paint(context.canvas, box.size);
+      if (water == null) {
+        MonochromeBoxPainter(
+          vertices: vertices,
+          thicknessBase: _fixedThicknessBase,
+          fillColor: selected ? GekigaColors.onPanel : GekigaColors.panel,
+          seed: _seeds[i],
+          invert: selected,
+        ).paint(context.canvas, box.size);
+      } else {
+        // 水で移す時: 選ばれていない形を描き、その上に、選ばれた形（白い外枠・黒い中枠・
+        // 白い塗り）を、水の領域だけ現す。水が収まった時は、オフの時と同じ見た目になる。
+        MonochromeBoxPainter(
+          vertices: vertices,
+          thicknessBase: _fixedThicknessBase,
+          fillColor: GekigaColors.panel,
+          seed: _seeds[i],
+        ).paint(context.canvas, box.size);
+        final Path? region;
+        if (water.tanks[i] == null) {
+          // まだ水槽が無い間は、最初から選ばれている箱だけ満水に見せる。
+          region = (water.tanks.isEmpty && selected)
+              ? (Path()..addRect(Offset.zero & box.size))
+              : null;
+        } else {
+          region = water.waterRegion(i, box.size);
+        }
+        if (region != null) {
+          context.canvas
+            ..save()
+            ..clipPath(region);
+          MonochromeBoxPainter(
+            vertices: vertices,
+            thicknessBase: _fixedThicknessBase,
+            fillColor: GekigaColors.onPanel,
+            seed: _seeds[i],
+            invert: true,
+          ).paint(context.canvas, box.size);
+          context.canvas.restore();
+        }
+      }
       context.canvas.restore();
     }
     for (final box in boxes) {

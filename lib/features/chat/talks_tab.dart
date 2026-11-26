@@ -42,6 +42,7 @@ import '../../providers/icon_split_layout_provider.dart';
 import '../../providers/text_size_provider.dart';
 import '../../utils/sidebar_width.dart';
 import '../../widgets/nav_chip.dart';
+import '../../widgets/liquid_tile_group.dart';
 import '../../widgets/pick_zone.dart';
 import '../../models/talks_list_layout_style.dart';
 import '../../providers/app_ui_style_provider.dart';
@@ -1935,64 +1936,84 @@ class _TalksTabState extends ConsumerState<TalksTab>
                               child:
                                   ref.watch(appUiStyleProvider) ==
                                       AppUiStyle.gekiga
-                                  ? SingleChildScrollView(
-                                      scrollDirection: Axis.horizontal,
-                                      child: GekigaJointedPair(
-                                        leftSeed: vocab.dm.hashCode,
-                                        leftSelected:
-                                            _category == _TalksCategory.dm,
-                                        left: CategoryTab(
-                                          tutorialTargetId:
-                                              TutorialTargetIds.talkCategoryDm,
-                                          label: vocab.dm,
-                                          count: directMessages.length,
-                                          selected:
+                                  ? LiquidTileGroup(
+                                      itemCount: 2,
+                                      selectedIndex:
+                                          _category == _TalksCategory.dm
+                                          ? 0
+                                          : 1,
+                                      child: SingleChildScrollView(
+                                        scrollDirection: Axis.horizontal,
+                                        child: GekigaJointedPair(
+                                          leftSeed: vocab.dm.hashCode,
+                                          leftSelected:
                                               _category == _TalksCategory.dm,
-                                          onTap: () =>
-                                              _setCategory(_TalksCategory.dm),
-                                        ),
-                                        rightSeed: vocab.plaza.hashCode,
-                                        rightSelected:
-                                            _category == _TalksCategory.group,
-                                        right: CategoryTab(
-                                          tutorialTargetId: TutorialTargetIds
-                                              .talkCategoryGroup,
-                                          label: vocab.plaza,
-                                          count: groups.length,
-                                          selected:
+                                          left: CategoryTab(
+                                            liquidIndex: 0,
+                                            tutorialTargetId: TutorialTargetIds
+                                                .talkCategoryDm,
+                                            label: vocab.dm,
+                                            count: directMessages.length,
+                                            selected:
+                                                _category == _TalksCategory.dm,
+                                            onTap: () =>
+                                                _setCategory(_TalksCategory.dm),
+                                          ),
+                                          rightSeed: vocab.plaza.hashCode,
+                                          rightSelected:
                                               _category == _TalksCategory.group,
-                                          onTap: () => _setCategory(
-                                            _TalksCategory.group,
+                                          right: CategoryTab(
+                                            liquidIndex: 1,
+                                            tutorialTargetId: TutorialTargetIds
+                                                .talkCategoryGroup,
+                                            label: vocab.plaza,
+                                            count: groups.length,
+                                            selected:
+                                                _category ==
+                                                _TalksCategory.group,
+                                            onTap: () => _setCategory(
+                                              _TalksCategory.group,
+                                            ),
                                           ),
                                         ),
                                       ),
                                     )
-                                  : Row(
-                                      mainAxisSize: MainAxisSize.min,
-                                      children: [
-                                        CategoryTab(
-                                          tutorialTargetId:
-                                              TutorialTargetIds.talkCategoryDm,
-                                          label: vocab.dm,
-                                          count: directMessages.length,
-                                          selected:
-                                              _category == _TalksCategory.dm,
-                                          onTap: () =>
-                                              _setCategory(_TalksCategory.dm),
-                                        ),
-                                        const SizedBox(width: 6),
-                                        CategoryTab(
-                                          tutorialTargetId: TutorialTargetIds
-                                              .talkCategoryGroup,
-                                          label: vocab.plaza,
-                                          count: groups.length,
-                                          selected:
-                                              _category == _TalksCategory.group,
-                                          onTap: () => _setCategory(
-                                            _TalksCategory.group,
+                                  : LiquidTileGroup(
+                                      itemCount: 2,
+                                      selectedIndex:
+                                          _category == _TalksCategory.dm
+                                          ? 0
+                                          : 1,
+                                      child: Row(
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                          CategoryTab(
+                                            liquidIndex: 0,
+                                            tutorialTargetId: TutorialTargetIds
+                                                .talkCategoryDm,
+                                            label: vocab.dm,
+                                            count: directMessages.length,
+                                            selected:
+                                                _category == _TalksCategory.dm,
+                                            onTap: () =>
+                                                _setCategory(_TalksCategory.dm),
                                           ),
-                                        ),
-                                      ],
+                                          const SizedBox(width: 6),
+                                          CategoryTab(
+                                            liquidIndex: 1,
+                                            tutorialTargetId: TutorialTargetIds
+                                                .talkCategoryGroup,
+                                            label: vocab.plaza,
+                                            count: groups.length,
+                                            selected:
+                                                _category ==
+                                                _TalksCategory.group,
+                                            onTap: () => _setCategory(
+                                              _TalksCategory.group,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
                                     ),
                             ),
                             const SizedBox(width: 8),
@@ -2601,6 +2622,7 @@ class _TalksTabState extends ConsumerState<TalksTab>
     final showSearchResults = searchQuery.isNotEmpty;
 
     final dmTab = CategoryTab(
+      liquidIndex: 0,
       tutorialTargetId: TutorialTargetIds.talkCategoryDm,
       label: vocab.dm,
       count: directMessages.length,
@@ -2608,6 +2630,7 @@ class _TalksTabState extends ConsumerState<TalksTab>
       onTap: () => _setCategory(_TalksCategory.dm),
     );
     final groupTab = CategoryTab(
+      liquidIndex: 1,
       tutorialTargetId: TutorialTargetIds.talkCategoryGroup,
       label: vocab.plaza,
       count: groups.length,
@@ -2616,18 +2639,26 @@ class _TalksTabState extends ConsumerState<TalksTab>
     );
 
     final tabs = isGekiga
-        ? GekigaJointedTileList(
-            axis: Axis.vertical,
-            seeds: [vocab.dm.hashCode, vocab.plaza.hashCode],
-            selectedFlags: [
-              _category == _TalksCategory.dm,
-              _category == _TalksCategory.group,
-            ],
-            children: [dmTab, groupTab],
+        ? LiquidTileGroup(
+            itemCount: 2,
+            selectedIndex: _category == _TalksCategory.dm ? 0 : 1,
+            child: GekigaJointedTileList(
+              axis: Axis.vertical,
+              seeds: [vocab.dm.hashCode, vocab.plaza.hashCode],
+              selectedFlags: [
+                _category == _TalksCategory.dm,
+                _category == _TalksCategory.group,
+              ],
+              children: [dmTab, groupTab],
+            ),
           )
-        : Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [dmTab, const SizedBox(height: 4), groupTab],
+        : LiquidTileGroup(
+            itemCount: 2,
+            selectedIndex: _category == _TalksCategory.dm ? 0 : 1,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [dmTab, const SizedBox(height: 4), groupTab],
+            ),
           );
 
     Widget buildCategoryTiles(_TalksCategory category) {
@@ -3350,6 +3381,7 @@ class _TalksTabState extends ConsumerState<TalksTab>
           ),
         );
       case AppUiStyle.flat:
+      case AppUiStyle.chalk:
         // ガラスと同じ形（角丸24・枠線なし）で、半透明にはせず不透明の面で塗る
         // （2026-11-01）。
         return DecoratedBox(
@@ -3587,7 +3619,12 @@ class CategoryTab extends ConsumerWidget {
     required this.onTap,
     this.tutorialTargetId,
     this.slidable = true,
+    this.liquidIndex,
   });
+
+  /// 水が流れ込む並び（`LiquidTileGroup`）の中での番号（2026-11-26）。指定があれば、選択色を
+  /// 水で移す。劇画は従来どおり即時に切り替える。
+  final int? liquidIndex;
 
   /// メニューチップから滑らせてきた指が乗ったら、その場で選ぶか（2026-11-03、
   /// `PickZone`）。語らいの一対/広場のタブだけ有効にする。
@@ -3603,7 +3640,14 @@ class CategoryTab extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final built = _buildTab(context, ref);
+    final liquid = liquidIndex;
+    final built = liquid != null
+        ? LiquidTile(
+            index: liquid,
+            builder: (context, sel) =>
+                _buildTab(context, ref, selectedOverride: sel),
+          )
+        : _buildTab(context, ref);
     final tab = slidable
         ? PickZone(onEnter: selected ? null : onTap, child: built)
         : built;
@@ -3611,7 +3655,12 @@ class CategoryTab extends ConsumerWidget {
     return id == null ? tab : TutorialTarget(id: id, child: tab);
   }
 
-  Widget _buildTab(BuildContext context, WidgetRef ref) {
+  Widget _buildTab(
+    BuildContext context,
+    WidgetRef ref, {
+    bool? selectedOverride,
+  }) {
+    final selected = selectedOverride ?? this.selected;
     final isGekiga = ref.watch(appUiStyleProvider) == AppUiStyle.gekiga;
     if (isGekiga) {
       // 外枠（モノクロボックス）は呼び出し側の`GekigaJointedPair`が
@@ -5301,6 +5350,7 @@ class _ConversationGesturesState extends ConsumerState<_ConversationGestures> {
                       child: list,
                     );
                   case AppUiStyle.flat:
+                  case AppUiStyle.chalk:
                     return Material(
                       color: menuTheme.colorScheme.surface,
                       clipBehavior: Clip.antiAlias,

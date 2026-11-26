@@ -93,6 +93,7 @@ class ToggleColors {
           check: isDark ? const Color(0xFF121212) : Colors.white,
         );
       case AppUiStyle.flat:
+      case AppUiStyle.chalk:
         return ToggleColors(
           onFill: accent,
           offFill: scheme.onSurface.withValues(alpha: 0.12),
