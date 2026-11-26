@@ -468,7 +468,7 @@ class _CallScreenState extends ConsumerState<CallScreen> {
               CallAudioSinks(
                 renderers: _remoteIsVideo ? [] : [_controller.remoteRenderer],
               ),
-              Expanded(child: CallTileStage(specs: specs)),
+              Expanded(child: CallTileStage(specs: specs, hideUnpinned: true)),
               Padding(
                 padding: const EdgeInsets.only(bottom: 24, top: 8),
                 child: _controls(colorScheme),

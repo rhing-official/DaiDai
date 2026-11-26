@@ -521,7 +521,7 @@ class _GroupCallScreenState extends ConsumerState<GroupCallScreen> {
       SafeArea(
         child: Column(
           children: [
-            Expanded(child: CallTileStage(specs: specs)),
+            Expanded(child: CallTileStage(specs: specs, hideUnpinned: true)),
             Padding(
               padding: const EdgeInsets.only(bottom: 16),
               child: _controls(),

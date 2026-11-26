@@ -367,10 +367,20 @@ const kPipTileSize = Size(110, 150);
 /// （ピンした分は領域の上の大きい部分に並べ、残りは下の細い1行の帯に並べる）。
 /// ピンのボタンは、各ウィンドウの左上にここで重ねる。
 class CallTileStage extends ConsumerStatefulWidget {
-  const CallTileStage({required this.specs, this.spacing = 4.0, super.key});
+  const CallTileStage({
+    required this.specs,
+    this.spacing = 4.0,
+    this.hideUnpinned = false,
+    super.key,
+  });
 
   final List<CallTileSpec> specs;
   final double spacing;
+
+  /// ピン留めが有る間、ピンしていないウィンドウを出さない（2026-11-26）。モバイルの全画面の
+  /// 通話画面（`CallScreen`・`GroupCallScreen`）用。ピンを外すと、全てのウィンドウに戻る。
+  /// PC・Webの通話ウィンドウは、従来どおり小窓・帯で並べる。
+  final bool hideUnpinned;
 
   @override
   ConsumerState<CallTileStage> createState() => _CallTileStageState();
@@ -690,6 +700,9 @@ class _CallTileStageState extends ConsumerState<CallTileStage> {
         if (!pinnedKeys.contains(s.key)) s,
     ];
 
+    if (widget.hideUnpinned && pinned.isNotEmpty) {
+      return _rows([for (final s in pinned) _window(s, true, true)]);
+    }
     if (pinned.isEmpty || rest.isEmpty) {
       return _rows([
         for (final s in specs)
