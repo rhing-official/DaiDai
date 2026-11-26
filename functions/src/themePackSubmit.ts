@@ -118,7 +118,7 @@ export async function submitThemePack(store: SubmissionStore, input: SubmitInput
 
   const checked = validateThemePackFiles(files);
   if (!checked.ok) {
-    throw new SubmitError("invalid-argument", `素材パックを受け付けられません。${checked.errors.join("")}`);
+    throw new SubmitError("invalid-argument", `意匠パックを受け付けられません。${checked.errors.join("")}`);
   }
 
   const packId = themePackId(uid, checked.pack.id);

@@ -440,7 +440,7 @@ export function validateThemePackFiles(files: Map<string, Uint8Array>): FilesVal
         }
         const ext = extensionOf(name);
         if (EXECUTABLE_EXTENSIONS.has(ext)) {
-            errors.push(`「${name}」は、実行できる形式かスクリプトです。素材パックには、コードを含められません。`);
+            errors.push(`「${name}」は、実行できる形式かスクリプトです。意匠パックには、コードを含められません。`);
             continue;
         }
         const expected = imageTypeForExtension(ext);

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../models/app_ui_style.dart';
@@ -86,7 +87,10 @@ class RingListBlock extends ConsumerWidget {
       overrides: [appUiStyleProvider.overrideWith(_FlatStyleNotifier.new)],
       child: Theme(
         data: plain,
-        child: RingListScope(style: style, child: child),
+        child: RingListScope(
+          style: style,
+          child: RingHitExtender(child: child),
+        ),
       ),
     );
     if (!withBackground) return body;
@@ -191,5 +195,66 @@ class RingOutline extends StatelessWidget {
         border: Border.all(color: color, width: width),
       ),
     );
+  }
+}
+
+/// 囲みの大きなブロックの中で、項目の押せる範囲を、ブロックの横いっぱいまで広げる（2026-11-26）。
+/// 見た目（余白・枠）は変えない。項目の左右の余白（[edgeInset]）を押した時は、その高さの項目を押した
+/// ことにし、項目と項目の隙間の横（[gapProbe]まで）を押した時は、近い項目を押したことにする。
+/// 押した位置から、項目の中の位置は、余白の分だけずれて届く（タップの判定には影響しない）。
+class RingHitExtender extends SingleChildRenderObjectWidget {
+  const RingHitExtender({
+    required Widget super.child,
+    this.edgeInset = 8,
+    this.gapProbe = 3,
+    super.key,
+  });
+
+  final double edgeInset;
+  final double gapProbe;
+
+  @override
+  RenderObject createRenderObject(BuildContext context) =>
+      _RenderRingHitExtender(edgeInset, gapProbe);
+
+  @override
+  void updateRenderObject(BuildContext context, RenderProxyBox renderObject) {
+    (renderObject as _RenderRingHitExtender)
+      ..edgeInset = edgeInset
+      ..gapProbe = gapProbe;
+  }
+}
+
+class _RenderRingHitExtender extends RenderProxyBox {
+  _RenderRingHitExtender(this.edgeInset, this.gapProbe);
+
+  double edgeInset;
+  double gapProbe;
+
+  @override
+  bool hitTest(BoxHitTestResult result, {required Offset position}) {
+    if (!size.contains(position)) return false;
+    final maxX = size.width - 1e-3;
+    final inset = edgeInset.clamp(0.0, size.width / 2).toDouble();
+    // 左右の余白は、スクロールの部品が全面で受けるため、先に、内側へ寄せた位置で、項目を探す。
+    if (position.dx < inset || position.dx > size.width - inset) {
+      final x = position.dx.clamp(inset, size.width - inset - 1e-3).toDouble();
+      if (super.hitTest(
+        result,
+        position: Offset(x.clamp(0.0, maxX), position.dy),
+      )) {
+        return true;
+      }
+    }
+    if (super.hitTest(result, position: position)) return true;
+    for (var d = 1.0; d <= gapProbe; d += 1) {
+      for (final x in [position.dx + d, position.dx - d]) {
+        if (x < 0 || x > maxX) continue;
+        if (super.hitTest(result, position: Offset(x, position.dy))) {
+          return true;
+        }
+      }
+    }
+    return false;
   }
 }

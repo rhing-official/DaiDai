@@ -103,16 +103,16 @@ export interface ReviewStore {
 // ---------------------------------------------------------------------------
 
 export function approvedNoticeText(name: string): string {
-  return `素材パック『${name}』が承認され、公開されました。`;
+  return `意匠パック『${name}』が承認され、公開されました。`;
 }
 export function rejectedNoticeText(name: string, reason: string): string {
-  return `素材パック『${name}』は、差し戻されました。理由は次のとおりです。${reason}`;
+  return `意匠パック『${name}』は、差し戻されました。理由は次のとおりです。${reason}`;
 }
 export function suspendedCreatorNoticeText(name: string, reason: string): string {
-  return `素材パック『${name}』の配信を停止しました。理由は次のとおりです。${reason}`;
+  return `意匠パック『${name}』の配信を停止しました。理由は次のとおりです。${reason}`;
 }
 export function suspendedOwnerNoticeText(name: string): string {
-  return `取得した素材パック『${name}』の配信が停止されました。表示は標準に戻ります。`;
+  return `取得した意匠パック『${name}』の配信が停止されました。表示は標準に戻ります。`;
 }
 
 export function publicAssetPath(packId: string, version: number): string {
@@ -210,7 +210,7 @@ export async function approveThemePack(store: ReviewStore, input: ApproveInput):
   for (const f of listed) files.set(f.name, await store.readFile(sub.assetPath, f.name));
   const checked = validateThemePackFiles(files);
   if (!checked.ok) {
-    throw new ReviewError("failed-precondition", `素材パックの再検査に通りません。${checked.errors.join("")}`);
+    throw new ReviewError("failed-precondition", `意匠パックの再検査に通りません。${checked.errors.join("")}`);
   }
   if (`${sub.creatorId}__${checked.pack.id}` !== sub.packId) {
     throw new ReviewError("failed-precondition", "素材のidが、投稿の記録と一致しません。");
