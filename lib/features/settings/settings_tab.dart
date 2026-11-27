@@ -4844,6 +4844,10 @@ class SlideTransitionFolder extends ConsumerWidget {
         value: SlideTransitionStyle.pop,
         title: strings.settingsSlideTransitionPop,
       ),
+      (
+        value: SlideTransitionStyle.draw,
+        title: strings.settingsSlideTransitionDraw,
+      ),
     ];
 
     final control = isGekiga

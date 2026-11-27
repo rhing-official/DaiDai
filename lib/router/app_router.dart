@@ -184,8 +184,13 @@ final goRouterProvider = Provider<GoRouter>((ref) {
   }) => CustomTransitionPage<void>(
     key: state.pageKey,
     opaque: false,
-    transitionDuration: transitionDuration,
-    reverseTransitionDuration: transitionDuration,
+    // 描きは、ペンの往復が見える長さにする（2026-11-28）。
+    transitionDuration: activeSlideTransitionStyle.usesDraw
+        ? drawSlideDuration
+        : transitionDuration,
+    reverseTransitionDuration: activeSlideTransitionStyle.usesDraw
+        ? drawSlideDuration
+        : transitionDuration,
     transitionsBuilder: (context, animation, secondaryAnimation, child) {
       // 診断ログ（debugのみ、2026-11-12。画面が見えないのにタッチが効く状態の切り分け用）。
       // 遷移アニメーションの状態が変わった時だけ出す。

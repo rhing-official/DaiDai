@@ -4,6 +4,7 @@ import 'package:flutter/widgets.dart';
 
 import '../models/slide_transition_style.dart';
 import '../widgets/liquify_effect.dart';
+import '../widgets/scribble_paint.dart';
 
 /// アプリ全体で使う「ポップ」演出（フェード＋下からのわずかなスライド＋
 /// わずかな拡大）の共通パラメータ。元々`PopSlidePageTransitionsBuilder`
@@ -18,6 +19,15 @@ SlideTransitionStyle activeSlideTransitionStyle = SlideTransitionStyle.pop;
 
 const popSlideDuration = Duration(milliseconds: 220);
 const popSlideCurve = Curves.easeOutCubic;
+
+/// 「描き」の遷移・ポップアップの長さと曲線（2026-11-28）。ペンの往復は、通常の動きより
+/// 長く見せないと、塗られる様子が分からない。曲線は、行き過ぎない往復の進み方。
+const drawSlideDuration = Duration(milliseconds: 420);
+const drawSlideCurve = Curves.easeInOut;
+
+/// 今の画面遷移の種類に応じた、遷移・ポップアップの長さ。
+Duration get slideDuration =>
+    activeSlideTransitionStyle.usesDraw ? drawSlideDuration : popSlideDuration;
 const popSlideBeginOffset = Offset(0, 0.06);
 const popSlideBeginScale = 0.97;
 
@@ -57,6 +67,16 @@ Widget buildSlideInFromRightTransition(
 ) {
   final style = activeSlideTransitionStyle;
   final curved = CurvedAnimation(parent: animation, curve: popSlideCurve);
+  // 描き: 枠も中身も丸ごと、ペンで描き出す（2026-11-28）。
+  if (style.usesDraw) {
+    final drawn = CurvedAnimation(parent: animation, curve: drawSlideCurve);
+    return AnimatedBuilder(
+      animation: drawn,
+      child: child,
+      builder: (context, child) =>
+          ScribbleLayerReveal(progress: drawn.value, child: child!),
+    );
+  }
   // 離れているほど滲ませる（2026-11-04）。
   // ポップ: 中央から弾むように拡大して現れる（2026-11-06）。
   if (style == SlideTransitionStyle.pop) {
@@ -171,9 +191,12 @@ Widget buildAwayTransition({
       ..scaleByDouble(scale, scale, 1.0, 1.0),
     child: LiquifyEffect(progress: progress, enabled: isSuck, child: child),
   );
-  return Opacity(
-    opacity: style.usesFade ? 1 - progress : 1.0,
-    child: buildTransitionBlur(progress, moved),
+  return ScribbleLayerReveal(
+    progress: style.usesDraw ? 1 - progress : 1.0,
+    child: Opacity(
+      opacity: style.usesFade ? 1 - progress : 1.0,
+      child: buildTransitionBlur(progress, moved),
+    ),
   );
 }
 
@@ -201,8 +224,13 @@ Widget buildDialogTransition(Animation<double> animation, Widget child) {
     curve: popScaleCurve,
     reverseCurve: popSlideCurve,
   );
+  final drawCurved = CurvedAnimation(
+    parent: animation,
+    curve: drawSlideCurve,
+    reverseCurve: drawSlideCurve,
+  );
   return AnimatedBuilder(
-    animation: Listenable.merge([curved, popCurved]),
+    animation: Listenable.merge([curved, popCurved, drawCurved]),
     child: child,
     builder: (context, child) {
       final away = 1 - curved.value;
@@ -216,16 +244,25 @@ Widget buildDialogTransition(Animation<double> animation, Widget child) {
         corner: isPop ? Alignment.center : Alignment.bottomRight,
         child: LiquifyEffect(progress: away, enabled: isSuck, child: child!),
       );
-      return FractionalTranslation(
-        translation: Offset(0, isSlide ? away * 0.4 : 0),
-        child: Opacity(
-          // 現れ始めは薄くする（どの種類でも、唐突に出ないように）。吸い込みは、縮みながら
-          // 右下へ消えていく様子が見えるよう、最後の少しだけ薄くする（以前は線形に
-          // 薄くした為、縮み切る前に見えなくなっていた、2026-11-05）。
-          opacity: isSuck
-              ? (curved.value / suckFadeEnd).clamp(0.0, 1.0)
-              : curved.value.clamp(0.0, 1.0),
-          child: buildTransitionBlur(away, inner),
+      // 描きは、ペンで塗った所だけを見せる。枠・塗り・中身は同時に現れる。
+      // 木の形を固定するため、他の種類でも挟み、進み具合を1にする。
+      return ScribbleLayerReveal(
+        progress: style.usesDraw ? drawCurved.value : 1.0,
+        // ダイアログの層は画面全体。中の箱だけを塗る範囲にする。
+        fitContent: true,
+        child: FractionalTranslation(
+          translation: Offset(0, isSlide ? away * 0.4 : 0),
+          child: Opacity(
+            // 現れ始めは薄くする（どの種類でも、唐突に出ないように）。吸い込みは、縮みながら
+            // 右下へ消えていく様子が見えるよう、最後の少しだけ薄くする（以前は線形に
+            // 薄くした為、縮み切る前に見えなくなっていた、2026-11-05）。
+            opacity: style.usesDraw
+                ? 1.0
+                : (isSuck
+                      ? (curved.value / suckFadeEnd).clamp(0.0, 1.0)
+                      : curved.value.clamp(0.0, 1.0)),
+            child: buildTransitionBlur(away, inner),
+          ),
         ),
       );
     },

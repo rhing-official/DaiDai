@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import '../models/slide_transition_style.dart';
 import 'liquify_effect.dart';
 import '../theme/motion.dart';
+import 'scribble_paint.dart';
 import 'swipe_gestures.dart';
 
 /// トラックパッド/マウスホイールの水平スクロールで「戻る」を発火させる
@@ -390,9 +391,15 @@ class _InteractiveSwipeBackTransitionState
                   ? 0.0
                   : (value / max).clamp(0.0, 1.0);
               final opacity = fades ? 1 - progressed : 1.0;
-              return Opacity(
-                opacity: opacity,
-                child: buildTransitionBlur(progressed, moved),
+              // 描きは、戻るほど塗りが引いていく（2026-11-28）。
+              return ScribbleLayerReveal(
+                progress: activeSlideTransitionStyle.usesDraw
+                    ? 1 - progressed
+                    : 1.0,
+                child: Opacity(
+                  opacity: opacity,
+                  child: buildTransitionBlur(progressed, moved),
+                ),
               );
             },
           ),

@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../models/slide_transition_style.dart';
 import 'liquify_effect.dart';
 import '../theme/motion.dart';
+import 'scribble_paint.dart';
 import 'interactive_swipe_back.dart';
 import 'swipe_gestures.dart';
 
@@ -70,9 +71,17 @@ class SlideBackPageTransitionsBuilder extends PageTransitionsBuilder {
         );
         // スライドに合わせて薄→濃（2026-11-04）。
         // 有無で木の形が変わると画面が再マウントされるため常に挟む。
-        return Opacity(
-          opacity: style.usesFade ? t.clamp(0.0, 1.0) : 1.0,
-          child: buildTransitionBlur(1 - t, moved),
+        // 描きは、ペンで塗った所だけを見せる（2026-11-28）。指に追従する間は直線。
+        return ScribbleLayerReveal(
+          progress: style.usesDraw
+              ? (route.popGestureInProgress
+                    ? animation.value
+                    : drawSlideCurve.transform(animation.value))
+              : 1.0,
+          child: Opacity(
+            opacity: style.usesFade ? t.clamp(0.0, 1.0) : 1.0,
+            child: buildTransitionBlur(1 - t, moved),
+          ),
         );
       },
     );

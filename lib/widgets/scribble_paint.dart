@@ -59,6 +59,51 @@ class ScribblePen {
     return out;
   }
 
+  /// [progress]まで進んだ分の塗りを、切り抜きの形（[Path]）で返す（2026-11-28）。
+  /// [partial]の線を太らせたものと、ほぼ同じ形。往復の各行を丸い端の帯にし、行の間は、
+  /// 折り返しの端の帯でつなぐ。描画の層を途中で切り替える子（透明度・変形など）でも
+  /// 壊れないよう、`saveLayer`のマスクではなく、切り抜きで使う為に作った。
+  static Path clipPath(Rect rect, double progress) {
+    final rows = rowsFor(rect.size);
+    final pen = penWidthFor(rect.size, rows);
+    final radius = Radius.circular(pen / 2);
+    final left = rect.left - pen / 3;
+    final right = rect.right + pen / 3;
+    final top = rect.top + pen / 3;
+    final bottom = rect.bottom - pen / 3;
+    final rowLength = right - left;
+    final gap = rows == 1 ? 0.0 : (bottom - top) / (rows - 1);
+    final total = rows * rowLength + (rows - 1) * gap;
+    var remaining = progress.clamp(0.0, 1.0) * total;
+    final path = Path();
+    for (var r = 0; r < rows && remaining > 0; r++) {
+      final y = rows == 1 ? rect.center.dy : bottom - gap * r;
+      final jitter = math.sin(r * 12.9898 + rect.width * 0.37) * 1.6;
+      final length = math.min(remaining, rowLength);
+      final toRight = r.isEven;
+      final start = toRight ? left : right;
+      final end = toRight ? left + length : right - length;
+      path.addRRect(
+        RRect.fromLTRBR(
+          math.min(start, end) - pen / 2,
+          y + jitter - pen / 2,
+          math.max(start, end) + pen / 2,
+          y + jitter + pen / 2,
+          radius,
+        ),
+      );
+      remaining -= length;
+      // 折り返しの端で、次の行へ上がる。
+      if (remaining > 0 && r < rows - 1) {
+        path.addRect(
+          Rect.fromLTRB(end - pen / 2, y - gap, end + pen / 2, y + jitter),
+        );
+        remaining -= gap;
+      }
+    }
+    return path;
+  }
+
   /// [rect]の中を、[progress]まで、[color]のペンで塗る。[clip]があれば、その形の中だけ。
   static void paint(
     Canvas canvas,
@@ -141,5 +186,122 @@ class _RenderScribbleReveal extends RenderProxyBox {
     ScribblePen.paint(canvas, rect, Colors.black, _progress);
     canvas.restore();
     canvas.restore();
+  }
+}
+
+/// [ScribbleReveal]と同じ見え方を、切り抜きで作る版（2026-11-28）。画面遷移・ダイアログ用。
+///
+/// [ScribbleReveal]は、子を`saveLayer`に描いてからマスクを重ねる。子の中で透明度・
+/// 変形などが描画の層を切り替えると、最初に取った描き先が使えなくなり、例外になる。
+/// この版は、ペンの形の切り抜き（[ScribblePen.clipPath]）で子を描くので、そうならない。
+class ScribbleLayerReveal extends SingleChildRenderObjectWidget {
+  const ScribbleLayerReveal({
+    required this.progress,
+    required super.child,
+    this.fitContent = false,
+    super.key,
+  });
+
+  final double progress;
+
+  /// 真の時、ペンで塗る範囲を、自分の大きさ全体ではなく、中身の見える箱の大きさにする。
+  /// ダイアログ・ポップアップは、画面全体に置かれた層の中に、小さな箱が有る。画面全体を
+  /// 塗ると、箱が現れる時機がずれ、ペンも太くなる。
+  final bool fitContent;
+
+  @override
+  RenderObject createRenderObject(BuildContext context) =>
+      _RenderScribbleLayerReveal(progress, fitContent);
+
+  @override
+  void updateRenderObject(
+    BuildContext context,
+    covariant _RenderScribbleLayerReveal renderObject,
+  ) {
+    renderObject
+      ..progress = progress
+      ..fitContent = fitContent;
+  }
+}
+
+class _RenderScribbleLayerReveal extends RenderProxyBox {
+  _RenderScribbleLayerReveal(this._progress, this._fitContent);
+
+  double _progress;
+  set progress(double value) {
+    if (value == _progress) return;
+    _progress = value;
+    markNeedsPaint();
+  }
+
+  bool _fitContent;
+  set fitContent(bool value) {
+    if (value == _fitContent) return;
+    _fitContent = value;
+    markNeedsPaint();
+  }
+
+  final LayerHandle<ClipPathLayer> _clipLayer = LayerHandle<ClipPathLayer>();
+
+  @override
+  void dispose() {
+    _clipLayer.layer = null;
+    super.dispose();
+  }
+
+  /// 配置だけをする層（余白・中央寄せ・制約・透明度など）をたどって、見える箱を探し、
+  /// 自分の座標での範囲を返す。見つからなければ自分の全体。
+  Rect _contentRect() {
+    RenderBox? node = child;
+    while (node != null) {
+      if (node is RenderDecoratedBox ||
+          node is RenderPhysicalModel ||
+          node is RenderPhysicalShape ||
+          node is RenderClipRRect ||
+          node is RenderClipPath ||
+          node is RenderClipRect ||
+          node is RenderClipOval ||
+          node is RenderCustomPaint) {
+        break;
+      }
+      RenderBox? next;
+      if (node is RenderProxyBox) {
+        next = node.child;
+      } else if (node is RenderShiftedBox) {
+        next = node.child;
+      }
+      if (next == null) break;
+      node = next;
+    }
+    if (node == null || !node.hasSize) return Offset.zero & size;
+    return node.localToGlobal(Offset.zero, ancestor: this) & node.size;
+  }
+
+  @override
+  void paint(PaintingContext context, Offset offset) {
+    final child = this.child;
+    if (child == null) return;
+    if (_progress >= 1) {
+      _clipLayer.layer = null;
+      context.paintChild(child, offset);
+      return;
+    }
+    if (_progress <= 0) {
+      _clipLayer.layer = null;
+      return;
+    }
+    // 箱に合わせる時は、箱の外のはみ出し（影など）が、ペンの太さの分だけ残るようにする。
+    final penRect = _fitContent
+        ? _contentRect().inflate(12)
+        : Offset.zero & size;
+    _clipLayer.layer = context.pushClipPath(
+      needsCompositing,
+      offset,
+      Offset.zero & size,
+      ScribblePen.clipPath(penRect, _progress),
+      (context, offset) => context.paintChild(child, offset),
+      clipBehavior: Clip.antiAlias,
+      oldLayer: _clipLayer.layer,
+    );
   }
 }

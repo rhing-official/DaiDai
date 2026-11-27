@@ -6398,6 +6398,110 @@ class _MessageRow extends ConsumerWidget {
         child: child,
       ),
     };
+    // 劇画スタイルでは、ジグザグ枠にはせず色だけモノクロ（黒地白文字）に
+    // 変える（2026-08-04追加。`colorScheme.surface`は劇画テーマだと背景と
+    // 同じ赤になっており、そのままでは背景に溶け込んでほぼ見えなかった）。
+    final readBadgeFg = switch (uiStyle) {
+      AppUiStyle.gekiga => GekigaColors.onPanel,
+      AppUiStyle.flat ||
+      AppUiStyle.kinari ||
+      AppUiStyle.chalk ||
+      AppUiStyle.block => colorScheme.onSurface,
+      AppUiStyle.glass => colorScheme.onSurface,
+    };
+    final badgeContent = isSimpleDmReadMark
+        ? Icon(Icons.done, size: 12, color: readBadgeFg)
+        : Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(Icons.done, size: 12, color: readBadgeFg),
+              const SizedBox(width: 2),
+              Text(
+                '${readers.length}',
+                style: TextStyle(
+                  fontSize: 11,
+                  fontWeight: FontWeight.bold,
+                  color: readBadgeFg,
+                ),
+              ),
+            ],
+          );
+    // 生成り: 既読の✓は、浮かさず、へこませる（2026-11-27、ユーザー指示）。
+    final badge = uiStyle == AppUiStyle.kinari
+        ? KinariInset(
+            color: colorScheme.surface,
+            radius: 12,
+            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+            child: badgeContent,
+          )
+        : Container(
+            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+            decoration: BoxDecoration(
+              color: switch (uiStyle) {
+                AppUiStyle.gekiga => GekigaColors.panel,
+                AppUiStyle.flat ||
+                AppUiStyle.kinari ||
+                AppUiStyle.chalk ||
+                AppUiStyle.block => colorScheme.surface,
+                AppUiStyle.glass => colorScheme.surface.withValues(alpha: 0.72),
+              },
+              borderRadius: BorderRadius.circular(999),
+              boxShadow: floatingShadow,
+            ),
+            child: badgeContent,
+          );
+
+    final readBadge = showReadMark
+        ? (isSimpleDmReadMark || isCountOnlyMark
+              ? badge
+              : Builder(
+                  builder: (badgeContext) => GestureDetector(
+                    onTap: () => _showReadReceiptPopup(
+                      context,
+                      badgeContext,
+                      readers,
+                      strings,
+                    ),
+                    child: badge,
+                  ),
+                ))
+        : null;
+
+    // 外枠の無い添付（複数添付・画像・音声付きの文字など）は、幅の違う吹き出しが縦に並ぶ。
+    // 既読の✓を全体の脇に付けると、一番幅の広い要素の端に出て、一番下の吹き出しと
+    // 位置が合わず紛らわしい。そのため、一番下の要素を包んで、その斜め下に付ける
+    // （2026-11-28、ユーザー指示）。外枠の有る吹き出しは、今までどおり全体の脇。
+    final badgeBesideLast =
+        readBadge != null && isAttachment && skipBubbleFrame;
+    // 添付と一緒に送った文字（キャプション）のURLのプレビューは、文字の直下（添付の上）に
+    // 出す（`_attachmentWithCaption`）ため、ここ（吹き出しの下）には出さない（2026-11-01）。
+    final hasAttachmentCaption =
+        isAttachment && (message.caption?.isNotEmpty ?? false);
+    final previewUrls = hasAttachmentCaption
+        ? const <String>[]
+        : urlsIn(message.content);
+    // URLのプレビューが吹き出しの下に付く時は、一番下のプレビューの斜め下に付ける
+    // （2026-11-28、ユーザー指示）。
+    final badgeBesideUrl =
+        readBadge != null && !badgeBesideLast && previewUrls.isNotEmpty;
+    final badgeMovedOut = badgeBesideLast || badgeBesideUrl;
+    Widget rowWithBadge(Widget last) {
+      final badgeWidget = readBadge;
+      if (badgeWidget == null) return last;
+      return Row(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.end,
+        children: [
+          if (alignRight) ...[badgeWidget, const SizedBox(width: 6)],
+          Flexible(child: last),
+          if (!alignRight) ...[const SizedBox(width: 6), badgeWidget],
+        ],
+      );
+    }
+
+    Widget withTrailingBadge(Widget last) =>
+        badgeBesideLast ? rowWithBadge(last) : last;
+
     final hasCaption = message.caption?.isNotEmpty ?? false;
     final quoteOutsideFrame = replyPreview != null && skipBubbleFrame;
     final quoteInCaptionBubble =
@@ -6488,6 +6592,7 @@ class _MessageRow extends ConsumerWidget {
                         wrapInBubble(child, gekigaPadding: isAudio ? 46 : 30)
                   : null,
               groupGap: isGekiga ? 20 : 8,
+              wrapLast: isMultiSplit ? withTrailingBadge : null,
             );
             return _attachmentWithCaption(
               context,
@@ -6495,6 +6600,8 @@ class _MessageRow extends ConsumerWidget {
               body: isAudioWithCaption
                   ? wrapInBubble(attachmentBody, gekigaPadding: 46)
                   : attachmentBody,
+              // 複数添付は、中の一番下の要素に付け済み。
+              wrapLast: isMultiSplit ? null : withTrailingBadge,
               alignRight: alignRight,
               // 劇画の吹き出しは枠が傾き・ぶれるので、文字の吹き出しと重ならないよう、音声の
               // 吹き出しをさらに下げる。
@@ -6805,74 +6912,6 @@ class _MessageRow extends ConsumerWidget {
         message.contentType == 'text' &&
         onEdit != null;
 
-    // 劇画スタイルでは、ジグザグ枠にはせず色だけモノクロ（黒地白文字）に
-    // 変える（2026-08-04追加。`colorScheme.surface`は劇画テーマだと背景と
-    // 同じ赤になっており、そのままでは背景に溶け込んでほぼ見えなかった）。
-    final readBadgeFg = switch (uiStyle) {
-      AppUiStyle.gekiga => GekigaColors.onPanel,
-      AppUiStyle.flat ||
-      AppUiStyle.kinari ||
-      AppUiStyle.chalk ||
-      AppUiStyle.block => colorScheme.onSurface,
-      AppUiStyle.glass => colorScheme.onSurface,
-    };
-    final badgeContent = isSimpleDmReadMark
-        ? Icon(Icons.done, size: 12, color: readBadgeFg)
-        : Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(Icons.done, size: 12, color: readBadgeFg),
-              const SizedBox(width: 2),
-              Text(
-                '${readers.length}',
-                style: TextStyle(
-                  fontSize: 11,
-                  fontWeight: FontWeight.bold,
-                  color: readBadgeFg,
-                ),
-              ),
-            ],
-          );
-    // 生成り: 既読の✓は、浮かさず、へこませる（2026-11-27、ユーザー指示）。
-    final badge = uiStyle == AppUiStyle.kinari
-        ? KinariInset(
-            color: colorScheme.surface,
-            radius: 12,
-            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
-            child: badgeContent,
-          )
-        : Container(
-            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
-            decoration: BoxDecoration(
-              color: switch (uiStyle) {
-                AppUiStyle.gekiga => GekigaColors.panel,
-                AppUiStyle.flat ||
-                AppUiStyle.kinari ||
-                AppUiStyle.chalk ||
-                AppUiStyle.block => colorScheme.surface,
-                AppUiStyle.glass => colorScheme.surface.withValues(alpha: 0.72),
-              },
-              borderRadius: BorderRadius.circular(999),
-              boxShadow: floatingShadow,
-            ),
-            child: badgeContent,
-          );
-
-    final readBadge = showReadMark
-        ? (isSimpleDmReadMark || isCountOnlyMark
-              ? badge
-              : Builder(
-                  builder: (badgeContext) => GestureDetector(
-                    onTap: () => _showReadReceiptPopup(
-                      context,
-                      badgeContext,
-                      readers,
-                      strings,
-                    ),
-                    child: badge,
-                  ),
-                ))
-        : null;
     final hasReactions = message.reactions.values.any(
       (emojis) => emojis.isNotEmpty,
     );
@@ -6949,7 +6988,7 @@ class _MessageRow extends ConsumerWidget {
           // 下端に揃う）。
           crossAxisAlignment: CrossAxisAlignment.end,
           children: [
-            if (alignRight && readBadge != null) ...[
+            if (alignRight && readBadge != null && !badgeMovedOut) ...[
               readBadge,
               const SizedBox(width: 6),
             ],
@@ -6962,7 +7001,7 @@ class _MessageRow extends ConsumerWidget {
               // Escキーを検知して自動でモードを終了する。
               child: textCopySelecting ? bubble : withMessageMenu(bubble),
             ),
-            if (!alignRight && readBadge != null) ...[
+            if (!alignRight && readBadge != null && !badgeMovedOut) ...[
               const SizedBox(width: 6),
               readBadge,
             ],
@@ -7009,13 +7048,14 @@ class _MessageRow extends ConsumerWidget {
             ),
           );
 
-    // 添付と一緒に送った文字（キャプション）のURLのプレビューは、文字の直下（添付の上）に
-    // 出す（`_attachmentWithCaption`）ため、ここ（吹き出しの下）には出さない（2026-11-01）。
-    final hasAttachmentCaption =
-        isAttachment && (message.caption?.isNotEmpty ?? false);
-    final previewUrls = hasAttachmentCaption
-        ? const <String>[]
-        : urlsIn(message.content);
+    Widget previewWithBadge(String url, bool isLast) {
+      final card = textCopySelecting
+          ? LinkPreviewCard(url: url, isGekiga: isGekiga, isMe: isMe)
+          : withMessageMenu(
+              LinkPreviewCard(url: url, isGekiga: isGekiga, isMe: isMe),
+            );
+      return isLast && badgeBesideUrl ? rowWithBadge(card) : card;
+    }
 
     final Widget content;
     if (alignRight) {
@@ -7047,16 +7087,8 @@ class _MessageRow extends ConsumerWidget {
                 ?timeText,
               const SizedBox(height: 2),
               bubbleWithReadMark,
-              for (final url in previewUrls)
-                textCopySelecting
-                    ? LinkPreviewCard(url: url, isGekiga: isGekiga, isMe: isMe)
-                    : withMessageMenu(
-                        LinkPreviewCard(
-                          url: url,
-                          isGekiga: isGekiga,
-                          isMe: isMe,
-                        ),
-                      ),
+              for (var i = 0; i < previewUrls.length; i++)
+                previewWithBadge(previewUrls[i], i == previewUrls.length - 1),
             ],
           ),
         ),
@@ -7140,20 +7172,11 @@ class _MessageRow extends ConsumerWidget {
                       ?timeText,
                     const SizedBox(height: 2),
                     bubbleWithReadMark,
-                    for (final url in previewUrls)
-                      textCopySelecting
-                          ? LinkPreviewCard(
-                              url: url,
-                              isGekiga: isGekiga,
-                              isMe: isMe,
-                            )
-                          : withMessageMenu(
-                              LinkPreviewCard(
-                                url: url,
-                                isGekiga: isGekiga,
-                                isMe: isMe,
-                              ),
-                            ),
+                    for (var i = 0; i < previewUrls.length; i++)
+                      previewWithBadge(
+                        previewUrls[i],
+                        i == previewUrls.length - 1,
+                      ),
                   ],
                 ),
               ),
@@ -8157,6 +8180,7 @@ class _MessageRow extends ConsumerWidget {
     bool isGekiga, {
     Widget Function(Widget child, bool isAudio)? wrapFileGroup,
     double groupGap = 6,
+    Widget Function(Widget last)? wrapLast,
   }) {
     const gridWidth = 280.0;
     final media = [
@@ -8326,6 +8350,10 @@ class _MessageRow extends ConsumerWidget {
         );
       }
     }
+    // 既読の✓は、一番下の要素の斜め下に付ける。
+    if (wrapLast != null && children.isNotEmpty) {
+      children.add(wrapLast(children.removeLast()));
+    }
     return Column(
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -8362,9 +8390,11 @@ class _MessageRow extends ConsumerWidget {
     required bool alignRight,
     Widget? preview,
     double captionGap = 6,
+    Widget Function(Widget last)? wrapLast,
   }) {
     final caption = message.caption;
-    if (caption == null || caption.isEmpty) return body;
+    final last = wrapLast == null ? body : wrapLast(body);
+    if (caption == null || caption.isEmpty) return last;
     return Column(
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: alignRight
@@ -8378,7 +8408,7 @@ class _MessageRow extends ConsumerWidget {
         // 文字のURLのプレビューは、文字の直下（画像の上）に出す（2026-11-01）。
         if (preview != null)
           Padding(padding: const EdgeInsets.only(bottom: 6), child: preview),
-        body,
+        last,
       ],
     );
   }
@@ -8390,6 +8420,7 @@ class _MessageRow extends ConsumerWidget {
     VoidCallback? onForward,
     Widget Function(Widget child, bool isAudio)? wrapFileGroup,
     double groupGap = 6,
+    Widget Function(Widget last)? wrapLast,
   }) {
     if (message.contentType == 'multi') {
       return _multiAttachmentContent(
@@ -8398,6 +8429,7 @@ class _MessageRow extends ConsumerWidget {
         isGekiga,
         wrapFileGroup: wrapFileGroup,
         groupGap: groupGap,
+        wrapLast: wrapLast,
       );
     }
     final metadata = message.fileMetadata;

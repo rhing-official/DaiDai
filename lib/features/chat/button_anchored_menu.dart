@@ -244,10 +244,10 @@ class _AnchoredPopupRoute<T> extends PopupRoute<T> {
   bool get barrierDismissible => true;
 
   @override
-  Duration get transitionDuration => popSlideDuration;
+  Duration get transitionDuration => slideDuration;
 
   @override
-  Duration get reverseTransitionDuration => popSlideDuration;
+  Duration get reverseTransitionDuration => slideDuration;
 
   @override
   Widget buildPage(

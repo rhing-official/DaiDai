@@ -61,10 +61,10 @@ class AppDialogRoute<T> extends DialogRoute<T> {
   });
 
   @override
-  Duration get transitionDuration => popSlideDuration;
+  Duration get transitionDuration => slideDuration;
 
   @override
-  Duration get reverseTransitionDuration => popSlideDuration;
+  Duration get reverseTransitionDuration => slideDuration;
 
   @override
   Widget buildTransitions(

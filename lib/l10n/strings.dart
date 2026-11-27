@@ -124,6 +124,7 @@ class Strings {
     required this.settingsSlideTransitionSlide,
     required this.settingsSlideTransitionSuck,
     required this.settingsSlideTransitionPop,
+    required this.settingsSlideTransitionDraw,
     required this.settingsTalksListLayoutTitle,
     required this.settingsTalksListLayoutNote,
     required this.settingsTextSizeTitle,
@@ -1494,6 +1495,7 @@ class Strings {
   final String settingsSlideTransitionSlide;
   final String settingsSlideTransitionSuck;
   final String settingsSlideTransitionPop;
+  final String settingsSlideTransitionDraw;
 
   /// 縦表示での語らい一覧レイアウト（2026-09-11追加、設定＞語らい）。
   final String settingsTalksListLayoutTitle;
@@ -3189,6 +3191,7 @@ class Strings {
     settingsSlideTransitionSlide: 'スライド',
     settingsSlideTransitionSuck: '吸い込み',
     settingsSlideTransitionPop: 'ポップ',
+    settingsSlideTransitionDraw: '描き',
     settingsTalksListLayoutTitle: '語らい一覧のレイアウト',
     settingsTalksListLayoutNote:
         '縦画面・横画面でそれぞれ別に保存されます。\n横画面のコンピューターでは、この設定にかかわらず左右分割で表示されます。',
@@ -4639,6 +4642,7 @@ class Strings {
     settingsSlideTransitionSlide: 'Slide',
     settingsSlideTransitionSuck: 'Suck in',
     settingsSlideTransitionPop: 'Pop',
+    settingsSlideTransitionDraw: 'Draw',
     settingsTalksListLayoutTitle: 'Talks list layout',
     settingsTalksListLayoutNote:
         'Saved separately for portrait and landscape orientation. On a computer with a wide, landscape window, the list is always shown in a split view regardless of this setting.',

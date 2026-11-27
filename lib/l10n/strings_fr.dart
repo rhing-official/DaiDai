@@ -137,6 +137,7 @@ final Strings _stringsFr = Strings._(
   settingsSlideTransitionSlide: 'Glissement',
   settingsSlideTransitionSuck: 'Aspiration',
   settingsSlideTransitionPop: 'Jaillissement',
+  settingsSlideTransitionDraw: 'Dessin',
   settingsTextSizeTitle: 'Taille du texte',
   settingsTextSizeSubtitle:
       'Modifie la taille du texte dans toute l’application. La largeur et les icônes de la liste d’icônes et de salons suivent. Enregistré sur cet appareil uniquement.',

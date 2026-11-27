@@ -13,10 +13,17 @@ enum SlideTransitionStyle {
 
   /// 語らい一覧の「＋」で開くポップアップの動き（2026-11-06）。画面の中央から、
   /// 少し行き過ぎて弾むように拡大しながら現れる（スライドもぼかしも無し）。
-  pop;
+  pop,
+
+  /// ペンで往復して、枠も中身も丸ごと描き出す（2026-11-28）。薄くもぼかしもスライドも拡大も
+  /// しない。選択の動きの「描き」と同じ[ScribbleReveal]を使う。
+  draw;
 
   /// 重なるページを薄くするか。
   bool get usesFade => this == slideBlur || this == suck || this == pop;
+
+  /// ペンで描き出す動き（[draw]）か。
+  bool get usesDraw => this == draw;
 
   /// 重なるページが離れる間、滲ませるか。
   bool get usesBlur => this == slideBlur || this == suck;
@@ -25,7 +32,7 @@ enum SlideTransitionStyle {
   bool get usesPopScale => this == pop;
 
   /// 入場で右からスライドさせるか（吸い込みは縮小で動くのでスライドしない）。
-  bool get usesSlide => this != suck && this != pop;
+  bool get usesSlide => this != suck && this != pop && this != draw;
 
   static SlideTransitionStyle fromName(String? name) {
     return SlideTransitionStyle.values.firstWhere(
