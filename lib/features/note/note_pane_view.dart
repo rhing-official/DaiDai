@@ -42,6 +42,7 @@ import '../../widgets/glass/glass_app_bar.dart';
 import '../../widgets/glass/glass_bottom_sheet.dart';
 import '../../widgets/glass/glass_dialog.dart';
 import '../../theme/block/block_theme.dart';
+import '../../widgets/kinari_surface.dart';
 import '../../theme/gekiga/gekiga_colors.dart';
 import '../../widgets/gekiga/gekiga_badge.dart';
 import '../../widgets/glass/glass_surface.dart';
@@ -2513,6 +2514,13 @@ class _CursorLineAddButtonState extends ConsumerState<_CursorLineAddButton> {
           ),
         );
       case AppUiStyle.kinari:
+        // 生成り: 浮いたアクセントの丸（明かり）。
+        return KinariRaisedCircle(
+          color: scheme.primary,
+          lineColor: scheme.onSurface,
+          size: size,
+          child: Icon(Icons.add, size: 18, color: scheme.onPrimary),
+        );
       case AppUiStyle.flat:
         return Material(
           color: scheme.primary,

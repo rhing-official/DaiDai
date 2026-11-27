@@ -850,6 +850,11 @@ class _TalksTabState extends ConsumerState<TalksTab>
   /// 検索欄の下端。寄合一覧の項目・区切り線は、ここから下に置く。
   double get _searchInset => _searchWide ? 12 + _searchFieldHeight : 0;
 
+  /// 寄合一覧が有る語らいを表示していた間の、検索欄ぶんの余白と、寄合一覧のヘッダー領域の高さ。
+  /// 寄合一覧が左へ収納される間は、この値で縦の位置を固定する（上へ上がってから消えない為）。
+  double _lastWideSearchInset = 0;
+  double? _lastWideHeaderZone;
+
   /// メッセージ内容検索のセッション（2026-09-12追加、検索欄を開いている間の
   /// 取得済みメッセージのメモ化キャッシュを持つ）。`_buildSearchResults`と
   /// `_buildIconRail`のインライン検索の両方で共用する（画面幅・向きで
@@ -2228,6 +2233,16 @@ class _TalksTabState extends ConsumerState<TalksTab>
                   // ドラッグは外側の[GestureDetector]（[_handleChatExpandDragStart]等）
                   // がそれぞれ担う。
                   _chatExpandedSwipeBackController.maxDrag = computerListWidth;
+                  if (_searchWide) {
+                    // 寄合一覧が左へ収納される間、一覧の縦の位置を動かさない為に、直前の値を残す。
+                    _lastWideSearchInset = _searchInset;
+                    _lastWideHeaderZone = _roomHeaderZoneFor(
+                      talksControlHeight(
+                        context,
+                        ref.watch(appUiStyleProvider),
+                      ),
+                    );
+                  }
                   final chatContent = InteractiveSwipeBackScope(
                     controller: _chatExpandedSwipeBackController,
                     child: _SearchInsetScope(
@@ -2447,6 +2462,8 @@ class _TalksTabState extends ConsumerState<TalksTab>
             child: _RoomPaneExit(
               animation: key == _exitingKey ? _roomSlideCtl : null,
               slotWidth: slotWidth,
+              frozenInset: key == _exitingKey ? _lastWideSearchInset : null,
+              frozenHeaderZone: key == _exitingKey ? _lastWideHeaderZone : null,
               child: key.startsWith('dm-')
                   ? _DmDetailWithRooms(
                       key: ValueKey(key),
@@ -7529,9 +7546,15 @@ class _RoomPaneExit extends StatelessWidget {
     required this.animation,
     required this.slotWidth,
     required this.child,
+    this.frozenInset,
+    this.frozenHeaderZone,
   });
 
   final Animation<double>? animation;
+
+  /// 収納中の寄合一覧の縦の位置を固定する値（収納中だけ。nullなら今の値のまま）。
+  final double? frozenInset;
+  final double? frozenHeaderZone;
 
   /// 寄合一覧と区切り線の幅。
   final double slotWidth;
@@ -7540,6 +7563,15 @@ class _RoomPaneExit extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final ghost = animation != null;
+    // 木の形を変えない（状態を保つ）為、常に包み、収納中だけ値を固定する。
+    final frozen = ghost ? frozenInset : null;
+    final inner = _SearchInsetScope(
+      inset: frozen ?? _SearchInsetScope.of(context),
+      roomHeaderZone: frozen != null
+          ? frozenHeaderZone
+          : _SearchInsetScope.headerZoneOf(context),
+      child: child,
+    );
     return AnimatedBuilder(
       animation: animation ?? kAlwaysDismissedAnimation,
       builder: (context, child) {
@@ -7557,7 +7589,7 @@ class _RoomPaneExit extends StatelessWidget {
           ),
         );
       },
-      child: child,
+      child: inner,
     );
   }
 }

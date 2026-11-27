@@ -1,5 +1,3 @@
-import 'dart:math' as math;
-
 import 'package:flutter/material.dart';
 
 import '../../models/dark_variant.dart';
@@ -191,58 +189,4 @@ class KinariTheme {
       ),
     );
   }
-}
-
-/// 紙に混ざった繊維を、ごく薄く画面全体へ重ねる層（タッチは通さない）。大きさが変わる時だけ描き直す。
-class KinariPaperFibers extends StatelessWidget {
-  const KinariPaperFibers({required this.color, super.key});
-
-  final Color color;
-
-  @override
-  Widget build(BuildContext context) => IgnorePointer(
-    child: RepaintBoundary(
-      child: CustomPaint(painter: _FiberPainter(color), size: Size.infinite),
-    ),
-  );
-}
-
-class _FiberPainter extends CustomPainter {
-  _FiberPainter(this.color);
-
-  final Color color;
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    if (size.isEmpty) return;
-    final random = math.Random(11);
-    final count = (size.width * size.height / 2600).clamp(150, 1800).toInt();
-    final path = Path();
-    for (var i = 0; i < count; i++) {
-      final x = random.nextDouble() * size.width;
-      final y = random.nextDouble() * size.height;
-      final angle = random.nextDouble() * math.pi;
-      final length = 5 + random.nextDouble() * 12;
-      final bend = (random.nextDouble() - 0.5) * 6;
-      path
-        ..moveTo(x, y)
-        ..quadraticBezierTo(
-          x + math.cos(angle) * length / 2 + bend,
-          y + math.sin(angle) * length / 2 + bend,
-          x + math.cos(angle) * length,
-          y + math.sin(angle) * length,
-        );
-    }
-    canvas.drawPath(
-      path,
-      Paint()
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 0.7
-        ..strokeCap = StrokeCap.round
-        ..color = color.withValues(alpha: 0.07),
-    );
-  }
-
-  @override
-  bool shouldRepaint(covariant _FiberPainter old) => old.color != color;
 }

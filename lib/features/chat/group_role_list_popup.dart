@@ -1,3 +1,4 @@
+import '../../theme/kinari/kinari_theme.dart';
 import '../../theme/block/block_theme.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -146,52 +147,65 @@ class GroupRoleListPopup extends ConsumerWidget {
                     ),
                     const SizedBox(width: 12),
                     Expanded(
-                      child: BlockFieldFrame(label: kinari ? strings.settingsColorCode : null, child: TextField(
-                        controller: hexController,
-                        enabled: hasColor,
-                        textCapitalization: TextCapitalization.characters,
-                        inputFormatters: [
-                          FilteringTextInputFormatter.allow(
-                            RegExp('[0-9a-fA-F]'),
-                          ),
-                          LengthLimitingTextInputFormatter(6),
-                        ],
-                        decoration: InputDecoration(
-                          labelText: kinari ? null : strings.settingsColorCode,
-                          prefixText: '#',
-                          hintText: 'EE7800',
-                          errorText: errorText,
-                          counterText: '',
-filled: kinari ? false : null,
-border: kinari ? InputBorder.none : null,
-enabledBorder: kinari ? InputBorder.none : null,
-focusedBorder: kinari ? InputBorder.none : null,
-                          suffixIcon: hasColor
-                              ? Row(
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: [
-                                    HoneycombColorButton(
-                                      current: tryParseHexColor(
-                                        hexController.text,
+                      child: BlockFieldFrame(
+                        label: isKinariTheme(context)
+                            ? strings.settingsColorCode
+                            : null,
+                        child: TextField(
+                          controller: hexController,
+                          enabled: hasColor,
+                          textCapitalization: TextCapitalization.characters,
+                          inputFormatters: [
+                            FilteringTextInputFormatter.allow(
+                              RegExp('[0-9a-fA-F]'),
+                            ),
+                            LengthLimitingTextInputFormatter(6),
+                          ],
+                          decoration: InputDecoration(
+                            labelText: isKinariTheme(context)
+                                ? null
+                                : strings.settingsColorCode,
+                            prefixText: '#',
+                            hintText: 'EE7800',
+                            errorText: errorText,
+                            counterText: '',
+                            filled: isKinariTheme(context) ? false : null,
+                            border: isKinariTheme(context)
+                                ? InputBorder.none
+                                : null,
+                            enabledBorder: isKinariTheme(context)
+                                ? InputBorder.none
+                                : null,
+                            focusedBorder: isKinariTheme(context)
+                                ? InputBorder.none
+                                : null,
+                            suffixIcon: hasColor
+                                ? Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      HoneycombColorButton(
+                                        current: tryParseHexColor(
+                                          hexController.text,
+                                        ),
+                                        onPicked: (picked) => setState(() {
+                                          errorText = null;
+                                          hexController.text = picked
+                                              .toHexString()
+                                              .replaceFirst('#', '');
+                                        }),
                                       ),
-                                      onPicked: (picked) => setState(() {
-                                        errorText = null;
-                                        hexController.text = picked
-                                            .toHexString()
-                                            .replaceFirst('#', '');
-                                      }),
-                                    ),
-                                    CopyIconButton(
-                                      textBuilder: () =>
-                                          hexCopyText(hexController.text),
-                                    ),
-                                  ],
-                                )
-                              : null,
+                                      CopyIconButton(
+                                        textBuilder: () =>
+                                            hexCopyText(hexController.text),
+                                      ),
+                                    ],
+                                  )
+                                : null,
+                          ),
+                          onChanged: (_) => setState(() {}),
+                          onSubmitted: (_) => confirm(),
                         ),
-                        onChanged: (_) => setState(() {}),
-                        onSubmitted: (_) => confirm(),
-                      )),
+                      ),
                     ),
                   ],
                 ),

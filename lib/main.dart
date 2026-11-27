@@ -520,12 +520,16 @@ class DaiDaiApp extends ConsumerWidget {
       title: 'DaiDai',
       debugShowCheckedModeBanner: false,
       scrollBehavior: const NoVerticalOverscrollBehavior(),
-      theme: packImage == null
-          ? theme
-          : theme.copyWith(scaffoldBackgroundColor: Colors.transparent),
-      darkTheme: packImage == null
-          ? darkTheme
-          : darkTheme.copyWith(scaffoldBackgroundColor: Colors.transparent),
+      theme: _withoutHover(
+        packImage == null
+            ? theme
+            : theme.copyWith(scaffoldBackgroundColor: Colors.transparent),
+      ),
+      darkTheme: _withoutHover(
+        packImage == null
+            ? darkTheme
+            : darkTheme.copyWith(scaffoldBackgroundColor: Colors.transparent),
+      ),
       themeMode:
           activePack?.forcedThemeMode ??
           (custom.enabled
@@ -603,15 +607,6 @@ class DaiDaiApp extends ConsumerWidget {
                       ),
                     ),
                   ),
-                // 生成り: 紙に混ざった繊維を、ごく薄く重ねる（2026-11-26）。
-                if (uiStyle == AppUiStyle.kinari)
-                  Positioned.fill(
-                    child: KinariPaperFibers(
-                      color: KinariTheme.inkFor(
-                        custom.enabled ? custom.color : KinariColors.paper,
-                      ),
-                    ),
-                  ),
                 const PinnedCallOverlay(),
                 // PC・Webの通話画面は、今の画面の上に重ねる（2026-10-23）。
                 const CallOverlay(),
@@ -667,4 +662,41 @@ base class _DiagFailObserver extends ProviderObserver {
         : '';
     debugPrint('[DIAG-FAIL] $name #$count: $message$stack');
   }
+}
+
+/// ホバー（マウスを乗せた）時の半透明の効果を、全てのスタイルで消す（2026-11-27、ユーザー指示）。
+/// 押した時・フォーカス時の効果は変えない。
+ThemeData _withoutHover(ThemeData base) {
+  final overlay = WidgetStateProperty.resolveWith<Color?>(
+    (states) =>
+        states.contains(WidgetState.hovered) ? Colors.transparent : null,
+  );
+  ButtonStyle merge(ButtonStyle? style) =>
+      (style ?? const ButtonStyle()).copyWith(
+        overlayColor: WidgetStateProperty.resolveWith<Color?>((states) {
+          if (states.contains(WidgetState.hovered)) return Colors.transparent;
+          return style?.overlayColor?.resolve(states);
+        }),
+      );
+  return base.copyWith(
+    hoverColor: Colors.transparent,
+    textButtonTheme: TextButtonThemeData(
+      style: merge(base.textButtonTheme.style),
+    ),
+    outlinedButtonTheme: OutlinedButtonThemeData(
+      style: merge(base.outlinedButtonTheme.style),
+    ),
+    elevatedButtonTheme: ElevatedButtonThemeData(
+      style: merge(base.elevatedButtonTheme.style),
+    ),
+    filledButtonTheme: FilledButtonThemeData(
+      style: merge(base.filledButtonTheme.style),
+    ),
+    iconButtonTheme: IconButtonThemeData(
+      style: merge(base.iconButtonTheme.style),
+    ),
+    checkboxTheme: base.checkboxTheme.copyWith(overlayColor: overlay),
+    radioTheme: base.radioTheme.copyWith(overlayColor: overlay),
+    switchTheme: base.switchTheme.copyWith(overlayColor: overlay),
+  );
 }

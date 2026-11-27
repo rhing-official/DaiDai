@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
 
 import '../theme/kinari/kinari_theme.dart';
-import 'kinari_nav_bar.dart' show paintKinariInset, paintKinariInsetShadows;
+import 'kinari_nav_bar.dart'
+    show paintKinariInset, paintKinariInsetShadows;
 
 /// 生成りスタイルの部品に共通の、へこみ・浮き（2026-11-27）。メニューチップの帯と同じ作りで、
 /// 紙の面が、へこむ（内側の影と明かり）か、わずかに浮く（柔らかい影）。他のスタイルでは使わない。
@@ -184,4 +185,74 @@ class KinariInsetBorder extends RoundedRectangleBorder {
   @override
   KinariInsetBorder scale(double t) =>
       KinariInsetBorder(borderRadius: borderRadius * t, side: side.scale(t));
+}
+
+/// へこんだ丸いボタン（生成り）。内側の影と明かりのある丸に、細い線を巡らせる。[color]は面の色（紙色、またはアクセント）、[lineColor]は線の色。
+class KinariRaisedCircle extends StatelessWidget {
+  const KinariRaisedCircle({
+    required this.color,
+    required this.lineColor,
+    required this.size,
+    required this.child,
+    this.onTap,
+    super.key,
+  });
+
+  final Color color;
+  final Color lineColor;
+  final double size;
+  final Widget child;
+  final VoidCallback? onTap;
+
+  @override
+  Widget build(BuildContext context) => SizedBox(
+    width: size,
+    height: size,
+    child: CustomPaint(
+      painter: _RaisedCirclePainter(color, lineColor),
+      child: Material(
+        color: Colors.transparent,
+        shape: const CircleBorder(),
+        clipBehavior: Clip.antiAlias,
+        child: InkResponse(
+          onTap: onTap,
+          containedInkWell: true,
+          customBorder: const CircleBorder(),
+          child: Center(child: child),
+        ),
+      ),
+    ),
+  );
+}
+
+class _RaisedCirclePainter extends CustomPainter {
+  _RaisedCirclePainter(this.color, this.line);
+
+  final Color color;
+  final Color line;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final rect = (Offset.zero & size).deflate(3);
+    // へこんだ丸（内側の影と明かり）。浮かせない。
+    paintKinariInset(
+      canvas,
+      RRect.fromRectAndRadius(rect, Radius.circular(rect.shortestSide / 2)),
+      color,
+      const Offset(2, 3),
+      depth: 2,
+    );
+    canvas.drawCircle(
+      rect.center,
+      rect.shortestSide / 2,
+      Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 1
+        ..color = line.withValues(alpha: 0.35),
+    );
+  }
+
+  @override
+  bool shouldRepaint(covariant _RaisedCirclePainter old) =>
+      old.color != color || old.line != line;
 }

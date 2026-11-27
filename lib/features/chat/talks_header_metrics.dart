@@ -5,6 +5,8 @@ import '../../models/app_ui_style.dart';
 import '../../providers/app_ui_style_provider.dart';
 import '../../theme/block/block_theme.dart';
 import '../../theme/gekiga/gekiga_colors.dart';
+import '../../theme/kinari/kinari_theme.dart';
+import '../../widgets/kinari_surface.dart';
 import '../../widgets/gekiga/gekiga_icon_badge.dart';
 import '../../widgets/gekiga/gekiga_panel_box.dart';
 import '../../widgets/glass/glass_icon_badge.dart';
@@ -37,6 +39,16 @@ Widget flatCircleIconButton(
   required VoidCallback onPressed,
 }) {
   final scheme = Theme.of(context).colorScheme;
+  // 生成り: 浮いた丸（明かり、細い線）。
+  if (isKinariTheme(context)) {
+    return KinariRaisedCircle(
+      color: scheme.surface,
+      lineColor: scheme.onSurface,
+      size: size,
+      onTap: onPressed,
+      child: Icon(icon, size: size * 0.5, color: scheme.onSurface),
+    );
+  }
   return SizedBox(
     width: size,
     height: size,

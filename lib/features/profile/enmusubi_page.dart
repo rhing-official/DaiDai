@@ -12,7 +12,9 @@ import '../../models/app_ui_style.dart';
 import '../../providers/app_ui_style_provider.dart';
 import '../../providers/repository_providers.dart';
 import '../../theme/gekiga/gekiga_colors.dart';
+import '../../theme/kinari/kinari_theme.dart';
 import '../../utils/web_link.dart';
+import '../../widgets/kinari_surface.dart';
 import '../../widgets/copy_link_row.dart';
 import '../../widgets/gekiga/gekiga_panel_box.dart';
 import '../../widgets/gekiga/gekiga_section_header.dart';
@@ -78,6 +80,7 @@ class _EnmusubiPageState extends ConsumerState<EnmusubiPage> {
     final link = _inviteLinkFor(currentUser);
     final colorScheme = Theme.of(context).colorScheme;
     final isGekiga = ref.watch(appUiStyleProvider) == AppUiStyle.gekiga;
+    final kinari = isKinariTheme(context);
 
     return Align(
       alignment: Alignment.topLeft,
@@ -112,15 +115,9 @@ class _EnmusubiPageState extends ConsumerState<EnmusubiPage> {
                       ),
                     ],
                   )
-                : Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 12,
-                      vertical: 8,
-                    ),
-                    decoration: BoxDecoration(
-                      border: Border.all(color: colorScheme.outlineVariant),
-                      borderRadius: BorderRadius.circular(8),
-                    ),
+                : _boxed(
+                    kinari: kinari,
+                    colorScheme: colorScheme,
                     child: CopyLinkRow(
                       link: link,
                       wrapButton: (button) => TutorialTarget(
@@ -154,6 +151,21 @@ class _EnmusubiPageState extends ConsumerState<EnmusubiPage> {
                           ),
                         ],
                       )
+                    : kinari
+                    // 生成り: QRは紙色の、へこんだ面に置く（読み取りの為、QR自体は白地のまま）。
+                    ? KinariInset(
+                        color: colorScheme.surface,
+                        radius: 16,
+                        padding: const EdgeInsets.all(14),
+                        child: Container(
+                          padding: const EdgeInsets.all(8),
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: QrImageView(data: link, size: 200),
+                        ),
+                      )
                     : Container(
                         padding: const EdgeInsets.all(16),
                         decoration: BoxDecoration(
@@ -182,6 +194,16 @@ class _EnmusubiPageState extends ConsumerState<EnmusubiPage> {
                           ),
                         ],
                       )
+                    : kinari
+                    ? KinariInset(
+                        color: colorScheme.surface,
+                        radius: 20,
+                        child: TextButton.icon(
+                          icon: const Icon(Icons.qr_code_scanner),
+                          label: Text(strings.enmusubiScanButton),
+                          onPressed: () => _openScanner(context),
+                        ),
+                      )
                     : OutlinedButton.icon(
                         icon: const Icon(Icons.qr_code_scanner),
                         label: Text(strings.enmusubiScanButton),
@@ -192,6 +214,31 @@ class _EnmusubiPageState extends ConsumerState<EnmusubiPage> {
           ],
         ),
       ),
+    );
+  }
+
+  /// 招待リンクの箱。生成りはへこんだ面、他は細い枠。
+  Widget _boxed({
+    required bool kinari,
+    required ColorScheme colorScheme,
+    required Widget child,
+  }) {
+    const padding = EdgeInsets.symmetric(horizontal: 12, vertical: 8);
+    if (kinari) {
+      return KinariInset(
+        color: colorScheme.surface,
+        radius: 14,
+        padding: padding,
+        child: child,
+      );
+    }
+    return Container(
+      padding: padding,
+      decoration: BoxDecoration(
+        border: Border.all(color: colorScheme.outlineVariant),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: child,
     );
   }
 }

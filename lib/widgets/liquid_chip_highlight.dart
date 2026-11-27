@@ -1,5 +1,6 @@
 import 'dart:math' as math;
 
+import 'kinari_nav_bar.dart' show paintKinariRecess;
 import 'package:flutter/foundation.dart' show ValueListenable;
 import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
@@ -223,6 +224,7 @@ class _LiquidChipHighlightState extends ConsumerState<LiquidChipHighlight>
         layerAlpha: 1.0,
         glassInChip: style == AppUiStyle.glass,
         chalk: style == AppUiStyle.chalk,
+        kinari: style == AppUiStyle.kinari,
       ),
     );
   }
@@ -241,6 +243,7 @@ class _WaterPainter extends CustomPainter {
     required this.layerAlpha,
     required this.glassInChip,
     this.chalk = false,
+    this.kinari = false,
   }) : super(repaint: sim);
 
   final LiquidSim sim;
@@ -260,6 +263,9 @@ class _WaterPainter extends CustomPainter {
 
   /// チョーク: 水の塗りを、チョークで塗った質感にする（粉の抜け・斜めのかすれ）。
   final bool chalk;
+
+  /// 生成り: 塗りをへこませる。
+  final bool kinari;
 
   Path _shapeOf(Offset center, double half) => square
       ? (Path()..addRRect(
@@ -340,6 +346,12 @@ class _WaterPainter extends CustomPainter {
       if (area != null) ChalkPaint.punchGrain(canvas, area.inflate(40));
     }
 
+    if (kinari) {
+      paintKinariRecess(canvas, bounds, [
+        for (final r in rects)
+          if (r != null) r,
+      ]);
+    }
     if (recolorIcons) {
       // 水の上にだけ、選択中の文字色でアイコンを描き直す。
       canvas.saveLayer(bounds, Paint()..blendMode = BlendMode.srcATop);
@@ -378,6 +390,7 @@ class _WaterPainter extends CustomPainter {
       old.layerAlpha != layerAlpha ||
       old.glassInChip != glassInChip ||
       old.chalk != chalk ||
+      old.kinari != kinari ||
       old.inset != inset ||
       old.entries != entries;
 }

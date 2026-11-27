@@ -203,6 +203,12 @@ class RingOutline extends StatelessWidget {
         ),
       );
     }
+    if (style == AppUiStyle.kinari) {
+      // 生成り: 囲んだ範囲を、メニューチップの丸と同じく、へこませる（線はアクセント）。
+      return CustomPaint(
+        painter: _KinariOutlinePainter(scheme.surface, scheme.primary, radius),
+      );
+    }
     final (Color color, double width) = switch (style) {
       AppUiStyle.glass => (scheme.onSurface.withValues(alpha: 0.7), 1.6),
       AppUiStyle.block => (
@@ -220,6 +226,45 @@ class RingOutline extends StatelessWidget {
       ),
     );
   }
+}
+
+class _KinariOutlinePainter extends CustomPainter {
+  _KinariOutlinePainter(this.base, this.line, this.radius);
+
+  final Color base;
+  final Color line;
+  final double radius;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final rrect = RRect.fromRectAndRadius(
+      Offset.zero & size,
+      Radius.circular(radius),
+    );
+    // 枠は項目の文字の上に重なる為、面は不透明に塗らず、薄い影と、縁の内側の影・明かりだけで
+    // へこませる（塗ると文字が隠れる）。
+    canvas.drawRRect(
+      rrect,
+      Paint()..color = Colors.black.withValues(alpha: 0.05),
+    );
+    paintKinariInsetShadows(
+      canvas,
+      rrect,
+      const Offset(2, 3) * 1.3,
+      depth: 2.4,
+    );
+    canvas.drawRRect(
+      rrect.deflate(0.9),
+      Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 1.8
+        ..color = line,
+    );
+  }
+
+  @override
+  bool shouldRepaint(covariant _KinariOutlinePainter old) =>
+      old.base != base || old.line != line || old.radius != radius;
 }
 
 /// 囲みの大きなブロックの中で、項目の押せる範囲を、ブロックの端いっぱいまで広げる（2026-11-26）。

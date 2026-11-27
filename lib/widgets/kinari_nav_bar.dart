@@ -1,5 +1,4 @@
 import 'dart:math' as math;
-import 'dart:ui' show PointMode;
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -10,7 +9,7 @@ import 'nav_chip.dart';
 const double _kPad = 6;
 
 /// メニューチップの帯を、紙にへこんだ帯にする（2026-11-26、生成りスタイル）。選ばれた項目には、
-/// 粒状のざらつきのある、アクセントカラーの丸い印が重なり、選択が移ると滑る。「選択の動き」が
+/// アクセントカラーの丸い印が重なり、選択が移ると滑る。「選択の動き」が
 /// 「なし」なら、その場で移る。柔らかい内側の影とわずかな浮きは、このスタイルのこの帯だけの例外。
 ///
 /// [child]は、チップを並べたRow/Column。チップ同士の間は[kNavChipGap]、1つの大きさは
@@ -90,16 +89,25 @@ class _KinariBarPainter extends CustomPainter {
     if (position >= 0) {
       final center =
           _kPad + position * (kNavChipSize + kNavChipGap) + kNavChipSize / 2;
-      final w = kNavChipSize * 1.2;
-      final h = math.min(kNavChipSize - 14, thickness - 12);
+      // 正円（チップの丸より少し小さく、帯の厚みに収まる大きさ）。
+      final h = math.min(kNavChipSize - 6, thickness - 12);
       final rect = Rect.fromCenter(
         center: Offset(center, thickness / 2),
-        width: w,
+        width: h,
         height: h,
+      );
+      // 囲んだ範囲は、帯よりさらにへこませる。
+      final circle = RRect.fromRectAndRadius(rect, Radius.circular(h / 2));
+      paintKinariInset(
+        canvas,
+        circle,
+        Color.lerp(base, Colors.black, 0.06)!,
+        shadowOffset * 1.3,
+        depth: 2.4,
       );
       // 印は塗らず、濃い線で囲む（へこんだ帯の中に、細い線の丸）。
       canvas.drawRRect(
-        RRect.fromRectAndRadius(rect, Radius.circular(h / 2)),
+        circle,
         Paint()
           ..style = PaintingStyle.stroke
           ..strokeWidth = 1.8
@@ -159,7 +167,23 @@ void paintKinariInsetShadows(
   inner(-offset, Colors.white.withValues(alpha: (0.7 * depth).clamp(0.0, 1.0)));
 }
 
-/// 粒状のざらつきのある、わずかに浮いた印（丸い角）を描く。
+/// 選択色の塗りを、へこんで見せる（生成り）。塗りのある所にだけ、チップの丸に沿った内側の影と
+/// 明かりを重ねる（`srcATop`なので、塗りの外には出ない）。塗りを描いた層の中で、アイコンを
+/// 描き直す前に呼ぶ。
+void paintKinariRecess(Canvas canvas, Rect bounds, Iterable<Rect> chips) {
+  canvas.saveLayer(bounds, Paint()..blendMode = BlendMode.srcATop);
+  for (final r in chips) {
+    paintKinariInsetShadows(
+      canvas,
+      RRect.fromRectAndRadius(r, Radius.circular(r.shortestSide / 2)),
+      const Offset(2, 3),
+      depth: 2.2,
+    );
+  }
+  canvas.restore();
+}
+
+/// わずかに浮いた印（丸い角）を描く。
 void paintKinariPill(Canvas canvas, Rect rect, Color pill) {
   final pillRRect = RRect.fromRectAndRadius(
     rect,
@@ -189,31 +213,6 @@ void paintKinariPill(Canvas canvas, Rect rect, Color pill) {
         ],
       ).createShader(rect),
   );
-  // 粒状のざらつき。印の中の位置から決まるので、印と一緒に動き、ちらつかない。
-  final random = math.Random(3);
-  final light = <Offset>[];
-  final dark = <Offset>[];
-  final n = (rect.width * rect.height / 7).toInt();
-  for (var i = 0; i < n; i++) {
-    final p = Offset(
-      rect.left + random.nextDouble() * rect.width,
-      rect.top + random.nextDouble() * rect.height,
-    );
-    (random.nextBool() ? light : dark).add(p);
-  }
-  final dot = Paint()
-    ..strokeWidth = 1.1
-    ..strokeCap = StrokeCap.round;
-  canvas.drawPoints(
-    PointMode.points,
-    light,
-    dot..color = Colors.white.withValues(alpha: 0.28),
-  );
-  canvas.drawPoints(
-    PointMode.points,
-    dark,
-    dot..color = Colors.black.withValues(alpha: 0.16),
-  );
   canvas.restore();
 }
 
@@ -232,8 +231,16 @@ class KinariInsetChipPainter extends CustomPainter {
       Radius.circular(size.shortestSide / 2),
     );
     paintKinariInset(canvas, rrect, base, const Offset(2, 3));
+    // 選択中は、アクセントの塗りをへこませる（浮かせない）。
     final f = fill;
-    if (f != null) paintKinariPill(canvas, (Offset.zero & size).deflate(4), f);
+    if (f != null) {
+      final inner = RRect.fromRectAndRadius(
+        (Offset.zero & size).deflate(3),
+        Radius.circular(size.shortestSide / 2),
+      );
+      canvas.drawRRect(inner, Paint()..color = f);
+      paintKinariInsetShadows(canvas, inner, const Offset(2, 3), depth: 2.2);
+    }
   }
 
   @override

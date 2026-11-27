@@ -16,6 +16,7 @@ import 'liquid_sim.dart';
 import 'ring_list_scope.dart';
 import 'scribble_paint.dart';
 import 'slide_chip_highlight.dart' show kSlideMotionCurve, kSlideMotionDuration;
+import 'slide_select_list.dart' show SlidePositionScope;
 
 /// 項目の並び（設定・身だしなみのカテゴリ一覧、語らいの一対・広場のタブ）の、選択色を、
 /// 水が流れ込むように移す（2026-11-26）。チップは[LiquidChipHighlight]、こちらは文字のある
@@ -68,6 +69,7 @@ class _LiquidTileGroupState extends ConsumerState<LiquidTileGroup>
   )..addListener(_onSlideTick);
   double _slideFrom = 0;
   double _slideTo = 0;
+  ValueListenable<double?>? _slidePosL;
   late final Ticker _ticker;
   Duration _last = Duration.zero;
   int? _target;
@@ -87,7 +89,9 @@ class _LiquidTileGroupState extends ConsumerState<LiquidTileGroup>
     _ticker = createTicker(_onTick);
     _target = widget.selectedIndex;
     _slide.pos = _target?.toDouble();
-    widget.slidePosition?.addListener(_onSlideExternal);
+    // 一覧をなぞる間の指の位置（`SlideSelectList`が渡す）。呼び出し側が位置を渡していればそちらを使う。
+    _slidePosL = widget.slidePosition ?? SlidePositionScope.maybeOf(context);
+    _slidePosL?.addListener(_onSlideExternal);
     WidgetsBinding.instance.addPostFrameCallback((_) => _measure());
   }
 
@@ -98,7 +102,7 @@ class _LiquidTileGroupState extends ConsumerState<LiquidTileGroup>
   );
 
   void _onSlideExternal() {
-    final v = widget.slidePosition?.value;
+    final v = _slidePosL?.value;
     if (v == null) {
       // 指を離した。選ばれている項目へ収める。
       _slideToTarget();
@@ -124,7 +128,7 @@ class _LiquidTileGroupState extends ConsumerState<LiquidTileGroup>
 
   @override
   void dispose() {
-    widget.slidePosition?.removeListener(_onSlideExternal);
+    _slidePosL?.removeListener(_onSlideExternal);
     _slideController.dispose();
     _slide.dispose();
     _ticker.dispose();
@@ -180,8 +184,7 @@ class _LiquidTileGroupState extends ConsumerState<LiquidTileGroup>
     if (ref.read(selectionSlideMotionProvider)) {
       _slide.setRects(rects);
       // 滑りへ切り替えた直後など、位置が選択とずれたままなら、選ばれている項目へ合わせる。
-      if (!_slideController.isAnimating &&
-          widget.slidePosition?.value == null) {
+      if (!_slideController.isAnimating && _slidePosL?.value == null) {
         _slide.setPos(_target?.toDouble());
       }
     }
@@ -207,9 +210,9 @@ class _LiquidTileGroupState extends ConsumerState<LiquidTileGroup>
   @override
   void didUpdateWidget(covariant LiquidTileGroup old) {
     super.didUpdateWidget(old);
-    if (old.slidePosition != widget.slidePosition) {
+    if (old.slidePosition != _slidePosL) {
       old.slidePosition?.removeListener(_onSlideExternal);
-      widget.slidePosition?.addListener(_onSlideExternal);
+      _slidePosL?.addListener(_onSlideExternal);
     }
     if (widget.selectedIndex != _target) {
       final prev = _target;

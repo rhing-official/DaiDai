@@ -99,13 +99,20 @@ class ToggleColors {
         );
       case AppUiStyle.kinari:
         // へこんだトラックに、わずかに浮いた紙色のつまみ。
-        final paper = Color.lerp(scheme.surface, Colors.white, 0.45)!;
+        // 暗い背景を選んだ時は、つまみを明るい色（文字色）にし、トラックをより深くへこませて、
+        // 背景と見分けがつくようにする。
+        final dark = scheme.surface.computeLuminance() < 0.4;
+        final paper = dark
+            ? Color.lerp(scheme.onSurface, scheme.surface, 0.1)!
+            : Color.lerp(scheme.surface, Colors.white, 0.45)!;
         return ToggleColors(
           onFill: accent,
-          offFill: Color.lerp(scheme.surface, Colors.black, 0.1)!,
+          offFill: dark
+              ? Color.lerp(scheme.surface, Colors.black, 0.45)!
+              : Color.lerp(scheme.surface, Colors.black, 0.1)!,
           onThumb: paper,
           offThumb: paper,
-          border: scheme.onSurface.withValues(alpha: 0.3),
+          border: scheme.onSurface.withValues(alpha: dark ? 0.55 : 0.3),
           borderWidth: 1,
           check: accent,
           raised: true,

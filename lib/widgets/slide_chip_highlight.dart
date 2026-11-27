@@ -8,6 +8,7 @@ import '../providers/selection_motion_provider.dart';
 import '../theme/block/block_theme.dart';
 import '../theme/chalk/chalk_paint.dart';
 import '../theme/gekiga/gekiga_colors.dart';
+import 'kinari_nav_bar.dart' show paintKinariRecess;
 import 'liquid_chip_highlight.dart';
 
 /// 「滑り」の、クリックで切り替えた時の移動の長さと曲線（2026-11-27、ユーザー決定）。
@@ -167,6 +168,7 @@ class _SlideChipHighlightState extends ConsumerState<SlideChipHighlight>
         // 版画: 太い枠線（白い丸の縁）は残し、その内側だけを塗る。
         inset: style == AppUiStyle.block ? BlockTheme.borderWidth : 0,
         chalk: style == AppUiStyle.chalk,
+        kinari: style == AppUiStyle.kinari,
       ),
     );
   }
@@ -182,6 +184,7 @@ class _SlidePainter extends CustomPainter {
     required this.square,
     required this.inset,
     required this.chalk,
+    this.kinari = false,
   }) : super(repaint: Listenable.merge([rects, position]));
 
   final ValueNotifier<List<Rect?>> rects;
@@ -192,6 +195,7 @@ class _SlidePainter extends CustomPainter {
   final bool square;
   final double inset;
   final bool chalk;
+  final bool kinari;
 
   /// 位置（小数の番号）に対応する矩形。隣り合う2つのチップの矩形の間を補間する。
   Rect? _rectAt(List<Rect?> list, double p) {
@@ -231,6 +235,12 @@ class _SlidePainter extends CustomPainter {
       }
       canvas.restore();
     }
+    if (kinari) {
+      paintKinariRecess(canvas, bounds, [
+        for (final cr in list)
+          if (cr != null) cr,
+      ]);
+    }
     // 塗りの上にだけ、選択中の文字色でアイコンを描き直す。
     canvas.saveLayer(bounds, Paint()..blendMode = BlendMode.srcATop);
     for (var i = 0; i < entries.length && i < list.length; i++) {
@@ -265,5 +275,6 @@ class _SlidePainter extends CustomPainter {
       old.square != square ||
       old.inset != inset ||
       old.chalk != chalk ||
+      old.kinari != kinari ||
       old.entries != entries;
 }

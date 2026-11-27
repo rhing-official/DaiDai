@@ -1,3 +1,4 @@
+import '../../theme/kinari/kinari_theme.dart';
 import '../../widgets/kinari_surface.dart';
 import '../../utils/avatar_backdrop.dart';
 import '../../utils/contact_alias.dart';
@@ -2848,6 +2849,16 @@ class _AddThumbButton extends ConsumerWidget {
             ),
           ),
         ),
+      );
+    }
+    // 生成り: 浮いた丸（明かり、細い線）。
+    if (isKinariTheme(context)) {
+      return KinariRaisedCircle(
+        color: colorScheme.surface,
+        lineColor: colorScheme.onSurface,
+        size: 72,
+        onTap: enabled ? onTap : null,
+        child: indicator,
       );
     }
     return SizedBox(
@@ -5878,47 +5889,52 @@ class _FontColorDialogState extends ConsumerState<_FontColorDialog> {
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          BlockFieldFrame(label: kinari ? strings.settingsColorCode : null, child: TextField(
-            controller: _controller,
-            autofocus: true,
-            textCapitalization: TextCapitalization.characters,
-            inputFormatters: [
-              FilteringTextInputFormatter.allow(RegExp('[0-9a-fA-F]')),
-              LengthLimitingTextInputFormatter(8),
-            ],
-            decoration: InputDecoration(
-              labelText: kinari ? null : strings.settingsColorCode,
-              prefixText: '#',
-              hintText: 'FFFFFF',
-              errorText: _errorText,
-              counterText: '',
-filled: kinari ? false : null,
-border: kinari ? InputBorder.none : null,
-enabledBorder: kinari ? InputBorder.none : null,
-focusedBorder: kinari ? InputBorder.none : null,
-              suffixIcon: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  HoneycombColorButton(
-                    current: _current,
-                    onPicked: (picked) => _selectPreset(
-                      picked,
-                      picked.toHexString().replaceFirst('#', ''),
+          BlockFieldFrame(
+            label: isKinariTheme(context) ? strings.settingsColorCode : null,
+            child: TextField(
+              controller: _controller,
+              autofocus: true,
+              textCapitalization: TextCapitalization.characters,
+              inputFormatters: [
+                FilteringTextInputFormatter.allow(RegExp('[0-9a-fA-F]')),
+                LengthLimitingTextInputFormatter(8),
+              ],
+              decoration: InputDecoration(
+                labelText: isKinariTheme(context)
+                    ? null
+                    : strings.settingsColorCode,
+                prefixText: '#',
+                hintText: 'FFFFFF',
+                errorText: _errorText,
+                counterText: '',
+                filled: isKinariTheme(context) ? false : null,
+                border: isKinariTheme(context) ? InputBorder.none : null,
+                enabledBorder: isKinariTheme(context) ? InputBorder.none : null,
+                focusedBorder: isKinariTheme(context) ? InputBorder.none : null,
+                suffixIcon: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    HoneycombColorButton(
+                      current: _current,
+                      onPicked: (picked) => _selectPreset(
+                        picked,
+                        picked.toHexString().replaceFirst('#', ''),
+                      ),
                     ),
-                  ),
-                  CopyIconButton(
-                    textBuilder: () => hexCopyText(_controller.text),
-                  ),
-                  IconButton(
-                    icon: const Icon(Icons.add),
-                    tooltip: '',
-                    onPressed: _register,
-                  ),
-                ],
+                    CopyIconButton(
+                      textBuilder: () => hexCopyText(_controller.text),
+                    ),
+                    IconButton(
+                      icon: const Icon(Icons.add),
+                      tooltip: '',
+                      onPressed: _register,
+                    ),
+                  ],
+                ),
               ),
+              onChanged: _onChanged,
             ),
-            onChanged: _onChanged,
-          )),
+          ),
           const SizedBox(height: 16),
           Text(
             strings.settingsColorPresets,

@@ -7,6 +7,8 @@ import '../../models/calendar_week_start.dart';
 import '../../providers/holiday_settings_provider.dart';
 import '../../theme/block/block_theme.dart';
 import '../../theme/gekiga/gekiga_colors.dart';
+import '../../theme/kinari/kinari_theme.dart';
+import '../../widgets/kinari_surface.dart';
 import '../../widgets/gekiga/gekiga_panel_box.dart';
 import '../../widgets/pressable_scale.dart';
 import '../../widgets/toggles/app_checkbox.dart';
@@ -202,8 +204,50 @@ class HolidayCheckboxes extends StatelessWidget {
     // 版画は、行を太枠と硬い影の箱にする（チェックの色はスタイル既定）。
     return Builder(
       builder: (context) {
-        if (!isBlockTheme(context)) return _plainRow(label, value, onChanged);
         final scheme = Theme.of(context).colorScheme;
+        // 生成り: 行を、へこんだ箱にする。
+        if (isKinariTheme(context)) {
+          return Padding(
+            padding: const EdgeInsets.symmetric(vertical: 4),
+            child: blockFitWidth(
+              KinariInset(
+                color: scheme.surface,
+                radius: 12,
+                child: InkWell(
+                  onTap: () => onChanged(!value),
+                  borderRadius: BorderRadius.circular(12),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 8,
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        SizedBox(
+                          width: 32,
+                          height: 32,
+                          child: AppCheckbox(
+                            value: value,
+                            onChanged: (v) => onChanged(v ?? false),
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Flexible(
+                          child: Text(
+                            label,
+                            style: TextStyle(color: scheme.onSurface),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          );
+        }
+        if (!isBlockTheme(context)) return _plainRow(label, value, onChanged);
         return Padding(
           padding: const EdgeInsets.fromLTRB(2, 4, 6, 8),
           child: blockFitWidth(

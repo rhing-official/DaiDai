@@ -1,4 +1,6 @@
 import '../../theme/block/block_theme.dart';
+import '../../theme/kinari/kinari_theme.dart';
+import '../../widgets/kinari_surface.dart';
 import 'dart:typed_data';
 
 import 'package:camera/camera.dart' show availableCameras;
@@ -444,6 +446,21 @@ class _AttachmentPopupButtonState extends State<AttachmentPopupButton> {
           ? Padding(
               padding: const EdgeInsets.all(6),
               child: blockIconButton(context, icon: Icons.add, size: 32),
+            )
+          : isKinariTheme(context)
+          // 生成り: 浮いた丸に＋（タップは外側のListenerが受ける）。
+          ? Padding(
+              padding: const EdgeInsets.all(6),
+              child: KinariRaisedCircle(
+                color: Theme.of(context).colorScheme.surface,
+                lineColor: Theme.of(context).colorScheme.onSurface,
+                size: 36,
+                child: Icon(
+                  Icons.add,
+                  size: 22,
+                  color: Theme.of(context).colorScheme.onSurface,
+                ),
+              ),
             )
           : Padding(
               // 周りの丸は付けず、大きい＋だけにする（2026-10-31）。タップ領域の

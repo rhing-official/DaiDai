@@ -3257,6 +3257,18 @@ class _CustomAppearanceEditorState
                               context,
                               ref,
                             ).withValues(alpha: 0.65),
+                            enabledBorder: _insetFieldTheme(context)
+                                ? InputBorder.none
+                                : null,
+                            focusedBorder: _insetFieldTheme(context)
+                                ? InputBorder.none
+                                : null,
+                            errorBorder: _insetFieldTheme(context)
+                                ? InputBorder.none
+                                : null,
+                            focusedErrorBorder: _insetFieldTheme(context)
+                                ? InputBorder.none
+                                : null,
                             border: _insetFieldTheme(context)
                                 ? InputBorder.none
                                 : OutlineInputBorder(
@@ -3667,6 +3679,18 @@ class _AccentColorFolderState extends ConsumerState<AccentColorFolder> {
                   context,
                   ref,
                 ).withValues(alpha: 0.65),
+                enabledBorder: _insetFieldTheme(context)
+                    ? InputBorder.none
+                    : null,
+                focusedBorder: _insetFieldTheme(context)
+                    ? InputBorder.none
+                    : null,
+                errorBorder: _insetFieldTheme(context)
+                    ? InputBorder.none
+                    : null,
+                focusedErrorBorder: _insetFieldTheme(context)
+                    ? InputBorder.none
+                    : null,
                 border: _insetFieldTheme(context)
                     ? InputBorder.none
                     : OutlineInputBorder(
@@ -4034,6 +4058,18 @@ class _AppearanceColorEditorState
                           context,
                           ref,
                         ).withValues(alpha: 0.65),
+                        enabledBorder: _insetFieldTheme(context)
+                            ? InputBorder.none
+                            : null,
+                        focusedBorder: _insetFieldTheme(context)
+                            ? InputBorder.none
+                            : null,
+                        errorBorder: _insetFieldTheme(context)
+                            ? InputBorder.none
+                            : null,
+                        focusedErrorBorder: _insetFieldTheme(context)
+                            ? InputBorder.none
+                            : null,
                         border: _insetFieldTheme(context)
                             ? InputBorder.none
                             : OutlineInputBorder(

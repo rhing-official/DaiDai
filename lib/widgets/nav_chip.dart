@@ -174,7 +174,7 @@ class NavChip extends ConsumerWidget {
             ),
           )
         : isKinari
-        // 生成り（分ける時）: へこんだ丸。選択中（なし）は、ざらつきのある印を重ねる。
+        // 生成り（分ける時）: へこんだ丸。選択中（なし）は、アクセントの印を重ねる。
         ? CustomPaint(
             painter: KinariInsetChipPainter(
               base: colorScheme.surface,

@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart' show ValueListenable;
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -16,6 +17,24 @@ import 'pane_visibility.dart';
 /// [_slop]以上動いた時だけ「なぞり」とみなす。なぞっている間、指の下の項目が変わるたびに
 /// [onSlide]を呼ぶ。指を離した時は、なぞっていた場合だけ最後にいた項目を[onSlideEnd]へ渡す。
 /// [builder]は、各項目を`KeyedSubtree(key: keyFor(i))`で包んで返す（指の位置の判定に使う）。
+/// 一覧をなぞっている間の、指の位置（項目の並びの中の小数の番号）を、中の`LiquidTileGroup`へ
+/// 伝える（「滑り」で、塗りが指に追従する。メニューチップのなぞりと同じ、2026-11-27）。
+class SlidePositionScope extends InheritedWidget {
+  const SlidePositionScope({
+    required this.position,
+    required super.child,
+    super.key,
+  });
+
+  final ValueListenable<double?> position;
+
+  static ValueListenable<double?>? maybeOf(BuildContext context) =>
+      context.getInheritedWidgetOfExactType<SlidePositionScope>()?.position;
+
+  @override
+  bool updateShouldNotify(SlidePositionScope old) => position != old.position;
+}
+
 class SlideSelectList extends ConsumerStatefulWidget {
   const SlideSelectList({
     required this.itemCount,
@@ -51,6 +70,9 @@ class _SlideSelectListState extends ConsumerState<SlideSelectList>
 
   int? _index;
 
+  /// 指の位置（小数の番号）。なぞっていない間は`null`。
+  final ValueNotifier<double?> _pos = ValueNotifier(null);
+
   late final ItemPickBridge _bridge;
   bool _visible = true;
 
@@ -63,6 +85,7 @@ class _SlideSelectListState extends ConsumerState<SlideSelectList>
   @override
   void dispose() {
     _bridge.unregister(this);
+    _pos.dispose();
     // なぞりの途中で破棄された時は、渡し先の強調を消す（2026-11-11）。
     final target = _handoffTarget;
     if (target != null && _handoffIndex != null) {
@@ -144,7 +167,26 @@ class _SlideSelectListState extends ConsumerState<SlideSelectList>
     return null;
   }
 
+  /// 指の縦位置を、項目の中心どうしの間で補間した小数の番号にする（端は最初・最後の項目）。
+  double? _positionAt(double dy) {
+    final centers = <double>[];
+    for (var i = 0; i < widget.itemCount && i < _keys.length; i++) {
+      final box = _keys[i].currentContext?.findRenderObject();
+      if (box is! RenderBox || !box.attached || !box.hasSize) return null;
+      centers.add(box.localToGlobal(Offset.zero).dy + box.size.height / 2);
+    }
+    if (centers.isEmpty) return null;
+    if (dy <= centers.first) return 0;
+    for (var i = 0; i + 1 < centers.length; i++) {
+      if (dy <= centers[i + 1]) {
+        return i + (dy - centers[i]) / (centers[i + 1] - centers[i]);
+      }
+    }
+    return (centers.length - 1).toDouble();
+  }
+
   void _reset() {
+    _pos.value = null;
     _clearHandoff();
     final wasSliding = _sliding;
     _down = null;
@@ -170,6 +212,7 @@ class _SlideSelectListState extends ConsumerState<SlideSelectList>
       if (!ref.read(slidePickEnabledProvider)) return;
       _sliding = true;
     }
+    // （この一覧の外へ出たら、位置を外す。下の渡し先の処理で）
     // 指がこの一覧の外のチップ列などへ出たら、そちらへ選択を渡す（2026-11-05、
     // 項目を押したままメニューチップへ滑らせてタブを切り替える）。横向きの判定より先に
     // 行う（2026-11-11）。コンピューターではチップ列が一覧の左隣に縦に並び、チップへの
@@ -190,18 +233,22 @@ class _SlideSelectListState extends ConsumerState<SlideSelectList>
         other.pick(otherIndex, commit: false);
       }
       // 一覧側の強調は消す。
+      _pos.value = null;
       if (_index != null) setState(() => _index = null);
       return;
     }
     _clearHandoff();
     // はっきり横へ動いている間は、項目の強調・選択を動かさない（タブの横ドラッグ）。
     if (_isHorizontalNow(delta)) {
+      _pos.value = null;
       if (_index != null) setState(() => _index = null);
       return;
     }
     // 別のタブへ切り替わって見えなくなった一覧では、選択を動かさない。
     if (!_visible) return;
+    // 指が一覧の項目の上にいる間、塗りは指に追従する（項目の外へ出たら、選択へ戻る）。
     final index = _indexAt(event.position);
+    _pos.value = index == null ? null : _positionAt(event.position.dy);
     if (index == _index) return;
     setState(() => _index = index);
     // 項目から外れた時は強調だけ消す（離しても何も開かない）。
@@ -226,6 +273,7 @@ class _SlideSelectListState extends ConsumerState<SlideSelectList>
     final wasSliding = _sliding && !horizontal;
     final handoffTarget = _handoffTarget;
     final handoffIndex = _handoffIndex;
+    _pos.value = null;
     _handoffTarget = null;
     _handoffIndex = null;
     _reset();
@@ -257,7 +305,10 @@ class _SlideSelectListState extends ConsumerState<SlideSelectList>
       onPointerMove: _onMove,
       onPointerUp: (event) => _onUp(event.position),
       onPointerCancel: (_) => _reset(),
-      child: widget.builder(context, _keyFor, _sliding ? _index : null),
+      child: SlidePositionScope(
+        position: _pos,
+        child: widget.builder(context, _keyFor, _sliding ? _index : null),
+      ),
     );
   }
 }

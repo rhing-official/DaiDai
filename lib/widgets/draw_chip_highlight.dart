@@ -7,6 +7,7 @@ import '../providers/selection_motion_provider.dart';
 import '../theme/block/block_theme.dart';
 import '../theme/chalk/chalk_paint.dart';
 import '../theme/gekiga/gekiga_colors.dart';
+import 'kinari_nav_bar.dart' show paintKinariRecess;
 import 'liquid_chip_highlight.dart';
 import 'scribble_paint.dart';
 
@@ -129,6 +130,7 @@ class _DrawChipHighlightState extends ConsumerState<DrawChipHighlight>
         // 版画: 太い枠線（白い丸の縁）は残し、その内側だけを塗る。
         inset: style == AppUiStyle.block ? BlockTheme.borderWidth : 0,
         chalk: style == AppUiStyle.chalk,
+        kinari: style == AppUiStyle.kinari,
         repaint: Listenable.merge([_rects, ..._controllers.values]),
       ),
     );
@@ -145,6 +147,7 @@ class _DrawPainter extends CustomPainter {
     required this.square,
     required this.inset,
     required this.chalk,
+    this.kinari = false,
     required Listenable repaint,
   }) : super(repaint: repaint);
 
@@ -156,6 +159,7 @@ class _DrawPainter extends CustomPainter {
   final bool square;
   final double inset;
   final bool chalk;
+  final bool kinari;
 
   Path _shape(Rect r) => square
       ? (Path()..addRRect(RRect.fromRectAndRadius(r, const Radius.circular(3))))
@@ -188,6 +192,12 @@ class _DrawPainter extends CustomPainter {
         area = area == null ? r : area.expandToInclude(r);
       }
       if (area != null) ChalkPaint.punchGrain(canvas, area.inflate(40));
+    }
+    if (kinari) {
+      paintKinariRecess(canvas, bounds, [
+        for (final r in list)
+          if (r != null) r,
+      ]);
     }
     // 塗りの上にだけ、選択中の文字色でアイコンを描き直す。
     canvas.saveLayer(bounds, Paint()..blendMode = BlendMode.srcATop);
@@ -223,5 +233,6 @@ class _DrawPainter extends CustomPainter {
       old.square != square ||
       old.inset != inset ||
       old.chalk != chalk ||
+      old.kinari != kinari ||
       old.entries != entries;
 }
