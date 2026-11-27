@@ -2851,14 +2851,25 @@ class _AddThumbButton extends ConsumerWidget {
         ),
       );
     }
-    // 生成り: 浮いた丸（明かり、細い線）。
+    // 生成り: へこんだ丸（2026-11-27、ユーザー指示。以前は浮いた丸）。
     if (isKinariTheme(context)) {
-      return KinariRaisedCircle(
-        color: colorScheme.surface,
-        lineColor: colorScheme.onSurface,
-        size: 72,
-        onTap: enabled ? onTap : null,
-        child: indicator,
+      return SizedBox(
+        width: 72,
+        height: 72,
+        child: KinariInset(
+          color: colorScheme.surface,
+          radius: 36,
+          child: Material(
+            color: Colors.transparent,
+            shape: const CircleBorder(),
+            clipBehavior: Clip.antiAlias,
+            child: InkWell(
+              onTap: enabled ? onTap : null,
+              customBorder: const CircleBorder(),
+              child: Center(child: indicator),
+            ),
+          ),
+        ),
       );
     }
     return SizedBox(
@@ -3117,13 +3128,15 @@ Widget _registeredItemsSection<T>({
         if (ref.watch(appUiStyleProvider) == AppUiStyle.kinari)
           Builder(
             builder: (context) {
-              // 生成り: 追加は、アクセントのへこんだ面（主要操作）。
+              // 生成り: 追加は、紙色のへこみの中に、アクセントの面が嵌まる（主要操作）。選択中の一覧の行と
+              // 同じ作り。アクセントの面だけでは、影が目立たず、へこんで見えない。
               final scheme = Theme.of(context).colorScheme;
               return Padding(
                 padding: const EdgeInsets.symmetric(vertical: 4),
                 child: blockFitWidth(
                   KinariInset(
-                    color: scheme.primary,
+                    color: scheme.surface,
+                    well: scheme.primary,
                     radius: 12,
                     depth: 2.2,
                     child: InkWell(

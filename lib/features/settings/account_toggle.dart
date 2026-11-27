@@ -18,6 +18,7 @@ import '../../widgets/account_avatar.dart';
 import '../../widgets/app_dialog.dart';
 import '../../widgets/gekiga/gekiga_panel_box.dart';
 import '../../widgets/glass/glass_surface.dart';
+import '../../widgets/kinari_surface.dart';
 import '../../widgets/kiwami_only_dialog.dart';
 
 /// 画面に出す、切り替えの失敗の説明（表示言語に合わせる。サーバーの文言は使わない）。
@@ -389,6 +390,9 @@ class _SegmentTile extends ConsumerWidget {
         foreground = selected ? scheme.onPrimary : scheme.onSurface;
         fill = selected ? scheme.primary : null;
       case AppUiStyle.kinari:
+        // 面は[KinariTileFrame]が、へこませて描く（選択中はアクセントカラーのへこみ）。
+        foreground = selected ? scheme.onPrimary : scheme.onSurfaceVariant;
+        fill = null;
       case AppUiStyle.flat:
         foreground = selected ? scheme.onPrimary : scheme.onSurfaceVariant;
         fill = selected ? scheme.primary : scheme.surface;
@@ -477,6 +481,17 @@ class _SegmentTile extends ConsumerWidget {
           child: Material(color: Colors.transparent, child: tappable),
         );
       case AppUiStyle.kinari:
+        // 生成り: 区画をへこませる（2026-11-27、ユーザー指示）。選択中はアクセントカラーの面が、
+        // さらにへこんで嵌まる。
+        return KinariTileFrame(
+          selected: selected,
+          child: Material(
+            color: Colors.transparent,
+            borderRadius: BorderRadius.circular(12),
+            clipBehavior: Clip.antiAlias,
+            child: tappable,
+          ),
+        );
       case AppUiStyle.flat:
         return Material(
           color: fill,
