@@ -1,3 +1,4 @@
+import '../../widgets/kinari_surface.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -79,6 +80,7 @@ class JoinRequestBanner extends ConsumerWidget {
     );
 
     if (isChalk) return ChalkBannerFrame(child: content);
+    if (uiStyle == AppUiStyle.kinari) return KinariBannerFrame(child: content);
 
     if (isGlass) {
       return GlassSurface(

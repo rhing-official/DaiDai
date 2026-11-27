@@ -1,3 +1,5 @@
+import '../../theme/kinari/kinari_theme.dart';
+import '../../widgets/kinari_surface.dart';
 import 'dart:math' as math;
 import 'dart:async';
 import 'dart:io' show Platform;
@@ -1009,6 +1011,33 @@ class _FolderTile extends ConsumerWidget {
     final foreground = selected
         ? colorScheme.onPrimary
         : colorScheme.onSurfaceVariant;
+    if (uiStyle == AppUiStyle.kinari) {
+      // 生成り: 選択中は浮いた面、他はへこんだ面（2026-11-27）。
+      final fg = selected
+          ? colorScheme.onPrimary
+          : colorScheme.onSurfaceVariant;
+      return Padding(
+        padding: const EdgeInsets.symmetric(vertical: 3),
+        child: blockFitWidth(
+          horizontal: horizontal,
+          KinariTileFrame(
+            selected: selected,
+            child: ListTile(
+              contentPadding: const EdgeInsets.symmetric(
+                horizontal: 16,
+                vertical: 8,
+              ),
+              iconColor: fg,
+              textColor: fg,
+              leading: Icon(icon),
+              title: Text(title),
+              trailing: trailingWidget,
+              onTap: onTap,
+            ),
+          ),
+        ),
+      );
+    }
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 3),
       child: blockFitWidth(
@@ -1174,6 +1203,18 @@ class _CopyableInfoRow extends ConsumerWidget {
               ),
             ],
           )
+        : ref.watch(appUiStyleProvider) == AppUiStyle.kinari
+        // 生成り: へこんだ箱。
+        ? KinariInset(
+            color: colorScheme.surface,
+            radius: 12,
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+            child: CopyLinkRow(
+              link: value,
+              trailing: trailing,
+              copyOnlyByButton: true,
+            ),
+          )
         : ref.watch(appUiStyleProvider).isBoxed
         // 版画: 太枠と硬い影の箱（影の分の余白を含める）。
         // 左右の余白は下の外側の余白に任せ、「検索に表示する」の行（[SettingsTile]）と
@@ -1211,7 +1252,10 @@ class _CopyableInfoRow extends ConsumerWidget {
             ),
           );
     // 劇画・版画は箱を左右いっぱいに広げ、「検索に表示する」の箱と幅を揃える。
-    final blockStyle = isGekiga || ref.watch(appUiStyleProvider).isBoxed;
+    final blockStyle =
+        isGekiga ||
+        ref.watch(appUiStyleProvider).isBoxed ||
+        ref.watch(appUiStyleProvider) == AppUiStyle.kinari;
     return Padding(
       padding: EdgeInsets.symmetric(
         horizontal: blockStyle ? 0 : 16,
@@ -3208,12 +3252,12 @@ class _CustomAppearanceEditorState
                             hintText: _hex(current),
                             counterText: '',
                             errorText: _error,
-                            filled: !isBlockTheme(context),
+                            filled: !_insetFieldTheme(context),
                             fillColor: _colorFieldFill(
                               context,
                               ref,
                             ).withValues(alpha: 0.65),
-                            border: isBlockTheme(context)
+                            border: _insetFieldTheme(context)
                                 ? InputBorder.none
                                 : OutlineInputBorder(
                                     borderRadius: BorderRadius.circular(16),
@@ -3618,12 +3662,12 @@ class _AccentColorFolderState extends ConsumerState<AccentColorFolder> {
                 // ガラスでアクセントカラーの色味有無が異なり見た目が
                 // ズレていた為、`GlassColors`の固定値を直接参照して
                 // UIスタイルに関係なく常に同じ色にする（2026-09-15修正）。
-                filled: !isBlockTheme(context),
+                filled: !_insetFieldTheme(context),
                 fillColor: _colorFieldFill(
                   context,
                   ref,
                 ).withValues(alpha: 0.65),
-                border: isBlockTheme(context)
+                border: _insetFieldTheme(context)
                     ? InputBorder.none
                     : OutlineInputBorder(
                         borderRadius: BorderRadius.circular(16),
@@ -3979,18 +4023,18 @@ class _AppearanceColorEditorState
                         LengthLimitingTextInputFormatter(_maxLength),
                       ],
                       decoration: InputDecoration(
-                        labelText: (isBlockTheme(context) || label.isEmpty)
+                        labelText: (_insetFieldTheme(context) || label.isEmpty)
                             ? null
                             : label,
                         prefixText: '#',
                         hintText: _hexOf(defaultColor),
                         counterText: '',
-                        filled: !isBlockTheme(context),
+                        filled: !_insetFieldTheme(context),
                         fillColor: _colorFieldFill(
                           context,
                           ref,
                         ).withValues(alpha: 0.65),
-                        border: isBlockTheme(context)
+                        border: _insetFieldTheme(context)
                             ? InputBorder.none
                             : OutlineInputBorder(
                                 borderRadius: BorderRadius.circular(16),
@@ -4076,7 +4120,7 @@ class _AppearanceColorEditorState
 /// 版画では入力欄の上にラベルが出て箱が下がる。見本の丸を箱と横に揃えるための、ラベルぶんの高さ
 /// （`BlockFieldFrame`のラベル: 文字12px＋下の余白6px。文字の拡大率に追従）。
 double _blockLabelOffset(BuildContext context) {
-  if (!isBlockTheme(context)) return 0;
+  if (!_insetFieldTheme(context)) return 0;
   return MediaQuery.textScalerOf(context).scale(12) * 1.3 + 6;
 }
 
@@ -5157,6 +5201,16 @@ class NavChipLayoutFolder extends ConsumerWidget {
                       height: _NavChipOrderListState.itemHeight - 12,
                       child: content,
                     ),
+                  ),
+                );
+              }
+              if (ref.watch(appUiStyleProvider) == AppUiStyle.kinari) {
+                return Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 3),
+                  child: KinariInset(
+                    color: colorScheme.surface,
+                    radius: 12,
+                    child: tile,
                   ),
                 );
               }
@@ -6890,6 +6944,7 @@ class _SelectionMotionChoice extends ConsumerWidget {
       (SelectionMotion.liquid, strings.settingsMotionLiquid),
       (SelectionMotion.draw, strings.settingsMotionDraw),
       (SelectionMotion.ring, strings.settingsMotionRing),
+      (SelectionMotion.slide, strings.settingsMotionSlide),
       (SelectionMotion.none, strings.settingsMotionNone),
     ];
     final control = isGekiga
@@ -7023,3 +7078,8 @@ class _SettingsChoiceList<T> extends ConsumerWidget {
     );
   }
 }
+
+/// 入力欄を、枠付きの箱（版画・チョーク）か、へこんだ面（生成り）で囲むか。そのとき`TextField`は
+/// 自分の枠・塗りを持たず、ラベルは箱の上に別の文字として置く（`BlockFieldFrame`）。
+bool _insetFieldTheme(BuildContext context) =>
+    isBlockTheme(context) || isKinariTheme(context);

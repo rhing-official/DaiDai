@@ -1,3 +1,4 @@
+import '../../widgets/kinari_surface.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -74,6 +75,11 @@ class ProposalBannerLayout extends ConsumerWidget {
           child: content(colorScheme.onSurface),
         );
       case AppUiStyle.kinari:
+        return KinariInset(
+          color: colorScheme.surface,
+          radius: 12,
+          child: content(colorScheme.onSurface),
+        );
       case AppUiStyle.flat:
         return Container(
           decoration: BoxDecoration(

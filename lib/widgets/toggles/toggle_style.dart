@@ -17,7 +17,10 @@ class ToggleColors {
     required this.border,
     required this.borderWidth,
     required this.check,
+    this.raised = false,
   });
+
+  /// つまみを、わずかに浮かせるか（生成り、2026-11-27）。
 
   /// オンの時の塗り（トラック・チェックボックスの面）。
   final Color onFill;
@@ -31,6 +34,7 @@ class ToggleColors {
 
   /// オンのつまみ・面の上に描くチェックの色。
   final Color check;
+  final bool raised;
 
   static ToggleColors of(
     BuildContext context,
@@ -94,6 +98,18 @@ class ToggleColors {
           check: isDark ? const Color(0xFF121212) : Colors.white,
         );
       case AppUiStyle.kinari:
+        // へこんだトラックに、わずかに浮いた紙色のつまみ。
+        final paper = Color.lerp(scheme.surface, Colors.white, 0.45)!;
+        return ToggleColors(
+          onFill: accent,
+          offFill: Color.lerp(scheme.surface, Colors.black, 0.1)!,
+          onThumb: paper,
+          offThumb: paper,
+          border: scheme.onSurface.withValues(alpha: 0.3),
+          borderWidth: 1,
+          check: accent,
+          raised: true,
+        );
       case AppUiStyle.flat:
         return ToggleColors(
           onFill: accent,

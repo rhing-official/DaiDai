@@ -149,6 +149,7 @@ final Strings _stringsFr = Strings._(
   settingsMotionNone: 'Aucun',
   settingsMotionRing: 'Cercle',
   settingsMotionDraw: 'Dessin',
+  settingsMotionSlide: 'Glisse',
   settingsWaterMotionSubtitle:
       "Choisissez le mouvement de la sélection.\nLiquide : pastilles séparées, la couleur coule comme un liquide.\nDessin : pastilles séparées, la couleur est peinte au stylo.\nCercle : une seule barre, avec un cercle autour de la sélection.\nAucun : pastilles séparées, changement instantané.\nCela ignore le réglage de l'appareil pour réduire les animations.",
   settingsTalksListMirrorTitle: "Inverser gauche et droite",

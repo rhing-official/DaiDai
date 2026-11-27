@@ -155,6 +155,33 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
   late final _ChipStripPickTarget _chipPickTarget = _ChipStripPickTarget(this);
   bool _stripVertical = false;
 
+  /// 「滑り」の塗りを指・スワイプへ追従させる位置（並びの中の小数の番号。`null`の間は塗りが自前で
+  /// 滑る、2026-11-27）。チップ帯のなぞり中は指の位置、タブを横ドラッグ中は引いた量から決める。
+  final ValueNotifier<double?> _slidePos = ValueNotifier(null);
+  double? _fingerPos;
+
+  /// 指の位置[globalPosition]を、チップ列の並びの中の小数の番号にする。隣り合うチップの中心の間は
+  /// 線形に補間し、両端の外は端に留める。
+  double? _fractionalChipPos(Offset globalPosition, bool vertical) {
+    final order = _displayOrderNow();
+    final rects = _chipGlobalRects();
+    final centers = <double>[
+      for (final i in order)
+        if (rects[i] != null)
+          vertical ? rects[i]!.center.dy : rects[i]!.center.dx,
+    ];
+    if (centers.length != order.length || centers.isEmpty) return null;
+    final p = vertical ? globalPosition.dy : globalPosition.dx;
+    if (p <= centers.first) return 0;
+    if (p >= centers.last) return (centers.length - 1).toDouble();
+    for (var k = 0; k < centers.length - 1; k++) {
+      if (p <= centers[k + 1]) {
+        return k + (p - centers[k]) / (centers[k + 1] - centers[k]);
+      }
+    }
+    return null;
+  }
+
   @override
   void initState() {
     super.initState();
@@ -220,6 +247,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
     }
     _settle.dispose();
     _slide.dispose();
+    _slidePos.dispose();
     super.dispose();
   }
 
@@ -379,6 +407,16 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
     return (hovered: null, popped: const {});
   }
 
+  /// 塗りの追従位置を更新する。タブの横ドラッグ中は引いた量、帯をなぞっている間は指の位置。
+  void _syncSlidePos() {
+    if (_drag != 0) {
+      final pos = _displayOrderNow().indexOf(_selectedIndex);
+      _slidePos.value = pos < 0 ? null : pos - _drag;
+    } else {
+      _slidePos.value = _isDragging ? _fingerPos : null;
+    }
+  }
+
   /// チップの帯をドラッグしている間、逐次呼ぶ（Start・Updateの両方から）。
   /// 指が乗っているチップへその場でタブを切り替え、飛び出させるチップの
   /// 集合を更新する。
@@ -393,6 +431,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
     // なぞり遷移が一切効かなくなっていた（2026-10-10修正）。透明ルートを
     // 数えない`hasOpenOverlay`で判定する。
     if (ref.read(backStackControllerProvider).hasOpenOverlay) return;
+    _fingerPos = _fractionalChipPos(globalPosition, vertical);
+    _syncSlidePos();
     final order = _displayOrderNow();
     final hit = _hitTestChips(globalPosition, vertical, order);
     final selectionChanged =
@@ -533,6 +573,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
           iconSize: _iconSizes[i],
         ),
     ];
+    // タブの横ドラッグ（`_drag`）に追従させる。帯をなぞる間は`_handleSwipeUpdate`が更新する。
+    if (_drag != 0) _syncSlidePos();
     final liquidSelected = displayOrder.contains(_selectedIndex)
         ? displayOrder.indexOf(_selectedIndex)
         : null;
@@ -647,12 +689,14 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
       }
 
       void onEnd() {
+        _fingerPos = null;
         if (_isDragging || _poppedIndexes.isNotEmpty) {
           setState(() {
             _isDragging = false;
             _poppedIndexes = {};
           });
         }
+        _syncSlidePos();
       }
 
       return Listener(
@@ -723,6 +767,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
                         child: NavChipBand(
                           entries: liquidEntries,
                           selectedIndex: liquidSelected,
+                          slidePosition: _slidePos,
                           vertical: true,
                           child: Column(
                             mainAxisSize: MainAxisSize.min,
@@ -758,6 +803,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
                         child: NavChipBand(
                           entries: liquidEntries,
                           selectedIndex: liquidSelected,
+                          slidePosition: _slidePos,
                           vertical: false,
                           child: Row(
                             mainAxisSize: MainAxisSize.min,

@@ -1,3 +1,4 @@
+import '../../widgets/kinari_surface.dart';
 import 'package:flutter/foundation.dart' show kDebugMode;
 import 'package:flutter/gestures.dart'
     show PointerDeviceKind, kPrimaryMouseButton;
@@ -357,6 +358,14 @@ class _UserProfileCardDialogState extends ConsumerState<UserProfileCardDialog> {
                     child: list,
                   );
                 case AppUiStyle.kinari:
+                  return KinariInset(
+                    color: theme.colorScheme.surface,
+                    radius: 12,
+                    child: Material(
+                      type: MaterialType.transparency,
+                      child: list,
+                    ),
+                  );
                 case AppUiStyle.flat:
                   return Material(
                     color: theme.colorScheme.surface,

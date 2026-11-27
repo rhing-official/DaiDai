@@ -138,6 +138,7 @@ class Strings {
     required this.settingsMotionNone,
     required this.settingsMotionRing,
     required this.settingsMotionDraw,
+    required this.settingsMotionSlide,
     required this.settingsWaterMotionSubtitle,
     required this.settingsTalksListMirrorTitle,
     required this.settingsTalksListMirrorSubtitle,
@@ -1501,6 +1502,7 @@ class Strings {
   final String settingsMotionNone;
   final String settingsMotionRing;
   final String settingsMotionDraw;
+  final String settingsMotionSlide;
   final String settingsWaterMotionSubtitle;
   final String settingsTalksListMirrorTitle;
   final String settingsTalksListMirrorSubtitle;
@@ -3193,6 +3195,7 @@ class Strings {
     settingsMotionNone: '無し',
     settingsMotionRing: '囲み',
     settingsMotionDraw: '描き',
+    settingsMotionSlide: '滑り',
     settingsWaterMotionSubtitle:
         '選択の動きを選びます。\n「液体」: チップを1つずつ分けて、色が液体のように流れ込みます。\n「描き」: チップを1つずつ分けて、色がペンで塗られます。\n「囲み」: チップを1本の帯にまとめて、選択中を丸で囲みます。\n「なし」: チップを1つずつ分けて、その場で切り替わります。\n端末の「動きを減らす」設定には関係なく動きます。',
     settingsTalksListMirrorTitle: '左右を反転する',
@@ -4636,6 +4639,7 @@ class Strings {
     settingsMotionNone: 'None',
     settingsMotionRing: 'Circle',
     settingsMotionDraw: 'Draw',
+    settingsMotionSlide: 'Slide',
     settingsWaterMotionSubtitle:
         'Choose how the selection moves.\nLiquid: separate chips, colour flows in like a liquid.\nDraw: separate chips, colour is painted with a pen.\nCircle: one bar, with a circle around the selected chip.\nNone: separate chips, switching instantly.\nThis ignores the device setting to reduce motion.',
     settingsTalksListMirrorTitle: 'Flip left and right',

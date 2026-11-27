@@ -1,5 +1,6 @@
 import 'dart:math' as math;
 
+import 'package:flutter/foundation.dart' show ValueListenable;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -150,6 +151,7 @@ class NavChipBand extends ConsumerWidget {
     required this.entries,
     required this.selectedIndex,
     required this.vertical,
+    this.slidePosition,
     super.key,
   });
 
@@ -157,6 +159,9 @@ class NavChipBand extends ConsumerWidget {
   final List<LiquidChipEntry> entries;
   final int? selectedIndex;
   final bool vertical;
+
+  /// 滑りの時、スワイプに追従させる位置（並びの中の小数の番号）。
+  final ValueListenable<double?>? slidePosition;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -188,6 +193,7 @@ class NavChipBand extends ConsumerWidget {
       entries: entries,
       selectedIndex: selectedIndex,
       vertical: vertical,
+      slidePosition: slidePosition,
       child: child,
     );
   }

@@ -1,3 +1,4 @@
+import '../../widgets/kinari_surface.dart';
 import 'call_presence_mark.dart';
 import '../../widgets/liquid_tile_group.dart';
 import '../../providers/selection_motion_provider.dart';
@@ -394,6 +395,29 @@ class _RoomListPaneState extends ConsumerState<RoomListPane> {
                 trailing: trailingOf(room, fg),
                 onTap: () => widget.onSelectRoom(room),
               ),
+            ),
+          ),
+        );
+      }
+
+      if (uiStyle == AppUiStyle.kinari) {
+        // 生成り: 選択中は浮いた面、他はへこんだ面（2026-11-27）。
+        final fg = isSelected ? colorScheme.onPrimary : colorScheme.onSurface;
+        return Padding(
+          padding: const EdgeInsets.symmetric(vertical: 3),
+          child: KinariTileFrame(
+            selected: isSelected,
+            child: ListTile(
+              iconColor: fg,
+              textColor: fg,
+              leading: tagIcon,
+              title: Text(
+                room.name,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+              trailing: trailingOf(room, fg),
+              onTap: () => widget.onSelectRoom(room),
             ),
           ),
         );

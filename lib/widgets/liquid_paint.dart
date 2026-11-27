@@ -12,11 +12,13 @@ void paintLiquidStreamAndDrops(
   LiquidSim sim,
   Color fill, {
   bool square = false,
+  bool streams = false,
 }) {
+  // 項目の間を流れる水の糸は描かない（2026-11-27、ユーザー指示）。水滴・飛沫は描く。
   final paint = Paint()..color = fill;
   // 流れ: 元の項目の縁から、太い帯になって、放物線を描いて次の項目へ注ぐ。元の項目の水が
   // 減るほど細くなり、元の側が離れると、途切れて水滴になる。
-  for (final stream in sim.streams) {
+  for (final stream in streams ? sim.streams : const <LiquidStream>[]) {
     if (stream.t < 0) continue;
     final uh = Curves.easeOutCubic.transform(
       (stream.t / stream.headTime).clamp(0.0, 1.0),

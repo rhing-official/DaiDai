@@ -1,3 +1,4 @@
+import '../../theme/block/block_theme.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -145,7 +146,7 @@ class GroupRoleListPopup extends ConsumerWidget {
                     ),
                     const SizedBox(width: 12),
                     Expanded(
-                      child: TextField(
+                      child: BlockFieldFrame(label: kinari ? strings.settingsColorCode : null, child: TextField(
                         controller: hexController,
                         enabled: hasColor,
                         textCapitalization: TextCapitalization.characters,
@@ -156,11 +157,15 @@ class GroupRoleListPopup extends ConsumerWidget {
                           LengthLimitingTextInputFormatter(6),
                         ],
                         decoration: InputDecoration(
-                          labelText: strings.settingsColorCode,
+                          labelText: kinari ? null : strings.settingsColorCode,
                           prefixText: '#',
                           hintText: 'EE7800',
                           errorText: errorText,
                           counterText: '',
+filled: kinari ? false : null,
+border: kinari ? InputBorder.none : null,
+enabledBorder: kinari ? InputBorder.none : null,
+focusedBorder: kinari ? InputBorder.none : null,
                           suffixIcon: hasColor
                               ? Row(
                                   mainAxisSize: MainAxisSize.min,
@@ -186,7 +191,7 @@ class GroupRoleListPopup extends ConsumerWidget {
                         ),
                         onChanged: (_) => setState(() {}),
                         onSubmitted: (_) => confirm(),
-                      ),
+                      )),
                     ),
                   ],
                 ),

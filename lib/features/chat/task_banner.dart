@@ -1,3 +1,4 @@
+import '../../widgets/kinari_surface.dart';
 import 'dart:async';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -615,6 +616,8 @@ class _ChatTaskBannerState extends ConsumerState<ChatTaskBanner> {
     );
 
     if (isChalk) return ChalkBannerFrame(child: barContent);
+    if (uiStyle == AppUiStyle.kinari)
+      return KinariBannerFrame(child: barContent);
 
     if (isGlass) {
       // 背景の塗り自体はフラットと同じ`background`（アクセントカラー

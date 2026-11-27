@@ -1,3 +1,4 @@
+import '../../widgets/kinari_surface.dart';
 import '../../utils/avatar_backdrop.dart';
 import '../../utils/contact_alias.dart';
 import '../../providers/contact_alias_providers.dart';
@@ -1238,6 +1239,32 @@ class _ProfileCategoryTile extends ConsumerWidget {
         ),
       );
     }
+    if (uiStyle == AppUiStyle.kinari) {
+      // 生成り: 選択中は浮いた面、他はへこんだ面（2026-11-27）。
+      final fg = selected
+          ? colorScheme.onPrimary
+          : colorScheme.onSurfaceVariant;
+      return Padding(
+        padding: const EdgeInsets.symmetric(vertical: 3),
+        child: blockFitWidth(
+          horizontal: horizontal,
+          KinariTileFrame(
+            selected: selected,
+            child: ListTile(
+              contentPadding: const EdgeInsets.symmetric(
+                horizontal: 16,
+                vertical: 8,
+              ),
+              iconColor: fg,
+              textColor: fg,
+              leading: Icon(icon),
+              title: Text(title),
+              onTap: onTap,
+            ),
+          ),
+        ),
+      );
+    }
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 3),
       child: blockFitWidth(
@@ -2335,7 +2362,18 @@ class _WorkshopBlankSlot extends ConsumerWidget {
           : resolveTertiaryTextColor(context, isGlass: isGlass),
     );
 
-    final content = uiStyle.isBoxed
+    final content = uiStyle == AppUiStyle.kinari
+        // 生成り: 空き枠も、へこんだ箱。
+        ? KinariInset(
+            color: colorScheme.surface,
+            radius: 16,
+            child: InkWell(
+              onTap: () => onTap(_originRectOf(context)),
+              borderRadius: BorderRadius.circular(16),
+              child: Center(child: icon),
+            ),
+          )
+        : uiStyle.isBoxed
         // 版画: 空き枠も、太枠と硬い影の箱（外側の影の分だけ内側へ寄せる）。
         ? Padding(
             padding: const EdgeInsets.fromLTRB(2, 2, 5, 5),
@@ -3065,7 +3103,50 @@ Widget _registeredItemsSection<T>({
           textStyle: styleOf?.call(item),
         ),
       if (canAdd)
-        if (ref.watch(appUiStyleProvider).isBoxed)
+        if (ref.watch(appUiStyleProvider) == AppUiStyle.kinari)
+          Builder(
+            builder: (context) {
+              // 生成り: 追加は、アクセントのへこんだ面（主要操作）。
+              final scheme = Theme.of(context).colorScheme;
+              return Padding(
+                padding: const EdgeInsets.symmetric(vertical: 4),
+                child: blockFitWidth(
+                  KinariInset(
+                    color: scheme.primary,
+                    radius: 12,
+                    depth: 2.2,
+                    child: InkWell(
+                      onTap: onAdd,
+                      borderRadius: BorderRadius.circular(12),
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 14,
+                          vertical: 12,
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(Icons.add, size: 20, color: scheme.onPrimary),
+                            const SizedBox(width: 8),
+                            Flexible(
+                              child: Text(
+                                addLabel,
+                                style: TextStyle(
+                                  color: scheme.onPrimary,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              );
+            },
+          )
+        else if (ref.watch(appUiStyleProvider).isBoxed)
           Builder(
             builder: (context) {
               // 版画: 追加も、アクセントで塗った太枠の箱（主要操作）。
@@ -3329,6 +3410,49 @@ class _RegisteredItemRow extends ConsumerWidget {
         leading: const Icon(Icons.edit_outlined),
         title: Text(text, overflow: TextOverflow.ellipsis, style: textStyle),
         onTap: onEdit,
+      );
+    }
+    if (ref.watch(appUiStyleProvider) == AppUiStyle.kinari) {
+      // 生成り: 登録した項目を、へこんだ箱にする（押すと編集）。
+      final scheme = Theme.of(context).colorScheme;
+      return Padding(
+        padding: const EdgeInsets.symmetric(vertical: 4),
+        child: blockFitWidth(
+          KinariInset(
+            color: scheme.surface,
+            radius: 12,
+            child: InkWell(
+              onTap: onEdit,
+              borderRadius: BorderRadius.circular(12),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 14,
+                  vertical: 12,
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(
+                      Icons.edit_outlined,
+                      size: 20,
+                      color: scheme.onSurface,
+                    ),
+                    const SizedBox(width: 10),
+                    Flexible(
+                      child: Text(
+                        text,
+                        overflow: TextOverflow.ellipsis,
+                        style: (textStyle ?? const TextStyle()).copyWith(
+                          color: textStyle?.color ?? scheme.onSurface,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ),
       );
     }
     if (ref.watch(appUiStyleProvider).isBoxed) {
@@ -5754,7 +5878,7 @@ class _FontColorDialogState extends ConsumerState<_FontColorDialog> {
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          TextField(
+          BlockFieldFrame(label: kinari ? strings.settingsColorCode : null, child: TextField(
             controller: _controller,
             autofocus: true,
             textCapitalization: TextCapitalization.characters,
@@ -5763,11 +5887,15 @@ class _FontColorDialogState extends ConsumerState<_FontColorDialog> {
               LengthLimitingTextInputFormatter(8),
             ],
             decoration: InputDecoration(
-              labelText: strings.settingsColorCode,
+              labelText: kinari ? null : strings.settingsColorCode,
               prefixText: '#',
               hintText: 'FFFFFF',
               errorText: _errorText,
               counterText: '',
+filled: kinari ? false : null,
+border: kinari ? InputBorder.none : null,
+enabledBorder: kinari ? InputBorder.none : null,
+focusedBorder: kinari ? InputBorder.none : null,
               suffixIcon: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
@@ -5790,7 +5918,7 @@ class _FontColorDialogState extends ConsumerState<_FontColorDialog> {
               ),
             ),
             onChanged: _onChanged,
-          ),
+          )),
           const SizedBox(height: 16),
           Text(
             strings.settingsColorPresets,

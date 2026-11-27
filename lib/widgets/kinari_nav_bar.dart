@@ -118,11 +118,27 @@ class _KinariBarPainter extends CustomPainter {
 }
 
 /// へこみ（紙より少し濃い面に、内側の影と明かり）を描く。[offset]は、影の向き。
-void paintKinariInset(Canvas canvas, RRect rrect, Color base, Offset offset) {
+void paintKinariInset(
+  Canvas canvas,
+  RRect rrect,
+  Color base,
+  Offset offset, {
+  double depth = 1,
+}) {
   canvas.drawRRect(
     rrect,
     Paint()..color = Color.lerp(base, Colors.black, 0.04)!,
   );
+  paintKinariInsetShadows(canvas, rrect, offset, depth: depth);
+}
+
+/// へこみの内側の影と明かりだけを描く（面は塗らない）。中身の前に重ねて描く用。
+void paintKinariInsetShadows(
+  Canvas canvas,
+  RRect rrect,
+  Offset offset, {
+  double depth = 1,
+}) {
   void inner(Offset o, Color color) {
     canvas.save();
     canvas.clipRRect(rrect);
@@ -139,8 +155,8 @@ void paintKinariInset(Canvas canvas, RRect rrect, Color base, Offset offset) {
     canvas.restore();
   }
 
-  inner(offset, Colors.black.withValues(alpha: 0.2));
-  inner(-offset, Colors.white.withValues(alpha: 0.7));
+  inner(offset, Colors.black.withValues(alpha: (0.2 * depth).clamp(0.0, 1.0)));
+  inner(-offset, Colors.white.withValues(alpha: (0.7 * depth).clamp(0.0, 1.0)));
 }
 
 /// 粒状のざらつきのある、わずかに浮いた印（丸い角）を描く。

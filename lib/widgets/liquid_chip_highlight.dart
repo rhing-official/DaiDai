@@ -1,5 +1,6 @@
 import 'dart:math' as math;
 
+import 'package:flutter/foundation.dart' show ValueListenable;
 import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -14,6 +15,7 @@ import 'draw_chip_highlight.dart';
 import 'gekiga/monochrome_box.dart';
 import 'liquid_paint.dart';
 import 'liquid_sim.dart';
+import 'slide_chip_highlight.dart';
 import 'water_columns.dart';
 
 /// 水が流れ込む塗りの1つ分。[chipKey]は、対象の[NavChip]に付けた鍵（位置と大きさを取る）。
@@ -388,6 +390,7 @@ class LiquidChipStrip extends StatefulWidget {
     required this.entries,
     required this.selectedIndex,
     required this.vertical,
+    this.slidePosition,
     super.key,
   });
 
@@ -395,6 +398,9 @@ class LiquidChipStrip extends StatefulWidget {
   final List<LiquidChipEntry> entries;
   final int? selectedIndex;
   final bool vertical;
+
+  /// 滑りの時、スワイプに追従させる位置（並びの中の小数の番号。`null`の間は自前で動く）。
+  final ValueListenable<double?>? slidePosition;
 
   @override
   State<LiquidChipStrip> createState() => _LiquidChipStripState();
@@ -435,6 +441,17 @@ class _LiquidChipStripState extends State<LiquidChipStrip> {
                 entries: widget.entries,
                 selectedIndex: widget.selectedIndex,
                 vertical: widget.vertical,
+              ),
+            ),
+          ),
+          // 滑り: 塗り1枚が滑る層（滑りの時だけ描く）。
+          Positioned.fill(
+            child: IgnorePointer(
+              child: SlideChipHighlight(
+                entries: widget.entries,
+                selectedIndex: widget.selectedIndex,
+                vertical: widget.vertical,
+                externalPosition: widget.slidePosition,
               ),
             ),
           ),

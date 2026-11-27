@@ -1,4 +1,6 @@
 import '../../utils/user_activity.dart';
+import '../../theme/kinari/kinari_theme.dart';
+import '../../widgets/kinari_surface.dart';
 import '../../widgets/ime_highlight_controller.dart';
 import '../../utils/avatar_backdrop.dart';
 import '../../utils/visible_readers.dart';
@@ -3365,8 +3367,12 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                                   AppUiStyle.chalk => const BlockIconBadge(
                                     icon: Icons.call_outlined,
                                   ),
-                                  AppUiStyle.flat || AppUiStyle.kinari =>
-                                    const Icon(Icons.call_outlined),
+                                  AppUiStyle.flat => const Icon(
+                                    Icons.call_outlined,
+                                  ),
+                                  AppUiStyle.kinari => const KinariIconBadge(
+                                    icon: Icons.call_outlined,
+                                  ),
                                 }),
                                 onPressed: onCall,
                               ),
@@ -3397,8 +3403,12 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                                     AppUiStyle.chalk => const BlockIconBadge(
                                       icon: Icons.videocam_outlined,
                                     ),
-                                    AppUiStyle.flat || AppUiStyle.kinari =>
-                                      const Icon(Icons.videocam_outlined),
+                                    AppUiStyle.flat => const Icon(
+                                      Icons.videocam_outlined,
+                                    ),
+                                    AppUiStyle.kinari => const KinariIconBadge(
+                                      icon: Icons.videocam_outlined,
+                                    ),
                                   },
                                   onPressed: onVideoCall,
                                 ),
@@ -3423,8 +3433,12 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                               AppUiStyle.chalk => const BlockIconBadge(
                                 icon: Icons.push_pin_outlined,
                               ),
-                              AppUiStyle.flat || AppUiStyle.kinari =>
-                                const Icon(Icons.push_pin_outlined),
+                              AppUiStyle.flat => const Icon(
+                                Icons.push_pin_outlined,
+                              ),
+                              AppUiStyle.kinari => const KinariIconBadge(
+                                icon: Icons.push_pin_outlined,
+                              ),
                             },
                             onPressed: _openPinnedMessagesPopup,
                           ),
@@ -4210,12 +4224,29 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                                                           // フラットは、入力欄の面（塗り）を持たない（2026-11-01、ユーザー指示）。
                                                           // 入力欄エリアの背景にそのまま文字を置く。無効時だけ薄く塗る。
                                                           filled:
-                                                              !isGlass &&
-                                                              !isBlockTheme(
-                                                                context,
-                                                              ) &&
-                                                              widget.disabled,
-                                                          fillColor: isGlass
+                                                              (!isGlass &&
+                                                                  !isBlockTheme(
+                                                                    context,
+                                                                  ) &&
+                                                                  widget
+                                                                      .disabled) ||
+                                                              false,
+                                                          fillColor:
+                                                              ref.watch(
+                                                                    appUiStyleProvider,
+                                                                  ) ==
+                                                                  AppUiStyle
+                                                                      .kinari
+                                                              ? Color.lerp(
+                                                                  Theme.of(
+                                                                        context,
+                                                                      )
+                                                                      .colorScheme
+                                                                      .surface,
+                                                                  Colors.black,
+                                                                  0.07,
+                                                                )
+                                                              : isGlass
                                                               ? null
                                                               : Color.alphaBlend(
                                                                   Theme.of(
@@ -4243,6 +4274,9 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                                                               isGlass ||
                                                                   isBlockTheme(
                                                                     context,
+                                                                  ) ||
+                                                                  isKinariTheme(
+                                                                    context,
                                                                   )
                                                               ? InputBorder.none
                                                               : OutlineInputBorder(
@@ -4258,12 +4292,18 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                                                               isGlass ||
                                                                   isBlockTheme(
                                                                     context,
+                                                                  ) ||
+                                                                  isKinariTheme(
+                                                                    context,
                                                                   )
                                                               ? InputBorder.none
                                                               : null,
                                                           focusedBorder:
                                                               isGlass ||
                                                                   isBlockTheme(
+                                                                    context,
+                                                                  ) ||
+                                                                  isKinariTheme(
                                                                     context,
                                                                   )
                                                               ? InputBorder.none
@@ -4729,7 +4769,14 @@ class _DateSeparator extends StatelessWidget {
           ),
         ),
       ),
-      AppUiStyle.gekiga || AppUiStyle.flat || AppUiStyle.kinari => Container(
+      AppUiStyle.kinari => KinariInset(
+        color: colorScheme.primary,
+        radius: 999,
+        depth: 2.2,
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+        child: text,
+      ),
+      AppUiStyle.gekiga || AppUiStyle.flat => Container(
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
         decoration: BoxDecoration(
           color: uiStyle == AppUiStyle.gekiga
@@ -5666,7 +5713,12 @@ class _MessageRow extends ConsumerWidget {
     // `bubble`のdecoration切り替え参照）。文字色は固定の`onPrimary`/
     // `onSurface`ではなく、実際に塗る色の輝度から[_readableTextColorOn]で
     // 都度判定する。
-    final bubbleFill = colorScheme.brightness == Brightness.dark
+    // 生成り: 自分は、わずかに浮いた明るい紙、相手は、へこんだ濃い紙（2026-11-27）。
+    final bubbleFill = uiStyle == AppUiStyle.kinari
+        ? (isMe
+              ? Color.lerp(colorScheme.surface, colorScheme.primary, 0.22)!
+              : colorScheme.surface)
+        : colorScheme.brightness == Brightness.dark
         ? _bubbleFillDark
         : _bubbleFillLight;
     // 吹き出し本体の枠線はアクセントカラーを自分/相手共通で使う（2026-09-26、
@@ -5993,8 +6045,16 @@ class _MessageRow extends ConsumerWidget {
                 extraTopPadding: gekigaTopExtra,
                 child: child,
               ),
+              AppUiStyle.kinari => KinariInset(
+                color: bubbleFill,
+                radius: 20,
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 10,
+                ),
+                child: child,
+              ),
               AppUiStyle.flat ||
-              AppUiStyle.kinari ||
               AppUiStyle.chalk ||
               AppUiStyle.block => Container(
                 padding: const EdgeInsets.symmetric(
@@ -6294,7 +6354,17 @@ class _MessageRow extends ConsumerWidget {
               ),
         child: bubbleContent,
       ),
-      AppUiStyle.flat || AppUiStyle.kinari => Container(
+      // 生成り: 自分も相手も、へこんだ面（自分は、アクセントカラーを少し混ぜた紙色）。
+      AppUiStyle.kinari =>
+        skipBubbleFrame
+            ? Padding(padding: bubblePadding, child: bubbleContent)
+            : KinariInset(
+                color: bubbleFill,
+                radius: 20,
+                padding: bubblePadding,
+                child: bubbleContent,
+              ),
+      AppUiStyle.flat => Container(
         padding: bubblePadding,
         decoration: BoxDecoration(
           // ブロックメッセージ（`skipBubbleFrame`）は自前の独立したカード
@@ -6377,7 +6447,9 @@ class _MessageRow extends ConsumerWidget {
           AppUiStyle.glass => colorScheme.surface.withValues(alpha: 0.72),
         },
         borderRadius: BorderRadius.circular(999),
-        boxShadow: floatingShadow,
+        boxShadow: uiStyle == AppUiStyle.kinari
+            ? KinariSurface.raisedShadows(colorScheme.onSurface)
+            : floatingShadow,
       ),
       child: badgeContent,
     );
@@ -10578,6 +10650,26 @@ class _JumpToLatestButton extends StatelessWidget {
           size: _size,
           opaque: true,
         );
+      case AppUiStyle.kinari:
+        final scheme = Theme.of(context).colorScheme;
+        return SizedBox(
+          width: _size,
+          height: _size,
+          child: KinariInset(
+            color: scheme.primary,
+            radius: _size / 2,
+            depth: 2.2,
+            child: InkWell(
+              customBorder: const CircleBorder(),
+              onTap: onPressed,
+              child: Icon(
+                Icons.keyboard_arrow_down,
+                size: _size * 0.6,
+                color: scheme.onPrimary,
+              ),
+            ),
+          ),
+        );
       case AppUiStyle.chalk:
       case AppUiStyle.block:
         return blockIconButton(
@@ -10679,6 +10771,11 @@ class _FloatingPopupSurface extends ConsumerWidget {
           child: Material(type: MaterialType.transparency, child: child),
         ),
       ),
+      AppUiStyle.kinari => KinariInset(
+        color: colorScheme.surface,
+        radius: 16,
+        child: Material(type: MaterialType.transparency, child: child),
+      ),
       _ => Material(
         color: colorScheme.surfaceContainerHigh,
         borderRadius: BorderRadius.circular(16),
@@ -10697,6 +10794,20 @@ class _ComposerBlockBox extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    if (isKinariTheme(context)) {
+      // 生成り: へこんだ入力欄（2026-11-27）。
+      return Padding(
+        padding: const EdgeInsets.symmetric(vertical: 2),
+        child: KinariInset(
+          color: Theme.of(context).colorScheme.surface,
+          radius: 24,
+          child: Padding(
+            padding: const EdgeInsets.only(left: 12),
+            child: child,
+          ),
+        ),
+      );
+    }
     if (!isBlockTheme(context)) return child;
     final scheme = Theme.of(context).colorScheme;
     return Padding(

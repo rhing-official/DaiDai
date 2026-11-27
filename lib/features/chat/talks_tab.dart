@@ -17,6 +17,9 @@ import 'package:flutter/foundation.dart'
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import '../../theme/block/block_theme.dart';
+import '../../theme/chalk/chalk_theme.dart';
+import '../../theme/kinari/kinari_theme.dart';
+import '../../widgets/kinari_surface.dart';
 import 'talks_header_metrics.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/misc.dart' show ProviderListenable;
@@ -768,6 +771,23 @@ class _TalksTabState extends ConsumerState<TalksTab>
   /// 速度しきい値判定から`PageView`へ変更。手描きの速度判定だと片方向だけ
   /// ジェスチャーアリーナで負けて反応しないことがあった為、この用途では
   /// 双方向のスワイプ切り替えが実績豊富な`PageView`に任せる）。
+  /// 「滑り」の塗りを、一対/広場のスワイプ（`PageView`）に追従させる位置（0が一対、1が広場。
+  /// 止まっている間は`null`で、塗りが自前で滑る、2026-11-27）。
+  final ValueNotifier<double?> _categorySlidePos = ValueNotifier(null);
+
+  bool _onCategoryScroll(ScrollNotification n) {
+    if (n.depth != 0 || n.metrics.axis != Axis.horizontal) return false;
+    if (n is ScrollEndNotification) {
+      _categorySlidePos.value = null;
+    } else if (n is ScrollUpdateNotification || n is ScrollStartNotification) {
+      final extent = n.metrics.viewportDimension;
+      if (extent > 0) {
+        _categorySlidePos.value = (n.metrics.pixels / extent).clamp(0.0, 1.0);
+      }
+    }
+    return false;
+  }
+
   late PageController _categoryPageController = PageController(
     initialPage: _category.index,
   );
@@ -891,6 +911,7 @@ class _TalksTabState extends ConsumerState<TalksTab>
   @override
   void dispose() {
     _roomSlideCtl.dispose();
+    _categorySlidePos.dispose();
     _categoryPageController.dispose();
     _searchController.dispose();
     _messageSearchDebounce?.cancel();
@@ -1956,6 +1977,7 @@ class _TalksTabState extends ConsumerState<TalksTab>
                                       AppUiStyle.gekiga
                                   ? LiquidTileGroup(
                                       itemCount: 2,
+                                      slidePosition: _categorySlidePos,
                                       selectedIndex:
                                           _category == _TalksCategory.dm
                                           ? 0
@@ -2003,6 +2025,7 @@ class _TalksTabState extends ConsumerState<TalksTab>
                                       heightFactor: 1,
                                       child: LiquidTileGroup(
                                         itemCount: 2,
+                                        slidePosition: _categorySlidePos,
                                         selectedIndex:
                                             _category == _TalksCategory.dm
                                             ? 0
@@ -2093,37 +2116,40 @@ class _TalksTabState extends ConsumerState<TalksTab>
                       Expanded(
                         child: searchQuery.isEmpty
                             ? _NoHorizontalOverscroll(
-                                child: PageView(
-                                  // 横スワイプで一対⇄広場を切り替える。速度しきい値
-                                  // 判定の自前ジェスチャー（`SwipeBackDetector`）だと
-                                  // 片方向だけジェスチャーアリーナで負けて反応しない
-                                  // ことがあった為、双方向のページ送りが実績豊富な
-                                  // `PageView`に置き換えた（2026-08-09変更、
-                                  // 2026-08-06時点では速度しきい値の条件式自体を
-                                  // 両方向常時有効にする修正をしていたが、それでも
-                                  // 一対→広場方向が反応しない場合が残っていた）。
-                                  controller: _categoryPageController,
-                                  // 一対・広場の端でそれ以上横に動かない
-                                  // ようにする（2026-11-23追加、iOS/macOSの
-                                  // 既定のバウンス＝ゴムのような跳ね返りを止める）。
-                                  physics: const ClampingScrollPhysics(),
-                                  onPageChanged: _handleCategoryPageChanged,
-                                  children: [
-                                    _buildDirectMessages(
-                                      dmSnapshot,
-                                      directMessages,
-                                      incomingRequests,
-                                      outgoingRequests,
-                                      prefsById,
-                                      blockedIds,
-                                    ),
-                                    _buildGroups(
-                                      groupSnapshot,
-                                      groups,
-                                      prefsById,
-                                      pendingGroupRequests,
-                                    ),
-                                  ],
+                                child: NotificationListener<ScrollNotification>(
+                                  onNotification: _onCategoryScroll,
+                                  child: PageView(
+                                    // 横スワイプで一対⇄広場を切り替える。速度しきい値
+                                    // 判定の自前ジェスチャー（`SwipeBackDetector`）だと
+                                    // 片方向だけジェスチャーアリーナで負けて反応しない
+                                    // ことがあった為、双方向のページ送りが実績豊富な
+                                    // `PageView`に置き換えた（2026-08-09変更、
+                                    // 2026-08-06時点では速度しきい値の条件式自体を
+                                    // 両方向常時有効にする修正をしていたが、それでも
+                                    // 一対→広場方向が反応しない場合が残っていた）。
+                                    controller: _categoryPageController,
+                                    // 一対・広場の端でそれ以上横に動かない
+                                    // ようにする（2026-11-23追加、iOS/macOSの
+                                    // 既定のバウンス＝ゴムのような跳ね返りを止める）。
+                                    physics: const ClampingScrollPhysics(),
+                                    onPageChanged: _handleCategoryPageChanged,
+                                    children: [
+                                      _buildDirectMessages(
+                                        dmSnapshot,
+                                        directMessages,
+                                        incomingRequests,
+                                        outgoingRequests,
+                                        prefsById,
+                                        blockedIds,
+                                      ),
+                                      _buildGroups(
+                                        groupSnapshot,
+                                        groups,
+                                        prefsById,
+                                        pendingGroupRequests,
+                                      ),
+                                    ],
+                                  ),
                                 ),
                               )
                             : _buildSearchResults(
@@ -2766,6 +2792,7 @@ class _TalksTabState extends ConsumerState<TalksTab>
     final tabs = isGekiga
         ? LiquidTileGroup(
             itemCount: 2,
+            slidePosition: _categorySlidePos,
             selectedIndex: _category == _TalksCategory.dm ? 0 : 1,
             child: GekigaJointedTileList(
               axis: Axis.vertical,
@@ -2779,6 +2806,7 @@ class _TalksTabState extends ConsumerState<TalksTab>
           )
         : LiquidTileGroup(
             itemCount: 2,
+            slidePosition: _categorySlidePos,
             selectedIndex: _category == _TalksCategory.dm ? 0 : 1,
             child: Column(
               mainAxisSize: MainAxisSize.min,
@@ -3006,16 +3034,19 @@ class _TalksTabState extends ConsumerState<TalksTab>
                     ),
                   )
                 : _NoHorizontalOverscroll(
-                    child: PageView(
-                      controller: _categoryPageController,
-                      // 上の通常レイアウトと同じく、端での跳ね返りを止める
-                      // （2026-11-23追加）。
-                      physics: const ClampingScrollPhysics(),
-                      onPageChanged: _handleCategoryPageChanged,
-                      children: [
-                        buildCategoryTiles(_TalksCategory.dm),
-                        buildCategoryTiles(_TalksCategory.group),
-                      ],
+                    child: NotificationListener<ScrollNotification>(
+                      onNotification: _onCategoryScroll,
+                      child: PageView(
+                        controller: _categoryPageController,
+                        // 上の通常レイアウトと同じく、端での跳ね返りを止める
+                        // （2026-11-23追加）。
+                        physics: const ClampingScrollPhysics(),
+                        onPageChanged: _handleCategoryPageChanged,
+                        children: [
+                          buildCategoryTiles(_TalksCategory.dm),
+                          buildCategoryTiles(_TalksCategory.group),
+                        ],
+                      ),
                     ),
                   ),
           ),
@@ -3536,6 +3567,29 @@ class _TalksTabState extends ConsumerState<TalksTab>
           ),
         );
       case AppUiStyle.kinari:
+        // へこんだ面（2026-11-27）。
+        return KinariInset(
+          color: Theme.of(context).colorScheme.surface,
+          radius: 24,
+          child: TextField(
+            controller: _searchController,
+            autofocus: autofocus,
+            focusNode: focusNode,
+            readOnly: onTapOpen != null,
+            onTap: onTapOpen,
+            decoration: InputDecoration(
+              filled: false,
+              border: InputBorder.none,
+              enabledBorder: InputBorder.none,
+              focusedBorder: InputBorder.none,
+              hintText: strings.talksSearchHint,
+              prefixIcon: const Icon(Icons.search),
+              suffixIcon: clearButton(null),
+            ),
+            onChanged: (_) => _onSearchTextChanged(),
+            onSubmitted: onSubmitted == null ? null : (_) => onSubmitted(),
+          ),
+        );
       case AppUiStyle.flat:
         // ガラスと同じ形（角丸24・枠線なし）で、半透明にはせず不透明の面で塗る
         // （2026-11-01）。
@@ -3879,6 +3933,25 @@ class CategoryTab extends ConsumerWidget {
         ),
       ),
     );
+
+    if (ref.watch(appUiStyleProvider) == AppUiStyle.kinari) {
+      // 生成り: 選択中は、アクセントカラーのへこんだ面、他は紙のへこんだ面（2026-11-27）。
+      return KinariInset(
+        color: selected ? colorScheme.primary : colorScheme.surface,
+        radius: 20,
+        depth: selected ? 2.2 : 1,
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(20),
+          child: DefaultTextStyle.merge(
+            style: TextStyle(
+              color: selected ? colorScheme.onPrimary : colorScheme.onSurface,
+            ),
+            child: content,
+          ),
+        ),
+      );
+    }
 
     if (ref.watch(appUiStyleProvider).isBoxed) {
       return blockMaterialBox(
@@ -4509,9 +4582,17 @@ class DirectMessageTile extends ConsumerWidget {
               borderRadius: BorderRadius.circular(12),
             ),
             // 「丸で囲む」の時は、塗らず、枠で囲む（[BlockTalkTileWrap]）。
-            selected: sel && RingListScope.styleOf(context) == null,
+            // チョークは、塗りを[BlockTalkTileWrap]の質感付きの塗りだけに任せる
+            // （ListTileのベタ塗りが、粉の抜けの下に透けるため、2026-11-27）。
+            selected:
+                sel &&
+                RingListScope.styleOf(context) == null &&
+                !isChalkTheme(context) &&
+                !isKinariTheme(context),
             selectedTileColor: colorScheme.primary,
             selectedColor: colorScheme.onPrimary,
+            iconColor: chalkSelectedFg(context, sel),
+            textColor: chalkSelectedFg(context, sel),
             leading: leadingWidget,
             title: _ConversationTitle(text: label, suffix: trailingWidget),
             subtitle: subtitleWidget,
@@ -4725,9 +4806,17 @@ class GroupTile extends ConsumerWidget {
               borderRadius: BorderRadius.circular(12),
             ),
             // 「丸で囲む」の時は、塗らず、枠で囲む（[BlockTalkTileWrap]）。
-            selected: sel && RingListScope.styleOf(context) == null,
+            // チョークは、塗りを[BlockTalkTileWrap]の質感付きの塗りだけに任せる
+            // （ListTileのベタ塗りが、粉の抜けの下に透けるため、2026-11-27）。
+            selected:
+                sel &&
+                RingListScope.styleOf(context) == null &&
+                !isChalkTheme(context) &&
+                !isKinariTheme(context),
             selectedTileColor: colorScheme.primary,
             selectedColor: colorScheme.onPrimary,
+            iconColor: chalkSelectedFg(context, sel),
+            textColor: chalkSelectedFg(context, sel),
             leading: leadingWidget,
             title: _ConversationTitle(
               text: displayName,
@@ -7319,6 +7408,15 @@ class _HoldSelectSortButtonState extends State<_HoldSelectSortButton> {
   static void _noop() {}
 }
 
+/// チョークで選択中の行の、文字・アイコン色（塗りは`BlockTalkTileWrap`が描く為、`ListTile`の選択色は使わない）。
+/// それ以外は`null`（ListTileの既定のまま）。
+Color? chalkSelectedFg(BuildContext context, bool selected) {
+  if (!selected || RingListScope.styleOf(context) != null) return null;
+  if (isKinariTheme(context)) return kinariTileForeground(context, selected);
+  if (!isChalkTheme(context)) return null;
+  return Theme.of(context).colorScheme.onPrimary;
+}
+
 /// 語らい一覧の行を、版画だけ太枠と硬い影の箱で囲む（他のスタイルはそのまま）。
 /// 選択中はアクセントで塗る（中の`ListTile`の選択色と同じ）。
 class BlockTalkTileWrap extends StatelessWidget {
@@ -7334,6 +7432,13 @@ class BlockTalkTileWrap extends StatelessWidget {
     if (ringStyle != null) {
       if (!selected) return child;
       return RingSelectedMarker(style: ringStyle, child: child);
+    }
+    // 生成り: 選択中は浮いた面、他はへこんだ面。
+    if (isKinariTheme(context)) {
+      return Padding(
+        padding: const EdgeInsets.symmetric(vertical: 3),
+        child: KinariTileFrame(selected: selected, child: child),
+      );
     }
     if (!isBlockTheme(context)) return child;
     final scheme = Theme.of(context).colorScheme;

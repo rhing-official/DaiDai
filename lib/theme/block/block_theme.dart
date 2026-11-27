@@ -1,3 +1,5 @@
+import '../../widgets/kinari_surface.dart';
+import '../kinari/kinari_theme.dart';
 import 'package:flutter/rendering.dart';
 import '../../widgets/ring_list_scope.dart';
 import 'package:flutter/material.dart';
@@ -548,18 +550,30 @@ class BlockFieldFrame extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    if (!isBlockTheme(context)) return child;
+    final kinari = isKinariTheme(context);
+    if (!isBlockTheme(context) && !kinari) return child;
     final theme = Theme.of(context);
-    final box = Padding(
-      padding: const EdgeInsets.only(right: 4, bottom: 4),
-      child: blockMaterialBox(
-        context,
-        color: theme.brightness == Brightness.light
-            ? Colors.white
-            : theme.colorScheme.surface,
-        child: child,
-      ),
-    );
+    // 生成り: へこんだ面（影は内側）。ラベルは箱の上。
+    final Widget box = kinari
+        ? Padding(
+            padding: const EdgeInsets.only(bottom: 2),
+            child: KinariInset(
+              color: theme.colorScheme.surface,
+              radius: 14,
+              padding: const EdgeInsets.symmetric(horizontal: 6),
+              child: child,
+            ),
+          )
+        : Padding(
+            padding: const EdgeInsets.only(right: 4, bottom: 4),
+            child: blockMaterialBox(
+              context,
+              color: theme.brightness == Brightness.light
+                  ? Colors.white
+                  : theme.colorScheme.surface,
+              child: child,
+            ),
+          );
     final label = this.label;
     if (label == null) return box;
     return Column(
@@ -611,6 +625,24 @@ Widget blockFitWidth(
 }
 
 const double _fitSlack = 32;
+
+/// [root]の下にある、文字の幅に縮めた箱（[blockFitWidth]）の中身を探す。無ければ`null`。
+/// 水の動き（`LiquidSim`）が、行の幅ではなく、目に見える箱の位置から水を流す為に使う。
+RenderBox? findBlockFitBox(RenderObject root) {
+  RenderBox? found;
+  void visit(RenderObject node) {
+    if (found != null) return;
+    if (node is _RenderBlockFitWidth) {
+      final c = node.child;
+      if (c != null && c.hasSize) found = c;
+      return;
+    }
+    node.visitChildren(visit);
+  }
+
+  root.visitChildren(visit);
+  return found;
+}
 
 class _BlockFitWidth extends SingleChildRenderObjectWidget {
   const _BlockFitWidth({super.child});

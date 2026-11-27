@@ -1,3 +1,4 @@
+import '../kinari_surface.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -50,6 +51,30 @@ class SettingsTile extends ConsumerWidget {
               onTap: enabled ? onTap : null,
             ),
           ],
+        ),
+      );
+    }
+    if (ref.watch(appUiStyleProvider) == AppUiStyle.kinari) {
+      // 生成り: 1行が1つのブロック。選択中はアクセントのへこんだ面、他は紙のへこんだ面。
+      final scheme = Theme.of(context).colorScheme;
+      final fg = selected ? scheme.onPrimary : scheme.onSurface;
+      return Padding(
+        padding: const EdgeInsets.symmetric(vertical: 3),
+        child: blockFitWidth(
+          KinariTileFrame(
+            selected: selected,
+            child: ListTile(
+              contentPadding: contentPadding,
+              iconColor: fg,
+              textColor: fg,
+              leading: leading,
+              title: title,
+              subtitle: subtitle,
+              trailing: trailing,
+              enabled: enabled,
+              onTap: onTap,
+            ),
+          ),
         ),
       );
     }

@@ -49,7 +49,10 @@ class LiquidStream {
     this.delay = 0,
     this.headTime = 0.30,
     this.isLast = true,
-  }) : flight = (0.26 + (p1 - p0).distance / 3000).clamp(0.26, 0.5),
+    double? flightOverride,
+  }) : flight =
+           flightOverride ??
+           (0.26 + (p1 - p0).distance / 3000).clamp(0.26, 0.5),
        t = -delay;
 
   final int from;
@@ -138,8 +141,19 @@ class LiquidStream {
 class LiquidSim extends ChangeNotifier {
   /// 各項目の矩形（描く層の座標。飛び出しを含まない静止位置）。
   List<Rect?> rects = const [];
+
+  /// 各項目の、目に見える箱（`rects`の中。行の幅より縮めている時だけ違う）。無ければ`rects`。
+  List<Rect?> blocks = const [];
+
+  /// 項目[i]の、目に見える範囲。
+  Rect? visible(int i) {
+    final b = i < blocks.length ? blocks[i] : null;
+    return b ?? (i < rects.length ? rects[i] : null);
+  }
+
   final Map<int, LiquidTank> tanks = {};
   final List<LiquidDrop> drops = [];
+  final math.Random _rng = math.Random(7);
 
   /// 水の流れ。何個も跨ぐ時は、順に受け渡す複数本になる。
   final List<LiquidStream> streams = [];
@@ -190,7 +204,9 @@ class LiquidSim extends ChangeNotifier {
   /// [source]から[next]へ、1つずつ進む順（途中の項目を含む）に、流れを繋げる。
   void _startChain(int source, int next, {required bool tiltFirst}) {
     final step = next > source ? 1 : -1;
-    final path = <int>[for (var i = source; i != next + step; i += step) i];
+    // 間の項目には水を溜めない（何個跨いでも、元の項目から次の項目へ直接移す）。
+    final path = <int>[source, next];
+    assert(step != 0);
     final hops = path.length - 1;
     // 何個も跨ぐ時は、1つあたりを短くする。
     final headTime = (0.30 - 0.04 * (hops - 1)).clamp(0.16, 0.30);
@@ -222,10 +238,9 @@ class LiquidSim extends ChangeNotifier {
     required bool isLast,
     required bool tiltFirst,
   }) {
-    final rectFrom = from < rects.length ? rects[from] : null;
-    final rectTo = to < rects.length ? rects[to] : null;
+    final rectFrom = visible(from);
+    final rectTo = visible(to);
     if (rectFrom == null || rectTo == null) return null;
-    final halfW = rectFrom.width / 2;
     final halfH = rectFrom.height / 2;
     final dx = rectTo.center.dx - rectFrom.center.dx;
     final dy = rectTo.center.dy - rectFrom.center.dy;
@@ -234,33 +249,41 @@ class LiquidSim extends ChangeNotifier {
     final Offset p0;
     final double drainX;
     final double drainSpread;
-    final double entryX;
+    double entryX;
     if (horizontal) {
       final s = dx >= 0 ? 1.0 : -1.0;
+      // 横から流れ込む: 水面の高さで、進む側の壁を越えて、次の項目の壁へ低く流れる
+      // （上から落とさない）。
       p0 = Offset(
-        rectFrom.center.dx + s * math.min(halfW, halfH) * 0.75,
-        rectFrom.center.dy - halfH * 0.8,
+        s > 0 ? rectFrom.right - 3 : rectFrom.left + 3,
+        rectFrom.bottom - halfH * 0.7,
       );
-      // 進む側の壁際から抜け、次の項目では、元の側の壁際から入る。
       drainX = s > 0 ? 0.92 : 0.08;
       drainSpread = 2.4;
-      entryX = s > 0 ? 0.14 : 0.86;
+      entryX = s > 0 ? 0.04 : 0.96;
       if (tiltFirst) tank(from).water.tilt(s, 6);
-    } else if (dy > 0) {
-      // 下へ: 下の縁から、しずくのように落ちる。
-      p0 = Offset(rectFrom.center.dx, rectFrom.center.dy + halfH * 0.9);
-      drainX = 0.5;
-      drainSpread = 6;
-      entryX = 0.5;
     } else {
-      // 上へ: 上の縁から跳ねて、落ちる。
-      p0 = Offset(rectFrom.center.dx, rectFrom.center.dy - halfH);
-      drainX = 0.5;
-      drainSpread = 6;
-      entryX = 0.5;
+      // 縦に並ぶ時。上へは、水が右へ寄って上がり、右端から上の項目へ流れる。下へは、水が
+      // 左へ寄って下がり、左端から下の項目へ流れる。流れは、水が実際に有る所から出す。
+      final up = dy < 0;
+      final s = up ? 1.0 : -1.0;
+      drainX = up ? 0.9 : 0.1;
+      drainSpread = 3;
+      p0 = Offset(
+        rectFrom.left + rectFrom.width * drainX,
+        up ? rectFrom.top : rectFrom.bottom - halfH * 0.1,
+      );
+      // 次の項目へは、同じ横位置（その項目の幅の中）から入る。
+      entryX = ((p0.dx - rectTo.left) / rectTo.width).clamp(0.08, 0.92);
+      if (tiltFirst) tank(from).water.tilt(s, 6);
     }
     final entryPx = rectTo.left + rectTo.width * entryX;
-    final p1 = Offset(entryPx, rectTo.center.dy - rectTo.height * 0.3);
+    final p1 = Offset(
+      entryPx,
+      horizontal
+          ? rectTo.bottom - rectTo.height * 0.35
+          : rectTo.center.dy - rectTo.height * 0.3,
+    );
     final width = (math.min(rectFrom.width, rectFrom.height) * 0.32).clamp(
       7.0,
       16.0,
@@ -277,6 +300,7 @@ class LiquidSim extends ChangeNotifier {
       delay: delay,
       headTime: headTime,
       isLast: isLast,
+      flightOverride: horizontal ? 0.16 : null,
     );
   }
 
@@ -312,6 +336,23 @@ class LiquidSim extends ChangeNotifier {
       } else {
         st.flowNow *= 0.85;
       }
+      // 流れている間、縁から細かい水滴が飛び散る。
+      if (st.dryAt == null && st.flowNow > 0.25 && _rng.nextDouble() < 0.7) {
+        final u = _rng.nextDouble() * 0.5;
+        final v = st.velocityAt(u);
+        drops.add(
+          LiquidDrop(
+            st.at(u),
+            v * 0.5 +
+                Offset(
+                  (_rng.nextDouble() - 0.5) * 140,
+                  -_rng.nextDouble() * 90,
+                ),
+            1.2 + _rng.nextDouble() * 1.8,
+            0.4 + _rng.nextDouble() * 0.4,
+          ),
+        );
+      }
       // 空中の水が、着く時刻になったら、次の項目へ入る。
       while (st.inFlight.isNotEmpty && st.inFlight.first.$1 <= st.t) {
         final volume = st.inFlight.removeAt(0).$2;
@@ -325,14 +366,14 @@ class LiquidSim extends ChangeNotifier {
       // 元の側が離れると、流れが途中でちぎれて、数滴の水滴になって落ちる。
       if (!st.broke && st.dryAt != null && st.tailAge >= 0.08) {
         st.broke = true;
-        for (var k = 0; k < 3; k++) {
-          final u = 0.55 + k * 0.14;
+        for (var k = 0; k < 9; k++) {
+          final u = 0.4 + k * 0.07;
           final v = st.velocityAt(u);
           drops.add(
             LiquidDrop(
               st.at(u),
-              v + Offset((k - 1) * 22.0, -30.0 * (k.isEven ? 1 : 0.4)),
-              2.6 - k * 0.3,
+              v + Offset((k - 4) * 26.0, -40.0 * (k.isEven ? 1 : 0.4)),
+              2.8 - (k % 3) * 0.5,
               0.9,
             ),
           );
@@ -370,7 +411,7 @@ class LiquidSim extends ChangeNotifier {
       drop.age += dt;
       if (drop.vel.dy > 0) {
         for (var i = 0; i < rects.length; i++) {
-          final r = rects[i];
+          final r = visible(i);
           if (r == null) continue;
           if (r.deflate(r.shortestSide * 0.18).contains(drop.pos)) {
             final t = tanks[i];
@@ -390,19 +431,22 @@ class LiquidSim extends ChangeNotifier {
 
   /// 項目[i]の、位置[at]に水が当たった。水面を叩き、[splash]なら水滴を上げる。
   void _impact(int i, Offset at, double strength, {required bool splash}) {
-    final r = i < rects.length ? rects[i] : null;
+    final r = visible(i);
     if (r == null) return;
     final x01 = ((at.dx - r.left) / r.width).clamp(0.0, 1.0);
     tank(i).water.impulse(x01, strength);
     if (!splash) return;
-    for (var k = 0; k < 4; k++) {
-      final spread = (k - 1.5) * 55.0;
+    // 飛沫: ふんだんに（左右へ広く、高さも粒の大きさもばらつかせる）。
+    final rnd = math.Random((at.dx * 31 + at.dy * 17 + i * 7).toInt());
+    final n = (10 + 14 * strength).round();
+    for (var k = 0; k < n; k++) {
+      final spread = (rnd.nextDouble() - 0.5) * 340.0;
       drops.add(
         LiquidDrop(
           at,
-          Offset(spread, -(150 + 45.0 * (k % 2) + 20 * k)),
-          2.2 - (k % 2) * 0.5,
-          0.55,
+          Offset(spread, -(120 + rnd.nextDouble() * 260)),
+          1.4 + rnd.nextDouble() * 2.2,
+          0.5 + rnd.nextDouble() * 0.5,
         ),
       );
     }
@@ -410,13 +454,17 @@ class LiquidSim extends ChangeNotifier {
 
   /// 満水の項目に、まだ水が入ってきた。縁から溢れて、水滴が落ちる。
   void _spill(int i, Offset at) {
-    for (var k = 0; k < 2; k++) {
+    final rnd = math.Random(at.dx.toInt() + i);
+    for (var k = 0; k < 6; k++) {
       drops.add(
         LiquidDrop(
-          at + Offset((k - 0.5) * 8, -4),
-          Offset((k - 0.5) * 120, -90),
-          2.0,
-          0.5,
+          at + Offset((rnd.nextDouble() - 0.5) * 16, -4),
+          Offset(
+            (rnd.nextDouble() - 0.5) * 240,
+            -(70 + rnd.nextDouble() * 120),
+          ),
+          1.6 + rnd.nextDouble() * 1.6,
+          0.5 + rnd.nextDouble() * 0.3,
         ),
       );
     }
@@ -426,11 +474,23 @@ class LiquidSim extends ChangeNotifier {
   /// 空なら空の経路。[inset]は、枠の内側に収める余白。
   Path waterRegion(int i, Size size, {double inset = 0}) {
     final t = tanks[i];
+    // 行の幅より縮めた箱が有る時は、水を、その箱の中だけに張る（箱の位置へずらす）。
+    final row = i < rects.length ? rects[i] : null;
+    final blk = i < blocks.length ? blocks[i] : null;
+    var origin = Offset.zero;
+    var area = size;
+    if (row != null &&
+        blk != null &&
+        (row.width - size.width).abs() < 1 &&
+        (row.height - size.height).abs() < 1) {
+      origin = blk.topLeft - row.topLeft;
+      area = blk.size;
+    }
     final full = Rect.fromLTWH(
-      inset,
-      inset,
-      size.width - inset * 2,
-      size.height - inset * 2,
+      origin.dx + inset,
+      origin.dy + inset,
+      area.width - inset * 2,
+      area.height - inset * 2,
     );
     if (t == null || t.isEmpty) return Path();
     if (t.isFull) return Path()..addRect(full);

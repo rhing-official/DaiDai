@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 
 import '../theme/chalk/chalk_paint.dart';
 import '../theme/chalk/chalk_theme.dart';
+import '../theme/kinari/kinari_theme.dart';
+import 'kinari_surface.dart';
 
 /// チョークスタイルのバナーの外枠（2026-11-27）。バナーを塗らず、黒板の地のまま、白いチョークの
 /// 線（メニューチップの帯・大ブロックと同じ色・太さ）で囲む。中の文字・アイコンは、枠と同じチョークの色
@@ -50,6 +52,7 @@ class ChalkBannerFrame extends StatelessWidget {
 /// [ChalkBannerFrame]の枠、それ以外は従来の、少し濃い面の`Material`。
 Widget plainBannerSurface(BuildContext context, {required Widget child}) {
   if (isChalkTheme(context)) return ChalkBannerFrame(child: child);
+  if (isKinariTheme(context)) return KinariBannerFrame(child: child);
   return Material(
     color: Theme.of(context).colorScheme.surfaceContainerHighest,
     child: child,

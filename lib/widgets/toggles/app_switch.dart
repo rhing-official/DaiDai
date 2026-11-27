@@ -117,6 +117,15 @@ class _AppSwitchState extends ConsumerState<AppSwitch>
                   decoration: BoxDecoration(
                     color: Color.lerp(colors.offThumb, colors.onThumb, t),
                     borderRadius: BorderRadius.circular(11),
+                    boxShadow: colors.raised
+                        ? [
+                            BoxShadow(
+                              color: Colors.black.withValues(alpha: 0.3),
+                              blurRadius: 4,
+                              offset: const Offset(0, 1.5),
+                            ),
+                          ]
+                        : null,
                   ),
                   child: CustomPaint(
                     painter: _CheckPainter(progress: t, color: colors.check),

@@ -1,5 +1,6 @@
 import 'dart:math' as math;
 
+import 'package:flutter/foundation.dart' show ValueListenable;
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter/scheduler.dart';
@@ -8,11 +9,13 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../models/app_ui_style.dart';
 import '../providers/app_ui_style_provider.dart';
 import '../providers/selection_motion_provider.dart';
+import '../theme/block/block_theme.dart' show findBlockFitBox;
 import '../theme/gekiga/gekiga_colors.dart';
 import 'liquid_paint.dart';
 import 'liquid_sim.dart';
 import 'ring_list_scope.dart';
 import 'scribble_paint.dart';
+import 'slide_chip_highlight.dart' show kSlideMotionCurve, kSlideMotionDuration;
 
 /// 項目の並び（設定・身だしなみのカテゴリ一覧、語らいの一対・広場のタブ）の、選択色を、
 /// 水が流れ込むように移す（2026-11-26）。チップは[LiquidChipHighlight]、こちらは文字のある
@@ -31,8 +34,12 @@ class LiquidTileGroup extends ConsumerStatefulWidget {
     required this.child,
     this.enabled = true,
     this.ringRadius = 12,
+    this.slidePosition,
     super.key,
   });
+
+  /// 「滑り」の時、スワイプに追従させる位置（項目の並びの中の小数の番号。`null`の間は自前で滑る）。
+  final ValueListenable<double?>? slidePosition;
 
   final int itemCount;
   final int? selectedIndex;
@@ -51,8 +58,16 @@ class LiquidTileGroup extends ConsumerStatefulWidget {
 }
 
 class _LiquidTileGroupState extends ConsumerState<LiquidTileGroup>
-    with SingleTickerProviderStateMixin {
+    with TickerProviderStateMixin {
   final LiquidSim _sim = LiquidSim();
+
+  /// 滑り: 塗り1枚の位置（項目の座標）と、自前の移動のアニメーション。
+  final _SlideSim _slide = _SlideSim();
+  late final AnimationController _slideController = AnimationController(
+    vsync: this,
+  )..addListener(_onSlideTick);
+  double _slideFrom = 0;
+  double _slideTo = 0;
   late final Ticker _ticker;
   Duration _last = Duration.zero;
   int? _target;
@@ -71,11 +86,47 @@ class _LiquidTileGroupState extends ConsumerState<LiquidTileGroup>
     super.initState();
     _ticker = createTicker(_onTick);
     _target = widget.selectedIndex;
+    _slide.pos = _target?.toDouble();
+    widget.slidePosition?.addListener(_onSlideExternal);
     WidgetsBinding.instance.addPostFrameCallback((_) => _measure());
+  }
+
+  void _onSlideTick() => _slide.setPos(
+    _slideFrom +
+        (_slideTo - _slideFrom) *
+            kSlideMotionCurve.transform(_slideController.value),
+  );
+
+  void _onSlideExternal() {
+    final v = widget.slidePosition?.value;
+    if (v == null) {
+      // 指を離した。選ばれている項目へ収める。
+      _slideToTarget();
+      return;
+    }
+    _slideController.stop();
+    _slide.setPos(v);
+  }
+
+  void _slideToTarget() {
+    final target = _target?.toDouble();
+    final current = _slide.pos;
+    if (target == null || current == null || current == target) {
+      _slideController.stop();
+      _slide.setPos(target);
+      return;
+    }
+    _slideFrom = current;
+    _slideTo = target;
+    _slideController.duration = kSlideMotionDuration;
+    _slideController.forward(from: 0);
   }
 
   @override
   void dispose() {
+    widget.slidePosition?.removeListener(_onSlideExternal);
+    _slideController.dispose();
+    _slide.dispose();
     _ticker.dispose();
     _sim.dispose();
     super.dispose();
@@ -99,13 +150,40 @@ class _LiquidTileGroupState extends ConsumerState<LiquidTileGroup>
           _ => null,
         },
     ];
+    // 目に見える箱（文字の幅に縮めた箱）。行の幅と違う時、水はこちらの位置から流す。
+    final blocks = <Rect?>[
+      for (var i = 0; i < widget.itemCount; i++)
+        switch (_keyFor(i).currentContext?.findRenderObject()) {
+          final RenderBox box when box.attached && box.hasSize =>
+            switch (findBlockFitBox(box)) {
+              final RenderBox b when b.attached && b.hasSize =>
+                self.globalToLocal(b.localToGlobal(Offset.zero)) & b.size,
+              _ => null,
+            },
+          _ => null,
+        },
+    ];
     var changed = rects.length != _sim.rects.length;
     for (var i = 0; !changed && i < rects.length; i++) {
       if (rects[i] != _sim.rects[i]) changed = true;
     }
+    for (var i = 0; !changed && i < blocks.length; i++) {
+      if (i >= _sim.blocks.length || blocks[i] != _sim.blocks[i]) {
+        changed = true;
+      }
+    }
     if (changed) {
       _sim.rects = rects;
+      _sim.blocks = blocks;
       _sim.repaint();
+    }
+    if (ref.read(selectionSlideMotionProvider)) {
+      _slide.setRects(rects);
+      // 滑りへ切り替えた直後など、位置が選択とずれたままなら、選ばれている項目へ合わせる。
+      if (!_slideController.isAnimating &&
+          widget.slidePosition?.value == null) {
+        _slide.setPos(_target?.toDouble());
+      }
     }
     // 水の動きをオフからオンへ戻した時など、水槽が空のままなら、選ばれている項目を満水にする。
     if (_initialized &&
@@ -129,9 +207,14 @@ class _LiquidTileGroupState extends ConsumerState<LiquidTileGroup>
   @override
   void didUpdateWidget(covariant LiquidTileGroup old) {
     super.didUpdateWidget(old);
+    if (old.slidePosition != widget.slidePosition) {
+      old.slidePosition?.removeListener(_onSlideExternal);
+      widget.slidePosition?.addListener(_onSlideExternal);
+    }
     if (widget.selectedIndex != _target) {
       final prev = _target;
       _target = widget.selectedIndex;
+      _slideToTarget();
       if (widget.enabled && ref.read(selectionWaterMotionProvider)) {
         _sim.startTransition(prev, _target);
         _wake();
@@ -167,12 +250,14 @@ class _LiquidTileGroupState extends ConsumerState<LiquidTileGroup>
     }
     final scheme = Theme.of(context).colorScheme;
     final water = ref.watch(selectionWaterMotionProvider);
+    final slide = widget.enabled && ref.watch(selectionSlideMotionProvider);
     final gekiga = style == AppUiStyle.gekiga;
     final fill = gekiga ? GekigaColors.onPanel : scheme.primary;
     // ガラスは、不透明で描いて層ごと透明にする（重なっても濃くならない）。
     final layerAlpha = style == AppUiStyle.glass ? 0.45 : 1.0;
     return _LiquidScope(
       draw: widget.enabled && ref.watch(selectionDrawMotionProvider),
+      slide: slide ? _slide : null,
       sim: widget.enabled && water ? _sim : null,
       keyFor: _keyFor,
       selectedIndex: widget.selectedIndex,
@@ -282,7 +367,11 @@ class _LiquidScope extends InheritedWidget {
     required this.glass,
     required super.child,
     this.draw = false,
+    this.slide,
   });
+
+  /// 滑り: 塗り1枚が滑る位置。
+  final _SlideSim? slide;
 
   /// 描き: 選ばれた見た目を、ペンで往復して塗るように現す。
   final bool draw;
@@ -298,7 +387,8 @@ class _LiquidScope extends InheritedWidget {
       old.sim != sim ||
       old.selectedIndex != selectedIndex ||
       old.glass != glass ||
-      old.draw != draw;
+      old.draw != draw ||
+      old.slide != slide;
 }
 
 /// [LiquidTileGroup]の中の1項目。[builder]は、選ばれた見た目（`true`）と選ばれていない見た目
@@ -365,6 +455,17 @@ class _LiquidTileState extends State<LiquidTile> {
     final scope = context.dependOnInheritedWidgetOfExactType<_LiquidScope>();
     final sim = scope?.sim;
     if (scope == null) return widget.builder(context, false);
+    final slide = scope.slide;
+    if (slide != null) {
+      return KeyedSubtree(
+        key: scope.keyFor(widget.index),
+        child: _SlideTile(
+          sim: slide,
+          index: widget.index,
+          builder: widget.builder,
+        ),
+      );
+    }
     if (scope.draw) {
       return KeyedSubtree(
         key: scope.keyFor(widget.index),
@@ -589,4 +690,98 @@ class _DrawTileState extends State<_DrawTile>
       },
     );
   }
+}
+
+/// 滑りの塗り1枚の位置（項目の並びの中の小数の番号）と、項目の矩形（並びの座標）。
+class _SlideSim extends ChangeNotifier {
+  List<Rect?> rects = const [];
+  double? pos;
+
+  void setPos(double? value) {
+    if (value == pos) return;
+    pos = value;
+    notifyListeners();
+  }
+
+  void setRects(List<Rect?> value) {
+    var changed = value.length != rects.length;
+    for (var i = 0; !changed && i < value.length; i++) {
+      if (value[i] != rects[i]) changed = true;
+    }
+    if (!changed) return;
+    rects = value;
+    notifyListeners();
+  }
+
+  /// 今の塗りの矩形。隣り合う2つの項目の矩形の間を補間する。
+  Rect? get slab {
+    final p = pos;
+    if (p == null || rects.isEmpty) return null;
+    final lo = p.floor().clamp(0, rects.length - 1);
+    final hi = p.ceil().clamp(0, rects.length - 1);
+    final a = rects[lo];
+    final b = rects[hi];
+    if (a == null || b == null) return a ?? b;
+    return Rect.lerp(a, b, p - p.floor());
+  }
+}
+
+/// 滑りの時の1項目。塗りの矩形が重なる範囲だけ、選ばれた見た目を出す。
+class _SlideTile extends StatelessWidget {
+  const _SlideTile({
+    required this.sim,
+    required this.index,
+    required this.builder,
+  });
+
+  final _SlideSim sim;
+  final int index;
+  final Widget Function(BuildContext context, bool selected) builder;
+
+  @override
+  Widget build(BuildContext context) {
+    return ListenableBuilder(
+      listenable: sim,
+      builder: (context, _) {
+        final tile = index < sim.rects.length ? sim.rects[index] : null;
+        final slab = sim.slab;
+        if (tile == null || slab == null) return builder(context, false);
+        final overlap = slab.intersect(tile);
+        if (overlap.width <= 0.5 || overlap.height <= 0.5) {
+          return builder(context, false);
+        }
+        if ((slab.left - tile.left).abs() < 0.5 &&
+            (slab.top - tile.top).abs() < 0.5 &&
+            (slab.width - tile.width).abs() < 0.5 &&
+            (slab.height - tile.height).abs() < 0.5) {
+          return builder(context, true);
+        }
+        return Stack(
+          children: [
+            builder(context, false),
+            Positioned.fill(
+              child: IgnorePointer(
+                child: ClipRect(
+                  clipper: _FixedRectClipper(slab.shift(-tile.topLeft)),
+                  child: builder(context, true),
+                ),
+              ),
+            ),
+          ],
+        );
+      },
+    );
+  }
+}
+
+class _FixedRectClipper extends CustomClipper<Rect> {
+  _FixedRectClipper(this.rect);
+
+  final Rect rect;
+
+  @override
+  Rect getClip(Size size) => rect;
+
+  @override
+  bool shouldReclip(covariant _FixedRectClipper old) => old.rect != rect;
 }

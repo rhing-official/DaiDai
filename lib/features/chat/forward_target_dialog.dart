@@ -1,3 +1,4 @@
+import '../../widgets/kinari_surface.dart';
 import '../../providers/contact_alias_providers.dart';
 import 'package:flutter/foundation.dart' show debugPrint;
 import 'package:flutter/material.dart';
@@ -770,8 +771,9 @@ class _PreviewPane extends StatelessWidget {
               : scheme.surface,
           child: content,
         );
-      case AppUiStyle.glass:
       case AppUiStyle.kinari:
+        return KinariInset(color: scheme.surface, radius: 12, child: content);
+      case AppUiStyle.glass:
       case AppUiStyle.flat:
         return DecoratedBox(
           decoration: BoxDecoration(

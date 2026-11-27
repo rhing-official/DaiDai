@@ -89,6 +89,7 @@ import 'theme/chalk/chalk_theme.dart';
 import 'theme/kinari/kinari_theme.dart';
 import 'theme/gekiga/gekiga_theme.dart';
 import 'theme/glass/glass_theme.dart';
+import 'utils/no_vertical_overscroll_behavior.dart';
 import 'utils/web_redirect_sign_in.dart';
 
 Future<void> main() async {
@@ -518,6 +519,7 @@ class DaiDaiApp extends ConsumerWidget {
     return MaterialApp.router(
       title: 'DaiDai',
       debugShowCheckedModeBanner: false,
+      scrollBehavior: const NoVerticalOverscrollBehavior(),
       theme: packImage == null
           ? theme
           : theme.copyWith(scaffoldBackgroundColor: Colors.transparent),
