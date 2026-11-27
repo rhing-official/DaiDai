@@ -655,11 +655,10 @@ class _DrawTileState extends State<_DrawTile>
         curve: Curves.easeInOut,
       );
     } else {
-      _c.animateBack(
-        0,
-        duration: const Duration(milliseconds: 150),
-        curve: Curves.easeIn,
-      );
+      // 外れた項目の塗りは、すぐに消す（クリックした項目以外には、アクセントカラーを描かない）。
+      _c
+        ..stop()
+        ..value = 0;
     }
   }
 

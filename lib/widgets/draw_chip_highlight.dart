@@ -33,7 +33,6 @@ class DrawChipHighlight extends ConsumerStatefulWidget {
 class _DrawChipHighlightState extends ConsumerState<DrawChipHighlight>
     with TickerProviderStateMixin {
   static const _drawDuration = Duration(milliseconds: 450);
-  static const _eraseDuration = Duration(milliseconds: 150);
 
   final Map<int, AnimationController> _controllers = {};
   final ValueNotifier<List<Rect?>> _rects = ValueNotifier(const []);
@@ -59,10 +58,11 @@ class _DrawChipHighlightState extends ConsumerState<DrawChipHighlight>
     if (widget.selectedIndex != _selected) {
       final prev = _selected;
       _selected = widget.selectedIndex;
+      // 外れた項目の塗りは、すぐに消す（クリックした項目以外には、アクセントカラーを描かない）。
       if (prev != null) {
-        _controllerFor(
-          prev,
-        ).animateBack(0, duration: _eraseDuration, curve: Curves.easeIn);
+        _controllerFor(prev)
+          ..stop()
+          ..value = 0;
       }
       final next = _selected;
       if (next != null) {
