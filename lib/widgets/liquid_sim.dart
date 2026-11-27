@@ -183,6 +183,9 @@ class LiquidSim extends ChangeNotifier {
     }
     streams.clear();
     if (next == null) return;
+    // 水が残っている項目が無い時（最初の選択など）も、次の項目の水槽を作る。水槽が無いと、
+    // 溜め直しの処理が回らず、水が入らないまま、動きが出ない（2026-11-27）。
+    tank(next);
     // 水が残っている項目（前の選択だけでなく、移動の途中で水が溜まった項目も）は、全て
     // 次の項目へ流す。
     final sources = <int>[

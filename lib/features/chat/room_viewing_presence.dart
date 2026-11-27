@@ -10,6 +10,18 @@ import '../../utils/room_notification_dismiss/room_notification_dismiss.dart';
 /// いま前面で開いている寄合（2026-11-14）。通知を出さないための、端末側の判定に使う。
 ({String conversationId, String roomId})? _currentViewingRoom;
 
+/// [_currentViewingRoom]を登録した`State`。寄合の切り替えで、新しい`State`の登録の後に、古い
+/// `State`が`dispose`されても、新しい側の登録を消さないために使う（2026-11-27）。
+Object? _currentViewingOwner;
+
+/// 古い側が「見ていない」と書く前に、[conversationId]を別の`State`が見ているか。見ていれば、
+/// サーバーの`viewing`を消してはいけない（新しい側が書いた値を消し、次の更新までの最大30秒間、
+/// 開いている寄合の通知が届いてしまう、2026-11-27の再発）。
+bool _anotherPresenceHolds(String conversationId, Object self) =>
+    _currentViewingOwner != null &&
+    _currentViewingOwner != self &&
+    _currentViewingRoom?.conversationId == conversationId;
+
 /// [conversationId]・[roomId]が、いま前面で開いている寄合か。
 bool isViewingRoomNow(String? conversationId, String? roomId) {
   final current = _currentViewingRoom;
@@ -66,7 +78,11 @@ class _RoomViewingPresenceState extends ConsumerState<RoomViewingPresence>
         old.conversationId != widget.conversationId ||
         old.roomId != widget.roomId) {
       if (_active) {
-        _clear(old.userId, old.conversationId);
+        // 同じ会話の別の寄合へ移る時は、消さずに上書きする（消すと書き込みの間が空く）。
+        if (old.conversationId != widget.conversationId ||
+            old.userId != widget.userId) {
+          _clear(old.userId, old.conversationId);
+        }
         _start();
       }
     }
@@ -84,6 +100,7 @@ class _RoomViewingPresenceState extends ConsumerState<RoomViewingPresence>
   void _start() {
     _timer?.cancel();
     _active = true;
+    _currentViewingOwner = this;
     _currentViewingRoom = (
       conversationId: widget.conversationId,
       roomId: widget.roomId,
@@ -102,13 +119,15 @@ class _RoomViewingPresenceState extends ConsumerState<RoomViewingPresence>
     _timer = null;
     if (!_active) return;
     _active = false;
+    final others = _anotherPresenceHolds(widget.conversationId, this);
     _releaseCurrent();
-    _clear(widget.userId, widget.conversationId);
+    if (!others) _clear(widget.userId, widget.conversationId);
   }
 
   /// 自分が登録した寄合のときだけ解除する（寄合の切り替えで、新しい側の登録を消さない）。
   void _releaseCurrent() {
-    if (isViewingRoomNow(widget.conversationId, widget.roomId)) {
+    if (_currentViewingOwner == this) {
+      _currentViewingOwner = null;
       _currentViewingRoom = null;
     }
   }
@@ -141,9 +160,10 @@ class _RoomViewingPresenceState extends ConsumerState<RoomViewingPresence>
     // dispose中は`ref`を使えないことがあるため、先に保持しておく。
     _timer?.cancel();
     if (_active) {
+      final others = _anotherPresenceHolds(widget.conversationId, this);
       _releaseCurrent();
       try {
-        _clear(widget.userId, widget.conversationId);
+        if (!others) _clear(widget.userId, widget.conversationId);
       } catch (_) {
         // 破棄後の`ref`の利用など。サーバー側の期限切れ（90秒）に任せる。
       }

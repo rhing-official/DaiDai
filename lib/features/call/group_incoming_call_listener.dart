@@ -22,6 +22,7 @@ import '../../widgets/focal_circle_avatar.dart';
 import '../../widgets/nav_chip.dart';
 import 'active_call_session.dart';
 import 'call_banner_card.dart';
+import 'call_log.dart';
 import 'call_ring_timeout.dart';
 import 'call_sound_player.dart';
 import '../../l10n/strings.dart';
@@ -98,6 +99,10 @@ class _GroupIncomingCallListenerState
       final pending = ref.read(pendingCallAnswerProvider);
       if (pending == null || !pending.isGroup) return;
       final match = calls.where((c) => c.groupCallId == pending.callId);
+      callLog(
+        'group answer: pending=${pending.callId} calls=${calls.length} '
+        'matched=${match.isNotEmpty}',
+      );
       if (match.isEmpty) return;
       ref.read(pendingCallAnswerProvider.notifier).clear();
       _joinCall(match.first);
@@ -230,6 +235,7 @@ class _GroupIncomingCallListenerState
   }
 
   Future<void> _joinCall(GroupCall call) async {
+    callLog('group join: start ${call.groupCallId} mounted=$mounted');
     // 参加（応答）したら着信音を止める（2026-10-13、以前は3回鳴り終わるまで
     // 鳴り続けていた）。
     ref.read(groupCallBannersProvider.notifier).remove(call.groupCallId);
@@ -240,6 +246,9 @@ class _GroupIncomingCallListenerState
     final participants = await groupCallRepository
         .watchParticipants(call.groupCallId)
         .first;
+    callLog(
+      'group join: participants=${participants.length}/${call.maxParticipants}',
+    );
     if (participants.length >= call.maxParticipants) {
       if (mounted) {
         _errorBannerTimer = showAutoDismissBanner(
