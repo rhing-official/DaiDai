@@ -1,3 +1,4 @@
+import '../appearance_roles.dart';
 import 'package:flutter/material.dart';
 
 import '../../models/dark_variant.dart';
@@ -251,7 +252,20 @@ class GlassTheme {
             displayColor: colorScheme.onSurface,
             fontFamily: fontFamily,
           ),
-      extensions: [extras],
+      extensions: [
+        extras,
+        // 色の役割。ガラスの背景は、専用のパレットの値。
+        AppearanceRoles(
+          isDark || palette != null
+              ? AppearancePalette(
+                  background: pal.glassBackground,
+                  surface: pal.glassSurface,
+                  glassBackground: pal.glassBackground,
+                  glassSurface: pal.glassSurface,
+                )
+              : AppearancePalette.fromBackground(GlassColors.lightBackground),
+        ),
+      ],
     );
   }
 }

@@ -1,3 +1,4 @@
+import '../appearance_roles.dart';
 import '../../widgets/kinari_surface.dart';
 import '../kinari/kinari_theme.dart';
 import 'package:flutter/rendering.dart';
@@ -407,6 +408,8 @@ class BlockTheme {
         ),
       ),
       extensions: [
+        // 土台のテーマの色の役割を引き継ぐ。
+        ?base.extension<AppearanceRoles>(),
         const BlockThemeMarker(),
         AppThemeExtras(
           floatingShadow: shadow(accent, brightness),

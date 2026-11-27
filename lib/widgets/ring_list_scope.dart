@@ -1,3 +1,4 @@
+import '../theme/appearance_roles.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter/scheduler.dart';
@@ -306,10 +307,15 @@ class RingFill extends StatelessWidget {
       ),
       AppUiStyle.glass => DecoratedBox(
         decoration: BoxDecoration(
-          color: Color.alphaBlend(
-            scheme.primary.withValues(alpha: 0.45),
-            Theme.of(context).scaffoldBackgroundColor,
-          ),
+          // 色は、テーマの色の役割から読む（無い時だけ、背景色から作る）。
+          color:
+              AppearanceRoles.paletteOf(
+                context,
+              )?.selectionFill(scheme.primary, alpha: 0.45) ??
+              Color.alphaBlend(
+                scheme.primary.withValues(alpha: 0.45),
+                Theme.of(context).scaffoldBackgroundColor,
+              ),
           borderRadius: r,
         ),
       ),

@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../models/dark_variant.dart';
 
 import 'app_theme_extras.dart';
+import 'appearance_roles.dart';
 import 'glass/glass_colors.dart';
 import 'motion.dart';
 import 'text_prominence_colors.dart';
@@ -153,8 +154,6 @@ class AppTheme {
     final cardColor = isDark
         ? darkSurfaceColor
         : (palette?.surface ?? colorScheme.surfaceContainerHighest);
-    // 漆黒は面が背景に溶けるため、カードに細い枠線を足す（2026-11-17）。
-    final darkOutline = isDark ? (palette?.outline ?? variant.outline) : null;
 
     final floatingShadow = [
       BoxShadow(
@@ -198,9 +197,8 @@ class AppTheme {
         shadowColor: accentColor.withValues(alpha: 0.3),
         shape: RoundedRectangleBorder(
           borderRadius: const BorderRadius.all(Radius.circular(20)),
-          side: darkOutline == null
-              ? BorderSide.none
-              : BorderSide(color: darkOutline),
+          // アクセントカラーの線で囲む（2026-11-27）。以前は、ダークだけ薄い線。
+          side: BorderSide(color: accentColor),
         ),
       ),
       elevatedButtonTheme: ElevatedButtonThemeData(
@@ -253,9 +251,8 @@ class AppTheme {
         constraints: const BoxConstraints(maxWidth: 400),
         shape: RoundedRectangleBorder(
           borderRadius: const BorderRadius.all(Radius.circular(24)),
-          side: darkOutline == null
-              ? BorderSide.none
-              : BorderSide(color: darkOutline),
+          // アクセントカラーの線で囲む（2026-11-27）。以前は、ダークだけ薄い線。
+          side: BorderSide(color: accentColor),
         ),
       ),
       // ガラスの`showGlassModalBottomSheet`（`glass_bottom_sheet.dart`）が
@@ -264,26 +261,33 @@ class AppTheme {
       bottomSheetTheme: BottomSheetThemeData(
         shape: RoundedRectangleBorder(
           borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
-          side: darkOutline == null
-              ? BorderSide.none
-              : BorderSide(color: darkOutline),
+          // アクセントカラーの線で囲む（2026-11-27）。以前は、ダークだけ薄い線。
+          side: BorderSide(color: accentColor),
+        ),
+      ),
+      // ポップアップメニュー（メッセージのメニューなど）も、アクセントカラーの線で囲む（2026-11-27）。
+      popupMenuTheme: PopupMenuThemeData(
+        color: cardColor,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(16),
+          side: BorderSide(color: accentColor),
         ),
       ),
       inputDecorationTheme: InputDecorationTheme(
         filled: true,
         fillColor: cardColor,
-        // ガラスと同じく、アクセントカラーの線で囲む（2026-11-27）。選択中（フォーカス中）は太くする。
-        border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(16),
-          borderSide: BorderSide(color: accentColor),
-        ),
-        enabledBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(16),
-          borderSide: BorderSide(color: accentColor),
-        ),
-        focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(16),
-          borderSide: BorderSide(color: accentColor, width: 2),
+        // ガラスと同じく、アクセントカラーの線で囲む（2026-11-27）。入力中は太くする。
+        // 状態ごとの枠（enabledBorder等）を個別に指定すると、自前の箱の中に置いて
+        // `border: InputBorder.none`にした入力欄でも枠が出て、二重になる。状態で切り替わる
+        // 1つの枠にして、`border`の指定で消せるようにする。
+        border: WidgetStateInputBorder.resolveWith(
+          (states) => OutlineInputBorder(
+            borderRadius: BorderRadius.circular(16),
+            borderSide: BorderSide(
+              color: accentColor,
+              width: states.contains(WidgetState.focused) ? 2 : 1,
+            ),
+          ),
         ),
       ),
       // テキスト入力欄の選択ハイライト色。未指定だとMaterial既定の
@@ -309,6 +313,15 @@ class AppTheme {
         AppThemeExtras(
           floatingShadow: floatingShadow,
           textTertiary: textTertiary,
+        ),
+        // 色の役割（背景、吹き出しなど）。部品は、背景色から自分で色を作らず、ここから読む。
+        AppearanceRoles(
+          palette ??
+              (isDark
+                  ? variant.palette
+                  : AppearancePalette.fromBackground(
+                      GlassColors.lightBackground,
+                    )),
         ),
       ],
     );

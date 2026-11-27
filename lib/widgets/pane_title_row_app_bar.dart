@@ -1,3 +1,4 @@
+import 'flat_icon_badge.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -69,7 +70,8 @@ Widget paneHamburgerMenu<T>({
             ),
             AppUiStyle.block ||
             AppUiStyle.chalk => const BlockIconBadge(icon: Icons.menu),
-            AppUiStyle.flat || AppUiStyle.kinari => const Icon(Icons.menu),
+            AppUiStyle.flat => const FlatIconBadge(icon: Icons.menu),
+            AppUiStyle.kinari => const Icon(Icons.menu),
           },
           // 押下はPressDragMenuButton（Listener）が受ける。
           onPressed: enabled ? () {} : null,

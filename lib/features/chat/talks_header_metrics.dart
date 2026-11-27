@@ -53,8 +53,9 @@ Widget flatCircleIconButton(
     width: size,
     height: size,
     child: Material(
-      color: scheme.surfaceContainerHigh,
-      shape: const CircleBorder(),
+      // 背景と同じ色で、アクセントカラーの線で囲む（2026-11-27）。
+      color: scheme.surface,
+      shape: CircleBorder(side: BorderSide(color: scheme.primary)),
       clipBehavior: Clip.antiAlias,
       child: InkResponse(
         onTap: onPressed,

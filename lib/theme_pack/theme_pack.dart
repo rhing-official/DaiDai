@@ -83,14 +83,9 @@ class ThemePack {
     final c = colorsFor(b);
     final bg = c.background;
     if (bg == null) return null;
-    final derived = AppearancePalette.fromBackground(bg);
-    final surface = c.panel ?? derived.surface;
-    return AppearancePalette(
-      background: bg,
-      surface: surface,
-      glassBackground: bg,
-      glassSurface: surface,
-    );
+    // 利用者が指定する背景色と同じ関数に通す。意匠は背景色とパネルの色だけを渡し、他の色は
+    // 同じ関数が作る（2026-11-27）。
+    return AppearancePalette.fromBackground(bg, surface: c.panel);
   }
 
   /// この明るさで表示するか。両対応なら端末の設定に従う（null）。

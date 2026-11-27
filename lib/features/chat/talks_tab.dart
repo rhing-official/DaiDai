@@ -3679,12 +3679,13 @@ class _TalksTabState extends ConsumerState<TalksTab>
           ),
         );
       case AppUiStyle.flat:
-        // ガラスと同じ形（角丸24・枠線なし）で、半透明にはせず不透明の面で塗る
-        // （2026-11-01）。
+        // ガラスと同じ形（角丸24）で、半透明にはせず不透明の面で塗り、アクセントカラーの線で
+        // 囲む（2026-11-27）。塗りは背景と同じ色。
         return DecoratedBox(
           decoration: BoxDecoration(
-            color: Theme.of(context).colorScheme.surfaceContainerHigh,
+            color: Theme.of(context).colorScheme.surface,
             borderRadius: BorderRadius.circular(24),
+            border: Border.all(color: Theme.of(context).colorScheme.primary),
           ),
           child: TextField(
             controller: _searchController,

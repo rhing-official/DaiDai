@@ -77,7 +77,10 @@ Decoration popupCardDecoration(
   return BoxDecoration(
     color: popupCardBackground(brightness, uiStyle),
     border: Border.all(
-      color: popupCardBorder(brightness, uiStyle),
+      // フラットは、他の箱と同じアクセントカラーの線（2026-11-27）。
+      color: uiStyle == AppUiStyle.flat
+          ? Theme.of(context).colorScheme.primary
+          : popupCardBorder(brightness, uiStyle),
       width: isBlock ? BlockTheme.borderWidth : 1,
     ),
     borderRadius: BorderRadius.circular(16),

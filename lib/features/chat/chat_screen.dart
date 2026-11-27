@@ -1,7 +1,9 @@
+import '../../widgets/flat_icon_badge.dart';
 import '../../utils/user_activity.dart';
 import '../../theme/kinari/kinari_theme.dart';
 import '../../widgets/kinari_surface.dart';
 import '../../widgets/ime_highlight_controller.dart';
+import '../../theme/appearance_roles.dart';
 import '../../utils/bubble_colors.dart';
 import '../../utils/avatar_backdrop.dart';
 import '../../utils/visible_readers.dart';
@@ -1297,7 +1299,12 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
           decoration: BoxDecoration(
             color: theme.scaffoldBackgroundColor,
             borderRadius: BorderRadius.circular(24),
-            border: Border.all(color: theme.colorScheme.outlineVariant),
+            // フラットは、他の箱と同じアクセントカラーの線（2026-11-27）。
+            border: Border.all(
+              color: ref.watch(appUiStyleProvider) == AppUiStyle.flat
+                  ? theme.colorScheme.primary
+                  : theme.colorScheme.outlineVariant,
+            ),
           ),
           child: ClipRRect(
             borderRadius: BorderRadius.circular(23),
@@ -3406,8 +3413,8 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                                   AppUiStyle.chalk => const BlockIconBadge(
                                     icon: Icons.call_outlined,
                                   ),
-                                  AppUiStyle.flat => const Icon(
-                                    Icons.call_outlined,
+                                  AppUiStyle.flat => const FlatIconBadge(
+                                    icon: Icons.call_outlined,
                                   ),
                                   AppUiStyle.kinari => const KinariIconBadge(
                                     icon: Icons.call_outlined,
@@ -3442,8 +3449,8 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                                     AppUiStyle.chalk => const BlockIconBadge(
                                       icon: Icons.videocam_outlined,
                                     ),
-                                    AppUiStyle.flat => const Icon(
-                                      Icons.videocam_outlined,
+                                    AppUiStyle.flat => const FlatIconBadge(
+                                      icon: Icons.videocam_outlined,
                                     ),
                                     AppUiStyle.kinari => const KinariIconBadge(
                                       icon: Icons.videocam_outlined,
@@ -3472,8 +3479,8 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                               AppUiStyle.chalk => const BlockIconBadge(
                                 icon: Icons.push_pin_outlined,
                               ),
-                              AppUiStyle.flat => const Icon(
-                                Icons.push_pin_outlined,
+                              AppUiStyle.flat => const FlatIconBadge(
+                                icon: Icons.push_pin_outlined,
                               ),
                               AppUiStyle.kinari => const KinariIconBadge(
                                 icon: Icons.push_pin_outlined,
@@ -5806,12 +5813,22 @@ class _MessageRow extends ConsumerWidget {
     // （[chatBubbleFill]）。以前は、自分も相手も固定の灰色で、背景とほとんど同じ色に
     // なる組み合わせが有り、吹き出しが見えにくく、自他の区別も付きにくかった。
     // 生成りは、へこんだ面なので、離し具合を小さくする。劇画は、白黒の反転で描く。
-    final bubbleFill = chatBubbleFill(
-      background: Theme.of(context).scaffoldBackgroundColor,
-      accent: colorScheme.primary,
-      isMe: isMe,
-      strength: uiStyle == AppUiStyle.kinari ? 0.5 : 1.0,
-    );
+    // 色は、テーマの色の役割（[AppearanceRoles]）から読む。無い時（劇画、テスト）だけ、
+    // 背景色から作る。
+    final bubbleStrength = uiStyle == AppUiStyle.kinari ? 0.5 : 1.0;
+    final rolesPalette = AppearanceRoles.paletteOf(context);
+    final bubbleFill = rolesPalette != null
+        ? rolesPalette.bubbleFill(
+            isMe: isMe,
+            accent: colorScheme.primary,
+            strength: bubbleStrength,
+          )
+        : chatBubbleFill(
+            background: Theme.of(context).scaffoldBackgroundColor,
+            accent: colorScheme.primary,
+            isMe: isMe,
+            strength: bubbleStrength,
+          );
     // 吹き出し本体の枠線はアクセントカラーを自分/相手共通で使う（2026-09-26、
     // 塗りを自他共通にした代わりに枠で「DaiDaiらしさ」を出す）。カレンダー・
     // 予定調整・投票・ノート通知カード・画像/動画プレビュー・ファイル添付等、
@@ -5855,12 +5872,19 @@ class _MessageRow extends ConsumerWidget {
             ? (Theme.of(context).extension<GlassThemeExtras>()?.cardTintAlpha ??
                   0.6)
             : 1.0;
-        final listBase = _isGlassStyle
-            ? Color.alphaBlend(
-                colorScheme.surface.withValues(alpha: tintAlpha),
-                pageBackground,
-              )
-            : pageBackground;
+        // 下地は、テーマの色の役割から読む（無い時だけ、背景色から作る）。
+        final rolesPalette = AppearanceRoles.paletteOf(context);
+        final listBase =
+            rolesPalette?.listBase(
+              glass: _isGlassStyle,
+              glassTintAlpha: tintAlpha,
+            ) ??
+            (_isGlassStyle
+                ? Color.alphaBlend(
+                    colorScheme.surface.withValues(alpha: tintAlpha),
+                    pageBackground,
+                  )
+                : pageBackground);
         // ガラスの一覧ブロックはアクセントの不透明度45%、フラットの一覧
         // ブロックはアクセント本来の色（`primary`そのまま、既定は約80%の
         // 半透明）を塗っているので、それぞれに合わせる（2026-10-11、フラット
