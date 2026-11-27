@@ -188,12 +188,27 @@ class KinariIconBadge extends StatelessWidget {
 /// ポップアップ（ダイアログ・メニュー・シート）の形。細い縁に、内側の影と明かり（へこみ）を重ねる。
 /// 面の色は、呼び出し側が少し濃い紙色で塗る。
 class KinariInsetBorder extends RoundedRectangleBorder {
-  const KinariInsetBorder({super.borderRadius, super.side});
+  const KinariInsetBorder({
+    super.borderRadius,
+    super.side,
+    this.depth = 1,
+    this.light = 1,
+  });
+
+  /// へこみの深さと、白い明かりの強さ。アクセントカラーの面（ボタン）は、深く、明かりは弱くする。
+  final double depth;
+  final double light;
 
   @override
   void paint(Canvas canvas, Rect rect, {TextDirection? textDirection}) {
     final rrect = borderRadius.resolve(textDirection).toRRect(rect);
-    paintKinariInsetShadows(canvas, rrect, const Offset(1.5, 2));
+    paintKinariInsetShadows(
+      canvas,
+      rrect,
+      const Offset(1.5, 2),
+      depth: depth,
+      light: light,
+    );
     super.paint(canvas, rect, textDirection: textDirection);
   }
 
@@ -204,11 +219,17 @@ class KinariInsetBorder extends RoundedRectangleBorder {
   }) => KinariInsetBorder(
     borderRadius: borderRadius ?? this.borderRadius,
     side: side ?? this.side,
+    depth: depth,
+    light: light,
   );
 
   @override
-  KinariInsetBorder scale(double t) =>
-      KinariInsetBorder(borderRadius: borderRadius * t, side: side.scale(t));
+  KinariInsetBorder scale(double t) => KinariInsetBorder(
+    borderRadius: borderRadius * t,
+    side: side.scale(t),
+    depth: depth,
+    light: light,
+  );
 }
 
 /// へこんだ丸いボタン（生成り）。内側の影と明かりのある丸に、細い線を巡らせる。[color]は面の色（紙色、またはアクセント）、[lineColor]は線の色。

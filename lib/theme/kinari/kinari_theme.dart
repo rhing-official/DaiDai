@@ -125,16 +125,19 @@ class KinariTheme {
         surfaceTintColor: Colors.transparent,
         shape: insetShape(24),
       ),
+      // アクセントカラーのボタンは、浮かせず、へこませる（影ではなく、内側の影と明かり）。
       elevatedButtonTheme: ElevatedButtonThemeData(
         style: ElevatedButton.styleFrom(
           backgroundColor: accentColor,
           foregroundColor: onAccent,
-          elevation: 3,
-          shadowColor: lift,
+          elevation: 0,
+          shadowColor: Colors.transparent,
           surfaceTintColor: Colors.transparent,
           minimumSize: const Size.fromHeight(52),
-          shape: RoundedRectangleBorder(
+          shape: KinariInsetBorder(
             borderRadius: BorderRadius.circular(16),
+            depth: 2.2,
+            light: 0.3,
           ),
         ),
       ),
@@ -142,17 +145,26 @@ class KinariTheme {
         style: FilledButton.styleFrom(
           backgroundColor: accentColor,
           foregroundColor: onAccent,
-          elevation: 3,
-          shadowColor: lift,
+          elevation: 0,
+          shadowColor: Colors.transparent,
           surfaceTintColor: Colors.transparent,
+          shape: KinariInsetBorder(
+            borderRadius: BorderRadius.circular(20),
+            depth: 2.2,
+            light: 0.3,
+          ),
         ),
       ),
       floatingActionButtonTheme: FloatingActionButtonThemeData(
         backgroundColor: accentColor,
         foregroundColor: onAccent,
-        elevation: 3,
-        highlightElevation: 5,
-        shape: const CircleBorder(),
+        elevation: 0,
+        highlightElevation: 0,
+        shape: KinariInsetBorder(
+          borderRadius: BorderRadius.circular(28),
+          depth: 2.2,
+          light: 0.3,
+        ),
       ),
       popupMenuTheme: PopupMenuThemeData(
         color: popupColor,

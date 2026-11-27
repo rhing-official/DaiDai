@@ -4632,23 +4632,34 @@ class _JoinRequestBadge extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
+    final row = Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Icon(Icons.person_add_alt_1, size: 12, color: colorScheme.onPrimary),
+        const SizedBox(width: 2),
+        Text(
+          count > 99 ? '99+' : '$count',
+          style: TextStyle(fontSize: 11, color: colorScheme.onPrimary),
+        ),
+      ],
+    );
+    // 生成り: アクセントの札も、へこませる。
+    if (isKinariTheme(context)) {
+      return KinariInset(
+        color: colorScheme.primary,
+        radius: 10,
+        depth: 2.2,
+        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+        child: row,
+      );
+    }
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
       decoration: BoxDecoration(
         color: colorScheme.primary,
         borderRadius: BorderRadius.circular(10),
       ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(Icons.person_add_alt_1, size: 12, color: colorScheme.onPrimary),
-          const SizedBox(width: 2),
-          Text(
-            count > 99 ? '99+' : '$count',
-            style: TextStyle(fontSize: 11, color: colorScheme.onPrimary),
-          ),
-        ],
-      ),
+      child: row,
     );
   }
 }

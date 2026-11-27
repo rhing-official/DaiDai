@@ -61,18 +61,6 @@ service cloud.firestore {
       return request.auth != null && request.auth.token.admin == true;
     }
 
-    // stickerPacks/{packId}の出品者（creatorId）が[userId]自身かどうか
-    // （favoritePacksの自己お気に入り防止用、2026-08-29追加）。
-    function isOwnStickerPack(packId, userId) {
-      return get(/databases/$(database)/documents/stickerPacks/$(packId)).data.creatorId == userId;
-    }
-
-    // themePacks/{packId}の出品者（creatorId）が[userId]自身かどうか
-    // （favoriteDesignsの自己お気に入り防止用、2026-11-27追加）。
-    function isOwnThemePack(packId, userId) {
-      return get(/databases/$(database)/documents/themePacks/$(packId)).data.creatorId == userId;
-    }
-
     // users/{userId}: 本人のみ作成・更新可能。ログイン済みなら誰でも参照可能
     // （Rhing Seed検索・重複チェックのため一覧クエリを許可する）。お便り
     // （運営の発信元）は2026-10-10に住人ではなく`announcements`・`system/official`
@@ -282,13 +270,10 @@ service cloud.firestore {
 
       // users/{userId}/favoritePacks/{packId}: daidai横丁でお気に入り登録
       // したぺったんの一覧（存在＝お気に入り、2026-08-13追加）。followsと同様、
-      // 本人のみ直接読み書き可能。packIdはstickerPacks側のドキュメントIDのため、
-      // 自己お気に入り防止にはisOwnStickerPack()でstickerPacksをget()して
-      // creatorIdを参照する必要がある（作成時のみチェック、2026-08-29追加）。
+      // 本人のみ直接読み書き可能。自分が出品したぺったんも、お気に入りにできる
+      // （2026-11-27、以前の自己お気に入りの拒否は外した）。
       match /favoritePacks/{packId} {
-        allow read, update, delete: if request.auth != null && request.auth.uid == userId;
-        allow create: if request.auth != null && request.auth.uid == userId
-          && !isOwnStickerPack(packId, userId);
+        allow read, write: if request.auth != null && request.auth.uid == userId;
       }
 
       // users/{userId}/cartPacks/{packId}: daidai横丁のカート（存在＝カートに
@@ -301,11 +286,9 @@ service cloud.firestore {
 
       // users/{userId}/favoriteDesigns/{packId}: daidai横丁で意匠をお気に入り
       // 登録した一覧（存在＝お気に入り、2026-11-27追加）。favoritePacksと同じ作りで、
-      // 本人のみ。自分の意匠は、作成時に拒否する。中身はcreatedAtだけ。
+      // 本人のみ。自分が出品した意匠も、お気に入りにできる。中身はcreatedAtだけ。
       match /favoriteDesigns/{packId} {
-        allow read, update, delete: if request.auth != null && request.auth.uid == userId;
-        allow create: if request.auth != null && request.auth.uid == userId
-          && !isOwnThemePack(packId, userId);
+        allow read, write: if request.auth != null && request.auth.uid == userId;
       }
 
       // users/{userId}/cartDesigns/{packId}: daidai横丁の意匠のカート（存在＝カートに

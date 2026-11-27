@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
 
+import '../theme/kinari/kinari_theme.dart';
+import 'kinari_surface.dart';
+
 /// 未読件数バッジ。CLAUDE.mdの配色規約（薄い背景色に白文字禁止）に従い、
 /// 濃色のアクセントカラーを背景に使う（2026-09-02追加、2026-10-04に
 /// `talks_tab.dart`のprivateクラスから寄合一覧でも使えるよう切り出し）。
@@ -15,20 +18,31 @@ class UnreadBadge extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
+    final label = Text(
+      attention ? '!' : (count > 99 ? '99+' : '$count'),
+      style: TextStyle(
+        color: colorScheme.onPrimary,
+        fontSize: 11,
+        fontWeight: FontWeight.bold,
+      ),
+    );
+    // 生成り: アクセントの札も、へこませる。
+    if (isKinariTheme(context)) {
+      return KinariInset(
+        color: colorScheme.primary,
+        radius: 10,
+        depth: 2.2,
+        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+        child: label,
+      );
+    }
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
       decoration: BoxDecoration(
         color: colorScheme.primary,
         borderRadius: BorderRadius.circular(10),
       ),
-      child: Text(
-        attention ? '!' : (count > 99 ? '99+' : '$count'),
-        style: TextStyle(
-          color: colorScheme.onPrimary,
-          fontSize: 11,
-          fontWeight: FontWeight.bold,
-        ),
-      ),
+      child: label,
     );
   }
 }

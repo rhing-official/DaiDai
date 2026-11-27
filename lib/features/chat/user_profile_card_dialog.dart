@@ -24,6 +24,7 @@ import '../../router/app_router.dart' show goRouterProvider;
 import '../../providers/last_opened_room_provider.dart';
 import '../../theme/block/block_theme.dart';
 import '../../theme/gekiga/gekiga_colors.dart';
+import '../../theme/kinari/kinari_theme.dart';
 import '../../utils/contact_alias.dart';
 import '../../widgets/media_preview_frame.dart'
     show GekigaStraightMonochromeBox;
@@ -687,9 +688,9 @@ class _UserProfileCardDialogState extends ConsumerState<UserProfileCardDialog> {
                               // プライマリーカラーで目立たせる）。
                               if (widget.canTransferOwnership) ...[
                                 const SizedBox(width: 8),
-                                Material(
-                                  color: colorScheme.primary,
-                                  shape: const CircleBorder(),
+                                _accentCircle(
+                                  context,
+                                  colorScheme,
                                   child: IconButton(
                                     icon: Icon(
                                       Icons.workspace_premium_outlined,
@@ -786,4 +787,25 @@ class _UserProfileCardDialogState extends ConsumerState<UserProfileCardDialog> {
       },
     );
   }
+}
+
+/// アクセントカラーの丸い面。生成りは、へこませる。
+Widget _accentCircle(
+  BuildContext context,
+  ColorScheme colorScheme, {
+  required Widget child,
+}) {
+  if (isKinariTheme(context)) {
+    return KinariInset(
+      color: colorScheme.primary,
+      radius: 999,
+      depth: 2.2,
+      child: Material(type: MaterialType.transparency, child: child),
+    );
+  }
+  return Material(
+    color: colorScheme.primary,
+    shape: const CircleBorder(),
+    child: child,
+  );
 }
