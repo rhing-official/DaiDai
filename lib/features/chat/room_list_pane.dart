@@ -461,6 +461,18 @@ class _RoomListPaneState extends ConsumerState<RoomListPane> {
 
     // 囲みの時は、大きなブロックを、寄合の有る所までで区切る（2026-11-26）。
     final ringFit = ref.watch(navBandMergedProvider);
+    // 囲みでない時は、選択色を、並びの動き（液体・描き・滑り）で移す（2026-11-27）。
+    final selectedRoomIndex = _rooms.indexWhere(
+      (r) => r.roomId == widget.selectedRoomId,
+    );
+    Widget liquidWrap(Widget list) => ringFit
+        ? list
+        : LiquidTileGroup(
+            itemCount: _rooms.length,
+            selectedIndex: selectedRoomIndex < 0 ? null : selectedRoomIndex,
+            ringRadius: kRingListOutlineRadius,
+            child: list,
+          );
     final zone = widget.headerZoneHeight != null;
     final paneContent = Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -563,78 +575,90 @@ class _RoomListPaneState extends ConsumerState<RoomListPane> {
                   ),
                 )
               : !gekigaBoxed && widget.onReorderRooms == null
-              ? RingListBlock(
-                  fitContent: true,
-                  child: ListView(
-                    shrinkWrap: ringFit,
-                    // 上下端で跳ね返らないようにする（2026-11-23追加）。
-                    physics: const ClampingScrollPhysics(),
-                    // 選択中タイルの塗り潰し（selectedTileColor）が、左右は
-                    // カラム間のVerticalDividerに（2026-08-12追加）、上は
-                    // ヘッダー直下のDividerに（同日追加）接して重なって
-                    // 見えないよう余白を持たせる。上余白12pxは劇画UI分岐
-                    // （上の`SingleChildScrollView`、2026-08-04追加）と揃えた。
-                    padding: ringListPadding(
-                      ringFit,
-                      top: widget.listTopPadding,
+              ? liquidWrap(
+                  RingListBlock(
+                    fitContent: true,
+                    child: ListView(
+                      shrinkWrap: ringFit,
+                      // 上下端で跳ね返らないようにする（2026-11-23追加）。
+                      physics: const ClampingScrollPhysics(),
+                      // 選択中タイルの塗り潰し（selectedTileColor）が、左右は
+                      // カラム間のVerticalDividerに（2026-08-12追加）、上は
+                      // ヘッダー直下のDividerに（同日追加）接して重なって
+                      // 見えないよう余白を持たせる。上余白12pxは劇画UI分岐
+                      // （上の`SingleChildScrollView`、2026-08-04追加）と揃えた。
+                      padding: ringListPadding(
+                        ringFit,
+                        top: widget.listTopPadding,
+                      ),
+                      children: [
+                        for (final (i, room) in _rooms.indexed)
+                          LiquidRowIndex(index: i, child: buildRoomTile(room)),
+                      ],
                     ),
-                    children: [for (final room in _rooms) buildRoomTile(room)],
                   ),
                 )
               // 囲みの時は、並べ替えが有効でも、大きなブロックにまとめる（2026-11-26）。
-              : RingListBlock(
-                  fitContent: true,
-                  child: ReorderableListView(
-                    shrinkWrap: ringFit,
-                    // ブロック左端のドラッグハンドル（`Icons.drag_indicator`、
-                    // `buildRoomTile`参照）のみでドラッグを開始させ、行本体の
-                    // タップ＝寄合選択と競合しないようにする（2026-09-08追加）。
-                    // 劇画UIも他のUIスタイルと同じくこの分岐で並べ替える
-                    // （2026-09-12追加、以前は劇画UIだけ非対応だった。
-                    // `GekigaJointedTileList`は2026-08-05の変更で複数の箱を
-                    // 接合せず、間隔を空けてそれぞれ独立した箱として描くように
-                    // なっている為、1件だけ渡しても他の項目と見た目が変わらない
-                    // 独立した箱になる＝`ReorderableListView`の1行として個別に
-                    // ドラッグ出来る）。
-                    buildDefaultDragHandles: false,
-                    // 上下端で跳ね返らないようにする（2026-11-23追加）。
-                    physics: const ClampingScrollPhysics(),
-                    padding: ringListPadding(
-                      ringFit,
-                      top: widget.listTopPadding,
-                    ),
-                    onReorderItem: _handleReorder,
-                    proxyDecorator: (child, index, animation) =>
-                        ringFit && !gekigaBoxed
-                        ? _ringDragDecorator(
-                            child,
-                            animation,
-                            colorScheme,
-                            uiStyle,
-                          )
-                        : _dragLiftDecorator(
-                            child,
-                            index,
-                            animation,
-                            colorScheme,
-                            gekigaBoxed,
-                            showOutline: !uiStyle.isBoxed,
+              : liquidWrap(
+                  RingListBlock(
+                    fitContent: true,
+                    child: ReorderableListView(
+                      shrinkWrap: ringFit,
+                      // ブロック左端のドラッグハンドル（`Icons.drag_indicator`、
+                      // `buildRoomTile`参照）のみでドラッグを開始させ、行本体の
+                      // タップ＝寄合選択と競合しないようにする（2026-09-08追加）。
+                      // 劇画UIも他のUIスタイルと同じくこの分岐で並べ替える
+                      // （2026-09-12追加、以前は劇画UIだけ非対応だった。
+                      // `GekigaJointedTileList`は2026-08-05の変更で複数の箱を
+                      // 接合せず、間隔を空けてそれぞれ独立した箱として描くように
+                      // なっている為、1件だけ渡しても他の項目と見た目が変わらない
+                      // 独立した箱になる＝`ReorderableListView`の1行として個別に
+                      // ドラッグ出来る）。
+                      buildDefaultDragHandles: false,
+                      // 上下端で跳ね返らないようにする（2026-11-23追加）。
+                      physics: const ClampingScrollPhysics(),
+                      padding: ringListPadding(
+                        ringFit,
+                        top: widget.listTopPadding,
+                      ),
+                      onReorderItem: _handleReorder,
+                      proxyDecorator: (child, index, animation) =>
+                          ringFit && !gekigaBoxed
+                          ? _ringDragDecorator(
+                              child,
+                              animation,
+                              colorScheme,
+                              uiStyle,
+                            )
+                          : _dragLiftDecorator(
+                              child,
+                              index,
+                              animation,
+                              colorScheme,
+                              gekigaBoxed,
+                              showOutline: !uiStyle.isBoxed,
+                            ),
+                      children: [
+                        for (final (index, room) in _rooms.indexed)
+                          KeyedSubtree(
+                            key: ValueKey(room.roomId),
+                            child: gekigaBoxed
+                                ? GekigaJointedTileList(
+                                    seeds: [room.roomId.hashCode],
+                                    selectedFlags: [
+                                      room.roomId == widget.selectedRoomId,
+                                    ],
+                                    children: [
+                                      buildRoomTile(room, index: index),
+                                    ],
+                                  )
+                                : LiquidRowIndex(
+                                    index: index,
+                                    child: buildRoomTile(room, index: index),
+                                  ),
                           ),
-                    children: [
-                      for (final (index, room) in _rooms.indexed)
-                        KeyedSubtree(
-                          key: ValueKey(room.roomId),
-                          child: gekigaBoxed
-                              ? GekigaJointedTileList(
-                                  seeds: [room.roomId.hashCode],
-                                  selectedFlags: [
-                                    room.roomId == widget.selectedRoomId,
-                                  ],
-                                  children: [buildRoomTile(room, index: index)],
-                                )
-                              : buildRoomTile(room, index: index),
-                        ),
-                    ],
+                      ],
+                    ),
                   ),
                 ),
         ),

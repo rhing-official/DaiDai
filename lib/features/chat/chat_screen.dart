@@ -2,6 +2,7 @@ import '../../utils/user_activity.dart';
 import '../../theme/kinari/kinari_theme.dart';
 import '../../widgets/kinari_surface.dart';
 import '../../widgets/ime_highlight_controller.dart';
+import '../../utils/bubble_colors.dart';
 import '../../utils/avatar_backdrop.dart';
 import '../../utils/visible_readers.dart';
 import '../../utils/contact_alias.dart';
@@ -4035,6 +4036,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                                 strings: strings,
                                 onCancel: _cancelComposerContext,
                                 vocabulary: vocabulary,
+                                conversationId: widget.conversationId,
                               ),
                             if (_mentionQuery != null &&
                                 _mentionMatches.isNotEmpty)
@@ -4678,7 +4680,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
 
 /// 入力欄の上に表示する「返信先」「編集中」プレビューバー。閉じるボタンで
 /// [onCancel]（返信・編集どちらもキャンセルして通常入力に戻す）を呼ぶ。
-class _ComposerContextBar extends StatelessWidget {
+class _ComposerContextBar extends ConsumerWidget {
   const _ComposerContextBar({
     required this.replyingTo,
     required this.editing,
@@ -4687,9 +4689,13 @@ class _ComposerContextBar extends StatelessWidget {
     this.replyingTo2,
     this.onRemoveReply,
     this.vocabulary,
+    this.conversationId,
   });
 
   final Message? replyingTo;
+
+  /// 返信先の呼び名を、その語らいでの呼び名で解決する為の会話id（[_SenderName.conversationId]と同じ）。
+  final String? conversationId;
 
   /// 二重返信の2件目（2026-11-06）。あれば返信先を2行で並べる。
   final Message? replyingTo2;
@@ -4704,8 +4710,34 @@ class _ComposerContextBar extends StatelessWidget {
   /// 同じ理由でnullableにしている、2026-08-13追加）。
   final Vocabulary? vocabulary;
 
+  /// 返信先の呼び名。メッセージ内の引用（[_SenderName]）と同じ規則で、自分が付けた呼び名、
+  /// その語らいでの呼び名、`@Rhing Seed`の順に解決する（2026-11-27）。以前は常に
+  /// `@Rhing Seed`だった。
+  String _targetLabel(WidgetRef ref, Message? target) {
+    if (target == null) return '?';
+    final sender = target.senderId;
+    if (target.botName != null ||
+        sender.startsWith(kWebhookSenderPrefix) ||
+        sender.startsWith(kBotSenderPrefix)) {
+      final ownerId = target.assistantOwnerId;
+      if (ownerId == null) return target.botName ?? 'BOT';
+      final owner = ref.watch(watchedUserProvider(ownerId)).value;
+      return resolveDisplayName(
+        alias: aliasOf(ref.watch(myContactAliasesProvider).value, ownerId),
+        nickname: owner?.effectiveNicknameFor(conversationId)?.text,
+        rhingSeed: owner?.rhingSeed ?? '?',
+      );
+    }
+    final watched = ref.watch(watchedUserProvider(sender)).value;
+    return resolveDisplayName(
+      alias: aliasOf(ref.watch(myContactAliasesProvider).value, sender),
+      nickname: watched?.effectiveNicknameFor(conversationId)?.text,
+      rhingSeed: target.senderRhingSeed ?? watched?.rhingSeed ?? '?',
+    );
+  }
+
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final colorScheme = Theme.of(context).colorScheme;
     final first = replyingTo;
     final second = replyingTo2;
@@ -4714,6 +4746,7 @@ class _ComposerContextBar extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
       child: editing || first == null
           ? _row(
+              ref,
               colorScheme,
               icon: editing ? Icons.edit : Icons.reply,
               editingLabel: editing ? strings.chatEditingLabel : null,
@@ -4724,6 +4757,7 @@ class _ComposerContextBar extends StatelessWidget {
               mainAxisSize: MainAxisSize.min,
               children: [
                 _row(
+                  ref,
                   colorScheme,
                   icon: Icons.reply,
                   target: first,
@@ -4733,6 +4767,7 @@ class _ComposerContextBar extends StatelessWidget {
                 ),
                 if (second != null)
                   _row(
+                    ref,
                     colorScheme,
                     icon: Icons.reply,
                     target: second,
@@ -4744,6 +4779,7 @@ class _ComposerContextBar extends StatelessWidget {
   }
 
   Widget _row(
+    WidgetRef ref,
     ColorScheme colorScheme, {
     required IconData icon,
     required VoidCallback onClose,
@@ -4766,11 +4802,7 @@ class _ComposerContextBar extends StatelessWidget {
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     Text(
-                      strings.chatReplyingToLabel(
-                        target?.senderRhingSeed != null
-                            ? '@${target!.senderRhingSeed}'
-                            : '?',
-                      ),
+                      strings.chatReplyingToLabel(_targetLabel(ref, target)),
                       style: TextStyle(
                         fontWeight: FontWeight.bold,
                         color: colorScheme.onSurfaceVariant,
@@ -4899,16 +4931,6 @@ Rect _anchorRectFromContext(BuildContext context) {
   final box = context.findRenderObject()! as RenderBox;
   return box.localToGlobal(Offset.zero) & box.size;
 }
-
-/// 吹き出しの塗り色（自分/相手共通、2026-09-26追加）。当初はユーザー指示で
-/// 自分の吹き出しだけ選んだアクセントカラーそのままにしていたが、アクセント
-/// カラーの明暗次第で文字コントラストが破綻するケースが解消しきれず、
-/// 「これ以上細部に拘っても本質的な開発が滞る」というユーザー判断により
-/// 自分/相手ともテーマ非依存の固定グレーへ統一した。吹き出しの自分/相手の
-/// 見分けは塗りではなく枠線のアクセントカラー（`bubbleAccentBorderColor`）で
-/// 表現する。
-const _bubbleFillDark = Color(0xFF3A3A3C);
-const _bubbleFillLight = Color(0xFFE5E5EA);
 
 /// 実際に塗る背景色（[background]）の明るさから、読める文字色を判定する
 /// （2026-09-26追加）。固定の`onPrimary`/`onSurface`だけに頼ると、ユーザーが
@@ -5777,23 +5799,19 @@ class _MessageRow extends ConsumerWidget {
 
     final isGekiga = uiStyle == AppUiStyle.gekiga;
     // 劇画スタイルはモノクロで白黒反転して自分/相手を描き分ける
-    // （自分は白地に黒文字、相手は黒地に白文字、2026-07-29修正）。フラット
-    // スタイルは紙に墨で書いたような枠線ボックス（旧デッサンスタイル、
-    // 2026-08-27統合）のため自分/相手どちらも同じ色で色を反転しない。
-    // フラット/ガラスは2026-09-26より、自分/相手とも同じ固定グレー
-    // （`_bubbleFillDark`/`Light`、テーマ・アクセントカラーに依存しない）で
-    // 塗る。自分/相手の見分けは枠線のアクセントカラーで表現する（下記
-    // `bubble`のdecoration切り替え参照）。文字色は固定の`onPrimary`/
-    // `onSurface`ではなく、実際に塗る色の輝度から[_readableTextColorOn]で
+    // （自分は白地に黒文字、相手は黒地に白文字、2026-07-29修正）。文字色は固定の
+    // `onPrimary`/`onSurface`ではなく、実際に塗る色の輝度から[_readableTextColorOn]で
     // 都度判定する。
-    // 生成り: 自分は、わずかに浮いた明るい紙、相手は、へこんだ濃い紙（2026-11-27）。
-    final bubbleFill = uiStyle == AppUiStyle.kinari
-        ? (isMe
-              ? Color.lerp(colorScheme.surface, colorScheme.primary, 0.22)!
-              : colorScheme.surface)
-        : colorScheme.brightness == Brightness.dark
-        ? _bubbleFillDark
-        : _bubbleFillLight;
+    // 2026-11-27: 背景から離した色にし、自分の塗りにはアクセントカラーを混ぜる
+    // （[chatBubbleFill]）。以前は、自分も相手も固定の灰色で、背景とほとんど同じ色に
+    // なる組み合わせが有り、吹き出しが見えにくく、自他の区別も付きにくかった。
+    // 生成りは、へこんだ面なので、離し具合を小さくする。劇画は、白黒の反転で描く。
+    final bubbleFill = chatBubbleFill(
+      background: Theme.of(context).scaffoldBackgroundColor,
+      accent: colorScheme.primary,
+      isMe: isMe,
+      strength: uiStyle == AppUiStyle.kinari ? 0.5 : 1.0,
+    );
     // 吹き出し本体の枠線はアクセントカラーを自分/相手共通で使う（2026-09-26、
     // 塗りを自他共通にした代わりに枠で「DaiDaiらしさ」を出す）。カレンダー・
     // 予定調整・投票・ノート通知カード・画像/動画プレビュー・ファイル添付等、
@@ -5893,6 +5911,7 @@ class _MessageRow extends ConsumerWidget {
       required String? storedSenderId,
       required String? storedSeed,
       required String? storedSnippet,
+      double bottomGap = 6,
     }) {
       if (targetId == null) return null;
       final target = messagesById[targetId];
@@ -5904,7 +5923,7 @@ class _MessageRow extends ConsumerWidget {
       final thumbnail = target != null ? _replyPreviewThumbnail(target) : null;
       if (replySenderId == null) return null;
       final quoteBox = Container(
-        margin: const EdgeInsets.only(bottom: 6),
+        margin: EdgeInsets.only(bottom: bottomGap),
         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
         decoration: BoxDecoration(
           color: onBubbleColor.withValues(alpha: 0.12),
@@ -5966,36 +5985,36 @@ class _MessageRow extends ConsumerWidget {
     }
 
     // 二重返信（2026-11-06）は、1件目・2件目の順に同じ見た目で縦に並べる。
-    final replyQuotes = [
-      buildReplyQuote(
-        targetId: message.replyToMessageId,
-        storedSenderId: message.replyToSenderId,
-        storedSeed: message.replyToSenderRhingSeed,
-        storedSnippet: message.replyToSnippet,
-      ),
-      buildReplyQuote(
-        targetId: message.replyTo2MessageId,
-        storedSenderId: message.replyTo2SenderId,
-        storedSeed: message.replyTo2SenderRhingSeed,
-        storedSnippet: message.replyTo2Snippet,
-      ),
-    ].nonNulls.toList();
-    final Widget? replyPreview = replyQuotes.isEmpty
-        ? null
-        : replyQuotes.length == 1
-        ? replyQuotes.first
-        : Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: replyQuotes,
-          );
-    // 文字の無い画像・動画への返信は、テキストと同じ吹き出しの中に、引用と画像を入れる
-    // （2026-11-27）。画像自身の枠は外し、角丸に切り抜くだけにする（二重の枠を避ける）。
-    final mediaInReplyBubble =
-        replyPreview != null &&
-        (message.contentType == 'image' || message.contentType == 'video') &&
-        (message.caption?.isEmpty ?? true);
+    // [bottomGap]は、引用の箱の下の隙間（引用だけを入れた吹き出しでは0）。
+    Widget? buildReplyPreview({double bottomGap = 6}) {
+      final replyQuotes = [
+        buildReplyQuote(
+          targetId: message.replyToMessageId,
+          storedSenderId: message.replyToSenderId,
+          storedSeed: message.replyToSenderRhingSeed,
+          storedSnippet: message.replyToSnippet,
+          bottomGap: bottomGap,
+        ),
+        buildReplyQuote(
+          targetId: message.replyTo2MessageId,
+          storedSenderId: message.replyTo2SenderId,
+          storedSeed: message.replyTo2SenderRhingSeed,
+          storedSnippet: message.replyTo2Snippet,
+          bottomGap: bottomGap,
+        ),
+      ].nonNulls.toList();
+      return replyQuotes.isEmpty
+          ? null
+          : replyQuotes.length == 1
+          ? replyQuotes.first
+          : Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: replyQuotes,
+            );
+    }
 
+    final Widget? replyPreview = buildReplyPreview();
     final isCallSummary = message.contentType == 'call';
     final isBotNotice =
         message.contentType == 'botAdded' ||
@@ -6047,11 +6066,79 @@ class _MessageRow extends ConsumerWidget {
         message.fileMetadata != null &&
         _FileAttachmentBlock.isPlayableAudio(message.fileMetadata!);
 
+    final skipBubbleFrame =
+        message.contentType == 'image' ||
+        message.contentType == 'video' ||
+        isMultiMediaOnly ||
+        isMultiSplit ||
+        isAudioWithCaption ||
+        isMarkdownPreview ||
+        isPdfPreview ||
+        isSticker ||
+        isCalendarEventNotice ||
+        isScheduleCoordinationNotice ||
+        isPollNotice ||
+        isNoteNotice;
+
+    // 引用が付いた、吹き出しの枠を持たないメッセージ（画像・動画・ぺったん・ファイルの
+    // カード・複数添付など）は、引用を添付と同じ箱に入れず、文字と添付と同じく別の箱にする
+    // （2026-11-27）。文字が有れば、引用は、その文字の吹き出しの中に入れる。文字が無ければ、
+    // 引用だけを入れた吹き出しを、添付の上に置く。文字だけのメッセージは、今までどおり、
+    // 引用と文字が1つの吹き出し。
+    // 吹き出しの枠（劇画・フラット・版画・ガラスで意匠が違う）。
+    Widget wrapInBubble(
+      Widget child, {
+      double gekigaPadding = 30,
+      double gekigaTopExtra = 0,
+    }) => switch (uiStyle) {
+      AppUiStyle.gekiga => _GekigaBubble(
+        seed: message.messageId.hashCode,
+        isMe: isMe,
+        alignRight: alignRight,
+        horizontalPadding: gekigaPadding,
+        extraTopPadding: gekigaTopExtra,
+        child: child,
+      ),
+      AppUiStyle.kinari => KinariInset(
+        color: bubbleFill,
+        radius: 20,
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+        child: child,
+      ),
+      AppUiStyle.flat || AppUiStyle.chalk || AppUiStyle.block => Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+        decoration: framedCardDecoration(
+          context,
+          color: bubbleFill,
+          borderRadius: BorderRadius.circular(20),
+        ),
+        child: child,
+      ),
+      AppUiStyle.glass => GlassSurface(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+        fillColorOverride: bubbleFill,
+        child: child,
+      ),
+    };
+    final hasCaption = message.caption?.isNotEmpty ?? false;
+    final quoteOutsideFrame = replyPreview != null && skipBubbleFrame;
+    final quoteInCaptionBubble =
+        quoteOutsideFrame && hasCaption && isAttachment;
+    final Widget? loneQuoteBubble = quoteOutsideFrame && !quoteInCaptionBubble
+        ? wrapInBubble(buildReplyPreview(bottomGap: 0)!)
+        : null;
+
     final bubbleContent = Column(
       mainAxisSize: MainAxisSize.min,
-      crossAxisAlignment: CrossAxisAlignment.start,
+      crossAxisAlignment: quoteOutsideFrame && alignRight
+          ? CrossAxisAlignment.end
+          : CrossAxisAlignment.start,
       children: [
-        ?replyPreview,
+        if (!quoteOutsideFrame) ?replyPreview,
+        if (loneQuoteBubble != null) ...[
+          loneQuoteBubble,
+          SizedBox(height: isGekiga ? 20 : 6),
+        ],
         if (isCallSummary)
           _callSummaryContent(onBubbleColor, strings)
         else if (isBotNotice)
@@ -6110,52 +6197,6 @@ class _MessageRow extends ConsumerWidget {
           )
         else if (isAttachment)
           () {
-            // 吹き出しの枠（劇画・フラット・版画・ガラスで意匠が違う）。
-            Widget wrapInBubble(
-              Widget child, {
-              double gekigaPadding = 30,
-              double gekigaTopExtra = 0,
-            }) => switch (uiStyle) {
-              AppUiStyle.gekiga => _GekigaBubble(
-                seed: message.messageId.hashCode,
-                isMe: isMe,
-                alignRight: alignRight,
-                horizontalPadding: gekigaPadding,
-                extraTopPadding: gekigaTopExtra,
-                child: child,
-              ),
-              AppUiStyle.kinari => KinariInset(
-                color: bubbleFill,
-                radius: 20,
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 16,
-                  vertical: 10,
-                ),
-                child: child,
-              ),
-              AppUiStyle.flat ||
-              AppUiStyle.chalk ||
-              AppUiStyle.block => Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 16,
-                  vertical: 10,
-                ),
-                decoration: framedCardDecoration(
-                  context,
-                  color: bubbleFill,
-                  borderRadius: BorderRadius.circular(20),
-                ),
-                child: child,
-              ),
-              AppUiStyle.glass => GlassSurface(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 16,
-                  vertical: 10,
-                ),
-                fillColorOverride: bubbleFill,
-                child: child,
-              ),
-            };
             final attachmentBody = _attachmentContent(
               context,
               onBubbleColor,
@@ -6169,7 +6210,6 @@ class _MessageRow extends ConsumerWidget {
                         wrapInBubble(child, gekigaPadding: isAudio ? 46 : 30)
                   : null,
               groupGap: isGekiga ? 20 : 8,
-              bareMedia: mediaInReplyBubble,
             );
             return _attachmentWithCaption(
               context,
@@ -6209,11 +6249,24 @@ class _MessageRow extends ConsumerWidget {
                     isMarkdownPreview ||
                     isPdfPreview ||
                     isAudioWithCaption;
-                return mediaOnly ? wrapInBubble(text) : text;
+                if (!mediaOnly) return text;
+                return wrapInBubble(
+                  quoteInCaptionBubble
+                      ? Column(
+                          mainAxisSize: MainAxisSize.min,
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [replyPreview, text],
+                        )
+                      : text,
+                );
               },
             );
           }()
         else if (isSticker)
+          // ぺったんは、吹き出しで囲まず、枠なしの透過画像のまま置く。囲むと、絵の魅力が
+          // 削がれる（2026-11-27、一度囲んでから戻した）。引用が有る時は、引用だけの
+          // 吹き出し（[loneQuoteBubble]）が上に付く。左右は、吹き出しの枠を持たない
+          // 他の添付と同じく余白無し、上下は文字のメッセージと同じ間隔。
           _stickerContent(context, ref, onBubbleColor)
         else
           Row(
@@ -6366,20 +6419,6 @@ class _MessageRow extends ConsumerWidget {
     // 劇画の`GekigaStraightMonochromeBox`と重なる`_GekigaBubble`枠）を
     // 重ねると二重表示になる。スタンプは透過画像のため元々枠を付けない
     // （2026-09-04、コンテンツ側密着枠線の導入に伴い元の単一フラグに統合）。
-    final skipBubbleFrame =
-        (!mediaInReplyBubble &&
-            (message.contentType == 'image' ||
-                message.contentType == 'video')) ||
-        isMultiMediaOnly ||
-        isMultiSplit ||
-        isAudioWithCaption ||
-        isMarkdownPreview ||
-        isPdfPreview ||
-        isSticker ||
-        isCalendarEventNotice ||
-        isScheduleCoordinationNotice ||
-        isPollNotice ||
-        isNoteNotice;
     // 自分/相手とも同じ固定グレーで塗り、枠線のアクセントカラーで
     // 「DaiDaiらしさ」を出す（2026-09-26。以前は自分の吹き出しだけ選んだ
     // アクセントカラーそのままで塗っていたが、明暗次第で文字コントラストが
@@ -8063,7 +8102,6 @@ class _MessageRow extends ConsumerWidget {
     VoidCallback? onForward,
     Widget Function(Widget child, bool isAudio)? wrapFileGroup,
     double groupGap = 6,
-    bool bareMedia = false,
   }) {
     if (message.contentType == 'multi') {
       return _multiAttachmentContent(
@@ -8079,17 +8117,6 @@ class _MessageRow extends ConsumerWidget {
       return Text(message.content, style: TextStyle(color: onBubbleColor));
     }
 
-    // 引用付きの返信（`bareMedia`）は、吹き出しの中に入れるため、画像自身の枠を付けず
-    // 角丸に切り抜くだけにする。
-    Widget previewFrame({required Widget child}) => bareMedia
-        ? ClipRRect(
-            borderRadius: BorderRadius.circular(mediaPreviewContentRadius),
-            child: child,
-          )
-        : mediaPreviewFrame(isGekiga: isGekiga, isMe: isMe, child: child);
-    Widget borderedFrame(Widget frame) =>
-        bareMedia ? frame : _borderedMediaFrame(context, isGekiga, frame);
-
     if (message.contentType == 'image') {
       final image = Image.network(
         metadata.url,
@@ -8098,7 +8125,9 @@ class _MessageRow extends ConsumerWidget {
         errorBuilder: (_, _, _) =>
             Icon(Icons.broken_image_outlined, color: onBubbleColor),
       );
-      return borderedFrame(
+      return _borderedMediaFrame(
+        context,
+        isGekiga,
         GestureDetector(
           onTap: () => openMediaViewer(
             context,
@@ -8107,14 +8136,22 @@ class _MessageRow extends ConsumerWidget {
               mediaMessages,
             ).indexWhere((item) => item.id == message.messageId),
           ),
-          child: previewFrame(child: image),
+          child: mediaPreviewFrame(
+            isGekiga: isGekiga,
+            isMe: isMe,
+            child: image,
+          ),
         ),
       );
     }
 
     if (message.contentType == 'video') {
-      return borderedFrame(
-        previewFrame(
+      return _borderedMediaFrame(
+        context,
+        isGekiga,
+        mediaPreviewFrame(
+          isGekiga: isGekiga,
+          isMe: isMe,
           // サムネイル（動画再生Web実装ではプラットフォームビュー＝実HTML
           // 要素になりうる）に直接`GestureDetector`を被せるだけだと、
           // Flutter既定の`HitTestBehavior.deferToChild`が子の描画内容に
@@ -9083,7 +9120,9 @@ class _MessageInteractionsState extends State<_MessageInteractions> {
   }
 
   void _onDragStart(DragStartDetails details) {
-    _rawDx = InteractiveSwipeBackScope.maybeOf(context)?.progress.value ?? 0;
+    final swipeBack = InteractiveSwipeBackScope.maybeOf(context);
+    final relay = swipeBack != null && (swipeBack.relayEnabled?.call() ?? true);
+    _rawDx = relay ? swipeBack.progress.value : 0;
   }
 
   void _onDragUpdate(DragUpdateDetails details) {
@@ -9091,7 +9130,9 @@ class _MessageInteractionsState extends State<_MessageInteractions> {
       _rawDx += details.delta.dx;
     });
     final swipeBack = InteractiveSwipeBackScope.maybeOf(context);
-    if (swipeBack != null && (_rawDx > 0 || swipeBack.isGestureActive)) {
+    if (swipeBack != null &&
+        (swipeBack.isGestureActive ||
+            (_rawDx > 0 && (swipeBack.relayEnabled?.call() ?? true)))) {
       // 吹き出しの上は返信/編集用の左スワイプをこのGestureDetector自身が
       // 無条件に受理してしまい、外側の背景ジェスチャー（吹き出しの無い
       // 余白では機能する）にジェスチャーアリーナ上伝播しない為、右方向の

@@ -145,7 +145,12 @@ class SettingsTile extends ConsumerWidget {
       child: blockFitWidth(
         Material(
           color: selected ? scheme.primary : scheme.surface,
-          borderRadius: BorderRadius.circular(12),
+          // ガラスと同じく、アクセントカラーの線で囲む（2026-11-27）。フォントサイズ・並び・
+          // トグルなど、設定の全ての行に効く。
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+            side: BorderSide(color: scheme.primary),
+          ),
           clipBehavior: Clip.antiAlias,
           child: ListTile(
             contentPadding: contentPadding,

@@ -552,7 +552,11 @@ class _SegmentTile extends ConsumerWidget {
       case AppUiStyle.flat:
         return Material(
           color: fill,
-          borderRadius: BorderRadius.circular(12),
+          // ガラスと同じく、アクセントカラーの線で囲む（2026-11-27）。
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+            side: BorderSide(color: scheme.primary),
+          ),
           clipBehavior: Clip.antiAlias,
           child: tappable,
         );

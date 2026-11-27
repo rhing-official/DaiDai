@@ -1274,6 +1274,11 @@ class _ProfileCategoryTile extends ConsumerWidget {
         ListTile(
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(12),
+            // ガラスと同じく、アクセントカラーの線で囲む（2026-11-27）。囲みの大きな箱の中は、
+            // 箱が線を描くので、項目は描かない。
+            side: RingListScope.styleOf(context) == null
+                ? BorderSide(color: colorScheme.primary)
+                : BorderSide.none,
           ),
           tileColor: colorScheme.surface,
           selectedTileColor: colorScheme.primary,

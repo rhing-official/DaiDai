@@ -59,6 +59,10 @@ class LiquidTileGroup extends ConsumerStatefulWidget {
   static TileReveal? revealOf(BuildContext context) =>
       context.dependOnInheritedWidgetOfExactType<_LiquidScope>()?.reveal;
 
+  /// この`context`が、項目の並び（[LiquidTileGroup]）の中か。
+  static bool inScope(BuildContext context) =>
+      context.getInheritedWidgetOfExactType<_LiquidScope>() != null;
+
   @override
   ConsumerState<LiquidTileGroup> createState() => _LiquidTileGroupState();
 }
@@ -665,11 +669,31 @@ class DrawSelectionTile extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    // 並び（[LiquidTileGroup]）の中で、番号（[LiquidRowIndex]）が付いている行は、並びの動き
+    // （液体・描き・滑り）に任せる。選択は、並びの選択中の番号から決まる。
+    final index = LiquidRowIndex.maybeOf(context);
+    if (index != null && LiquidTileGroup.inScope(context)) {
+      return LiquidTile(index: index, builder: builder);
+    }
     if (ref.watch(selectionMotionProvider) != SelectionMotion.draw) {
       return builder(context, selected);
     }
     return _DrawTile(selected: selected, builder: builder);
   }
+}
+
+/// 一覧の行に、[LiquidTileGroup]の中での番号を伝える（2026-11-27）。行の部品（語らい・寄合の
+/// 一覧の行）は、番号を受け取らずに、選択色を並びの動きで移せる。
+class LiquidRowIndex extends InheritedWidget {
+  const LiquidRowIndex({required this.index, required super.child, super.key});
+
+  final int index;
+
+  static int? maybeOf(BuildContext context) =>
+      context.dependOnInheritedWidgetOfExactType<LiquidRowIndex>()?.index;
+
+  @override
+  bool updateShouldNotify(LiquidRowIndex old) => old.index != index;
 }
 
 /// 描き: 選ばれた見た目を、ペンが往復して塗るように現す（選択が外れた時は、塗りが短く消える）。

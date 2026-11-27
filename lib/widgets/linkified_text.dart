@@ -1,9 +1,58 @@
 import 'invite_link_dialog.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../utils/link_detection.dart';
+
+/// 絵文字（カラーの絵文字として描かれるもの）1つ。ZWJ・肌の色・旗・キーキャップの並びも1つにまとめる。
+/// 文字として描かれる記号（`©`・`™`、異体字選択子の無い`☺`など）は含めない。
+final RegExp _emojiPattern = RegExp(
+  // ignore: valid_regexps
+  r'(?:\p{Regional_Indicator}{2}|[0-9#*]\uFE0F?\u20E3|\p{Emoji_Presentation}|\p{Extended_Pictographic}\uFE0F)'
+  r'(?:[\u{1F3FB}-\u{1F3FF}]|\uFE0F|[\u{E0020}-\u{E007F}]|\u200D(?:\p{Emoji_Presentation}|\p{Extended_Pictographic})\uFE0F?)*',
+  unicode: true,
+);
+
+/// 絵文字を描く為のフォント。選んでいる日本語フォントが、絵文字と同じ文字（`❤`など）の白黒の
+/// 字形を持っていると、カラーの絵文字ではなく、その簡略な字形で描かれる。絵文字の部分だけ、
+/// 絵文字のフォントを指定して、そのまま表示する（2026-11-27）。
+String get _emojiFontFamily => kIsWeb
+    ? 'Noto Color Emoji'
+    : switch (defaultTargetPlatform) {
+        TargetPlatform.iOS || TargetPlatform.macOS => 'Apple Color Emoji',
+        TargetPlatform.windows => 'Segoe UI Emoji',
+        _ => 'Noto Color Emoji',
+      };
+
+/// [text]を、絵文字の部分だけ絵文字のフォントにした[TextSpan]に分ける。絵文字が無ければ、
+/// 単一の[TextSpan]。文字列の中身（文字数・位置）は変えない。
+List<InlineSpan> emojiSpans(String text, TextStyle? style) {
+  final matches = _emojiPattern.allMatches(text).toList();
+  if (matches.isEmpty) return [TextSpan(text: text, style: style)];
+  final emojiStyle = (style ?? const TextStyle()).copyWith(
+    fontFamily: _emojiFontFamily,
+    fontFamilyFallback: const [
+      'Noto Color Emoji',
+      'Apple Color Emoji',
+      'Segoe UI Emoji',
+    ],
+  );
+  final spans = <InlineSpan>[];
+  var last = 0;
+  for (final m in matches) {
+    if (m.start > last) {
+      spans.add(TextSpan(text: text.substring(last, m.start), style: style));
+    }
+    spans.add(TextSpan(text: m.group(0), style: emojiStyle));
+    last = m.end;
+  }
+  if (last < text.length) {
+    spans.add(TextSpan(text: text.substring(last), style: style));
+  }
+  return spans;
+}
 
 /// [text]内のURLをタップ可能なリンクとして装飾した[InlineSpan]リストを作る。
 /// URLが見つからない場合は単一の[TextSpan]（styleのみ）を返す。
@@ -74,12 +123,12 @@ List<InlineSpan> _splitMentions(
   required Map<String, Color?> labelColors,
   required Map<String, (Color background, Color color)> highlights,
 }) {
-  if (labels.isEmpty) return [TextSpan(text: segment, style: style)];
+  if (labels.isEmpty) return emojiSpans(segment, style);
   // 「@新」と「@新田」のように前方が重なる場合に長い方を優先する。
   final sorted = [...labels]..sort((a, b) => b.length.compareTo(a.length));
   final pattern = RegExp(sorted.map(RegExp.escape).join('|'));
   final matches = pattern.allMatches(segment);
-  if (matches.isEmpty) return [TextSpan(text: segment, style: style)];
+  if (matches.isEmpty) return emojiSpans(segment, style);
 
   final mentionStyle = (style ?? const TextStyle()).copyWith(
     fontWeight: FontWeight.w700,
@@ -90,7 +139,7 @@ List<InlineSpan> _splitMentions(
   var last = 0;
   for (final m in matches) {
     if (m.start > last) {
-      spans.add(TextSpan(text: segment.substring(last, m.start)));
+      spans.addAll(emojiSpans(segment.substring(last, m.start), style));
     }
     final text = m.group(0)!;
     // ロール宛はロール自身の色を文字色にするだけ（ハイライトは入れない）。
@@ -114,7 +163,7 @@ List<InlineSpan> _splitMentions(
     last = m.end;
   }
   if (last < segment.length) {
-    spans.add(TextSpan(text: segment.substring(last)));
+    spans.addAll(emojiSpans(segment.substring(last), style));
   }
   return spans;
 }
@@ -194,7 +243,10 @@ class _LinkifiedTextState extends State<LinkifiedText> {
   Widget build(BuildContext context) {
     final matches = urlPattern.allMatches(widget.text);
     if (matches.isEmpty && widget.mentionLabels.isEmpty) {
-      return Text(widget.text, style: widget.style);
+      final plain = emojiSpans(widget.text, widget.style);
+      return plain.length == 1
+          ? Text(widget.text, style: widget.style)
+          : Text.rich(TextSpan(style: widget.style, children: plain));
     }
 
     _disposeRecognizers();

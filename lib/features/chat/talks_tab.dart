@@ -636,6 +636,11 @@ class _TalksTabState extends ConsumerState<TalksTab>
   void initState() {
     super.initState();
     _resubscribeLists();
+    // 全画面になっている間だけ、吹き出し上の右ドラッグを一覧へ戻す動きとして使う。
+    _iconSplitSwipeBackController.relayEnabled = () =>
+        _iconSplitCollapse.value > 0;
+    _chatExpandedSwipeBackController.relayEnabled = () =>
+        _chatExpandCollapse.value > 0;
     _iconSplitSwipeBackController.progress.addListener(() {
       final controller = _iconSplitSwipeBackController;
       _iconSplitCollapse.value =
@@ -3185,7 +3190,11 @@ class _TalksTabState extends ConsumerState<TalksTab>
 
     // 囲みの時は、大きなブロックを、語らいの有る所までで区切る（2026-11-26）。
     final ringFit = ref.watch(navBandMergedProvider);
-    return RingListBlock(
+    final dmPending = incomingRequests.length + outgoingRequests.length;
+    final dmSelected = sortedDms.indexWhere(
+      (dm) => _isSplit && _selectedDm?.dmId == dm.dmId,
+    );
+    final dmList = RingListBlock(
       fitContent: true,
       child: ListView(
         shrinkWrap: ringFit,
@@ -3202,19 +3211,31 @@ class _TalksTabState extends ConsumerState<TalksTab>
             _pendingRequestTile(request, compact: false),
           for (final request in outgoingRequests)
             _pendingRequestTile(request, compact: false),
-          for (final dm in sortedDms)
-            DirectMessageTile(
-              currentUser: widget.currentUser,
-              dm: dm,
-              pinned: prefsById[dm.dmId]?.pinned ?? false,
-              muted: prefsById[dm.dmId]?.notificationsMuted ?? false,
-              unreadCount: prefsById[dm.dmId]?.unreadCount ?? 0,
-              selected: _isSplit && _selectedDm?.dmId == dm.dmId,
-              onTap: () => _openDirectMessage(dm),
+          for (final (i, dm) in sortedDms.indexed)
+            LiquidRowIndex(
+              index: dmPending + i,
+              child: DirectMessageTile(
+                currentUser: widget.currentUser,
+                dm: dm,
+                pinned: prefsById[dm.dmId]?.pinned ?? false,
+                muted: prefsById[dm.dmId]?.notificationsMuted ?? false,
+                unreadCount: prefsById[dm.dmId]?.unreadCount ?? 0,
+                selected: _isSplit && _selectedDm?.dmId == dm.dmId,
+                onTap: () => _openDirectMessage(dm),
+              ),
             ),
         ],
       ),
     );
+    // 囲みでない時は、選択色を、並びの動き（液体・描き・滑り）で移す（2026-11-27）。
+    return ringFit
+        ? dmList
+        : LiquidTileGroup(
+            itemCount: dmPending + sortedDms.length,
+            selectedIndex: dmSelected < 0 ? null : dmPending + dmSelected,
+            ringRadius: kRingListOutlineRadius,
+            child: dmList,
+          );
   }
 
   Widget _buildGroups(
@@ -3296,7 +3317,11 @@ class _TalksTabState extends ConsumerState<TalksTab>
 
     // 囲みの時は、大きなブロックを、語らいの有る所までで区切る（2026-11-26）。
     final ringFit = ref.watch(navBandMergedProvider);
-    return RingListBlock(
+    final groupPending = pendingRequests.length;
+    final groupSelected = sortedGroups.indexWhere(
+      (g) => _isSplit && _selectedGroup?.groupId == g.groupId,
+    );
+    final groupList = RingListBlock(
       fitContent: true,
       child: ListView(
         shrinkWrap: ringFit,
@@ -3315,19 +3340,33 @@ class _TalksTabState extends ConsumerState<TalksTab>
               isSplit: _isSplit,
               onSelectPending: _selectPendingScreen,
             ),
-          for (final group in sortedGroups)
-            GroupTile(
-              currentUserId: widget.currentUser.userId,
-              group: group,
-              pinned: prefsById[group.groupId]?.pinned ?? false,
-              muted: prefsById[group.groupId]?.notificationsMuted ?? false,
-              unreadCount: prefsById[group.groupId]?.unreadCount ?? 0,
-              selected: _isSplit && _selectedGroup?.groupId == group.groupId,
-              onTap: () => _openGroup(group),
+          for (final (i, group) in sortedGroups.indexed)
+            LiquidRowIndex(
+              index: groupPending + i,
+              child: GroupTile(
+                currentUserId: widget.currentUser.userId,
+                group: group,
+                pinned: prefsById[group.groupId]?.pinned ?? false,
+                muted: prefsById[group.groupId]?.notificationsMuted ?? false,
+                unreadCount: prefsById[group.groupId]?.unreadCount ?? 0,
+                selected: _isSplit && _selectedGroup?.groupId == group.groupId,
+                onTap: () => _openGroup(group),
+              ),
             ),
         ],
       ),
     );
+    // 囲みでない時は、選択色を、並びの動き（液体・描き・滑り）で移す（2026-11-27）。
+    return ringFit
+        ? groupList
+        : LiquidTileGroup(
+            itemCount: groupPending + sortedGroups.length,
+            selectedIndex: groupSelected < 0
+                ? null
+                : groupPending + groupSelected,
+            ringRadius: kRingListOutlineRadius,
+            child: groupList,
+          );
   }
 
   /// 一対/広場切り替えタブの真下に置く検索欄（2026-08-30追加）。
@@ -5997,7 +6036,11 @@ class _SwipeToOpenRoomPreviewState
 
   /// 設定「寄合一覧の横スワイプ」がタブの切り替えか（2026-11-08）。この間は左右どちらの
   /// スワイプも隣のタブへの切り替えにし、メッセージ画面はスワイプでは開かない。
+  ///
+  /// コンピューターでは、設定に関わらず常にタブの切り替えにする。スワイプで意図せずメッセージ画面が
+  /// 全画面で開くのを避ける（2026-11-27、ユーザー指示）。
   bool get _switchTabMode =>
+      classifyDevice(context) == DeviceClass.computer ||
       ref.read(roomListSwipeActionProvider) == RoomListSwipeAction.switchTab;
 
   /// このドラッグを、メニューチップの隣のタブへの切り替えとして使っている（2026-11-03）。

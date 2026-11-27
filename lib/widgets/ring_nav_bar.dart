@@ -64,10 +64,13 @@ class RingNavBar extends ConsumerWidget {
           border: Border.all(color: GekigaColors.onPanel, width: 3),
         ),
       ),
+      // フラット: ガラスと同じく、アクセントカラーの線で帯を囲む（2026-11-27）。塗りだけだと、
+      // 背景とほとんど同じ色で、帯の範囲が見えなかった。
       _ => DecoratedBox(
         decoration: BoxDecoration(
-          color: scheme.surfaceContainerHigh,
+          color: scheme.surface,
           borderRadius: radius,
+          border: Border.all(color: scheme.primary),
         ),
       ),
     };

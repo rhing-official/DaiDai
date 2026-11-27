@@ -272,9 +272,18 @@ class AppTheme {
       inputDecorationTheme: InputDecorationTheme(
         filled: true,
         fillColor: cardColor,
+        // ガラスと同じく、アクセントカラーの線で囲む（2026-11-27）。選択中（フォーカス中）は太くする。
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(16),
-          borderSide: BorderSide.none,
+          borderSide: BorderSide(color: accentColor),
+        ),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(16),
+          borderSide: BorderSide(color: accentColor),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(16),
+          borderSide: BorderSide(color: accentColor, width: 2),
         ),
       ),
       // テキスト入力欄の選択ハイライト色。未指定だとMaterial既定の

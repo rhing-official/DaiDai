@@ -1047,6 +1047,11 @@ class _FolderTile extends ConsumerWidget {
         ListTile(
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(12),
+            // ガラスと同じく、アクセントカラーの線で囲む（2026-11-27）。囲みの大きな箱の中は、
+            // 箱が線を描くので、項目は描かない。
+            side: RingListScope.styleOf(context) == null
+                ? BorderSide(color: colorScheme.primary)
+                : BorderSide.none,
           ),
           tileColor: colorScheme.surface,
           selectedTileColor: colorScheme.primary,
@@ -5259,7 +5264,10 @@ class NavChipLayoutFolder extends ConsumerWidget {
                         )
                       : Material(
                           color: colorScheme.surface,
-                          borderRadius: BorderRadius.circular(12),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            side: BorderSide(color: colorScheme.primary),
+                          ),
                           clipBehavior: Clip.antiAlias,
                           child: box,
                         ),

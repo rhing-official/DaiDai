@@ -47,6 +47,12 @@ class InteractiveSwipeBackController {
   /// 戻る為に使う。
   final bool Function()? consumeBack;
 
+  /// メッセージ吹き出し上のドラッグを、この中継先へ流してよいか（2026-11-27）。nullなら常に
+  /// 流す。語らいの全画面表示から一覧へ戻す中継では、全画面になっていない間は流さない。
+  /// 流すと、全画面でない状態の吹き出しをドラッグしただけで、意図せず全画面になる。
+  /// ドラッグ中（[isGestureActive]）は、この値に関わらず流し続ける。
+  bool Function()? relayEnabled;
+
   /// ドラッグ中、`Navigator.didStartUserGesture`／`didStopUserGesture`で
   /// Navigatorへ通知するか（2026-10-07追加）。Flutterの`ModalRoute`は通知中
   /// 全ルートを`IgnorePointer`にする為、終了が呼ばれないとアプリ全体が

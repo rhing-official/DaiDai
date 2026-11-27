@@ -159,10 +159,14 @@ Widget ringBlockBackground(BuildContext context, AppUiStyle style) {
       // 劇画: 一覧全体を、1つの大きな箱（黒い塗りに、白い外枠・黒い中枠）で包む。
       return CustomPaint(painter: const _GekigaBlockPainter(inverted: false));
     case AppUiStyle.flat:
+      // ガラスと同じく、アクセントカラーの線で囲む（2026-11-27）。塗りだけだと、背景とほとんど
+      // 同じ色で、ブロックの範囲が見えなかった。
       return DecoratedBox(
         decoration: BoxDecoration(
-          color: scheme.surfaceContainerHigh,
+          // 塗りは背景と同じ色（灰色にしない、2026-11-27）。範囲は線で見える。
+          color: scheme.surface,
           borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: scheme.primary),
         ),
       );
   }
