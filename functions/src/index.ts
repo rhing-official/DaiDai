@@ -154,6 +154,7 @@ import { checkRequest, checkRespond, ISSUED_QR_TTL_MS } from "./qrLoginIssued";
 import { parseAllowedUrl, resolveReferer, resolveUserAgent } from "./urlFetchRelay";
 import { resolveMentionRecipients } from "./mentions";
 import { excludeBlockers } from "./block";
+import { type FcmTokenEntry, mergeFcmTokenEntries } from "./fcmTokens";
 import {
   SCHEDULED_BATCH_LIMIT,
   isFailedScheduledExpired,
@@ -4421,7 +4422,6 @@ export const broadcastAnnouncement = onCall(
 // Windows/Linuxはfirebase_messagingが非対応のため対象外、CLAUDE.md・
 // ユーザーとの相談で確定）。
 
-type FcmTokenEntry = { token: string; platform: string };
 
 /**
  * 住人[userId]のFCMトークン一覧を返す（2026-11-07）。保存先は`users/{uid}/private/fcm`
@@ -4435,16 +4435,7 @@ async function loadFcmTokens(
   legacy?: unknown
 ): Promise<FcmTokenEntry[]> {
   const snap = await db.doc(`users/${userId}/private/fcm`).get();
-  const merged = new Map<string, FcmTokenEntry>();
-  for (const list of [legacy, snap.data()?.tokens]) {
-    if (!Array.isArray(list)) continue;
-    for (const e of list) {
-      if (e && typeof e.token === "string" && typeof e.platform === "string") {
-        merged.set(e.token, { token: e.token, platform: e.platform });
-      }
-    }
-  }
-  return [...merged.values()];
+  return mergeFcmTokenEntries(legacy, snap.data()?.tokens);
 }
 
 /** [lib/models/app_user.dart]の`effectiveIconFor`/`effectiveNicknameFor`と

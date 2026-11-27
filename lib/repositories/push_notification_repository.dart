@@ -32,6 +32,15 @@ abstract class PushNotificationRepository {
 
   /// ログアウト時等に、この端末のトークンを[userId]から削除する。
   Future<void> unregisterCurrentToken(String userId);
+
+  /// この端末で、[userId]宛ての通知を止めているか（2026-11-27）。トークンが無い、
+  /// 対応外のプラットフォーム、取得できない場合は`false`（止めていない）。
+  Future<bool> isCurrentDeviceMuted(String userId);
+
+  /// この端末で、[userId]宛ての通知を止める・止めない。サーバーが、止めているトークンへは
+  /// 送らない。トークンが無い時に止める場合は、止めた状態のトークンを作る（後で許可を
+  /// 取って登録し直しても、止めたまま）。対応外のプラットフォームでは何もしない。
+  Future<void> setCurrentDeviceMuted(String userId, bool muted);
 }
 
 class FirebaseMessagingPushNotificationRepository
@@ -140,17 +149,94 @@ class FirebaseMessagingPushNotificationRepository
     });
   }
 
+  /// このドキュメントの`tokens`を読み、[change]で書き換えて保存する。[change]が`null`を
+  /// 返したら書かない。
+  Future<void> _updateTokens(
+    String userId,
+    List<Map<String, dynamic>>? Function(List<Map<String, dynamic>> current)
+    change,
+  ) {
+    final doc = _tokenDoc(userId);
+    return _firestore.runTransaction((transaction) async {
+      final snap = await transaction.get(doc);
+      final current = <Map<String, dynamic>>[
+        for (final e in (snap.data()?['tokens'] as List?) ?? const [])
+          if (e is Map) Map<String, dynamic>.from(e),
+      ];
+      final next = change(current);
+      if (next == null) return;
+      final kept = next.length > _maxTokens
+          ? next.sublist(next.length - _maxTokens)
+          : next;
+      transaction.set(doc, {'tokens': kept});
+    });
+  }
+
+  Future<String?> _currentToken() =>
+      _messaging.getToken(vapidKey: kIsWeb ? _webPushVapidKey : null);
+
   @override
   Future<void> unregisterCurrentToken(String userId) async {
     if (!_supportedPlatform) return;
-    final token = await _messaging.getToken(
-      vapidKey: kIsWeb ? _webPushVapidKey : null,
-    );
+    final token = await _currentToken();
     if (token == null) return;
-    await _tokenDoc(userId).set({
-      'tokens': FieldValue.arrayRemove([
-        FcmTokenEntry(token: token, platform: _platformName).toJson(),
-      ]),
-    }, SetOptions(merge: true));
+    // 止めている印（`muted`）が付いた登録は、`arrayRemove`の完全一致では消せない為、
+    // トークンの文字列で外す（2026-11-27）。
+    await _updateTokens(userId, (current) {
+      final next = [
+        for (final e in current)
+          if (e['token'] != token) e,
+      ];
+      return next.length == current.length ? null : next;
+    });
+  }
+
+  @override
+  Future<bool> isCurrentDeviceMuted(String userId) async {
+    if (!_supportedPlatform) return false;
+    try {
+      final token = await _currentToken();
+      if (token == null) return false;
+      final snap = await _tokenDoc(userId).get();
+      for (final e in (snap.data()?['tokens'] as List?) ?? const []) {
+        if (e is Map && e['token'] == token) return e['muted'] == true;
+      }
+      return false;
+    } catch (e) {
+      if (kDebugMode) debugPrint('[DIAG-PUSH] isCurrentDeviceMuted failed: $e');
+      return false;
+    }
+  }
+
+  @override
+  Future<void> setCurrentDeviceMuted(String userId, bool muted) async {
+    if (!_supportedPlatform) return;
+    final token = await _currentToken();
+    if (token == null) return;
+    await _updateTokens(userId, (current) {
+      final index = current.indexWhere((e) => e['token'] == token);
+      if (index < 0) {
+        // 登録が無い時に止めないなら、作らない。止めるなら、止めた状態で作る。
+        if (!muted) return null;
+        return [
+          ...current,
+          FcmTokenEntry(
+            token: token,
+            platform: _platformName,
+            muted: true,
+          ).toJson(),
+        ];
+      }
+      if ((current[index]['muted'] == true) == muted) return null;
+      final next = [...current];
+      final entry = Map<String, dynamic>.from(next[index]);
+      if (muted) {
+        entry['muted'] = true;
+      } else {
+        entry.remove('muted');
+      }
+      next[index] = entry;
+      return next;
+    });
   }
 }

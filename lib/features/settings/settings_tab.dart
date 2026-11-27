@@ -11,6 +11,7 @@ import 'package:firebase_auth/firebase_auth.dart'
 import 'package:flutter/foundation.dart'
     show
         kIsWeb,
+        kDebugMode,
         defaultTargetPlatform,
         LicenseEntry,
         LicenseParagraph,
@@ -6283,6 +6284,70 @@ class _NotificationsPage extends ConsumerWidget {
         .setPushNotificationsEnabled(currentUser.userId, value);
   }
 
+  /// 「この端末で、このアカウントの通知を受け取る」（2026-11-27）。サーバー側の印（トークンの
+  /// `muted`）を書き、切り替え一覧の印の為に、保存済みアカウントへも写す。
+  Future<void> _setDeviceReceiving(WidgetRef ref, bool receiving) async {
+    final userId = currentUser.userId;
+    try {
+      await ref
+          .read(pushNotificationRepositoryProvider)
+          .setCurrentDeviceMuted(userId, !receiving);
+      await ref
+          .read(accountSwitcherProvider)
+          .setNotificationsMuted(userId, !receiving);
+    } on Object catch (e) {
+      if (kDebugMode) {
+        debugPrint('[DIAG-PUSH] setCurrentDeviceMuted failed: $e');
+      }
+    } finally {
+      ref.invalidate(currentDeviceMutedProvider(userId));
+      ref.invalidate(savedAccountsProvider);
+    }
+  }
+
+  Widget _buildDeviceReceivingTile(
+    BuildContext context,
+    WidgetRef ref,
+    bool isGekiga,
+  ) {
+    final muted =
+        ref.watch(currentDeviceMutedProvider(currentUser.userId)).value ??
+        false;
+    final receiving = !muted;
+    final title = Text(strings.settingsNotificationsDeviceTitle);
+    final subtitle = Text(strings.settingsNotificationsDeviceSubtitle);
+    void set(bool value) => _setDeviceReceiving(ref, value);
+    if (isGekiga) {
+      return Padding(
+        padding: const EdgeInsets.only(top: 8),
+        child: GekigaJointedTileList(
+          seeds: const [1],
+          selectedFlags: const [false],
+          children: [
+            GekigaTileContent(
+              selected: false,
+              title: title,
+              subtitle: subtitle,
+              trailing: AppSwitch(
+                value: receiving,
+                onChanged: set,
+                onDarkSurface: true,
+              ),
+              onTap: () => set(!receiving),
+            ),
+          ],
+        ),
+      );
+    }
+    return AppSwitchListTile(
+      contentPadding: EdgeInsets.zero,
+      value: receiving,
+      title: title,
+      subtitle: subtitle,
+      onChanged: set,
+    );
+  }
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final liveUser = ref.watch(watchedUserProvider(currentUser.userId));
@@ -6325,6 +6390,10 @@ class _NotificationsPage extends ConsumerWidget {
             subtitle: subtitle,
             onChanged: setEnabled,
           ),
+        // この端末で、このアカウント宛ての通知を受け取るか（端末ごと、2026-11-27）。通知に
+        // 対応するのはWeb・Androidだけ（上のトグルと同じ）。
+        if (kIsWeb || defaultTargetPlatform == TargetPlatform.android)
+          _buildDeviceReceivingTile(context, ref, isGekiga),
         const Divider(height: 24),
         // 通話画面を出た後のミニ表示と、アプリを離れた時のPiP（端末ごと、2026-11-18）。
         _SectionHeader(strings.settingsSubCallDisplay),

@@ -308,10 +308,30 @@ class _PushNotificationBootstrapState
         .requestPermissionAndRegister(widget.currentUserId);
   }
 
+  Future<void> _carryOverMuted() async {
+    try {
+      final muted = await ref
+          .read(accountSwitcherProvider)
+          .isNotificationsMuted(widget.currentUserId);
+      if (!muted || !mounted) return;
+      await ref
+          .read(pushNotificationRepositoryProvider)
+          .setCurrentDeviceMuted(widget.currentUserId, true);
+    } on Object catch (e) {
+      if (kDebugMode) debugPrint('[DIAG-PUSH] carry over muted failed: $e');
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     // トークン更新の追従（購読を開始するだけで良く、値自体は使わない）。
-    ref.listen(_fcmTokenRefreshProvider(widget.currentUserId), (_, _) {});
+    // トークンが新しくなったら、この端末で通知を止めている印（`muted`）を新しいトークンへ
+    // 引き継ぐ（2026-11-27）。印は端末のトークンに付くので、そのままだと止めていたのに
+    // 再び届いてしまう。写し（保存したアカウント）が止めている時だけ付け直す。
+    ref.listen(_fcmTokenRefreshProvider(widget.currentUserId), (_, next) {
+      if (next.asData?.value == null) return;
+      _carryOverMuted();
+    });
     // フォアグラウンド受信時はOSが自動表示しない為、Android向けに
     // 自前でローカル通知を出す（Webはshow側でno-op、push_notifications.dart参照）。
     ref.listen(_fcmForegroundMessageProvider, (previous, next) {

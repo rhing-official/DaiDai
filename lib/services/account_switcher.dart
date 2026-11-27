@@ -108,6 +108,24 @@ class AccountSwitcher {
     return true;
   }
 
+  /// 保存済みの[uid]のアカウントについて、この端末で通知を止めているかを写す（2026-11-27）。
+  /// 切り替え一覧の印の為。保存が無い・変わっていなければ`false`。
+  Future<bool> setNotificationsMuted(String uid, bool muted) async {
+    final saved = await store.load();
+    final index = saved.indexWhere((a) => a.uid == uid);
+    if (index < 0) return false;
+    final old = saved[index];
+    if (old.notificationsMuted == muted) return false;
+    await store.save(old.withNotificationsMuted(muted));
+    return true;
+  }
+
+  /// [uid]の、この端末で通知を止めているかの写し。保存が無ければ`false`。
+  Future<bool> isNotificationsMuted(String uid) async {
+    final saved = await store.load();
+    return saved.any((a) => a.uid == uid && a.notificationsMuted);
+  }
+
   static bool _sameFocal(ImageFocal? a, ImageFocal? b) =>
       (a?.dx ?? 0) == (b?.dx ?? 0) &&
       (a?.dy ?? 0) == (b?.dy ?? 0) &&

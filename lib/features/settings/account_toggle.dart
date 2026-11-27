@@ -218,12 +218,18 @@ class _AccountToggleState extends ConsumerState<AccountToggle> {
       for (final a in saved)
         if (a.uid != current.userId) a,
     ];
+    // この端末で通知を止めているアカウントの印（2026-11-27）。保存した写しから出す。
+    final mutedUids = {
+      for (final a in saved)
+        if (a.notificationsMuted) a.uid,
+    };
     final segments = <_Segment>[
       _Segment(
         uid: current.userId,
         rhingSeed: current.rhingSeed,
         iconUrl: current.effectiveIcon?.url,
         iconFocal: current.effectiveIconFocalFor(null),
+        notificationsMuted: mutedUids.contains(current.userId),
         selected: true,
         onLongPress: others.isEmpty
             ? null
@@ -235,6 +241,7 @@ class _AccountToggleState extends ConsumerState<AccountToggle> {
           rhingSeed: a.rhingSeed,
           iconUrl: a.iconUrl,
           iconFocal: a.iconFocal,
+          notificationsMuted: a.notificationsMuted,
           onTap: () => _switch(a),
           onLongPress: () => _confirmRemove(a),
         ),
@@ -327,6 +334,7 @@ class _Segment {
     required this.rhingSeed,
     this.iconUrl,
     this.iconFocal,
+    this.notificationsMuted = false,
     this.selected = false,
     this.onTap,
     this.onLongPress,
@@ -337,6 +345,7 @@ class _Segment {
       rhingSeed = '',
       iconUrl = null,
       iconFocal = null,
+      notificationsMuted = false,
       selected = false,
       onLongPress = null,
       addLabel = label;
@@ -345,6 +354,9 @@ class _Segment {
   final String rhingSeed;
   final String? iconUrl;
   final ImageFocal? iconFocal;
+
+  /// この端末では、このアカウント宛ての通知を止めている（アイコンに印を重ねる）。
+  final bool notificationsMuted;
   final bool selected;
   final VoidCallback? onTap;
   final VoidCallback? onLongPress;
@@ -365,6 +377,47 @@ class _SegmentTile extends ConsumerWidget {
   final _Segment segment;
   final bool switching;
   final bool disabled;
+
+  /// 通知を止めているアカウントは、アイコンの右下に、取り消し線の付いた鈴を重ねる。
+  /// 色は区画の文字色（アクセントカラーにしない）、下地は区画に合わせた面の色。
+  Widget _withMutedBadge(Widget avatar, Color foreground, WidgetRef ref) {
+    if (!segment.notificationsMuted) return avatar;
+    final strings = ref.watch(appStringsProvider);
+    return Stack(
+      clipBehavior: Clip.none,
+      children: [
+        avatar,
+        Positioned(
+          right: -4,
+          bottom: -4,
+          child: Tooltip(
+            message: strings.switchAccountsNotificationsOffLabel,
+            child: Semantics(
+              label: strings.switchAccountsNotificationsOffLabel,
+              child: DecoratedBox(
+                decoration: BoxDecoration(
+                  color: foreground == Colors.white
+                      ? Colors.black
+                      : Colors.white,
+                  shape: BoxShape.circle,
+                ),
+                child: Padding(
+                  padding: const EdgeInsets.all(2),
+                  child: Icon(
+                    Icons.notifications_off,
+                    size: 14,
+                    color: foreground == Colors.white
+                        ? Colors.white
+                        : Colors.black87,
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -414,12 +467,16 @@ class _SegmentTile extends ConsumerWidget {
                       color: foreground,
                     ),
                   )
-                : AccountAvatar(
-                    uid: segment.uid,
-                    rhingSeed: segment.rhingSeed,
-                    iconUrl: segment.iconUrl,
-                    iconFocal: segment.iconFocal,
-                    size: 40,
+                : _withMutedBadge(
+                    AccountAvatar(
+                      uid: segment.uid,
+                      rhingSeed: segment.rhingSeed,
+                      iconUrl: segment.iconUrl,
+                      iconFocal: segment.iconFocal,
+                      size: 40,
+                    ),
+                    foreground,
+                    ref,
                   ),
           );
     final label = Text(

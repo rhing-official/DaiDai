@@ -17,6 +17,7 @@ import 'package:flutter/foundation.dart'
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import '../../theme/block/block_theme.dart';
+import '../../theme/chalk/chalk_paint.dart';
 import '../../theme/chalk/chalk_theme.dart';
 import '../../theme/kinari/kinari_theme.dart';
 import '../../widgets/kinari_surface.dart';
@@ -2036,14 +2037,9 @@ class _TalksTabState extends ConsumerState<TalksTab>
                                             ? 0
                                             : 1,
                                         child: () {
-                                          // 囲みの時は、2つのタブを同じ幅にする（広場の方が
-                                          // 長く、枠の大きさが違って見えた、2026-11-26）。
-                                          final equal = ref.watch(
-                                            navBandMergedProvider,
-                                          );
-                                          Widget fit(Widget tab) => equal
-                                              ? Expanded(child: tab)
-                                              : tab;
+                                          // 2つのタブの幅は、囲みの時も、各テキストの長さに合わせる
+                                          // （2026-11-27、ユーザー指示。以前は囲みの時だけ同じ幅）。
+                                          Widget fit(Widget tab) => tab;
                                           final row = Row(
                                             mainAxisSize: MainAxisSize.min,
                                             children: [
@@ -2082,9 +2078,7 @@ class _TalksTabState extends ConsumerState<TalksTab>
                                               ),
                                             ],
                                           );
-                                          return equal
-                                              ? IntrinsicWidth(child: row)
-                                              : row;
+                                          return row;
                                         }(),
                                       ),
                                     ),
@@ -5012,7 +5006,7 @@ class _GroupIconTile extends ConsumerWidget {
 /// バッジ、2026-09-11追加）。UIスタイル（劇画/ガラス/フラット）毎の
 /// 専用デザインは持たず、`Theme.of(context).colorScheme`（3スタイルとも
 /// テーマ側で調整済み）にそのまま追従する簡易実装。
-class _ConversationIconTile extends StatelessWidget {
+class _ConversationIconTile extends ConsumerWidget {
   const _ConversationIconTile({
     required this.conversationId,
     required this.userId,
@@ -5044,8 +5038,16 @@ class _ConversationIconTile extends StatelessWidget {
   final VoidCallback onTap;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final colorScheme = Theme.of(context).colorScheme;
+    final uiStyle = ref.watch(appUiStyleProvider);
+    // 選択中の面に載る文字・アイコンの色（劇画は白黒反転、チョーク・生成りは選択中がアクセントの面）。
+    final labelColor = switch (uiStyle) {
+      AppUiStyle.gekiga => selected ? GekigaColors.panel : GekigaColors.onPanel,
+      AppUiStyle.chalk || AppUiStyle.kinari =>
+        selected ? colorScheme.onPrimary : colorScheme.onSurface,
+      _ => colorScheme.onSurface,
+    };
     final tile = InkWell(
       borderRadius: BorderRadius.circular(12),
       onTap: onTap,
@@ -5079,7 +5081,16 @@ class _ConversationIconTile extends StatelessWidget {
                       width: 40.0 * avatarScale,
                       height: 40.0 * avatarScale,
                       child: FittedBox(
-                        child: SizedBox(width: 40, height: 40, child: avatar),
+                        child: SizedBox(
+                          width: 40,
+                          height: 40,
+                          child: _railAvatarFrame(
+                            context,
+                            uiStyle,
+                            selected: selected,
+                            child: avatar,
+                          ),
+                        ),
                       ),
                     );
                   },
@@ -5094,16 +5105,19 @@ class _ConversationIconTile extends StatelessWidget {
                       builder: (context) {
                         final pinScale =
                             (IconTheme.of(context).size ?? 24.0) / 24.0;
-                        return Container(
+                        return _railMark(
+                          context,
+                          uiStyle,
+                          fill: uiStyle == AppUiStyle.gekiga
+                              ? GekigaColors.panel
+                              : colorScheme.surface,
                           padding: EdgeInsets.all(2 * pinScale),
-                          decoration: BoxDecoration(
-                            color: colorScheme.surface,
-                            shape: BoxShape.circle,
-                          ),
                           child: Icon(
                             Icons.push_pin,
                             size: 12 * pinScale,
-                            color: colorScheme.onSurface,
+                            color: uiStyle == AppUiStyle.gekiga
+                                ? GekigaColors.onPanel
+                                : colorScheme.onSurface,
                           ),
                         );
                       },
@@ -5120,21 +5134,49 @@ class _ConversationIconTile extends StatelessWidget {
                       );
                       if (presence == null) return const SizedBox.shrink();
                       // 白い丸に黒いアイコン（他の通話中の標と同じ、2026-11-18）。
-                      return Container(
-                        padding: const EdgeInsets.all(3),
-                        decoration: BoxDecoration(
-                          color: Colors.white,
-                          shape: BoxShape.circle,
-                          border: Border.all(
-                            color: Colors.black.withValues(alpha: 0.3),
+                      final callMarkIcon = presence.isVideo
+                          ? Icons.videocam
+                          : Icons.call;
+                      return switch (uiStyle) {
+                        // 劇画は白黒、チョーク・生成りは各デザインの丸。他は白い丸に黒いアイコン。
+                        AppUiStyle.gekiga => _railMark(
+                          context,
+                          uiStyle,
+                          fill: GekigaColors.onPanel,
+                          padding: const EdgeInsets.all(3),
+                          child: Icon(
+                            callMarkIcon,
+                            size: 12,
+                            color: GekigaColors.panel,
                           ),
                         ),
-                        child: Icon(
-                          presence.isVideo ? Icons.videocam : Icons.call,
-                          size: 12,
-                          color: Colors.black,
+                        AppUiStyle.chalk || AppUiStyle.kinari => _railMark(
+                          context,
+                          uiStyle,
+                          fill: colorScheme.surface,
+                          padding: const EdgeInsets.all(3),
+                          child: Icon(
+                            callMarkIcon,
+                            size: 12,
+                            color: colorScheme.onSurface,
+                          ),
                         ),
-                      );
+                        _ => Container(
+                          padding: const EdgeInsets.all(3),
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            shape: BoxShape.circle,
+                            border: Border.all(
+                              color: Colors.black.withValues(alpha: 0.3),
+                            ),
+                          ),
+                          child: Icon(
+                            callMarkIcon,
+                            size: 12,
+                            color: Colors.black,
+                          ),
+                        ),
+                      };
                     },
                   ),
                 ),
@@ -5142,31 +5184,45 @@ class _ConversationIconTile extends StatelessWidget {
                   Positioned(
                     right: -4,
                     top: -4,
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 5,
-                        vertical: 1,
-                      ),
+                    child: ConstrainedBox(
                       constraints: const BoxConstraints(
                         minWidth: 16,
                         minHeight: 16,
                       ),
-                      decoration: BoxDecoration(
-                        // CLAUDE.mdの配色方針に合わせ、`colorScheme.error`
-                        // ではなく実際にコントラストが確保出来る固定の濃い赤
-                        // を使う。
-                        color: Colors.red.shade700,
-                        borderRadius: BorderRadius.circular(10),
-                      ),
-                      child: Text(
-                        attention
-                            ? '!'
-                            : (unreadCount > 99 ? '99+' : '$unreadCount'),
-                        textAlign: TextAlign.center,
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 10,
-                          height: 1.2,
+                      child: _railMark(
+                        context,
+                        uiStyle,
+                        // CLAUDE.mdの配色方針に合わせ、`colorScheme.error`ではなく実際に
+                        // コントラストが確保出来る固定の濃い赤を使う。劇画は白黒、生成りは
+                        // アクセントのへこんだ札。
+                        fill: switch (uiStyle) {
+                          AppUiStyle.gekiga => GekigaColors.panel,
+                          AppUiStyle.kinari => colorScheme.primary,
+                          _ => Colors.red.shade700,
+                        },
+                        kinariDepth: 2.2,
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 5,
+                          vertical: 1,
+                        ),
+                        child: Center(
+                          widthFactor: 1,
+                          heightFactor: 1,
+                          child: Text(
+                            attention
+                                ? '!'
+                                : (unreadCount > 99 ? '99+' : '$unreadCount'),
+                            textAlign: TextAlign.center,
+                            style: TextStyle(
+                              color: switch (uiStyle) {
+                                AppUiStyle.gekiga => GekigaColors.onPanel,
+                                AppUiStyle.kinari => colorScheme.onPrimary,
+                                _ => Colors.white,
+                              },
+                              fontSize: 10,
+                              height: 1.2,
+                            ),
+                          ),
                         ),
                       ),
                     ),
@@ -5183,7 +5239,7 @@ class _ConversationIconTile extends StatelessWidget {
                 // 幅が狭いので控えめ、横に出す時は余裕があるので大きめ。
                 fontSize: sideLabel ? 14 : 12,
                 fontWeight: selected ? FontWeight.bold : FontWeight.normal,
-                color: colorScheme.onSurface,
+                color: labelColor,
               ),
             );
             if (iconOnly) return Center(child: avatarStack);
@@ -5204,8 +5260,74 @@ class _ConversationIconTile extends StatelessWidget {
         ),
       ),
     );
+    final faceContent = (tile.child! as Container).child!;
     // 版画は、太枠と硬い影の箱（選択中はアクセントの縁取りではなく塗り）。
-    final shown = isBlockTheme(context)
+    final shown = uiStyle == AppUiStyle.kinari
+        // 生成り: 通常はへこんだ面、選択中はアクセントのへこんだ面（横長の行と同じ）。
+        ? Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+            child: KinariTileFrame(
+              selected: selected,
+              child: InkWell(
+                borderRadius: BorderRadius.circular(12),
+                onTap: onTap,
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(
+                    vertical: 8,
+                    horizontal: 4,
+                  ),
+                  child: faceContent,
+                ),
+              ),
+            ),
+          )
+        : uiStyle == AppUiStyle.gekiga
+        // 劇画: 白黒の箱。選択中は黒白反転。
+        ? Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+            child: GekigaJointedTileList(
+              seeds: [conversationId.hashCode],
+              selectedFlags: [selected],
+              children: [
+                InkWell(
+                  onTap: onTap,
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(
+                      vertical: 8,
+                      horizontal: 4,
+                    ),
+                    child: faceContent,
+                  ),
+                ),
+              ],
+            ),
+          )
+        : uiStyle == AppUiStyle.glass
+        // ガラス: すりガラスの面。選択中はアクセントの半透明（横長の行と同じ）。
+        ? Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+            child: GlassSurface(
+              variant: GlassVariant.card,
+              borderRadius: BorderRadius.circular(12),
+              accentColorOverride: selected ? colorScheme.primary : null,
+              child: Material(
+                color: selected
+                    ? colorScheme.primary.withValues(alpha: 0.45)
+                    : Colors.transparent,
+                child: InkWell(
+                  onTap: onTap,
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(
+                      vertical: 8,
+                      horizontal: 4,
+                    ),
+                    child: faceContent,
+                  ),
+                ),
+              ),
+            ),
+          )
+        : isBlockTheme(context)
         ? Padding(
             padding: const EdgeInsets.fromLTRB(4, 2, 8, 6),
             child: blockMaterialBox(
@@ -5222,7 +5344,7 @@ class _ConversationIconTile extends StatelessWidget {
                     vertical: 8,
                     horizontal: 4,
                   ),
-                  child: (tile.child! as Container).child,
+                  child: faceContent,
                 ),
               ),
             ),
@@ -7618,4 +7740,116 @@ class _LeftSlotClipper extends CustomClipper<Rect> {
 
   @override
   bool shouldReclip(covariant _LeftSlotClipper old) => old.width != width;
+}
+
+/// アイコン列の会話アイコンの枠（2026-11-27）。劇画は白黒の輪、チョークはチョークの輪、生成りは
+/// へこんだ輪。他のスタイルは、アバターそのまま（版画・ガラスは、アバター自身が枠を持つ）。
+Widget _railAvatarFrame(
+  BuildContext context,
+  AppUiStyle style, {
+  required bool selected,
+  required Widget child,
+}) {
+  final scheme = Theme.of(context).colorScheme;
+  Widget inner() => Padding(
+    padding: const EdgeInsets.all(4),
+    child: FittedBox(child: SizedBox(width: 40, height: 40, child: child)),
+  );
+  switch (style) {
+    case AppUiStyle.gekiga:
+      return DecoratedBox(
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          border: Border.all(
+            color: selected ? GekigaColors.panel : GekigaColors.onPanel,
+            width: 2.5,
+          ),
+        ),
+        child: inner(),
+      );
+    case AppUiStyle.chalk:
+      return DecoratedBox(
+        decoration: ShapeDecoration(
+          shape: ChalkShapeBorder(
+            borderRadius: BorderRadius.circular(20),
+            color: selected ? scheme.onPrimary : scheme.onSurface,
+          ),
+        ),
+        child: inner(),
+      );
+    case AppUiStyle.kinari:
+      return KinariInset(color: scheme.surface, radius: 20, child: inner());
+    case AppUiStyle.flat:
+    case AppUiStyle.glass:
+    case AppUiStyle.block:
+      return child;
+  }
+}
+
+/// アイコン列の小さな札・丸（未読の札・ピン・通話の印、2026-11-27）。[fill]は面の色。劇画は
+/// 白黒の枠、チョークはチョークの線、生成りはへこんだ面（[kinariDepth]で深さ）、版画は太い線。
+Widget _railMark(
+  BuildContext context,
+  AppUiStyle style, {
+  required Color fill,
+  required EdgeInsets padding,
+  required Widget child,
+  double kinariDepth = 1,
+}) {
+  final scheme = Theme.of(context).colorScheme;
+  final pill = BorderRadius.circular(999);
+  switch (style) {
+    case AppUiStyle.gekiga:
+      return Container(
+        padding: padding,
+        decoration: BoxDecoration(
+          color: fill,
+          borderRadius: pill,
+          border: Border.all(
+            color: fill == GekigaColors.panel
+                ? GekigaColors.onPanel
+                : GekigaColors.panel,
+            width: 1.5,
+          ),
+        ),
+        child: child,
+      );
+    case AppUiStyle.chalk:
+      return Container(
+        padding: padding,
+        decoration: ShapeDecoration(
+          color: fill,
+          shape: ChalkShapeBorder(borderRadius: pill, color: scheme.onSurface),
+        ),
+        child: child,
+      );
+    case AppUiStyle.kinari:
+      return KinariInset(
+        color: fill,
+        radius: 999,
+        depth: kinariDepth,
+        padding: padding,
+        child: child,
+      );
+    case AppUiStyle.block:
+      return Container(
+        padding: padding,
+        decoration: BoxDecoration(
+          color: fill,
+          borderRadius: pill,
+          border: Border.all(
+            color: BlockTheme.lineColor(Theme.of(context).brightness),
+            width: 1.5,
+          ),
+        ),
+        child: child,
+      );
+    case AppUiStyle.flat:
+    case AppUiStyle.glass:
+      return Container(
+        padding: padding,
+        decoration: BoxDecoration(color: fill, borderRadius: pill),
+        child: child,
+      );
+  }
 }

@@ -31,6 +31,9 @@ class Strings {
     required this.settingsNotificationsEnableTitle,
     required this.settingsNotificationsEnableSubtitle,
     required this.settingsNotificationsPermissionDeniedError,
+    required this.settingsNotificationsDeviceTitle,
+    required this.settingsNotificationsDeviceSubtitle,
+    required this.switchAccountsNotificationsOffLabel,
     required this.settingsFolderTalk,
     required this.settingsNavChipsTitle,
     required this.settingsNavChipsDescription,
@@ -1370,6 +1373,14 @@ class Strings {
   final String settingsNotificationsEnableTitle;
   final String settingsNotificationsEnableSubtitle;
   final String settingsNotificationsPermissionDeniedError;
+
+  /// 「この端末で、このアカウントの通知を受け取る」トグル（2026-11-27）。複数アカウントを
+  /// 保存した端末で、使っていないアカウント宛ての通知を止める為。
+  final String settingsNotificationsDeviceTitle;
+  final String settingsNotificationsDeviceSubtitle;
+
+  /// アカウントの切り替え一覧で、通知を止めているアカウントの印の説明。
+  final String switchAccountsNotificationsOffLabel;
   final String settingsFolderTalk;
   final String settingsNavChipsTitle;
   final String settingsNavChipsDescription;
@@ -3076,6 +3087,10 @@ class Strings {
         'アプリを閉じていても新着メッセージを通知します（対応: Web・Android）',
     settingsNotificationsPermissionDeniedError:
         '通知の許可が得られませんでした。ブラウザ/OSの設定をご確認ください。',
+    settingsNotificationsDeviceTitle: 'この端末で、このアカウントの通知を受け取る',
+    settingsNotificationsDeviceSubtitle:
+        '複数のアカウントを保存している端末で、使っていないアカウント宛ての通知を止めたい時に、オフにします。オフにすると、この端末には、このアカウント宛ての通知が全て届きません。メンションや絶縁の提案、お便り、通話の着信も届かなくなります。他の端末には影響しません。',
+    switchAccountsNotificationsOffLabel: 'この端末では、通知を止めています',
     settingsFolderTalk: '語らい',
     settingsNavChipsTitle: 'メニューチップ',
     settingsNavChipsDescription:
@@ -4509,6 +4524,12 @@ class Strings {
         'Get notified of new messages even while the app is closed (Web and Android only)',
     settingsNotificationsPermissionDeniedError:
         "Notification permission wasn't granted. Please check your browser/OS settings.",
+    settingsNotificationsDeviceTitle:
+        'Receive this account’s notifications on this device',
+    settingsNotificationsDeviceSubtitle:
+        'Turn this off on a device with several saved accounts if you don’t want notifications for an account you aren’t using. While it is off, this device receives no notifications for this account at all, including mentions, severance proposals, announcements and incoming calls. Your other devices are not affected.',
+    switchAccountsNotificationsOffLabel:
+        'Notifications are turned off on this device',
     settingsFolderTalk: 'Talk',
     settingsNavChipsTitle: 'Menu chips',
     settingsNavChipsDescription:

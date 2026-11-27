@@ -27,6 +27,12 @@ final Strings _stringsFr = Strings._(
       'Être averti des nouveaux messages même lorsque l’application est fermée (Web et Android uniquement)',
   settingsNotificationsPermissionDeniedError:
       'L’autorisation de notification n’a pas été accordée. Vérifiez les réglages de votre navigateur ou de votre système.',
+  settingsNotificationsDeviceTitle:
+      'Recevoir les notifications de ce compte sur cet appareil',
+  settingsNotificationsDeviceSubtitle:
+      'Désactivez cette option sur un appareil qui garde plusieurs comptes si vous ne voulez pas de notifications pour un compte que vous n’utilisez pas. Tant qu’elle est désactivée, cet appareil ne reçoit aucune notification pour ce compte, y compris les mentions, les propositions de rupture, les annonces et les appels entrants. Vos autres appareils ne sont pas concernés.',
+  switchAccountsNotificationsOffLabel:
+      'Les notifications sont désactivées sur cet appareil',
   settingsFolderTalk: 'Discussion',
   settingsNavChipsTitle: "Puces de menu",
   settingsNavChipsDescription:

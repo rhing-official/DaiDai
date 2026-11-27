@@ -174,6 +174,43 @@ void main() {
     expect(await switcher.refreshProfile(user), isFalse); // 変化なし
   });
 
+  test('通知を止めている印の写し: 保存済みにだけ書き、変わらなければ書かず、アイコンの更新で消えない', () async {
+    expect(await switcher.setNotificationsMuted('A', true), isFalse); // 未保存
+    expect(await switcher.isNotificationsMuted('A'), isFalse);
+    store.accounts.add(_saved('A'));
+    expect(await switcher.setNotificationsMuted('A', true), isTrue);
+    expect(await switcher.isNotificationsMuted('A'), isTrue);
+    expect(await switcher.setNotificationsMuted('A', true), isFalse); // 変化なし
+    // アイコンを写し直しても、止めている印は残る。
+    final user = AppUser(
+      userId: 'A',
+      rhingSeed: 'A',
+      icons: const [
+        ProfileMaterial(id: 'i1', url: 'https://x/i1', storagePath: 'p/i1'),
+      ],
+      activeIconId: 'i1',
+    );
+    expect(await switcher.refreshProfile(user), isTrue);
+    expect(await switcher.isNotificationsMuted('A'), isTrue);
+    expect(await switcher.setNotificationsMuted('A', false), isTrue);
+    expect(await switcher.isNotificationsMuted('A'), isFalse);
+  });
+
+  test('保存したアカウントのJSON: 通知を止めている印の往復と、旧形式（印無し）は止めていない扱い', () {
+    final muted = _saved('A').withNotificationsMuted(true);
+    expect(
+      SavedAccount.tryFromJson(muted.toJson())!.notificationsMuted,
+      isTrue,
+    );
+    expect(muted.toJson().containsKey('notificationsMuted'), isTrue);
+    final plain = _saved('B');
+    expect(plain.toJson().containsKey('notificationsMuted'), isFalse);
+    expect(
+      SavedAccount.tryFromJson(plain.toJson())!.notificationsMuted,
+      isFalse,
+    );
+  });
+
   test('保存したアカウントのJSON: アイコンの往復と、旧形式（アイコン無し）の読み込み', () {
     final a = _saved('A').withIcon('u', const ImageFocal(dx: .5, scale: 2));
     final back = SavedAccount.tryFromJson(a.toJson())!;

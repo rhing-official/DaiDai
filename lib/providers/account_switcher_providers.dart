@@ -33,6 +33,15 @@ final savedAccountsProvider = FutureProvider.autoDispose<List<SavedAccount>>(
   (ref) => ref.watch(accountSwitcherProvider).accounts(),
 );
 
+/// この端末で、[userId]宛ての通知を止めているか（2026-11-27）。本物は、そのアカウントの
+/// `private/fcm`のこの端末のトークンの`muted`。変えた後は`ref.invalidate`で読み直す。
+final currentDeviceMutedProvider = FutureProvider.autoDispose
+    .family<bool, String>(
+      (ref, userId) => ref
+          .watch(pushNotificationRepositoryProvider)
+          .isCurrentDeviceMuted(userId),
+    );
+
 /// このセッション（起動してから）でアカウントの追加を始めたか（2026-11-14）。再起動・
 /// リロードで消える。保留（保存済み）があるのにこれが立っていなければ、追加の途中で
 /// アプリが終わったので、元のアカウントへ戻す。

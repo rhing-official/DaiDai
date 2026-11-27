@@ -11,6 +11,7 @@ class SavedAccount {
     required this.rhingSeed,
     this.iconUrl,
     this.iconFocal,
+    this.notificationsMuted = false,
   });
 
   final String uid;
@@ -26,6 +27,12 @@ class SavedAccount {
   final String? iconUrl;
   final ImageFocal? iconFocal;
 
+  /// この端末では、このアカウント宛ての通知を止めているか（2026-11-27）。切り替え一覧に
+  /// 印を出す為の写し。本物は、そのアカウントの`private/fcm`のこの端末のトークンの`muted`
+  /// （Cloud Functionsが見る）で、未ログインのアカウントは読めない為、そのアカウントを
+  /// 使っている間に端末へ写す。
+  final bool notificationsMuted;
+
   SavedAccount withIcon(String? url, ImageFocal? focal) => SavedAccount(
     uid: uid,
     sessionId: sessionId,
@@ -33,6 +40,17 @@ class SavedAccount {
     rhingSeed: rhingSeed,
     iconUrl: url,
     iconFocal: focal,
+    notificationsMuted: notificationsMuted,
+  );
+
+  SavedAccount withNotificationsMuted(bool muted) => SavedAccount(
+    uid: uid,
+    sessionId: sessionId,
+    secret: secret,
+    rhingSeed: rhingSeed,
+    iconUrl: iconUrl,
+    iconFocal: iconFocal,
+    notificationsMuted: muted,
   );
 
   Map<String, dynamic> toJson() => {
@@ -42,6 +60,7 @@ class SavedAccount {
     'rhingSeed': rhingSeed,
     if (iconUrl != null) 'iconUrl': iconUrl,
     if (iconFocal != null) 'iconFocal': iconFocal!.toJson(),
+    if (notificationsMuted) 'notificationsMuted': true,
   };
 
   static SavedAccount? tryFromJson(Object? json) {
@@ -60,6 +79,7 @@ class SavedAccount {
       rhingSeed: rhingSeed is String ? rhingSeed : '',
       iconUrl: json['iconUrl'] is String ? json['iconUrl'] as String : null,
       iconFocal: ImageFocal.fromJson(json['iconFocal']),
+      notificationsMuted: json['notificationsMuted'] == true,
     );
   }
 }
