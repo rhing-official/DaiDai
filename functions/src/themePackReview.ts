@@ -1,5 +1,5 @@
 /**
- * 素材パックの審査結果（承認・差し戻し・配信停止）の本体（2026-11-26）。Firebase の SDK に依存しない。
+ * 意匠の審査結果（承認・差し戻し・配信停止）の本体（2026-11-26）。Firebase の SDK に依存しない。
  * トリガー側（`index.ts`）は、`ReviewStore` の実装と、`ReviewError` から `HttpsError` への変換、
  * 管理者の確認、監査ログだけを持つ。自前化の時に、この本体だけを別サーバーへ移せるようにする。
  * 取得・取り下げ・アンインストールは、`themePackOwnership.ts`。
@@ -103,16 +103,16 @@ export interface ReviewStore {
 // ---------------------------------------------------------------------------
 
 export function approvedNoticeText(name: string): string {
-  return `意匠パック『${name}』が承認され、公開されました。`;
+  return `意匠『${name}』が承認され、公開されました。`;
 }
 export function rejectedNoticeText(name: string, reason: string): string {
-  return `意匠パック『${name}』は、差し戻されました。理由は次のとおりです。\n${reason}`;
+  return `意匠『${name}』は、差し戻されました。理由は次のとおりです。\n${reason}`;
 }
 export function suspendedCreatorNoticeText(name: string, reason: string): string {
-  return `意匠パック『${name}』の配信を停止しました。理由は次のとおりです。\n${reason}`;
+  return `意匠『${name}』の配信を停止しました。理由は次のとおりです。\n${reason}`;
 }
 export function suspendedOwnerNoticeText(name: string): string {
-  return `取得した意匠パック『${name}』の配信が停止されました。表示は標準に戻ります。`;
+  return `取得した意匠『${name}』の配信が停止されました。表示は標準に戻ります。`;
 }
 
 export function publicAssetPath(packId: string, version: number): string {
@@ -178,7 +178,7 @@ function assertApprovable(sub: ReviewSubmission, pub: PublicPack | null): void {
     throw new ReviewError("failed-precondition", "この投稿は、承認できる状態ではありません。");
   }
   if (pub?.status === "suspended") {
-    throw new ReviewError("failed-precondition", "このパックは配信を停止しています。新しい版は承認できません。");
+    throw new ReviewError("failed-precondition", "この意匠は配信を停止しています。新しい版は承認できません。");
   }
   if (pub && sub.version <= pub.version) {
     throw new ReviewError("failed-precondition", "公開中の版より新しくないため、承認できません。差し戻してください。");
@@ -210,7 +210,7 @@ export async function approveThemePack(store: ReviewStore, input: ApproveInput):
   for (const f of listed) files.set(f.name, await store.readFile(sub.assetPath, f.name));
   const checked = validateThemePackFiles(files);
   if (!checked.ok) {
-    throw new ReviewError("failed-precondition", `意匠パックの再検査に通りません。${checked.errors.join("")}`);
+    throw new ReviewError("failed-precondition", `意匠の再検査に通りません。${checked.errors.join("")}`);
   }
   if (`${sub.creatorId}__${checked.pack.id}` !== sub.packId) {
     throw new ReviewError("failed-precondition", "素材のidが、投稿の記録と一致しません。");
@@ -316,11 +316,11 @@ export async function suspendThemePack(store: ReviewStore, input: ApproveInput):
 
   const outcome = await store.runTransaction(async (tx) => {
     const pub = await tx.getPublicPack(packId);
-    if (!pub) throw new ReviewError("not-found", "公開中のパックが見つかりません。");
+    if (!pub) throw new ReviewError("not-found", "公開中の意匠が見つかりません。");
     if (pub.status === "suspended") return { pub, changed: false };
     // 取り下げ済み（withdrawn）でも、取得した人が使い続けている間は、権利侵害などで停止できる
     if (pub.status !== "approved" && pub.status !== "withdrawn") {
-      throw new ReviewError("failed-precondition", "このパックは、配信を停止できる状態ではありません。");
+      throw new ReviewError("failed-precondition", "この意匠は、配信を停止できる状態ではありません。");
     }
     const sub = await tx.findSubmission(packId, pub.version);
     tx.suspendPublicPack(packId);

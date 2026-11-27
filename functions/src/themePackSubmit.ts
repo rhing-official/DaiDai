@@ -1,5 +1,5 @@
 /**
- * 素材パックの提出（`submitThemePack`）の本体（2026-11-26）。Firebase の SDK に依存しない。
+ * 意匠の提出（`submitThemePack`）の本体（2026-11-26）。Firebase の SDK に依存しない。
  * トリガー側（`index.ts`）は、`SubmissionStore` の実装と、`SubmitError` から `HttpsError` への変換だけを持つ。
  * 自前化の時に、この本体だけを別サーバーへ移せるようにする（`CLAUDE.md` の方針）。
  */
@@ -183,7 +183,7 @@ async function inspectFiles(store: SubmissionStore, prefix: string) {
 
   const checked = validateThemePackFiles(files);
   if (!checked.ok) {
-    throw new SubmitError("invalid-argument", `意匠パックを受け付けられません。${checked.errors.join("")}`);
+    throw new SubmitError("invalid-argument", `意匠を受け付けられません。${checked.errors.join("")}`);
   }
   return checked;
 }

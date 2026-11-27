@@ -59,7 +59,7 @@ class StickerPack {
   final String creatorId;
   final String name;
 
-  /// 円単位の価格。0円（無料パック）を許容する。
+  /// 円単位の価格。0円（無料ぺったん）を許容する。
   final int price;
 
   final List<Sticker> stickers;

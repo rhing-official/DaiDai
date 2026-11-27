@@ -1,8 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../theme/kinari/kinari_theme.dart';
-import 'kinari_nav_bar.dart'
-    show paintKinariInset, paintKinariInsetShadows;
+import 'kinari_nav_bar.dart' show paintKinariInset, paintKinariInsetShadows;
 
 /// 生成りスタイルの部品に共通の、へこみ・浮き（2026-11-27）。メニューチップの帯と同じ作りで、
 /// 紙の面が、へこむ（内側の影と明かり）か、わずかに浮く（柔らかい影）。他のスタイルでは使わない。
@@ -45,6 +44,7 @@ class KinariInset extends StatelessWidget {
     this.radius = 16,
     this.padding = EdgeInsets.zero,
     this.depth = 1,
+    this.well,
     super.key,
   });
 
@@ -52,38 +52,61 @@ class KinariInset extends StatelessWidget {
   final double radius;
   final EdgeInsetsGeometry padding;
 
+  /// 指定すると、[color]の面（紙色）のへこみの中に、この色の面が、3px内側で、さらにへこんで嵌まる
+  /// （選択中のアクセント色。面の周りに、へこみの縁が残る）。
+  final Color? well;
+
   /// へこみの深さ（既定1。濃い色の面は、影が目立たない為、大きくする）。
   final double depth;
   final Widget child;
 
   @override
   Widget build(BuildContext context) => CustomPaint(
-    painter: _InsetPainter(color, radius, depth),
+    painter: _InsetPainter(color, radius, depth, well),
     child: Padding(padding: padding, child: child),
   );
 }
 
 class _InsetPainter extends CustomPainter {
-  _InsetPainter(this.base, this.radius, this.depth);
+  _InsetPainter(this.base, this.radius, this.depth, this.well);
 
   final Color base;
   final double radius;
   final double depth;
+  final Color? well;
 
   @override
   void paint(Canvas canvas, Size size) {
+    final outer = RRect.fromRectAndRadius(
+      Offset.zero & size,
+      Radius.circular(radius),
+    );
+    final w = well;
+    if (w == null) {
+      paintKinariInset(canvas, outer, base, const Offset(1.5, 2), depth: depth);
+      return;
+    }
+    paintKinariInset(canvas, outer, base, const Offset(1.5, 2));
+    final inner = RRect.fromRectAndRadius(
+      (Offset.zero & size).deflate(3),
+      Radius.circular((radius - 3).clamp(0, 100).toDouble()),
+    );
     paintKinariInset(
       canvas,
-      RRect.fromRectAndRadius(Offset.zero & size, Radius.circular(radius)),
-      base,
+      inner,
+      w,
       const Offset(1.5, 2),
       depth: depth,
+      light: 0.3,
     );
   }
 
   @override
   bool shouldRepaint(covariant _InsetPainter old) =>
-      old.base != base || old.radius != radius || old.depth != depth;
+      old.base != base ||
+      old.radius != radius ||
+      old.depth != depth ||
+      old.well != well;
 }
 
 /// 一覧の行の箱。選択中は、アクセントカラーの、へこんだ面。選ばれていない行は、へこんだ面。
@@ -106,7 +129,8 @@ class KinariTileFrame extends StatelessWidget {
     if (selected) {
       // アクセントカラーの面も、へこませる（影を深くして、凹みが見えるようにする）。
       return KinariInset(
-        color: scheme.primary,
+        color: scheme.surface,
+        well: scheme.primary,
         radius: radius,
         depth: 2.2,
         child: child,

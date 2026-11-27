@@ -2,7 +2,7 @@ import 'package:flutter/widgets.dart';
 
 import 'theme_pack.dart';
 
-/// 一覧に出す、パックの要約。
+/// 一覧に出す、意匠の要約。
 @immutable
 class ThemePackSummary {
   const ThemePackSummary({
@@ -23,12 +23,12 @@ class ThemePackSummary {
   final bool updateAvailable;
 }
 
-/// 意匠パックの置き場所を隠すインターフェース（自前化の方針、Repositoryパターン）。
+/// 意匠の置き場所を隠すインターフェース（自前化の方針、Repositoryパターン）。
 /// 実装は、横丁で取得した意匠を読む`OwnedThemePackRepository`。
 abstract class ThemePackRepository {
-  /// 使えるパックの一覧。
+  /// 使える意匠の一覧。
   Future<List<ThemePackSummary>> list();
 
-  /// [id]のパックを読む。読めない時は[ThemePackException]を投げる。
+  /// [id]の意匠を読む。読めない時は[ThemePackException]を投げる。
   Future<ThemePack> load(String id);
 }

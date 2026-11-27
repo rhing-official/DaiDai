@@ -1,5 +1,5 @@
 /**
- * 意匠パックの取得・アンインストール・取り下げの本体（2026-11-26）。Firebase の SDK に依存しない。
+ * 意匠の取得・アンインストール・取り下げの本体（2026-11-26）。Firebase の SDK に依存しない。
  * トリガー側（`index.ts`）は、`OwnershipStore` の実装と、`OwnershipError` から `HttpsError` への変換だけを持つ。
  * 自前化の時に、この本体だけを別サーバーへ移せるようにする（`CLAUDE.md` の方針）。
  * ぺったんの `grantOwnership`・`uninstallStickerPack` に倣うが、コレクションは混ぜず、別に持つ。
@@ -23,7 +23,7 @@ export class OwnershipError extends Error {
 }
 
 export const PAID_THEME_PACKS_DISABLED_MESSAGE =
-  "現在、有料の意匠パックには対応していません。無料の意匠パックのみご利用いただけます。";
+  "現在、有料の意匠には対応していません。無料の意匠のみご利用いただけます。";
 
 export interface OwnedPack {
   creatorId: string;
@@ -95,13 +95,13 @@ export async function acquireThemePack(
     // 読み取りを先に済ませる（transaction の作法）
     const pack = await tx.getPack(packId);
     const owned = await tx.hasOwned(uid, packId);
-    if (!pack) throw new OwnershipError("not-found", "意匠パックが見つかりません。");
+    if (!pack) throw new OwnershipError("not-found", "意匠が見つかりません。");
 
     // 既に持っている人の二重呼び出しは、状態や価格に関わらず、何も変えずに成功とする
     if (owned) return { packId, version: pack.version, alreadyOwned: true };
 
     if (pack.status !== "approved") {
-      throw new OwnershipError("failed-precondition", "この意匠パックは、現在、取得できません。");
+      throw new OwnershipError("failed-precondition", "この意匠は、現在、取得できません。");
     }
     if (pack.price > 0 && !options.paidPacksEnabled) {
       throw new OwnershipError("failed-precondition", PAID_THEME_PACKS_DISABLED_MESSAGE);
@@ -138,7 +138,7 @@ export async function uninstallThemePack(
     if (!owned) return { packId, removed: false };
 
     tx.deleteOwned(uid, packId);
-    // 0 未満にしない。パックが既に無くても、記録は外せる
+    // 0 未満にしない。意匠が既に無くても、記録は外せる
     if (pack) tx.setOwnerCount(packId, Math.max(0, pack.ownerCount - 1));
     return { packId, removed: true };
   });
@@ -156,7 +156,7 @@ export interface WithdrawResult {
 }
 
 /**
- * 投稿者本人が、公開中の意匠パックを取り下げる。新規の取得だけを止める。
+ * 投稿者本人が、公開中の意匠を取り下げる。新規の取得だけを止める。
  * 取得した人の記録（`ownedThemePacks`）・公開用の素材・`ownerCount` には触れない。
  * 取得した人へのお知らせは送らない。再公開は、新しい版の投稿から行う。
  */
@@ -169,13 +169,13 @@ export async function withdrawThemePack(
 
   return store.runTransaction(async (tx) => {
     const pack = await tx.getPack(packId);
-    if (!pack) throw new OwnershipError("not-found", "意匠パックが見つかりません。");
+    if (!pack) throw new OwnershipError("not-found", "意匠が見つかりません。");
     if (pack.creatorId !== uid) {
-      throw new OwnershipError("permission-denied", "自分の意匠パックだけを取り下げられます。");
+      throw new OwnershipError("permission-denied", "自分の意匠だけを取り下げられます。");
     }
     if (pack.status === "withdrawn") return { packId, status: "withdrawn" as const, changed: false };
     if (pack.status !== "approved") {
-      throw new OwnershipError("failed-precondition", "公開中の意匠パックだけを取り下げられます。");
+      throw new OwnershipError("failed-precondition", "公開中の意匠だけを取り下げられます。");
     }
     const sub = await tx.findSubmission(packId, pack.version);
 

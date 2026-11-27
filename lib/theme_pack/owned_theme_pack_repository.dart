@@ -118,7 +118,7 @@ class OwnedThemePackRepository implements ThemePackRepository {
       try {
         final owned = (await s.listOwned()).where((r) => r.packId == id);
         if (owned.isEmpty) {
-          throw const ThemePackException('取得していない意匠パックです');
+          throw const ThemePackException('取得していない意匠です');
         }
         version = owned.first.version;
         final info = await s.published(id);
@@ -135,7 +135,7 @@ class OwnedThemePackRepository implements ThemePackRepository {
     if (version == null) {
       throw s == null
           ? const ThemePackNotCachedException()
-          : const ThemePackException('通信できず、意匠パックを取得できません');
+          : const ThemePackException('通信できず、意匠を取得できません');
     }
 
     var files = await cache.read(id, version);
@@ -165,13 +165,13 @@ class OwnedThemePackRepository implements ThemePackRepository {
     } on ThemePackException {
       rethrow;
     } catch (_) {
-      throw const ThemePackException('通信できず、意匠パックを取得できません');
+      throw const ThemePackException('通信できず、意匠を取得できません');
     }
   }
 
   ThemePack _build(String id, Map<String, Uint8List> files) {
     final json = files['pack.json'];
-    if (json == null) throw const ThemePackException('パックが見つかりません');
+    if (json == null) throw const ThemePackException('意匠が見つかりません');
     final ParsedThemePack parsed;
     try {
       parsed = ThemePackParser.parse(utf8.decode(json));
@@ -179,7 +179,7 @@ class OwnedThemePackRepository implements ThemePackRepository {
       throw const ThemePackException('設定ファイルを読めません');
     }
     if (parsed.pack.id != themePackJsonIdOf(id)) {
-      throw const ThemePackException('idが意匠パックの識別子と合いません');
+      throw const ThemePackException('idが意匠の識別子と合いません');
     }
     final pack = parsed.pack.withId(id);
     final image = parsed.backgroundImageFile;

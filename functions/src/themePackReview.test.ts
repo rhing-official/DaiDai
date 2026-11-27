@@ -149,7 +149,7 @@ test("承認: 素材を公開側へコピーし、themePacksを作り、投稿�
   assert.equal(s.notices.length, 1);
   assert.deepEqual(s.notices[0], {
     uid: CREATOR,
-    notice: { kind: "themePackApproved", packId: PACK, content: "意匠パック『テスト』が承認され、公開されました。" },
+    notice: { kind: "themePackApproved", packId: PACK, content: "意匠『テスト』が承認され、公開されました。" },
   });
 });
 
@@ -225,7 +225,7 @@ test("版の更新: 旧版を公開したまま、新しい版を承認すると
   assert.ok(s.files.has(`themePacks/${PACK}/2/pack.json`));
 });
 
-test("承認: 公開中より古い版、配信停止中のパックへの新版は拒否", async () => {
+test("承認: 公開中より古い版、配信停止中の意匠への新版は拒否", async () => {
   const s = ready();
   s.putFiles(SID2);
   s.putSub(SID2, 2);
@@ -270,7 +270,7 @@ test("差し戻し: 状態・記録・お知らせ。名前が無い古い投稿
       notice: {
         kind: "themePackRejected",
         packId: PACK,
-        content: "意匠パック『桜』は、差し戻されました。理由は次のとおりです。\n色が読みにくいです。",
+        content: "意匠『桜』は、差し戻されました。理由は次のとおりです。\n色が読みにくいです。",
       },
     },
   ]);
@@ -284,7 +284,7 @@ test("差し戻し: submitted/inReview 以外と、存在しない投稿は拒�
   await rejects(reject(s, { submissionId: SID2, reason: "x" }), "not-found");
 });
 
-test("配信停止: 取り下げ済み（withdrawn）のパックも停止でき、現行版の投稿はsuspendedになる", async () => {
+test("配信停止: 取り下げ済み（withdrawn）の意匠も停止でき、現行版の投稿はsuspendedになる", async () => {
   const s = ready();
   await approve(s);
   s.packs.get(PACK)!.status = "withdrawn";
@@ -309,7 +309,7 @@ test("配信停止: 取得者0件でも動き、themePacksと投稿を停止し�
   assert.deepEqual(s.batchSizes, []);
   assert.equal(s.notices.length, 1);
   assert.equal(s.notices[0].uid, CREATOR);
-  assert.equal(s.notices[0].notice.content, "意匠パック『テスト』の配信を停止しました。理由は次のとおりです。\n権利の侵害");
+  assert.equal(s.notices[0].notice.content, "意匠『テスト』の配信を停止しました。理由は次のとおりです。\n権利の侵害");
 });
 
 test("配信停止: 取得者への書き込みは400件ずつ（401件 → 400と1）。理由は出さない", async () => {
@@ -323,7 +323,7 @@ test("配信停止: 取得者への書き込みは400件ずつ（401件 → 400�
   assert.equal(ownerNotices.length, 401);
   for (const n of ownerNotices) {
     assert.equal(n.notice.kind, "themePackSuspended");
-    assert.equal(n.notice.content, "取得した意匠パック『テスト』の配信が停止されました。表示は標準に戻ります。");
+    assert.equal(n.notice.content, "取得した意匠『テスト』の配信が停止されました。表示は標準に戻ります。");
     assert.ok(!n.notice.content.includes("秘密の理由"));
   }
   // ちょうど400件は1回
@@ -349,7 +349,7 @@ test("配信停止: 停止済みの再実行は状態を変えず、取得者の
   assert.ok(ownerNotices[0].notice.id);
 });
 
-test("配信停止: 理由の検査と、存在しないパック", async () => {
+test("配信停止: 理由の検査と、存在しない意匠", async () => {
   const s = ready();
   await approve(s);
   await rejects(suspend(s, { packId: PACK }), "invalid-argument");
@@ -360,10 +360,10 @@ test("配信停止: 理由の検査と、存在しないパック", async () => 
 });
 
 test("お知らせの文面と kind", () => {
-  assert.equal(approvedNoticeText("桜"), "意匠パック『桜』が承認され、公開されました。");
-  assert.equal(rejectedNoticeText("桜", "理由"), "意匠パック『桜』は、差し戻されました。理由は次のとおりです。\n理由");
-  assert.equal(suspendedCreatorNoticeText("桜", "理由"), "意匠パック『桜』の配信を停止しました。理由は次のとおりです。\n理由");
-  assert.equal(suspendedOwnerNoticeText("桜"), "取得した意匠パック『桜』の配信が停止されました。表示は標準に戻ります。");
+  assert.equal(approvedNoticeText("桜"), "意匠『桜』が承認され、公開されました。");
+  assert.equal(rejectedNoticeText("桜", "理由"), "意匠『桜』は、差し戻されました。理由は次のとおりです。\n理由");
+  assert.equal(suspendedCreatorNoticeText("桜", "理由"), "意匠『桜』の配信を停止しました。理由は次のとおりです。\n理由");
+  assert.equal(suspendedOwnerNoticeText("桜"), "取得した意匠『桜』の配信が停止されました。表示は標準に戻ります。");
   assert.deepEqual({ ...NOTICE_KINDS }, {
     approved: "themePackApproved",
     rejected: "themePackRejected",

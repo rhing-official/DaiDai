@@ -402,7 +402,7 @@ class DaiDaiApp extends ConsumerWidget {
     final themeMode = ref.watch(appThemeModeProvider);
     final darkVariant = ref.watch(darkVariantProvider);
     final uiStyle = ref.watch(appUiStyleProvider);
-    // 素材パック（2026-11-26）。版画の間だけ、パックの色・枠の数値・背景画像を流し込む。
+    // 意匠（2026-11-26）。版画の間だけ、意匠の色・枠の数値・背景画像を流し込む。
     final activePack = uiStyle == AppUiStyle.block
         ? ref.watch(themePackProvider).pack
         : null;
@@ -514,7 +514,7 @@ class DaiDaiApp extends ConsumerWidget {
         variant: darkVariant,
       ),
     };
-    // 背景画像を持つパックは、画面の塗りを透明にして、後ろの画像を見せる。
+    // 背景画像を持つ意匠は、画面の塗りを透明にして、後ろの画像を見せる。
     final packImage = activePack?.backgroundImage;
     return MaterialApp.router(
       title: 'DaiDai',
@@ -566,7 +566,7 @@ class DaiDaiApp extends ConsumerWidget {
           child: PipHost(
             child: Stack(
               children: [
-                // 素材パックの背景画像の層。パックの有無で子の数が変わると、Stackは子を位置で
+                // 意匠の背景画像の層。意匠の有無で子の数が変わると、Stackは子を位置で
                 // 対応付ける為、下の本体の木（設定画面の「今のカテゴリ」等の状態）が作り直されて
                 // 設定>アカウントへ戻ってしまう。常に同じ位置に1つの層を置き、中身だけ替える。
                 Positioned.fill(

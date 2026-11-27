@@ -1,11 +1,11 @@
-// 素材パックの検査（サーバー側）。HomePage の `src/lib/themePack/` の `spec.ts`・`contrast.ts`・
+// 意匠の検査（サーバー側）。HomePage の `src/lib/themePack/` の `spec.ts`・`contrast.ts`・
 // `imageSize.ts` を、規則・上限・文言とも揃えて移植したもの（2026-11-26）。形式の一次情報は
 // DaiDai 本体の `lib/theme_pack/theme_pack.dart` の `ThemePackParser`。
 // HomePage の検査は投稿者への案内で、信頼の根拠はここの再検査。規則を変える時は、
 // HomePage・アプリ・ここの3か所と、各テストの入力例を揃えること。
 
 
-/** 素材パックの形式の版。アプリが読めるのは、この版以下 */
+/** 意匠の形式の版。アプリが読めるのは、この版以下 */
 export const THEME_PACK_FORMAT_VERSION = 1;
 
 export const THEME_PACK_LIMITS = {
@@ -210,7 +210,7 @@ export function parseThemePack(source: string): ParseResult {
 
 
 // WCAG 2.x のコントラスト比。全ての組で、3:1以上にする（大きな文字・画面の部品の基準。AAの本文の基準は4.5:1）。
-// 当初は4.5:1だったが、同梱の公式パック（桜 4.21、水玉 3.76）が届かないため、全ての組を3:1に緩めた（2026-11-26、ユーザー判断）。
+// 当初は4.5:1だったが、同梱の公式意匠（桜 4.21、水玉 3.76）が届かないため、全ての組を3:1に緩めた（2026-11-26、ユーザー判断）。
 
 export const MIN_CONTRAST_RATIO = 3;
 
@@ -440,7 +440,7 @@ export function validateThemePackFiles(files: Map<string, Uint8Array>): FilesVal
         }
         const ext = extensionOf(name);
         if (EXECUTABLE_EXTENSIONS.has(ext)) {
-            errors.push(`「${name}」は、実行できる形式かスクリプトです。意匠パックには、コードを含められません。`);
+            errors.push(`「${name}」は、実行できる形式かスクリプトです。意匠には、コードを含められません。`);
             continue;
         }
         const expected = imageTypeForExtension(ext);

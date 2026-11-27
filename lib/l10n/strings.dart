@@ -1460,13 +1460,13 @@ class Strings {
   final String settingsDesignPin;
   final String settingsDesignUnpin;
 
-  /// 選んだ意匠パックを読めず、標準の版画へ戻した時の1行。`reason`は読めなかった理由。
+  /// 選んだ意匠を読めず、標準の版画へ戻した時の1行。`reason`は読めなかった理由。
   final String Function(String reason) settingsThemePackFallbackTemplate;
 
-  /// 取得した意匠パックの配信が停止され、標準の版画へ戻した時の1行。
+  /// 取得した意匠の配信が停止され、標準の版画へ戻した時の1行。
   final String settingsThemePackSuspendedNotice;
 
-  /// 取得した意匠パックに、新しい版が公開されている時の1行。
+  /// 取得した意匠に、新しい版が公開されている時の1行。
   final String settingsThemePackUpdateAvailable;
   final String settingsCustomAppearanceInvalid;
   final String settingsBackgroundPresetBoard;
@@ -3155,8 +3155,8 @@ class Strings {
     settingsDesignPin: 'ピン留め',
     settingsDesignUnpin: 'ピン留めを外す',
     settingsThemePackFallbackTemplate: (reason) =>
-        '意匠パックを読み込めなかった為、標準の版画に戻しました。$reason',
-    settingsThemePackSuspendedNotice: '使っていた意匠パックの配信が停止された為、標準の版画に戻しました。',
+        '意匠を読み込めなかった為、標準の版画に戻しました。$reason',
+    settingsThemePackSuspendedNotice: '使っていた意匠の配信が停止された為、標準の版画に戻しました。',
     settingsThemePackUpdateAvailable: '新しい版が有ります',
     settingsCustomAppearanceInvalid: '6桁のカラーコードで入力してください。',
     settingsBackgroundPresetBoard: '黒板',

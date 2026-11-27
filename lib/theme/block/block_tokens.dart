@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 
-/// 版画（[BlockTheme]）の形と線の色を決める数値の組（2026-11-26、素材パック用）。
+/// 版画（[BlockTheme]）の形と線の色を決める数値の組（2026-11-26、意匠用）。
 ///
-/// 既定値は従来の版画のまま。素材パックを適用している間だけ、パックの値に差し替わる
+/// 既定値は従来の版画のまま。意匠を適用している間だけ、意匠の値に差し替わる
 /// （[BlockTokens.current]）。`BlockTheme.borderWidth`等の既存の呼び出しは、ここを読む。
 @immutable
 class BlockTokens {
@@ -27,6 +27,6 @@ class BlockTokens {
   final Color lightLine;
   final Color darkLine;
 
-  /// 今の値。素材パックの切り替えで差し替わる。
+  /// 今の値。意匠の切り替えで差し替わる。
   static BlockTokens current = const BlockTokens();
 }

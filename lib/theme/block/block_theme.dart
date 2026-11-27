@@ -179,7 +179,7 @@ class BlockShapeBorder extends OutlinedBorder {
 class BlockTheme {
   BlockTheme._();
 
-  /// 枠線の太さ。素材パックを適用中は、パックの値（[BlockTokens.current]）。
+  /// 枠線の太さ。意匠を適用中は、意匠の値（[BlockTokens.current]）。
   static double get borderWidth => BlockTokens.current.borderWidth;
 
   /// 角丸。

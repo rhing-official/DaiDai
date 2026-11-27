@@ -17,7 +17,7 @@ abstract class StickerRepository {
   /// 指定したユーザーが所有しているぺったんパッケージ一覧。
   Stream<List<StickerPack>> watchOwnedPacks(String userId);
 
-  /// [packId]のぺったんパックをアンインストール（所有解除）する。
+  /// [packId]のぺったんをアンインストール（所有解除）する。
   /// 購入付与（grantOwnership）の対称形として、サーバー側（Cloud Functions）が
   /// `ownedStickerPacks`ドキュメントの削除と`ownerCount`の減算を行う
   /// （2026-08-11追加、functions/src/index.tsの`uninstallStickerPack`）。
@@ -26,10 +26,10 @@ abstract class StickerRepository {
   /// [stickerId]が属する[StickerPack.packId]を、カタログ全体を検索して
   /// 引く（他人が送信済みのぺったんをタップした際、`MessageStickerData`
   /// が`stickerId`しか持たないため使う、2026-08-14追加）。見つからなければ
-  /// null（パック削除済み等）。
+  /// null（ぺったん削除済み等）。
   Future<String?> findPackIdForSticker(String stickerId);
 
-  /// [userId]が[packId]のぺったんパックを所有しているか。
+  /// [userId]が[packId]のぺったんを所有しているか。
   Future<bool> ownsPack(String userId, String packId);
 
   /// メッセージ内容に応じたぺったん提案（`lib/utils/sticker_suggestion.dart`

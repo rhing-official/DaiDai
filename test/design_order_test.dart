@@ -59,7 +59,7 @@ void main() {
     );
   });
 
-  test('購入したパックが選択中なら、そのパックが最上', () {
+  test('購入した意匠が選択中なら、その意匠が最上', () {
     final sakura = packDesignId('sakura');
     expect(
       sortDesignIds(

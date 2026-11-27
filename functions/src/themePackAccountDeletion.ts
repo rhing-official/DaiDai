@@ -1,9 +1,9 @@
 /**
- * アカウント削除で、意匠パックを全て削除する本体（2026-11-26）。Firebase の SDK に依存しない。
- * 規約第9条とプライバシーポリシーの「アカウント削除で、投稿した意匠パックは削除される」を実現する。
+ * アカウント削除で、意匠を全て削除する本体（2026-11-26）。Firebase の SDK に依存しない。
+ * 規約第9条とプライバシーポリシーの「アカウント削除で、投稿した意匠は削除される」を実現する。
  * `index.ts` の `deleteAccount` が呼ぶ。途中で例外が出ると `users/{uid}` が残り、
  * `processAccountDeletions` が翌日に再実行するため、全ての段が冪等で、
- * 次の回の手がかりになる文書（投稿・公開パック）は、その素材を消した後に消す。
+ * 次の回の手がかりになる文書（投稿・公開意匠）は、その素材を消した後に消す。
  */
 
 /** 文書を消す単位。Firestore の 500 件上限の内側 */
@@ -23,6 +23,10 @@ export interface AccountDeletionStore {
   listOwnedPackIds(uid: string): Promise<string[]>;
   /** transaction で、`themePacks` が有れば `ownerCount` を1減らし（0未満にしない）、自分の取得記録を消す */
   releaseOwnedPack(uid: string, packId: string): Promise<void>;
+  /** `users/{uid}/favoriteDesigns` の文書を、最大 `limit` 件消し、消した件数を返す（2026-11-27） */
+  deleteFavoriteDesigns(uid: string, limit: number): Promise<number>;
+  /** `users/{uid}/cartDesigns` の文書を、最大 `limit` 件消し、消した件数を返す（2026-11-27） */
+  deleteCartDesigns(uid: string, limit: number): Promise<number>;
   /** 荒らし対策の記録（失敗の回数、運営による停止）を消す */
   deleteAbuseRecords(uid: string): Promise<void>;
 }
@@ -56,11 +60,15 @@ export async function deleteThemePackData(store: AccountDeletionStore, uid: stri
   await store.deletePrefix(`themePackSubmissions/${uid}/`);
   await drain(() => store.deleteSubmissionDocs(uid, DELETE_CHUNK));
 
-  // 3. 取得者として。投稿者の処理が先なので、自作のパックは既に無い。そちらは減算せず、記録だけが消える
+  // 3. 取得者として。投稿者の処理が先なので、自作の意匠は既に無い。そちらは減算せず、記録だけが消える
   for (const packId of await store.listOwnedPackIds(uid)) {
     await store.releaseOwnedPack(uid, packId);
   }
 
-  // 4. 荒らし対策の記録
+  // 4. 意匠のお気に入り・カート
+  await drain(() => store.deleteFavoriteDesigns(uid, DELETE_CHUNK));
+  await drain(() => store.deleteCartDesigns(uid, DELETE_CHUNK));
+
+  // 5. 荒らし対策の記録
   await store.deleteAbuseRecords(uid);
 }

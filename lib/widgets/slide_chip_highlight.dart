@@ -166,7 +166,11 @@ class _SlideChipHighlightState extends ConsumerState<SlideChipHighlight>
         iconColor: iconColor,
         square: style == AppUiStyle.gekiga,
         // 版画: 太い枠線（白い丸の縁）は残し、その内側だけを塗る。
-        inset: style == AppUiStyle.block ? BlockTheme.borderWidth : 0,
+        inset: style == AppUiStyle.block
+            ? BlockTheme.borderWidth
+            : style == AppUiStyle.kinari
+            ? 3
+            : 0,
         chalk: style == AppUiStyle.chalk,
         kinari: style == AppUiStyle.kinari,
       ),
@@ -238,7 +242,7 @@ class _SlidePainter extends CustomPainter {
     if (kinari) {
       paintKinariRecess(canvas, bounds, [
         for (final cr in list)
-          if (cr != null) cr,
+          if (cr != null) cr.deflate(3),
       ]);
     }
     // 塗りの上にだけ、選択中の文字色でアイコンを描き直す。

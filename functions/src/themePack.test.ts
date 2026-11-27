@@ -36,7 +36,7 @@ function ok(source: string) {
 
 // ---- spec ----
 
-test("読み取り: 正常なパックを読める", () => {
+test("読み取り: 正常な意匠を読める", () => {
   const { pack, warnings } = ok(
     json({
       shape: { borderWidth: 3, radius: 12, shadowOffset: [5, 6] },
@@ -162,7 +162,7 @@ test("コントラスト: 読みやすい配色は、全ての組で合格", () 
   assert.ok(r.checks.every((c) => c.pass));
 });
 
-test("コントラスト: 同梱の公式パック「桜」は、強調色と文字が4.21で、基準（3）を満たす", () => {
+test("コントラスト: 同梱の公式意匠「桜」は、強調色と文字が4.21で、基準（3）を満たす", () => {
   const r = checkContrast(
     pack({
       colors: {
@@ -236,7 +236,7 @@ const errorsOf = (files: Map<string, Uint8Array>) => {
   return r.ok ? [] : r.errors;
 };
 
-test("ファイルの検査: 正常なパックは合格し、背景画像なしでも合格する", () => {
+test("ファイルの検査: 正常な意匠は合格し、背景画像なしでも合格する", () => {
   const r = validateThemePackFiles(goodFiles());
   assert.equal(r.ok, true);
   if (r.ok) assert.equal(r.pack.id, "test-pack");

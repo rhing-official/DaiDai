@@ -1121,7 +1121,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   final _stickerButtonKey = GlobalKey();
 
   /// モバイルのぺったんドック（入力欄の下、[StickerPickerDock]）の段階と、
-  /// 開く時に絞り込むパック（メッセージ上のぺったんタップ時）。
+  /// 開く時に絞り込むぺったん（メッセージ上のぺったんタップ時）。
   /// ぺったん一覧で直前のタブを語らい毎に記憶するキー（寄合単位）。
   String? get _stickerTabKey => stickerTabKey(
     conversationId: widget.conversationId,
@@ -1173,7 +1173,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   void _setStickerDockStage(StickerDockStage stage, {String? packId}) {
     if (!mounted) return;
     setState(() {
-      // 絞り込むパックは、閉じる時ではなく開く時に決める（2026-11-21）。閉じる時に
+      // 絞り込むぺったんは、閉じる時ではなく開く時に決める（2026-11-21）。閉じる時に
       // 変えると、ドック内の一覧の`key`が変わって閉じ始めに作り直され、その重さで
       // 閉じるアニメーションが飛んで一瞬で閉じていた。
       if (_stickerDockStage == StickerDockStage.closed &&
@@ -5403,8 +5403,8 @@ class _MessageRow extends ConsumerWidget {
   /// [ChatScreen.onFetchMessagesAround]で取得してからジャンプする。
   final void Function(String targetId, String fromMessageId)? onJumpToReply;
 
-  /// 他人が送信済みのぺったんをタップし、自分も所持しているパックだった
-  /// 場合にそのパックから選び直して送信する導線で使う（[_stickerContent]
+  /// 他人が送信済みのぺったんをタップし、自分も所持しているぺったんだった
+  /// 場合にそのぺったんから選び直して送信する導線で使う（[_stickerContent]
   /// 参照、2026-08-14追加）。nullなら送信機能自体を出さない
   /// （[ChatScreen.onSendSticker]がnullの読み取り専用画面等）。
   final Future<void> Function(Sticker sticker)? onSendSticker;
@@ -5417,7 +5417,7 @@ class _MessageRow extends ConsumerWidget {
   /// ボトムシートにフォールバックする）。
   final GlobalKey? stickerButtonKey;
 
-  /// モバイル幅で所持ぺったんをタップした時に、指定パックでぺったんドックを
+  /// モバイル幅で所持ぺったんをタップした時に、指定ぺったんでぺったんドックを
   /// 開く（[ChatScreen]の`_setStickerDockStage`、2026-10-29）。
   final void Function(String packId)? onOpenStickerDock;
 
@@ -7612,11 +7612,11 @@ class _MessageRow extends ConsumerWidget {
   /// ぺったん（スタンプ）メッセージの表示。LINE/Discord等の一般的な
   /// 見せ方に合わせ、吹き出し枠・劇画モノクロ枠（[skipFrame]参照）を
   /// 付けずに単体の画像として表示する（技術仕様書7.4参照、2026-08-11追加）。
-  /// タップすると、自分が所持しているパックのぺったんならそのパックに
+  /// タップすると、自分が所持しているぺったんの画像ならそのぺったんに
   /// 絞り込んだ送信ピッカーを開き、未所持ならdaidai横丁のストアページを
   /// ブラウザの別タブで開く（daidai横丁自体はアプリ内に持たない方針の
   /// ため、Apple/Google手数料回避と軽量化を兼ねる、2026-08-14追加）。
-  /// 自分が送信したぺったんも同じ経路で開ける（所持パックからしか送信
+  /// 自分が送信したぺったんも同じ経路で開ける（所持ぺったんからしか送信
   /// 出来ない仕様上、常に「所持している」分岐に入る）。
   Widget _stickerContent(
     BuildContext context,

@@ -116,7 +116,7 @@ test("取得: approved以外（withdrawn・suspended・その他）は failed-pr
   }
 });
 
-test("取得: 無いパックは not-found", async () => {
+test("取得: 無い意匠は not-found", async () => {
   await rejects(acquire(new FakeStore(), ALICE, { packId: "nope" }), "not-found");
 });
 
@@ -183,7 +183,7 @@ test("アンインストール: ownerCountが0（記録とずれている）で�
   assert.equal(s.owned.size, 0);
 });
 
-test("アンインストール: 取り下げ・停止の後でも外せる。パックが消えていても記録は外せる", async () => {
+test("アンインストール: 取り下げ・停止の後でも外せる。意匠が消えていても記録は外せる", async () => {
   for (const st of ["withdrawn", "suspended"]) {
     const s = ready();
     await acquire(s, ALICE, { packId: PACK });
@@ -206,7 +206,7 @@ test("アンインストール: 未ログインは unauthenticated、packIdが�
 
 // --- 取り下げ -----------------------------------------------------------
 
-test("取り下げ: 本人が、公開中のパックを withdrawn にし、現行版の投稿も withdrawn にする", async () => {
+test("取り下げ: 本人が、公開中の意匠を withdrawn にし、現行版の投稿も withdrawn にする", async () => {
   const s = ready();
   const r = await withdraw(s, CREATOR, { packId: PACK });
   assert.deepEqual({ ...r }, { packId: PACK, status: "withdrawn", changed: true });
@@ -242,14 +242,14 @@ test("取り下げ: approved以外は failed-precondition。取り下げ済み�
   assert.deepEqual({ ...again }, { packId: PACK, status: "withdrawn", changed: false });
 });
 
-test("取り下げ: 無いパックは not-found、未ログインは unauthenticated、packIdが無いときは invalid-argument", async () => {
+test("取り下げ: 無い意匠は not-found、未ログインは unauthenticated、packIdが無いときは invalid-argument", async () => {
   const s = ready();
   await rejects(withdraw(s, CREATOR, { packId: "nope" }), "not-found");
   await rejects(withdraw(s, undefined, { packId: PACK }), "unauthenticated");
   await rejects(withdraw(s, CREATOR, {}), "invalid-argument");
 });
 
-test("取り下げ: 現行版の投稿が見つからなくても、パックは取り下げられる", async () => {
+test("取り下げ: 現行版の投稿が見つからなくても、意匠は取り下げられる", async () => {
   const s = ready();
   s.subs.clear();
   assert.equal((await withdraw(s, CREATOR, { packId: PACK })).changed, true);

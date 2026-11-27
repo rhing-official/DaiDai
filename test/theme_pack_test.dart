@@ -133,7 +133,7 @@ void main() {
       );
     });
 
-    test('パックの外を指す画像のパスは読まない', () {
+    test('意匠の外を指す画像のパスは読まない', () {
       for (final bad in [
         '../a.png',
         '/etc/passwd',

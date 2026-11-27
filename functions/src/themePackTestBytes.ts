@@ -1,4 +1,4 @@
-// 素材パックのテスト用に、ヘッダーだけの画像を作る（検査はヘッダーしか読まない）。HomePage の testBytes.ts と同じ。
+// 意匠のテスト用に、ヘッダーだけの画像を作る（検査はヘッダーしか読まない）。HomePage の testBytes.ts と同じ。
 
 export function pngBytes(width: number, height: number, extra = 0): Uint8Array {
     const b = new Uint8Array(33 + extra);

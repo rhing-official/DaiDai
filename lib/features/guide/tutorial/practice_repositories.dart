@@ -354,7 +354,7 @@ class PracticeConversationPrefsRepository
   dynamic noSuchMethod(Invocation invocation) => _lenient(invocation);
 }
 
-/// 練習用の`StickerRepository`。ぺったんのパックは1つも無い。
+/// 練習用の`StickerRepository`。ぺったんは1つも無い。
 class PracticeStickerRepository implements StickerRepository {
   @override
   Stream<List<StickerPack>> watchPacks() => Stream.value(const []);

@@ -209,6 +209,8 @@ class _LiquidChipHighlightState extends ConsumerState<LiquidChipHighlight>
         true,
         BlockTheme.borderWidth,
       ),
+      // 生成り: 帯のへこみの縁を残し、その内側だけを塗る（凹んだ穴に、アクセントが嵌まって見える）。
+      AppUiStyle.kinari => (scheme.primary, scheme.onPrimary, true, 3.0),
       _ => (scheme.primary, scheme.onPrimary, true, 0.0),
     };
     return CustomPaint(
@@ -349,7 +351,7 @@ class _WaterPainter extends CustomPainter {
     if (kinari) {
       paintKinariRecess(canvas, bounds, [
         for (final r in rects)
-          if (r != null) r,
+          if (r != null) r.deflate(3),
       ]);
     }
     if (recolorIcons) {

@@ -163,7 +163,7 @@ service firebase.storage {
       allow delete: if request.auth != null && request.auth.uid == creatorId;
     }
 
-    // themePackSubmissions/{creatorId}/{submissionId}/{file}: 素材パック（デザイン）の
+    // themePackSubmissions/{creatorId}/{submissionId}/{file}: 意匠（デザイン）の
     // 投稿の素材（pack.jsonと背景画像、2026-11-26追加）。作成は本人のみ・1ファイル2MB以下・
     // json/png/webp/jpegのみ。読めるのは本人と管理者だけ（未承認のため）。上書き・削除は不可。
     // ルールでは中身を見られないため、提出時にCloud Functions（submitThemePack）が再検査する。
@@ -175,7 +175,7 @@ service firebase.storage {
         && request.resource.contentType in ['application/json', 'image/png', 'image/webp', 'image/jpeg'];
     }
 
-    // themePacks/{packId}/{version}/{file}: 公開中の素材パックの素材（2026-11-26追加）。
+    // themePacks/{packId}/{version}/{file}: 公開中の意匠の素材（2026-11-26追加）。
     // 承認の時に、Cloud Functions（approveThemePack）が、投稿の場所からコピーする。
     // 取得（get）は誰でも可（アプリ・Webが表示に使う）。一覧（list）は管理者のみ
     // （`contactAttachments`の先例）。書き込みは不可（Admin SDKだけが書く）。

@@ -1,9 +1,9 @@
 import '../models/app_ui_style.dart';
 
-/// 設定>UIの「デザイン」（標準のスタイルと、購入した素材パック）の並べ方（2026-11-26）。
+/// 設定>UIの「デザイン」（標準のスタイルと、購入した意匠）の並べ方（2026-11-26）。
 ///
 /// 上から「選択中 → ピン留め → 購入したデザイン → 標準の並び」。
-/// デザインは、`style:<AppUiStyle名>`と`pack:<パックid>`の文字列で見分ける。
+/// デザインは、`style:<AppUiStyle名>`と`pack:<意匠id>`の文字列で見分ける。
 
 /// 標準のスタイルの、並びの既定。
 const List<AppUiStyle> kStandardDesignOrder = [
@@ -27,7 +27,7 @@ String _normalizeDesignId(String id) =>
     : id;
 String packDesignId(String packId) => 'pack:$packId';
 
-/// [ownedPackIds]は、購入した素材パックのid。新しく購入した順に渡す。
+/// [ownedPackIds]は、購入した意匠のid。新しく購入した順に渡す。
 /// [pins]はピン留めしたデザインのidで、留めた順。存在しないidは無視する。
 List<String> sortDesignIds({
   required String selectedId,

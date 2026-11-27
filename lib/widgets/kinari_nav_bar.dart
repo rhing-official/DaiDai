@@ -132,12 +132,13 @@ void paintKinariInset(
   Color base,
   Offset offset, {
   double depth = 1,
+  double light = 1,
 }) {
   canvas.drawRRect(
     rrect,
     Paint()..color = Color.lerp(base, Colors.black, 0.04)!,
   );
-  paintKinariInsetShadows(canvas, rrect, offset, depth: depth);
+  paintKinariInsetShadows(canvas, rrect, offset, depth: depth, light: light);
 }
 
 /// へこみの内側の影と明かりだけを描く（面は塗らない）。中身の前に重ねて描く用。
@@ -146,6 +147,7 @@ void paintKinariInsetShadows(
   RRect rrect,
   Offset offset, {
   double depth = 1,
+  double light = 1,
 }) {
   void inner(Offset o, Color color) {
     canvas.save();
@@ -164,7 +166,10 @@ void paintKinariInsetShadows(
   }
 
   inner(offset, Colors.black.withValues(alpha: (0.2 * depth).clamp(0.0, 1.0)));
-  inner(-offset, Colors.white.withValues(alpha: (0.7 * depth).clamp(0.0, 1.0)));
+  inner(
+    -offset,
+    Colors.white.withValues(alpha: (0.7 * depth * light).clamp(0.0, 1.0)),
+  );
 }
 
 /// 選択色の塗りを、へこんで見せる（生成り）。塗りのある所にだけ、チップの丸に沿った内側の影と
@@ -178,6 +183,8 @@ void paintKinariRecess(Canvas canvas, Rect bounds, Iterable<Rect> chips) {
       RRect.fromRectAndRadius(r, Radius.circular(r.shortestSide / 2)),
       const Offset(2, 3),
       depth: 2.2,
+      // 色の付いた面の上では、白い明かりを弱くする（強いと、塗りが白くかすんで見える）。
+      light: 0.3,
     );
   }
   canvas.restore();

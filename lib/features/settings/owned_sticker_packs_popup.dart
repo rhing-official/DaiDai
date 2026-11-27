@@ -15,7 +15,7 @@ import '../../widgets/dialog_keyboard_shortcuts.dart';
 import '../../widgets/app_dialog.dart';
 import '../../widgets/sticker_image.dart';
 
-/// 所持しているぺったんパック一覧・アンインストールのポップアップ（設定＞
+/// 所持しているぺったん一覧・アンインストールのポップアップ（設定＞
 /// アカウントから開く、2026-08-11追加。当初はページ遷移だったが、
 /// `group_role_list_popup.dart`と同じ「ヘッダー＋区切り線＋中身」の
 /// ダイアログ形式に変更）。`sticker_picker_sheet.dart`と同じ

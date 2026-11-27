@@ -22,7 +22,7 @@ final themePackRepositoryProvider = Provider<ThemePackRepository>((ref) {
   );
 });
 
-/// 今適用している素材パックと、読めずに標準へ戻した理由。
+/// 今適用している意匠と、読めずに標準へ戻した理由。
 class ThemePackState {
   const ThemePackState({
     this.pack,
@@ -34,28 +34,28 @@ class ThemePackState {
   /// 適用していた意匠の配信が停止され、標準の版画へ戻した。
   final bool suspended;
 
-  /// 選んだパックを読めず、標準の版画へ戻した時の理由（設定画面に1行出す）。
+  /// 選んだ意匠を読めず、標準の版画へ戻した時の理由（設定画面に1行出す）。
   final String? fallbackReason;
 }
 
-/// main()で起動前に読んだ、初期のパック。overrideされない場合（テスト等）は、パック無し。
+/// main()で起動前に読んだ、初期の意匠。overrideされない場合（テスト等）は、意匠無し。
 final initialThemePackProvider = Provider<ThemePackState>(
   (ref) => const ThemePackState(),
 );
 
-/// 起動時に、保存されたパックを読む。読めなければ標準へ戻す（理由を残す）。
+/// 起動時に、保存された意匠を読む。読めなければ標準へ戻す（理由を残す）。
 Future<ThemePackState> loadInitialThemePack({
   ThemePackRepository? repository,
 }) async {
   final prefs = await SharedPreferences.getInstance();
   final id = prefs.getString(_prefsKey);
   if (id == null) return const ThemePackState();
-  // 同梱の公式パックは廃止した。昔の選択は理由を出さずに外し、標準の版画で起動する。
+  // 同梱の公式意匠は廃止した。昔の選択は理由を出さずに外し、標準の版画で起動する。
   if (!isOwnedThemePackId(id)) {
     await prefs.remove(_prefsKey);
     return const ThemePackState();
   }
-  // 版画以外のスタイルが選ばれているなら、パックは使わない。
+  // 版画以外のスタイルが選ばれているなら、意匠は使わない。
   if (AppUiStyle.fromName(prefs.getString('appUiStyle')) != AppUiStyle.block) {
     return const ThemePackState();
   }
@@ -79,7 +79,7 @@ Future<ThemePackState> _tryLoad(ThemePackRepository repo, String id) async {
   } on ThemePackException catch (e) {
     return ThemePackState(fallbackReason: e.reason);
   } catch (_) {
-    return const ThemePackState(fallbackReason: 'パックを読み込めませんでした');
+    return const ThemePackState(fallbackReason: '意匠を読み込めませんでした');
   }
 }
 
@@ -121,7 +121,7 @@ class ThemePackNotifier extends Notifier<ThemePackState> {
     }
   }
 
-  /// パックを選ぶ。パックは版画の部品に流し込むので、UIスタイルも版画にする。
+  /// 意匠を選ぶ。意匠は版画の部品に流し込むので、UIスタイルも版画にする。
   /// 読めなければ標準の版画に戻し、理由を残す。
   Future<void> select(String id) async {
     final next = await _tryLoad(ref.read(themePackRepositoryProvider), id);
@@ -136,7 +136,7 @@ class ThemePackNotifier extends Notifier<ThemePackState> {
     await ref.read(appUiStyleProvider.notifier).setStyle(AppUiStyle.block);
   }
 
-  /// パックを外す（UIスタイルは変えない）。
+  /// 意匠を外す（UIスタイルは変えない）。
   Future<void> clear() async {
     if (state.pack == null &&
         state.fallbackReason == null &&
@@ -154,7 +154,7 @@ final themePackProvider = NotifierProvider<ThemePackNotifier, ThemePackState>(
   ThemePackNotifier.new,
 );
 
-/// 使えるパックの一覧。
+/// 使える意匠の一覧。
 final themePackListProvider = FutureProvider<List<ThemePackSummary>>(
   (ref) => ref.watch(themePackRepositoryProvider).list(),
 );

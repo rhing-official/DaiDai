@@ -12,7 +12,7 @@ const kYokochoUrl = 'https://rhing.jp/daidai-yokocho';
 bool yokochoLinksAllowed() =>
     currentPurchaseChannel() == PurchaseChannel.standard;
 
-/// 横丁のURL。[packId]があればそのパックのページ、無ければトップ。
+/// 横丁のURL。[packId]があればそのぺったんのページ、無ければトップ。
 /// [platform]は横丁側が手数料込みの価格表示を出し分けるための値。
 Uri yokochoUri({String? packId, String? platform}) {
   final base = packId == null ? kYokochoUrl : '$kYokochoUrl/$packId';

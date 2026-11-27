@@ -18,6 +18,9 @@ class FakeStore implements AccountDeletionStore {
   owned = new Set<string>();
   storage = new Set<string>();
   abuse = new Set<string>();
+  /** お気に入り・カート。`${uid}/${packId}` */
+  favorites = new Set<string>();
+  carts = new Set<string>();
   ownedBatchSizes: number[] = [];
   submissionBatchSizes: number[] = [];
   failOnce: string | null = null;
@@ -66,6 +69,17 @@ class FakeStore implements AccountDeletionStore {
     const p = this.packs.get(packId);
     if (p) p.ownerCount = Math.max(0, p.ownerCount - 1);
     this.owned.delete(key);
+  }
+  private drainSet(set: Set<string>, uid: string, limit: number) {
+    const hit = [...set].filter((k) => k.startsWith(`${uid}/`)).slice(0, limit);
+    for (const k of hit) set.delete(k);
+    return hit.length;
+  }
+  async deleteFavoriteDesigns(uid: string, limit: number) {
+    return this.drainSet(this.favorites, uid, limit);
+  }
+  async deleteCartDesigns(uid: string, limit: number) {
+    return this.drainSet(this.carts, uid, limit);
   }
   async deleteAbuseRecords(uid: string) {
     this.abuse.delete(uid);
@@ -116,7 +130,7 @@ test("取得者として: ownerCount は0未満にならない", async () => {
   assert.equal(s.packs.get("user-b__theirs")!.ownerCount, 0);
 });
 
-test("取得者として: 自作のパックを自分で取得していても、二重に減らさない（先に投稿者として消える）", async () => {
+test("取得者として: 自作の意匠を自分で取得していても、二重に減らさない（先に投稿者として消える）", async () => {
   const s = new FakeStore();
   s.packs.set(`${UID}__mine`, { creatorId: UID, ownerCount: 1 });
   s.owned.add(`${UID}/${UID}__mine`);
@@ -188,4 +202,20 @@ test("安全策: 自分の名前空間でない packId は、素材も文書も�
   assert.ok(s.storage.has("themePacks/user-b__theirs/1/pack.json"));
   await assert.rejects(deleteThemePackData(s, ""));
   await assert.rejects(deleteThemePackData(s, "a/b"));
+});
+
+test("意匠のお気に入り・カート: 401件でも全部消え、他人の分は残り、2回呼んでも壊れない", async () => {
+  const s = new FakeStore();
+  for (let i = 0; i < 401; i++) {
+    s.favorites.add(`${UID}/f${i}`);
+    s.carts.add(`${UID}/c${i}`);
+  }
+  s.favorites.add("user-b/f0");
+  s.carts.add("user-b/c0");
+  await deleteThemePackData(s, UID);
+  assert.deepEqual([...s.favorites], ["user-b/f0"]);
+  assert.deepEqual([...s.carts], ["user-b/c0"]);
+  await deleteThemePackData(s, UID);
+  assert.equal(s.favorites.size, 1);
+  assert.equal(s.carts.size, 1);
 });

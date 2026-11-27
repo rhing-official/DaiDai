@@ -461,7 +461,7 @@ async function deleteAccount(
 ): Promise<void> {
   const rhingSeed: string | undefined = userData.rhingSeed;
 
-  // 意匠パックを全て削除する（2026-11-26、規約第9条）。取得した人の表示は、標準へ戻る
+  // 意匠を全て削除する（2026-11-26、規約第9条）。取得した人の表示は、標準へ戻る
   // （お知らせは送らない）。失敗は握りつぶさず投げる。`users/{uid}`が残るため、
   // `processAccountDeletions`が翌日に再実行する（各段は冪等）。
   await deleteThemePackData(themePackAccountDeletionStore, userId);
@@ -1789,21 +1789,21 @@ export const renamePasskeyCredential = onCall(
 // ---------------------------------------------------------------------
 // daidai横丁: ぺったんパッケージ関連のcallable（技術仕様書7.4・7.5参照、
 // 2026-08-11追加）。stickerPacks/stickerPackReportsはfirestore.rulesで
-// クライアントからの書き込みを一律禁止しているため、パックの作成・編集・
+// クライアントからの書き込みを一律禁止しているため、ぺったんの作成・編集・
 // 通報はすべてここを経由する。HomePage-Rhing（daidai-yokochoセクション）
 // からFirebase Client SDKのhttpsCallableで呼ばれる想定。
 // ---------------------------------------------------------------------
 
 const MIN_STICKERS_PER_PACK = 4;
 
-// 有料パックの出品・価格変更・購入を一時的に無効化するフラグ（2026-08-11追加）。
+// 有料ぺったんの出品・価格変更・購入を一時的に無効化するフラグ（2026-08-11追加）。
 // 特定商取引法に基づく表記の整備・出品者への収益分配方式の決定・Stripe本番
-// アカウントの審査が完了するまでは、無料（price===0）パックの配布のみに限定する。
+// アカウントの審査が完了するまでは、無料（price===0）ぺったんの配布のみに限定する。
 // 再開条件・チェックリストはDaiDai-技術仕様書.md 7.6節を参照。再開時はこの値を
 // trueに変更するだけでよい（Stripe連携コード自体は動作確認済みのため削除しない）。
 const PAID_PACKS_ENABLED = false;
 const PAID_PACKS_DISABLED_MESSAGE =
-  "現在、有料パックには対応していません。無料（0円）パックのみご利用いただけます。";
+  "現在、有料ぺったんには対応していません。無料（0円）ぺったんのみご利用いただけます。";
 
 interface StickerInput {
   stickerId: string;
@@ -1923,7 +1923,7 @@ async function projectCreatorProfile(
 }
 
 /**
- * 出品者（DaiDaiアカウントを持つ誰でも即出品可、承認フローなし）が新規パックを
+ * 出品者（DaiDaiアカウントを持つ誰でも即出品可、承認フローなし）が新規ぺったんを
  * 作成する。creatorIdは呼び出し元のuidで固定し、他人になりすませないようにする。
  */
 export const createStickerPack = onCall(
@@ -1947,7 +1947,7 @@ export const createStickerPack = onCall(
       ? request.data.tags.filter((t: unknown): t is string => typeof t === "string")
       : [];
 
-    // パックの「代表」にするぺったん（任意）。stickersに含まれるIDのときだけ保存する
+    // ぺったんの「代表」にするぺったん（任意）。stickersに含まれるIDのときだけ保存する
     // （未設定・不正なときは保存せず、表示側は先頭のぺったんを代表にする）。
     const requestedCover = request.data?.coverStickerId;
     const coverStickerId =
@@ -1966,11 +1966,11 @@ export const createStickerPack = onCall(
       tags,
       ...(coverStickerId ? { coverStickerId } : {}),
       salesCount: 0,
-      // 現在このパックを所有しているユーザー数（購入付与Cloud Functionで+1、
+      // 現在このぺったんを所有しているユーザー数（購入付与Cloud Functionで+1、
       // アンインストール時のownedStickerPacks削除に連動して-1する想定の
       // 非正規化カウンタ、2026-08-11追加）。deleteStickerPackの削除可否判定に使う。
       // 購入付与・アンインストール連動の実処理はまだ未実装のため、現時点では
-      // 常に0のまま（＝どのパックも削除可能）。
+      // 常に0のまま（＝どのぺったんも削除可能）。
       ownerCount: 0,
       createdAt: FieldValue.serverTimestamp(),
     });
@@ -1988,7 +1988,7 @@ export const createStickerPack = onCall(
 );
 
 /**
- * 素材パック（コードを含まないデザインの設定ファイルと画像1枚）の提出（2026-11-26）。
+ * 意匠（コードを含まないデザインの設定ファイルと画像1枚）の提出（2026-11-26）。
  * HomePage（daidai横丁）が`themePackSubmissions/{uid}/{submissionId}/`へ置いたファイルを
  * サーバーで読み直して再検査し、`themePackSubmissions/{submissionId}`を`submitted`で作る。
  * 本体は`themePackSubmit.ts`（Firebase非依存）。ここは、Firestore・Storageの窓口と、
@@ -2099,9 +2099,18 @@ export const submitThemePack = onCall(
 );
 
 /**
- * アカウント削除で、意匠パックを全て削除する窓口（2026-11-26）。本体は
+ * アカウント削除で、意匠を全て削除する窓口（2026-11-26）。本体は
  * `themePackAccountDeletion.ts`（Firebase非依存）。`deleteAccount`から呼ぶ。
  */
+async function deleteUserSubcollectionChunk(uid: string, name: string, limit: number): Promise<number> {
+  const snap = await db.collection("users").doc(uid).collection(name).limit(limit).get();
+  if (snap.empty) return 0;
+  const batch = db.batch();
+  for (const d of snap.docs) batch.delete(d.ref);
+  await batch.commit();
+  return snap.size;
+}
+
 const themePackAccountDeletionStore: AccountDeletionStore = {
   async listCreatorPackIds(uid) {
     const [subs, packs] = await Promise.all([
@@ -2158,6 +2167,12 @@ const themePackAccountDeletionStore: AccountDeletionStore = {
       t.delete(ownedRef);
     });
   },
+  async deleteFavoriteDesigns(uid, limit) {
+    return deleteUserSubcollectionChunk(uid, "favoriteDesigns", limit);
+  },
+  async deleteCartDesigns(uid, limit) {
+    return deleteUserSubcollectionChunk(uid, "cartDesigns", limit);
+  },
   async deleteAbuseRecords(uid) {
     await Promise.all([
       db.collection("themePackSubmitFailures").doc(uid).delete(),
@@ -2167,7 +2182,7 @@ const themePackAccountDeletionStore: AccountDeletionStore = {
 };
 
 /**
- * 提出されないまま残った意匠パックの素材の掃除（2026-11-26）。HomePageは、素材を先に置いてから
+ * 提出されないまま残った意匠の素材の掃除（2026-11-26）。HomePageは、素材を先に置いてから
  * `submitThemePack`を呼ぶ。提出されなかった素材（同じIDの`themePackSubmissions`が無い）を、
  * 最後の書き込みから24時間後に消す。置いた直後の素材と、文書が有る素材（承認・差し戻し・
  * 取り下げを含む）は消さない。1回に消す数は上限があり、残りは翌日に回す。
@@ -2207,13 +2222,13 @@ export const cleanupOrphanThemePackAssets = onSchedule(
   { schedule: "0 4 * * *", timeZone: "Asia/Tokyo", region: "asia-northeast1", timeoutSeconds: 540 },
   async () => {
     const { deleted, failed } = await cleanupOrphanSubmissionAssets(themePackOrphanStore, Date.now());
-    logger.info(`提出されなかった意匠パックの素材を掃除: 削除${deleted.length}件、失敗${failed.length}件`);
+    logger.info(`提出されなかった意匠の素材を掃除: 削除${deleted.length}件、失敗${failed.length}件`);
     if (failed.length > 0) logger.warn("掃除に失敗した素材", failed);
   },
 );
 
 /**
- * 運営による、意匠パックの投稿の停止・解除（管理者のみ、2026-11-26）。荒らしの利用者の投稿を止める。
+ * 運営による、意匠の投稿の停止・解除（管理者のみ、2026-11-26）。荒らしの利用者の投稿を止める。
  * 保存先は、`users`の項目ではなく、サーバー専用の`themePackSubmissionBlocks/{uid}`。
  * `users`は全ログインユーザーが読めるため、停止の事実を公開しない。他の機能（メッセージ等）は止めない。
  */
@@ -2257,12 +2272,12 @@ export const setThemePackSubmissionBlocked = onCall(
       targetUserIds: [targetUserId],
       ...(reason ? { reason } : {}),
     });
-    logger.info(`意匠パックの投稿を${blocked ? "停止" : "再開"}: ${targetUserId}`);
+    logger.info(`意匠の投稿を${blocked ? "停止" : "再開"}: ${targetUserId}`);
   },
 );
 
 /**
- * 素材パックの審査結果（承認・差し戻し・配信停止、2026-11-26）。本体は`themePackReview.ts`
+ * 意匠の審査結果（承認・差し戻し・配信停止、2026-11-26）。本体は`themePackReview.ts`
  * （Firebase非依存）。ここは、Firestore・Storageの窓口と、エラーの変換、管理者の確認、
  * 監査ログだけを持つ。公開用の`themePacks`は承認済みと配信停止後のものだけ（未承認を混ぜない）。
  * お知らせは`users/{uid}/notices`に書くだけで、FCMのプッシュは送らない。
@@ -2463,7 +2478,7 @@ export const suspendThemePack = onCall(
 );
 
 /**
- * 意匠パックの取得・アンインストール・取り下げ（2026-11-26）。本体は`themePackOwnership.ts`
+ * 意匠の取得・アンインストール・取り下げ（2026-11-26）。本体は`themePackOwnership.ts`
  * （Firebase非依存）。ここは、Firestoreの窓口と、エラーの変換だけを持つ。
  * 取得済みの記録は`users/{uid}/ownedThemePacks/{packId}`（ぺったんの`ownedStickerPacks`とは別）。
  * 本体は、読み取りを全て済ませてから書き込みを呼ぶので、窓口は直接`t`へ書いてよい。
@@ -2558,7 +2573,7 @@ export const withdrawThemePack = onCall(
 );
 
 /**
- * 出品済みパックのname・price・coverStickerId（パックの「代表」にするぺったん）を
+ * 出品済みぺったんのname・price・coverStickerId（ぺったんの「代表」にするぺったん）を
  * 変更する。画像（stickers）はここでは変更できない（追加専用の方針、
  * addStickersToStickerPack参照）。
  */
@@ -2576,10 +2591,10 @@ export const updateStickerPackMeta = onCall(
     const ref = db.collection("stickerPacks").doc(packId);
     const doc = await ref.get();
     if (!doc.exists) {
-      throw new HttpsError("not-found", "パックが見つかりません");
+      throw new HttpsError("not-found", "ぺったんが見つかりません");
     }
     if (doc.data()?.creatorId !== uid) {
-      throw new HttpsError("permission-denied", "自分が出品したパックのみ編集できます");
+      throw new HttpsError("permission-denied", "自分が出品したぺったんのみ編集できます");
     }
 
     const update: {
@@ -2597,7 +2612,7 @@ export const updateStickerPackMeta = onCall(
     if (request.data?.price !== undefined) {
       const newPrice = assertValidPrice(request.data.price);
       const currentPrice = typeof doc.data()?.price === "number" ? doc.data()!.price : 0;
-      // 既に有料設定済みのパック（凍結前に作成されたもの）の価格を維持する
+      // 既に有料設定済みのぺったん（凍結前に作成されたもの）の価格を維持する
       // 更新までは塞がない。新たに有料へ変更する操作のみを拒否する。
       if (newPrice > 0 && newPrice !== currentPrice && !PAID_PACKS_ENABLED) {
         throw new HttpsError("failed-precondition", PAID_PACKS_DISABLED_MESSAGE);
@@ -2615,7 +2630,7 @@ export const updateStickerPackMeta = onCall(
       ) {
         throw new HttpsError(
           "invalid-argument",
-          "coverStickerIdはこのパックのぺったんのIDである必要があります",
+          "coverStickerIdはこのぺったんの画像のIDである必要があります",
         );
       }
       update.coverStickerId = coverStickerId;
@@ -2629,7 +2644,7 @@ export const updateStickerPackMeta = onCall(
 );
 
 /**
- * 出品済みパックに画像を追加する。技術仕様書7.5節の方針により、この関数は追加専用。
+ * 出品済みぺったんに画像を追加する。技術仕様書7.5節の方針により、この関数は追加専用。
  * 差し替えは`replaceStickerImage`（運営の許可は不要、stickerIdは変わらない）、
  * 削除は申請制（`requestStickerPackDeletion`にstickerIdを付ける、2026-11-17）。
  */
@@ -2644,17 +2659,17 @@ export const addStickersToStickerPack = onCall(
     if (typeof packId !== "string" || !packId) {
       throw new HttpsError("invalid-argument", "packIdが必要です");
     }
-    // パック全体の下限4件はcreateStickerPack側で保証済みのため、
+    // ぺったん全体の下限4件はcreateStickerPack側で保証済みのため、
     // 追加時は1件以上あればよい。
     const stickers = assertValidStickers(request.data?.stickers, 1, uid);
 
     const ref = db.collection("stickerPacks").doc(packId);
     const doc = await ref.get();
     if (!doc.exists) {
-      throw new HttpsError("not-found", "パックが見つかりません");
+      throw new HttpsError("not-found", "ぺったんが見つかりません");
     }
     if (doc.data()?.creatorId !== uid) {
-      throw new HttpsError("permission-denied", "自分が出品したパックのみ編集できます");
+      throw new HttpsError("permission-denied", "自分が出品したぺったんのみ編集できます");
     }
     const existingIds = new Set(
       ((doc.data()?.stickers as StickerInput[] | undefined) ?? []).map((s) => s.stickerId),
@@ -2737,7 +2752,7 @@ export const syncCreatorProfile = onDocumentWritten(
 );
 
 /**
- * パックの通報を記録する（v1は記録のみ、Rhing運営がFirebase console等で
+ * ぺったんの通報を記録する（v1は記録のみ、Rhing運営がFirebase console等で
  * 手動レビューする）。stickerPackReportsもクライアントからの読み書きは
  * 一律禁止のため、記録はこのcallableを経由する。
  */
@@ -2758,7 +2773,7 @@ export const createStickerPackReport = onCall(
     }
     const packDoc = await db.collection("stickerPacks").doc(packId).get();
     if (!packDoc.exists) {
-      throw new HttpsError("not-found", "パックが見つかりません");
+      throw new HttpsError("not-found", "ぺったんが見つかりません");
     }
     await db.collection("stickerPackReports").add({
       packId,
@@ -2818,7 +2833,7 @@ export const recordStickerPackView = onCall(
     }
     const packDoc = await db.collection("stickerPacks").doc(packId).get();
     if (!packDoc.exists) {
-      throw new HttpsError("not-found", "パックが見つかりません");
+      throw new HttpsError("not-found", "ぺったんが見つかりません");
     }
     if (request.auth?.uid && packDoc.data()?.creatorId === request.auth.uid) {
       return { counted: false };
@@ -2835,7 +2850,7 @@ export const recordStickerPackView = onCall(
 );
 
 /**
- * パック本体・閲覧回数・ストレージ上の画像を削除する（画像はベストエフォート）。
+ * ぺったん本体・閲覧回数・ストレージ上の画像を削除する（画像はベストエフォート）。
  * 出品者の直接削除（deleteStickerPack）と、運営の承認後の自動削除
  * （processScheduledPackDeletions）で共有する。
  */
@@ -2864,7 +2879,7 @@ async function deletePackAndAssets(
 }
 
 /**
- * 出品者が自分のパックを削除する。誰か1人でも現在所有していれば
+ * 出品者が自分のぺったんを削除する。誰か1人でも現在所有していれば
  * （ownerCount > 0）直接は削除できず、運営への削除の申請
  * （requestStickerPackDeletion）が要る（購入済みユーザーの手持ちスタンプを
  * 勝手に消さないため）。ストレージ上の画像も併せてベストエフォートで削除する。
@@ -2883,17 +2898,17 @@ export const deleteStickerPack = onCall(
     const ref = db.collection("stickerPacks").doc(packId);
     const doc = await ref.get();
     if (!doc.exists) {
-      throw new HttpsError("not-found", "パックが見つかりません");
+      throw new HttpsError("not-found", "ぺったんが見つかりません");
     }
     const data = doc.data()!;
     if (data.creatorId !== uid) {
-      throw new HttpsError("permission-denied", "自分が出品したパックのみ削除できます");
+      throw new HttpsError("permission-denied", "自分が出品したぺったんのみ削除できます");
     }
     const ownerCount = typeof data.ownerCount === "number" ? data.ownerCount : 0;
     if (ownerCount > 0) {
       throw new HttpsError(
         "failed-precondition",
-        "このパックは現在利用しているユーザーがいるため、直接は削除できません。削除を運営へ申請してください",
+        "このぺったんは現在利用しているユーザーがいるため、直接は削除できません。削除を運営へ申請してください",
       );
     }
     await deletePackAndAssets(packId, data);
@@ -2901,8 +2916,8 @@ export const deleteStickerPack = onCall(
 );
 
 // ---------------------------------------------------------------------
-// 出品済みパックの削除の申請→運営の承認→日時を指定して自動削除（2026-11-17追加）。
-// 利用者がいる（ownerCount > 0）パックは、出品者が直接削除できず、削除を申請する。
+// 出品済みぺったんの削除の申請→運営の承認→日時を指定して自動削除（2026-11-17追加）。
+// 利用者がいる（ownerCount > 0）ぺったんは、出品者が直接削除できず、削除を申請する。
 // 運営（管理者）は、承認のときに削除する日時を指定する。承認すると、そのぺったんを
 // 入手した人だけにお知らせ（users/{uid}/notices）を送り、指定の時刻に
 // processScheduledPackDeletionsが完全に削除する。申請は
@@ -2923,7 +2938,7 @@ function readPackId(data: unknown): string {
   return packId;
 }
 
-/** 申請の対象。stickerIdがあれば、パックの中の1枚の削除。 */
+/** 申請の対象。stickerIdがあれば、ぺったんの中の1枚の削除。 */
 function readDeletionTarget(data: unknown): {
   packId: string;
   stickerId: string | undefined;
@@ -2956,7 +2971,7 @@ async function ownerUidsOfPack(packId: string): Promise<string[]> {
   return uids;
 }
 
-/** 入手した全員の`ownedStickerPacks`のうち、そのパックの分を削除する（500件ずつ）。 */
+/** 入手した全員の`ownedStickerPacks`のうち、そのぺったんの分を削除する（500件ずつ）。 */
 async function removeOwnedRecords(packId: string): Promise<number> {
   let removed = 0;
   for (;;) {
@@ -3058,7 +3073,7 @@ async function notifyPackOwners(
   return uids.length;
 }
 
-/** 出品者が、利用者のいるパックの削除を、運営へ申請する（理由は必須）。 */
+/** 出品者が、利用者のいるぺったんの削除を、運営へ申請する（理由は必須）。 */
 export const requestStickerPackDeletion = onCall(
   { region: "asia-northeast1" },
   async (request) => {
@@ -3072,17 +3087,17 @@ export const requestStickerPackDeletion = onCall(
 
     const packDoc = await db.collection("stickerPacks").doc(packId).get();
     if (!packDoc.exists) {
-      throw new HttpsError("not-found", "パックが見つかりません");
+      throw new HttpsError("not-found", "ぺったんが見つかりません");
     }
     const pack = packDoc.data()!;
     if (pack.creatorId !== uid) {
-      throw new HttpsError("permission-denied", "自分が出品したパックのみ申請できます");
+      throw new HttpsError("permission-denied", "自分が出品したぺったんのみ申請できます");
     }
     const ownerCount = typeof pack.ownerCount === "number" ? pack.ownerCount : 0;
     if (ownerCount <= 0) {
       throw new HttpsError(
         "failed-precondition",
-        "このパックは利用している人がいないので、申請せずに直接削除できます",
+        "このぺったんは利用している人がいないので、申請せずに直接削除できます",
       );
     }
     if (pack.deleteScheduledAt) {
@@ -3127,7 +3142,7 @@ export const requestStickerPackDeletion = onCall(
 
 /**
  * 削除の申請を承認し、削除する日時を指定する（管理者のみ）。日時は今から24時間以上先。
- * パックに`deleteScheduledAt`を付けて新しい入手を止め、入手した人だけにお知らせを送る。
+ * ぺったんに`deleteScheduledAt`を付けて新しい入手を止め、入手した人だけにお知らせを送る。
  */
 export const approveStickerPackDeletion = onCall(
   { region: "asia-northeast1", timeoutSeconds: 300 },
@@ -3154,18 +3169,18 @@ export const approveStickerPackDeletion = onCall(
     const packRef = db.collection("stickerPacks").doc(packId);
     const packDoc = await packRef.get();
     if (!packDoc.exists) {
-      throw new HttpsError("not-found", "パックが見つかりません");
+      throw new HttpsError("not-found", "ぺったんが見つかりません");
     }
     const packName: string =
       typeof packDoc.data()?.name === "string" ? packDoc.data()!.name : "";
 
     let notice = packDeletionNoticeText(packName, deleteAt.value, urgent);
     if (stickerId) {
-      // 1枚の削除: パックの入手は止めない（deleteScheduledAtは付けない）
+      // 1枚の削除: ぺったんの入手は止めない（deleteScheduledAtは付けない）
       const list = (packDoc.data()?.stickers as StickerInput[] | undefined) ?? [];
       const target = list.find((s) => s.stickerId === stickerId);
       if (!target) {
-        throw new HttpsError("not-found", "そのぺったんは、すでにパックにありません");
+        throw new HttpsError("not-found", "その画像は、すでにぺったんにありません");
       }
       notice = stickerDeletionNoticeText(packName, target.name, deleteAt.value, urgent);
     } else {
@@ -3185,7 +3200,7 @@ export const approveStickerPackDeletion = onCall(
       notified = await notifyPackOwners(packId, notice, deleteAt.value);
       await reqRef.update({ noticeCount: notified, noticeError: FieldValue.delete() });
     } catch (error) {
-      logger.error("パックの削除のお知らせに失敗", { packId, error });
+      logger.error("ぺったんの削除のお知らせに失敗", { packId, error });
       await reqRef.update({ noticeError: String(error).slice(0, 300) });
     }
     await writeAdminAuditLog({
@@ -3232,7 +3247,7 @@ export const rejectStickerPackDeletion = onCall(
   },
 );
 
-/** 承認済みの削除の予定を取り消す（管理者のみ）。パックはそのまま残り、入手も再開する。 */
+/** 承認済みの削除の予定を取り消す（管理者のみ）。ぺったんはそのまま残り、入手も再開する。 */
 export const cancelScheduledPackDeletion = onCall(
   { region: "asia-northeast1" },
   async (request) => {
@@ -3266,7 +3281,7 @@ export const cancelScheduledPackDeletion = onCall(
 );
 
 /**
- * パックの配列から、ぺったん1枚を取り除く（画像ファイルは消さない）。すでに無ければ何もしない
+ * ぺったんの配列から、画像1枚を取り除く（画像ファイルは消さない）。すでに無ければ何もしない
  * （何度実行しても安全）。下限・代表の検証は、申請・承認の時に済んでいるため、ここでは見ない。
  */
 async function removeStickerFromPack(packId: string, stickerId: string): Promise<void> {
@@ -3284,7 +3299,7 @@ async function removeStickerFromPack(packId: string, stickerId: string): Promise
 }
 
 /**
- * 出品者が、利用者のいないパックから、ぺったん1枚を直接削除する。利用者がいるパックは、
+ * 出品者が、利用者のいないぺったんから、画像1枚を直接削除する。利用者がいるぺったんは、
  * 運営への申請（requestStickerPackDeletion、stickerId付き）が要る。
  */
 export const deleteStickerFromPack = onCall(
@@ -3301,17 +3316,17 @@ export const deleteStickerFromPack = onCall(
     const ref = db.collection("stickerPacks").doc(packId);
     const doc = await ref.get();
     if (!doc.exists) {
-      throw new HttpsError("not-found", "パックが見つかりません");
+      throw new HttpsError("not-found", "ぺったんが見つかりません");
     }
     const pack = doc.data()!;
     if (pack.creatorId !== uid) {
-      throw new HttpsError("permission-denied", "自分が出品したパックのみ編集できます");
+      throw new HttpsError("permission-denied", "自分が出品したぺったんのみ編集できます");
     }
     const ownerCount = typeof pack.ownerCount === "number" ? pack.ownerCount : 0;
     if (ownerCount > 0) {
       throw new HttpsError(
         "failed-precondition",
-        "このパックは現在利用しているユーザーがいるため、直接は削除できません。削除を運営へ申請してください",
+        "このぺったんは現在利用しているユーザーがいるため、直接は削除できません。削除を運営へ申請してください",
       );
     }
     const list = (pack.stickers as StickerInput[] | undefined) ?? [];
@@ -3327,7 +3342,7 @@ export const deleteStickerFromPack = onCall(
 );
 
 /**
- * 出品済みパックのぺったん1枚の画像を、差し替える（運営の許可は不要）。stickerId・並び順は
+ * 出品済みぺったんの1枚の画像を、差し替える（運営の許可は不要）。stickerId・並び順は
  * 変えないので、入手した人の手持ちの対応は壊れない。旧画像のファイルは、過去のメッセージ
  * （送信時の画像URLを保存している）のために消さない。nameとrolesは、渡されたときだけ変える。
  */
@@ -3363,18 +3378,18 @@ export const replaceStickerImage = onCall(
     await db.runTransaction(async (tx) => {
       const doc = await tx.get(ref);
       if (!doc.exists) {
-        throw new HttpsError("not-found", "パックが見つかりません");
+        throw new HttpsError("not-found", "ぺったんが見つかりません");
       }
       const pack = doc.data()!;
       if (pack.creatorId !== uid) {
-        throw new HttpsError("permission-denied", "自分が出品したパックのみ編集できます");
+        throw new HttpsError("permission-denied", "自分が出品したぺったんのみ編集できます");
       }
       if (pack.deleteScheduledAt) {
-        throw new HttpsError("failed-precondition", "削除が予定されているパックは、編集できません");
+        throw new HttpsError("failed-precondition", "削除が予定されているぺったんは、編集できません");
       }
       const list = (pack.stickers as StickerInput[] | undefined) ?? [];
       if (!list.some((s) => s.stickerId === stickerId)) {
-        throw new HttpsError("not-found", "そのぺったんは、このパックにありません");
+        throw new HttpsError("not-found", "その画像は、このぺったんにありません");
       }
       tx.update(ref, {
         stickers: list.map((s) =>
@@ -3396,7 +3411,7 @@ export const replaceStickerImage = onCall(
 );
 
 /**
- * 出品済みパックのぺったんの役割（メッセージ内容に応じた提案に使う）を、後から付け直す
+ * 出品済みぺったんの画像の役割（メッセージ内容に応じた提案に使う）を、後から付け直す
  * （運営の許可は不要。画像・stickerIdは変わらず、提案の出方だけが変わる）。
  * 渡したぺったんの`roles`だけを置き換える。空の配列で、役割なしに戻せる。
  */
@@ -3415,20 +3430,20 @@ export const updateStickerRoles = onCall(
     await db.runTransaction(async (tx) => {
       const doc = await tx.get(ref);
       if (!doc.exists) {
-        throw new HttpsError("not-found", "パックが見つかりません");
+        throw new HttpsError("not-found", "ぺったんが見つかりません");
       }
       const pack = doc.data()!;
       if (pack.creatorId !== uid) {
-        throw new HttpsError("permission-denied", "自分が出品したパックのみ編集できます");
+        throw new HttpsError("permission-denied", "自分が出品したぺったんのみ編集できます");
       }
       if (pack.deleteScheduledAt) {
-        throw new HttpsError("failed-precondition", "削除が予定されているパックは、編集できません");
+        throw new HttpsError("failed-precondition", "削除が予定されているぺったんは、編集できません");
       }
       const list = (pack.stickers as StickerInput[] | undefined) ?? [];
       const rolesById = new Map(parsed.value.map((u) => [u.stickerId, u.roles]));
       for (const id of rolesById.keys()) {
         if (!list.some((s) => s.stickerId === id)) {
-          throw new HttpsError("not-found", `stickerId "${id}" は、このパックにありません`);
+          throw new HttpsError("not-found", `stickerId "${id}" は、このぺったんにありません`);
         }
       }
       tx.update(ref, {
@@ -3445,7 +3460,7 @@ const PACK_DELETION_BATCH_LIMIT = 20;
 
 /**
  * 指定の日時になった削除の予定を、実行する（5分ごと）。入手した人の`ownedStickerPacks`、
- * パック本体、画像を削除する。何度実行しても安全（すでに消えていれば、完了にするだけ）。
+ * ぺったん本体、画像を削除する。何度実行しても安全（すでに消えていれば、完了にするだけ）。
  */
 export const processScheduledPackDeletions = onSchedule(
   { schedule: "every 5 minutes", region: "asia-northeast1", timeoutSeconds: 540 },
@@ -3465,7 +3480,7 @@ export const processScheduledPackDeletions = onSchedule(
           : undefined;
       try {
         if (stickerId) {
-          // 1枚だけ、パックの配列から取り除く。画像ファイルは、過去のメッセージ
+          // 1枚だけ、ぺったんの配列から取り除く。画像ファイルは、過去のメッセージ
           // （送信時の画像URLを保存している）のために消さない
           await removeStickerFromPack(packId, stickerId);
         } else {
@@ -3480,7 +3495,7 @@ export const processScheduledPackDeletions = onSchedule(
         });
         logger.info(`予定の時刻になった削除を実行しました: ${packId}${stickerId ? `/${stickerId}` : ""}`);
       } catch (error) {
-        logger.error("パックの予定の削除に失敗", { packId, error });
+        logger.error("ぺったんの予定の削除に失敗", { packId, error });
         await reqDoc.ref.update({
           status: "failed" satisfies PackDeletionStatus,
           error: String(error).slice(0, 300),
@@ -3491,8 +3506,8 @@ export const processScheduledPackDeletions = onSchedule(
 );
 
 // ---------------------------------------------------------------------
-// daidai横丁: 購入付与フロー（2026-08-11追加）。無料パックの直接付与・
-// 有料パックのStripe Checkout経由の付与、どちらも最終的にこの
+// daidai横丁: 購入付与フロー（2026-08-11追加）。無料ぺったんの直接付与・
+// 有料ぺったんのStripe Checkout経由の付与、どちらも最終的にこの
 // grantOwnershipを通る。ownedStickerPacksの存在チェックで、Webhookの
 // 再送（Stripeは同一イベントを複数回配信しうる）による二重付与を防ぐ。
 // ---------------------------------------------------------------------
@@ -3518,13 +3533,13 @@ async function grantOwnership(
 }
 
 /**
- * ユーザーが所有しているぺったんパックをアンインストール（所有解除）する。
+ * ユーザーが所有しているぺったんをアンインストール（所有解除）する。
  * grantOwnershipの対称形として、ownedStickerPacksドキュメントを削除し
  * ownerCountを1減らす（2026-08-11追加、functions/src/index.tsのcreateStickerPack
  * コメントで予告していたアンインストール連動の実処理）。salesCountは
  * 「これまでの累計販売数」という別の指標のため変更しない。これによって
- * ownerCountが0に戻れば、出品者はdeleteStickerPackでパックを削除できるように
- * なる。無料・有料どちらのパックでも、PAID_PACKS_ENABLEDに関係なく常に許可する。
+ * ownerCountが0に戻れば、出品者はdeleteStickerPackでぺったんを削除できるように
+ * なる。無料・有料どちらのぺったんでも、PAID_PACKS_ENABLEDに関係なく常に許可する。
  */
 export const uninstallStickerPack = onCall(
   { region: "asia-northeast1" },
@@ -3552,7 +3567,7 @@ export const uninstallStickerPack = onCall(
       const packDoc = await tx.get(packRef);
 
       if (!ownedDoc.exists) {
-        throw new HttpsError("failed-precondition", "このパックは所有していません");
+        throw new HttpsError("failed-precondition", "このぺったんは所有していません");
       }
       tx.delete(ownedRef);
 
@@ -3576,8 +3591,8 @@ function resolveReturnOrigin(candidate: unknown): string {
 }
 
 /**
- * パックの入手を開始する。無料パック（price===0）はStripeを介さず直接
- * 付与し、有料パックはStripe Checkout Session（都度払い）を作成してその
+ * ぺったんの入手を開始する。無料ぺったん（price===0）はStripeを介さず直接
+ * 付与し、有料ぺったんはStripe Checkout Session（都度払い）を作成してその
  * URLを返す。決済確定後の実付与はstripeWebhookが行う。
  */
 export const createCheckoutSession = onCall(
@@ -3595,7 +3610,7 @@ export const createCheckoutSession = onCall(
     const packRef = db.collection("stickerPacks").doc(packId);
     const packDoc = await packRef.get();
     if (!packDoc.exists) {
-      throw new HttpsError("not-found", "パックが見つかりません");
+      throw new HttpsError("not-found", "ぺったんが見つかりません");
     }
     const pack = packDoc.data()!;
 
@@ -3605,10 +3620,10 @@ export const createCheckoutSession = onCall(
       .collection("ownedStickerPacks")
       .doc(packId);
     if ((await ownedRef.get()).exists) {
-      throw new HttpsError("already-exists", "このパックはすでに入手済みです");
+      throw new HttpsError("already-exists", "このぺったんはすでに入手済みです");
     }
 
-    // 削除が予定されているパックは、新しく入手できない（運営が日時を決めた時点で止める）
+    // 削除が予定されているぺったんは、新しく入手できない（運営が日時を決めた時点で止める）
     if (pack.deleteScheduledAt) {
       throw new HttpsError(
         "failed-precondition",
@@ -3634,7 +3649,7 @@ export const createCheckoutSession = onCall(
           price_data: {
             currency: "jpy",
             product_data: {
-              name: typeof pack.name === "string" ? pack.name : "ぺったんパック",
+              name: typeof pack.name === "string" ? pack.name : "ぺったん",
             },
             unit_amount: price,
           },
@@ -3650,7 +3665,7 @@ export const createCheckoutSession = onCall(
 );
 
 /**
- * Stripeからの決済完了通知を受け取り、ぺったんパックを購入者に付与する。
+ * Stripeからの決済完了通知を受け取り、ぺったんを購入者に付与する。
  * HomePage-Rhingは決済へのリダイレクトのみを担当し、実際のFirestore書き込みは
  * ここ（DaiDai既存のCloud Functions）で行う方針（技術仕様書7.4節参照）。
  */

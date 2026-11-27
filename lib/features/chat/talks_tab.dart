@@ -3954,7 +3954,8 @@ class CategoryTab extends ConsumerWidget {
     if (ref.watch(appUiStyleProvider) == AppUiStyle.kinari) {
       // 生成り: 選択中は、アクセントカラーのへこんだ面、他は紙のへこんだ面（2026-11-27）。
       return KinariInset(
-        color: selected ? colorScheme.primary : colorScheme.surface,
+        color: colorScheme.surface,
+        well: selected ? colorScheme.primary : null,
         radius: 20,
         depth: selected ? 2.2 : 1,
         child: InkWell(

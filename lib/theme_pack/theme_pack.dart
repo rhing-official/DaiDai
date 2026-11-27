@@ -6,10 +6,10 @@ import '../models/dark_variant.dart';
 import '../theme/block/block_tokens.dart';
 import '../utils/color_hex.dart';
 
-/// 素材パックの形式の版。アプリが読めるのはこの版以下（2026-11-26、`文書/検討/素材パック.md`）。
+/// 意匠の形式の版。アプリが読めるのはこの版以下（2026-11-26、`文書/検討/素材パック.md`）。
 const int kThemePackFormatVersion = 1;
 
-/// パックが対応する明るさ。片方だけなら、端末の設定に関わらずその明るさで表示する。
+/// 意匠が対応する明るさ。片方だけなら、端末の設定に関わらずその明るさで表示する。
 enum ThemePackBrightness {
   light,
   dark,
@@ -43,7 +43,7 @@ class ThemePackColors {
   final Color? line;
 }
 
-/// 読み込んだ素材パック。コードは含まず、決まった項目だけを持つ。
+/// 読み込んだ意匠。コードは含まず、決まった項目だけを持つ。
 @immutable
 class ThemePack {
   const ThemePack({
@@ -68,13 +68,13 @@ class ThemePack {
   final ThemePackColors light;
   final ThemePackColors dark;
 
-  /// 背景画像。パックを置いた場所に応じて、読み込み側が解決する。
+  /// 背景画像。意匠を置いた場所に応じて、読み込み側が解決する。
   final ImageProvider? backgroundImage;
 
   ThemePackColors colorsFor(Brightness b) =>
       b == Brightness.dark ? dark : light;
 
-  /// 背景（と面）の色を指定したパックだけ、面の色の組を返す。無ければnull（版画の標準の導き方）。
+  /// 背景（と面）の色を指定した意匠だけ、面の色の組を返す。無ければnull（版画の標準の導き方）。
   AppearancePalette? paletteFor(Brightness b) {
     final c = colorsFor(b);
     final bg = c.background;
@@ -129,7 +129,7 @@ class ThemePackException implements Exception {
 }
 
 /// 設定ファイル（JSON）の画像の相対パス。`..`・絶対パス・URLは受け付けない
-/// （パックの外のファイルを読ませない）。
+/// （意匠の外のファイルを読ませない）。
 final RegExp _safeImagePath = RegExp(r'^[A-Za-z0-9_\-]+(\.[A-Za-z0-9]+)?$');
 
 class ThemePackParser {
@@ -157,7 +157,7 @@ class ThemePackParser {
       throw const ThemePackException('形式の版が書かれていません');
     }
     if (version > kThemePackFormatVersion) {
-      throw const ThemePackException('このアプリより新しい形式のパックです');
+      throw const ThemePackException('このアプリより新しい形式の意匠です');
     }
     final id = decoded['id'];
     final name = decoded['name'];

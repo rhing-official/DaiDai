@@ -231,13 +231,13 @@ void main() {
     matching: find.byType(InkWell),
   );
 
-  testWidgets('ポップアップ: 別のパックを開いたら拡大表示が閉じる', (tester) async {
+  testWidgets('ポップアップ: 別のぺったんを開いたら拡大表示が閉じる', (tester) async {
     await openPopup(tester);
     await tester.tap(gridTiles().first);
     await settle(tester);
     expect(find.byType(PageView), findsOneWidget);
 
-    // 左のレールの、最後のパックのアイコンを押す。
+    // 左のレールの、最後のぺったんのアイコンを押す。
     await tester.tap(
       find
           .descendant(of: find.byType(ListView), matching: find.byType(InkWell))

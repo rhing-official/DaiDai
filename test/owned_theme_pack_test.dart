@@ -126,7 +126,7 @@ void main() {
       expect(await loggedOut.list(), isEmpty);
     });
 
-    test('廃止した同梱の公式パックの選択は、理由を出さずに外して起動する', () async {
+    test('廃止した同梱の公式意匠の選択は、理由を出さずに外して起動する', () async {
       SharedPreferences.setMockInitialValues({
         'themePackId': 'sakura',
         'appUiStyle': AppUiStyle.block.name,

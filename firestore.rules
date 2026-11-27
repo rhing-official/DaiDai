@@ -67,6 +67,12 @@ service cloud.firestore {
       return get(/databases/$(database)/documents/stickerPacks/$(packId)).data.creatorId == userId;
     }
 
+    // themePacks/{packId}の出品者（creatorId）が[userId]自身かどうか
+    // （favoriteDesignsの自己お気に入り防止用、2026-11-27追加）。
+    function isOwnThemePack(packId, userId) {
+      return get(/databases/$(database)/documents/themePacks/$(packId)).data.creatorId == userId;
+    }
+
     // users/{userId}: 本人のみ作成・更新可能。ログイン済みなら誰でも参照可能
     // （Rhing Seed検索・重複チェックのため一覧クエリを許可する）。お便り
     // （運営の発信元）は2026-10-10に住人ではなく`announcements`・`system/official`
@@ -227,7 +233,7 @@ service cloud.firestore {
         allow write: if false;
       }
 
-      // users/{userId}/ownedThemePacks/{packId}: 取得した意匠パック（デザイン）の記録
+      // users/{userId}/ownedThemePacks/{packId}: 取得した意匠（デザイン）の記録
       // （2026-11-26追加）。`{ packId, grantedAt, version }`。ぺったんの
       // `ownedStickerPacks`とは混ぜず別にする。付与・解除はCloud Functions
       // （acquireThemePack・uninstallThemePack）のみ。本人だけが読める。
@@ -275,7 +281,7 @@ service cloud.firestore {
       }
 
       // users/{userId}/favoritePacks/{packId}: daidai横丁でお気に入り登録
-      // したパックの一覧（存在＝お気に入り、2026-08-13追加）。followsと同様、
+      // したぺったんの一覧（存在＝お気に入り、2026-08-13追加）。followsと同様、
       // 本人のみ直接読み書き可能。packIdはstickerPacks側のドキュメントIDのため、
       // 自己お気に入り防止にはisOwnStickerPack()でstickerPacksをget()して
       // creatorIdを参照する必要がある（作成時のみチェック、2026-08-29追加）。
@@ -293,7 +299,23 @@ service cloud.firestore {
         allow read, write: if request.auth != null && request.auth.uid == userId;
       }
 
-      // users/{userId}/packDrafts/{draftId}: daidai横丁のパックの下書き（作成の
+      // users/{userId}/favoriteDesigns/{packId}: daidai横丁で意匠をお気に入り
+      // 登録した一覧（存在＝お気に入り、2026-11-27追加）。favoritePacksと同じ作りで、
+      // 本人のみ。自分の意匠は、作成時に拒否する。中身はcreatedAtだけ。
+      match /favoriteDesigns/{packId} {
+        allow read, update, delete: if request.auth != null && request.auth.uid == userId;
+        allow create: if request.auth != null && request.auth.uid == userId
+          && !isOwnThemePack(packId, userId);
+      }
+
+      // users/{userId}/cartDesigns/{packId}: daidai横丁の意匠のカート（存在＝カートに
+      // 入っている、2026-11-27追加）。cartPacksと同じ作りで、本人のみ。中身はcreatedAt
+      // だけ。上限（50件）は画面で制限する。
+      match /cartDesigns/{packId} {
+        allow read, write: if request.auth != null && request.auth.uid == userId;
+      }
+
+      // users/{userId}/packDrafts/{draftId}: daidai横丁のぺったんの下書き（作成の
       // 途中保存、2026-10-29追加）。本人だけが読み書きできる（公開される
       // stickerPacksとは別の場所）。画像はStorageのstickerPackAssets/{uid}に
       // 置き、そのURLを持つ。サイズは、ぺったん50件・名前100文字までに制限する。
@@ -304,9 +326,9 @@ service cloud.firestore {
           && request.resource.data.name.size() <= 100;
       }
 
-      // users/{userId}/packEditDrafts/{packId}: 公開中のパックの編集内容の下書き
+      // users/{userId}/packEditDrafts/{packId}: 公開中のぺったんの編集内容の下書き
       // （公開は取り消さず、編集内容だけを一時保存する、2026-10-29追加）。ドキュメントIDは
-      // 公開中のパックのID（1パックにつき1つ）。変更点（名前・価格・代表・追加する画像）
+      // 公開中のぺったんのID（1ぺったんにつき1つ）。変更点（名前・価格・代表・追加する画像）
       // だけを持ち、公開版には触れない。本人だけが読み書きできる。反映は、
       // 既存のCloud Functions（updateStickerPackMeta・addStickersToStickerPack）が行う。
       match /packEditDrafts/{packId} {
@@ -328,7 +350,7 @@ service cloud.firestore {
       allow write: if false;
     }
 
-    // packStats/{packId}: パックの閲覧回数（出品者にだけ見せる、2026-10-29追加）。
+    // packStats/{packId}: ぺったんの閲覧回数（出品者にだけ見せる、2026-10-29追加）。
     // stickerPacksは公開読み取りのため、別ドキュメントにして、出品者本人だけが
     // 読めるようにする。書き込みはCloud Functions（recordStickerPackView）のみ。
     match /packStats/{packId} {
@@ -337,7 +359,7 @@ service cloud.firestore {
       allow write: if false;
     }
 
-    // themePackSubmissions/{submissionId}: 素材パック（デザイン）の投稿（2026-11-26追加）。
+    // themePackSubmissions/{submissionId}: 意匠（デザイン）の投稿（2026-11-26追加）。
     // 審査中・差し戻し等も含む。未承認の素材を誰でも読めるコレクションに混ぜないため、
     // 公開用とは別にしてある。読めるのは投稿者本人（`creatorId`で絞ったクエリ）と管理者。
     // 書き込みは、Cloud Functions（submitThemePack）のみ。
@@ -347,7 +369,7 @@ service cloud.firestore {
       allow write: if false;
     }
 
-    // themePacks/{packId}: 公開中の素材パック（デザイン）（2026-11-26追加）。入るのは
+    // themePacks/{packId}: 公開中の意匠（デザイン）（2026-11-26追加）。入るのは
     // `status == "approved"`（承認済み）と、取り下げ後の`withdrawn`、配信停止後の`suspended`だけ。
     // 取得済みの人のアプリが状態を見て、停止なら標準へ戻す為、`withdrawn`・`suspended`も誰でも読める。未承認の素材は
     // `themePackSubmissions`に置き、ここへ混ぜない。誰でも読める為、秘密になる項目
@@ -358,8 +380,8 @@ service cloud.firestore {
       allow write: if false;
     }
 
-    // packDeletionRequests/{packId}: 出品済みパックの削除の申請（2026-11-17追加）。
-    // 利用者のいるパックは、出品者が運営へ申請し、運営（管理者）が日時を指定して承認する。
+    // packDeletionRequests/{packId}: 出品済みぺったんの削除の申請（2026-11-17追加）。
+    // 利用者のいるぺったんは、出品者が運営へ申請し、運営（管理者）が日時を指定して承認する。
     // 出品者本人と管理者が読める。書き込みは、Cloud Functions（requestStickerPackDeletion・
     // approve／reject／cancelScheduledPackDeletion・processScheduledPackDeletions）のみ。
     match /packDeletionRequests/{packId} {
@@ -397,7 +419,7 @@ service cloud.firestore {
       allow write: if false;
     }
 
-    // stickerPackReports/{reportId}: daidai横丁のパック通報記録（v1は記録のみ、
+    // stickerPackReports/{reportId}: daidai横丁のぺったん通報記録（v1は記録のみ、
     // 2026-08-11追加）。作成はcreateStickerPackReport callable（Admin SDK）
     // 経由のみで、Rhing運営がFirebase console等で手動レビューする想定のため
     // クライアントからの読み書きは一律禁止する。

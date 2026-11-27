@@ -20,10 +20,10 @@ import '../../providers/recent_stickers_provider.dart';
 import '../../providers/repository_providers.dart';
 import '../../providers/sticker_send_mode_provider.dart';
 
-/// ぺったんピッカーの本体（検索バー＋パック別レール＋グリッド、2026-08-11
+/// ぺったんピッカーの本体（検索バー＋ぺったん別レール＋グリッド、2026-08-11
 /// 追加）。モバイル用ボトムシート（`StickerPickerSheet`）とデスクトップ用
 /// アンカーポップアップ（`sticker_picker_popup.dart`）の両方から共有される。
-/// [railAxis]で、パック切り替えレールを左サイド（`Axis.vertical`）に
+/// [railAxis]で、ぺったん切り替えレールを左サイド（`Axis.vertical`）に
 /// 出すか下部（`Axis.horizontal`）に出すかを切り替える。
 /// 「最近使った」タブを表す[StickerPickerContent]内部のタブid。
 const _kRecentTab = kStickerTabRecent;
@@ -67,7 +67,7 @@ class StickerPickerContent extends ConsumerStatefulWidget {
   bool get _swipeTabs => railAxis == Axis.horizontal;
   final void Function(Sticker sticker) onStickerSelected;
 
-  /// 指定時は「全て」タブではなく、このパックに絞り込んだ状態で開く
+  /// 指定時は「全て」タブではなく、このぺったんに絞り込んだ状態で開く
   /// （他人が送信済みのぺったんをタップして開く導線用、2026-08-14追加）。
   final String? initialPackId;
 
@@ -80,15 +80,15 @@ class _StickerPickerContentState extends ConsumerState<StickerPickerContent> {
   String _query = '';
   // nullは「全て」タブを表す。[_kRecentTab]は「最近使った」タブ。
   String? _chosenPackId;
-  // 利用者がタブを選んだか。選ぶまでは[_selectedPackId]が既定（指定パック、
+  // 利用者がタブを選んだか。選ぶまでは[_selectedPackId]が既定（指定ぺったん、
   // 無ければ最近があれば「最近」、無ければ「全て」）を返す。最近の読み込みは
   // 非同期の為、初期化時ではなく都度判定する（2026-10-29）。
   bool _tabChosen = false;
 
-  // 所持パックのid（取得出来た後）。記憶したパックが今も有効かの判定に使う。
+  // 所持ぺったんのid（取得出来た後）。記憶したぺったんが今も有効かの判定に使う。
   Set<String>? _ownedPackIds;
 
-  /// 開いた時の最初のタブ: 指定パック → この語らいで直前に開いたタブ（パックは
+  /// 開いた時の最初のタブ: 指定ぺったん → この語らいで直前に開いたタブ（ぺったんは
   /// 今も所持している時だけ）→ 最近があれば最近 → 全て。
   String? get _selectedPackId {
     if (_tabChosen) return _chosenPackId;
@@ -106,7 +106,7 @@ class _StickerPickerContentState extends ConsumerState<StickerPickerContent> {
   }
 
   void _selectTab(String? packId) {
-    // 別のぺったんのパック（タブ）を開いたら、拡大表示は閉じる（2026-11-21）。
+    // 別のぺったん（タブ）を開いたら、拡大表示は閉じる（2026-11-21）。
     _removePreview();
     setState(() {
       _tabChosen = true;
@@ -122,7 +122,7 @@ class _StickerPickerContentState extends ConsumerState<StickerPickerContent> {
   }
 
   // 横スワイプでタブを移動する（モバイル）ためのページ制御。コントローラーは
-  // 初期ページが決まってから作る（所持パックの取得後）。
+  // 初期ページが決まってから作る（所持ぺったんの取得後）。
   PageController? _pageController;
   final _railController = ScrollController();
   bool _pageAnimating = false;
@@ -130,7 +130,7 @@ class _StickerPickerContentState extends ConsumerState<StickerPickerContent> {
   Offset? _collapseStart;
   bool _gridAtTop = true;
 
-  /// タブの並び（レールと同じ: 最近、全て(null)、所持パック）。
+  /// タブの並び（レールと同じ: 最近、全て(null)、所持ぺったん）。
   List<String?> _tabIds(List<StickerPack> packs) => [
     _kRecentTab,
     null,
@@ -398,7 +398,7 @@ class _StickerPickerContentState extends ConsumerState<StickerPickerContent> {
                 ? const SizedBox.shrink()
                 : Builder(
                     builder: (context) {
-                      // 所持パックは共有の1本の購読から読む（再ビルドで取り直さない）。
+                      // 所持ぺったんは共有の1本の購読から読む（再ビルドで取り直さない）。
                       final packs =
                           ref
                               .watch(ownedStickerPacksProvider(currentUserId))
@@ -593,7 +593,7 @@ class _StickerPickerContentState extends ConsumerState<StickerPickerContent> {
     final query = _query.trim().toLowerCase();
     final List<Sticker> source;
     if (selectedPackId == _kRecentTab) {
-      // 所持パック内のぺったんを、最近使った順に並べる（所持していない・削除
+      // 所持ぺったん内のぺったんを、最近使った順に並べる（所持していない・削除
       // 済みのものは出さない）。
       final byId = {
         for (final pack in packs)

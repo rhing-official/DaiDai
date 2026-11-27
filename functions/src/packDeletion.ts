@@ -1,4 +1,4 @@
-/// 出品済みパックの削除（申請→運営の承認→日時を指定して自動削除）の、画面・DBに依存しない部分
+/// 出品済みぺったんの削除（申請→運営の承認→日時を指定して自動削除）の、画面・DBに依存しない部分
 /// （2026-11-17）。検証・状態の遷移・入手した人へのお知らせの定型文を、ここにまとめる。
 
 /** 申請の理由・却下の理由の最大文字数。 */
@@ -122,17 +122,17 @@ export function packDeletionNoticeText(
 }
 
 // ---------------------------------------------------------------------
-// ぺったん1枚の削除（2026-11-17）。パックの削除と同じ申請の仕組みを使う。
+// ぺったん1枚の削除（2026-11-17）。ぺったんの削除と同じ申請の仕組みを使う。
 // ---------------------------------------------------------------------
 
-/** 申請の文書ID。パックの削除は`packId`（従来どおり）、1枚の削除は`packId__stickerId`。 */
+/** 申請の文書ID。ぺったんの削除は`packId`（従来どおり）、1枚の削除は`packId__stickerId`。 */
 export function deletionRequestId(packId: string, stickerId?: string): string {
   return stickerId ? `${packId}__${stickerId}` : packId;
 }
 
 /**
- * パックから1枚を削除してよいか。削除後に下限を下回る場合と、パックの「代表」は不可。
- * stickers: そのパックの今のぺったんのstickerId一覧。
+ * ぺったんから1枚を削除してよいか。削除後に下限を下回る場合と、ぺったんの「代表」は不可。
+ * stickers: そのぺったんの今の画像のstickerId一覧。
  */
 export function validateStickerRemoval(
   stickerIds: string[],
@@ -141,12 +141,12 @@ export function validateStickerRemoval(
   minCount: number,
 ): Validated<true> {
   if (!stickerIds.includes(stickerId)) {
-    return { ok: false, message: "このパックにそのぺったんはありません" };
+    return { ok: false, message: "このぺったんにその画像はありません" };
   }
   if (stickerIds.length - 1 < minCount) {
     return {
       ok: false,
-      message: `パックには${minCount}枚以上のぺったんが必要です。パックごと削除する場合は、パックの削除を申請してください`,
+      message: `ぺったんには${minCount}枚以上の画像が必要です。全体を削除する場合は、ぺったんの削除を申請してください`,
     };
   }
   if (coverStickerId && coverStickerId === stickerId) {
@@ -166,7 +166,7 @@ export function stickerDeletionNoticeText(
   urgent = false,
 ): string {
   if (urgent) {
-    return `「${packName}」というぺったんパックの中の「${stickerName}」をお使いの利用者の方に連絡します。緊急の対応のため、まもなく使えなくなります。`;
+    return `「${packName}」の中の「${stickerName}」をお使いの利用者の方に連絡します。緊急の対応のため、まもなく使えなくなります。`;
   }
-  return `「${packName}」というぺったんパックの中の「${stickerName}」をお使いの利用者の方に連絡します。${formatJapanDateTime(deleteAt)}に使えなくなります。`;
+  return `「${packName}」の中の「${stickerName}」をお使いの利用者の方に連絡します。${formatJapanDateTime(deleteAt)}に使えなくなります。`;
 }

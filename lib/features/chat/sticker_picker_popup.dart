@@ -11,7 +11,7 @@ import '../../widgets/transitioned_overlay.dart';
 import 'sticker_picker_content.dart';
 
 /// デスクトップ幅（`kTalksSplitBreakpoint`以上）でのぺったん送信アイコン
-/// タップ時、及び所持済みパックのぺったんをメッセージ上でタップした際
+/// タップ時、及び所持済みぺったんの画像をメッセージ上でタップした際
 /// （2026-08-14〜、`chat_screen.dart`の`_handleStickerTap`）に、アンカー
 /// 近くに表示するポップアップ（2026-08-11追加）。メッセージ長押しメニュー
 /// （`chat_screen.dart`の`_MessageBubbleTapAreaState._onLongPressStart`）と

@@ -14,7 +14,7 @@ Future<List<String>> loadInitialDesignPins() async {
   return prefs.getStringList(_prefsKey) ?? const [];
 }
 
-/// 設定>UIで、ピン留めしたデザイン（標準のスタイルも素材パックも）。留めた順。
+/// 設定>UIで、ピン留めしたデザイン（標準のスタイルも意匠も）。留めた順。
 /// 端末とアカウントの両方へ保存し、別の端末でも同じ並びにする。
 class DesignPinsNotifier extends Notifier<List<String>> {
   @override

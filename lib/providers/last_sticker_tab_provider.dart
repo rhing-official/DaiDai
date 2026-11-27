@@ -8,7 +8,7 @@ const _prefsKey = 'lastStickerTabByRoom';
 /// 記憶する語らい（寄合）の最大件数。超えたら古いものから落とす。
 const kLastStickerTabLimit = 200;
 
-/// ぺったん一覧で、タブが「最近使った」「全て」を表す値（パックidと
+/// ぺったん一覧で、タブが「最近使った」「全て」を表す値（ぺったんidと
 /// 衝突しない）。
 const kStickerTabRecent = '__recent__';
 const kStickerTabAll = '__all__';

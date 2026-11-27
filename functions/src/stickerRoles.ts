@@ -10,7 +10,7 @@ export type RoleUpdatesResult =
   | { ok: true; value: StickerRoleUpdate[] }
   | { ok: false; message: string };
 
-/** 1回に更新できるぺったんの数の上限（1パックの上限に十分足りる値）。 */
+/** 1回に更新できるぺったんの数の上限（1ぺったんの上限に十分足りる値）。 */
 export const MAX_ROLE_UPDATES = 200;
 
 /**
