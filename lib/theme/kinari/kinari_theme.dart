@@ -50,6 +50,11 @@ class KinariTheme {
     Color? background,
     Color? onAccentColor,
   }) {
+    // 標準の「アクセント上の色」（#EFEFF1、少し灰色がかった白）は、生成りの紙の上で、くすんだ
+    // クリーム色に見える。標準のままなら、純白にする（自分で選んだ色は、そのまま）。
+    if (onAccentColor == const Color(0xFFEFEFF1)) {
+      onAccentColor = Colors.white;
+    }
     final palette = background == null
         ? const AppearancePalette(
             background: KinariColors.paper,
@@ -58,6 +63,12 @@ class KinariTheme {
             glassSurface: KinariColors.surface,
           )
         : AppearancePalette.fromBackground(background);
+    // アクセントカラーが半透明（8桁の色）だと、塗りが下のへこみ・下のアイコンと混ざり、白い
+    // アイコンが灰色（下の濃紺のアイコンが2割透ける）に見える。見た目の色は変えず、紙の面の上に
+    // 重ねた不透明な色にする（2026-11-27、原因は、アクセントの透明度が0.8だったこと）。
+    if (accentColor.a < 1) {
+      accentColor = Color.alphaBlend(accentColor, palette.surface);
+    }
     final ink = inkFor(palette.background);
     final dark = ink != KinariColors.ink;
     final base = dark
