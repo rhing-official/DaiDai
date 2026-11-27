@@ -763,7 +763,7 @@ class _DmChatPaneState extends ConsumerState<DmChatPane> {
               sendAt: sendAt,
             );
           },
-      onSendSticker: (sticker, {sendAt}) async {
+      onSendSticker: (sticker, {sendAt, replyTo}) async {
         if (isBlocked) {
           showAutoDismissBanner(
             context,
@@ -780,6 +780,7 @@ class _DmChatPaneState extends ConsumerState<DmChatPane> {
           stickerName: sticker.name,
           stickerUrl: sticker.imageUrl,
           sendAt: sendAt,
+          replyTo: replyTo,
         );
       },
       onCallPressed: widget.onCallPressed == null
@@ -2844,16 +2845,18 @@ class _GroupChatPaneState extends ConsumerState<GroupChatPane> {
                 replyTo: replyTo,
                 sendAt: sendAt,
               ),
-      onSendSticker: (sticker, {sendAt}) => groupRepository.sendStickerMessage(
-        groupId: group.groupId,
-        roomId: roomId,
-        senderId: currentUser.userId,
-        senderRhingSeed: currentUser.rhingSeed,
-        stickerId: sticker.stickerId,
-        stickerName: sticker.name,
-        stickerUrl: sticker.imageUrl,
-        sendAt: sendAt,
-      ),
+      onSendSticker: (sticker, {sendAt, replyTo}) =>
+          groupRepository.sendStickerMessage(
+            groupId: group.groupId,
+            roomId: roomId,
+            senderId: currentUser.userId,
+            senderRhingSeed: currentUser.rhingSeed,
+            stickerId: sticker.stickerId,
+            stickerName: sticker.name,
+            stickerUrl: sticker.imageUrl,
+            sendAt: sendAt,
+            replyTo: replyTo,
+          ),
       // 進行中の通話がある間は、音声・ビデオの2つのボタンを「参加」の1つにまとめ、
       // 参加人数を出す（2026-10-21）。映像のオン・オフは参加者毎に独立で、通話の
       // 種別を選ぶ意味が無く、人数をどちらに出すか迷うため。通話が無い時は、

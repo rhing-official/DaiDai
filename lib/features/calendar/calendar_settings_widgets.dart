@@ -10,6 +10,7 @@ import '../../theme/gekiga/gekiga_colors.dart';
 import '../../theme/kinari/kinari_theme.dart';
 import '../../widgets/kinari_surface.dart';
 import '../../widgets/gekiga/gekiga_panel_box.dart';
+import '../../widgets/gekiga/settings_tile.dart';
 import '../../widgets/pressable_scale.dart';
 import '../../widgets/toggles/app_checkbox.dart';
 
@@ -247,7 +248,21 @@ class HolidayCheckboxes extends StatelessWidget {
             ),
           );
         }
-        if (!isBlockTheme(context)) return _plainRow(label, value, onChanged);
+        // フラット・ガラス: 他の設定の行と同じ、角丸の箱（`SettingsTile`）にする。
+        if (!isBlockTheme(context)) {
+          return SettingsTile(
+            leading: SizedBox(
+              width: 32,
+              height: 32,
+              child: AppCheckbox(
+                value: value,
+                onChanged: (v) => onChanged(v ?? false),
+              ),
+            ),
+            title: Text(label),
+            onTap: () => onChanged(!value),
+          );
+        }
         return Padding(
           padding: const EdgeInsets.fromLTRB(2, 4, 6, 8),
           child: blockFitWidth(

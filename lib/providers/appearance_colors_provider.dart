@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../models/dark_variant.dart';
+import 'custom_appearance_provider.dart';
 import 'dark_variant_provider.dart';
 import 'repository_providers.dart';
 import 'theme_mode_provider.dart';
@@ -231,12 +232,19 @@ final appearanceColorsProvider =
     );
 
 /// 今の外観の区分（テーマの明暗とダークの種類から決まる）。
-final currentAppearanceSlotProvider = Provider<AppearanceSlot>(
-  (ref) => AppearanceSlot.of(
-    ref.watch(appThemeModeProvider),
-    ref.watch(darkVariantProvider),
-  ),
-);
+///
+/// カスタムの外観の間は、背景色の明るさで画面のライト/ダークが決まる（`main.dart`）ので、
+/// ライト/ダークの選択ではなく背景色の明るさに合わせる。合わせないと、端末がダークの時に
+/// 明るい背景を決めても、設定した色がダークの区分に保存され、ライトの画面に反映されない。
+final currentAppearanceSlotProvider = Provider<AppearanceSlot>((ref) {
+  final custom = ref.watch(customAppearanceProvider);
+  final mode = custom.enabled
+      ? (ThemeData.estimateBrightnessForColor(custom.color) == Brightness.dark
+            ? ThemeMode.dark
+            : ThemeMode.light)
+      : ref.watch(appThemeModeProvider);
+  return AppearanceSlot.of(mode, ref.watch(darkVariantProvider));
+});
 
 /// 実際に使う色（適用中 ?? その外観の標準の色）。
 final effectiveAppearanceColorProvider =

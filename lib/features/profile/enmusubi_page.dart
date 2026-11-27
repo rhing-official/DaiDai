@@ -116,7 +116,11 @@ class _EnmusubiPageState extends ConsumerState<EnmusubiPage> {
                     ],
                   )
                 : _boxed(
+                    context: context,
                     kinari: kinari,
+                    accent:
+                        ref.watch(appUiStyleProvider) == AppUiStyle.flat ||
+                        ref.watch(appUiStyleProvider) == AppUiStyle.glass,
                     colorScheme: colorScheme,
                     child: CopyLinkRow(
                       link: link,
@@ -219,7 +223,9 @@ class _EnmusubiPageState extends ConsumerState<EnmusubiPage> {
 
   /// 招待リンクの箱。生成りはへこんだ面、他は細い枠。
   Widget _boxed({
+    required BuildContext context,
     required bool kinari,
+    required bool accent,
     required ColorScheme colorScheme,
     required Widget child,
   }) {
@@ -235,7 +241,9 @@ class _EnmusubiPageState extends ConsumerState<EnmusubiPage> {
     return Container(
       padding: padding,
       decoration: BoxDecoration(
-        border: Border.all(color: colorScheme.outlineVariant),
+        border: Border.all(
+          color: accent ? colorScheme.primary : colorScheme.outlineVariant,
+        ),
         borderRadius: BorderRadius.circular(8),
       ),
       child: child,

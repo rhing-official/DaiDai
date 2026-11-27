@@ -3254,11 +3254,8 @@ class _CustomAppearanceEditorState
                             hintText: _hex(current),
                             counterText: '',
                             errorText: _error,
-                            filled: !_insetFieldTheme(context),
-                            fillColor: _colorFieldFill(
-                              context,
-                              ref,
-                            ).withValues(alpha: 0.65),
+                            filled: false,
+                            fillColor: Colors.transparent,
                             enabledBorder: _insetFieldTheme(context)
                                 ? InputBorder.none
                                 : null,
@@ -3276,9 +3273,9 @@ class _CustomAppearanceEditorState
                                 : OutlineInputBorder(
                                     borderRadius: BorderRadius.circular(16),
                                     borderSide: BorderSide(
-                                      color: ref
-                                          .watch(accentColorProvider)
-                                          .withValues(alpha: 0.3),
+                                      color: Theme.of(
+                                        context,
+                                      ).colorScheme.primary,
                                     ),
                                   ),
                             suffixIcon: Row(
@@ -3676,11 +3673,8 @@ class _AccentColorFolderState extends ConsumerState<AccentColorFolder> {
                 // ガラスでアクセントカラーの色味有無が異なり見た目が
                 // ズレていた為、`GlassColors`の固定値を直接参照して
                 // UIスタイルに関係なく常に同じ色にする（2026-09-15修正）。
-                filled: !_insetFieldTheme(context),
-                fillColor: _colorFieldFill(
-                  context,
-                  ref,
-                ).withValues(alpha: 0.65),
+                filled: false,
+                fillColor: Colors.transparent,
                 enabledBorder: _insetFieldTheme(context)
                     ? InputBorder.none
                     : null,
@@ -3698,7 +3692,7 @@ class _AccentColorFolderState extends ConsumerState<AccentColorFolder> {
                     : OutlineInputBorder(
                         borderRadius: BorderRadius.circular(16),
                         borderSide: BorderSide(
-                          color: activeColor.withValues(alpha: 0.3),
+                          color: Theme.of(context).colorScheme.primary,
                         ),
                       ),
                 suffixIcon: Row(
@@ -4055,11 +4049,8 @@ class _AppearanceColorEditorState
                         prefixText: '#',
                         hintText: _hexOf(defaultColor),
                         counterText: '',
-                        filled: !_insetFieldTheme(context),
-                        fillColor: _colorFieldFill(
-                          context,
-                          ref,
-                        ).withValues(alpha: 0.65),
+                        filled: false,
+                        fillColor: Colors.transparent,
                         enabledBorder: _insetFieldTheme(context)
                             ? InputBorder.none
                             : null,
@@ -4077,7 +4068,7 @@ class _AppearanceColorEditorState
                             : OutlineInputBorder(
                                 borderRadius: BorderRadius.circular(16),
                                 borderSide: BorderSide(
-                                  color: accent.withValues(alpha: 0.3),
+                                  color: Theme.of(context).colorScheme.primary,
                                 ),
                               ),
                         suffixIcon: Row(
@@ -5250,6 +5241,28 @@ class NavChipLayoutFolder extends ConsumerWidget {
                     radius: 12,
                     child: tile,
                   ),
+                );
+              }
+              // フラット・ガラス: 他の設定の行（`SettingsTile`）と同じ角丸の箱にする。
+              final style = ref.watch(appUiStyleProvider);
+              if (style == AppUiStyle.flat || style == AppUiStyle.glass) {
+                final box = SizedBox(
+                  height: _NavChipOrderListState.itemHeight - 6,
+                  child: content,
+                );
+                return Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 3),
+                  child: style == AppUiStyle.glass
+                      ? GlassSurface(
+                          borderRadius: BorderRadius.circular(12),
+                          child: box,
+                        )
+                      : Material(
+                          color: colorScheme.surface,
+                          borderRadius: BorderRadius.circular(12),
+                          clipBehavior: Clip.antiAlias,
+                          child: box,
+                        ),
                 );
               }
               if (!isGekiga) return tile;

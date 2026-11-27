@@ -278,7 +278,11 @@ class ChatScreen extends ConsumerStatefulWidget {
 
   /// ぺったん（スタンプ）を送信する（技術仕様書7.4参照、2026-08-11追加）。
   /// nullなら＋ボタンのメニューに「ぺったん」項目自体を出さない。
-  final Future<void> Function(Sticker sticker, {DateTime? sendAt})?
+  final Future<void> Function(
+    Sticker sticker, {
+    DateTime? sendAt,
+    Message? replyTo,
+  })?
   onSendSticker;
 
   /// 送信予定（指定した日時にサーバーが送る、2026-11-10追加）を使えるか。trueの時だけ、送信ボタンの
@@ -2887,13 +2891,29 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   Future<bool> _handleStickerPicked(
     Sticker sticker, {
     DateTime? resendAt,
+    Message? resendReplyTo,
   }) async {
     final onSendSticker = widget.onSendSticker;
     if (onSendSticker == null) return false;
     // 送信予定の日時が設定されていれば、このぺったんを予定にする（再送では同じ日時を使う）。
     final sendAt = resendAt ?? _takeScheduledAt();
+    // 返信先は、テキスト・添付と同じく送信前に取り出してクリアする。再送では、
+    // 失敗した時の返信先（2件目は`Message`に結び付け済み）をそのまま使う。
+    final Message? replyTo;
+    if (resendReplyTo != null) {
+      replyTo = resendReplyTo;
+    } else {
+      replyTo = _replyingTo;
+      if (replyTo != null) setSecondReply(replyTo, _replyingTo2);
+      if (replyTo != null && mounted) {
+        setState(() {
+          _replyingTo = null;
+          _replyingTo2 = null;
+        });
+      }
+    }
     try {
-      await onSendSticker(sticker, sendAt: sendAt);
+      await onSendSticker(sticker, sendAt: sendAt, replyTo: replyTo);
       unawaited(
         ref.read(recentStickersProvider.notifier).record(sticker.stickerId),
       );
@@ -2909,7 +2929,11 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
           TextButton(
             onPressed: () {
               dismissAutoDismissBanner();
-              _handleStickerPicked(sticker, resendAt: sendAt);
+              _handleStickerPicked(
+                sticker,
+                resendAt: sendAt,
+                resendReplyTo: replyTo,
+              );
             },
             child: Text(strings.chatResendAction),
           ),
@@ -3945,22 +3969,10 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                           // 上の透明範囲は0。
                           child: ChatEdgeFade(
                             topClear: listTopInset,
-                            bottomFade: 0,
                             // 入力欄の周り全てを滲ませる（入力欄が出ている時だけ）。
                             boxTopFromBottom: bottomInset > 24
                                 ? bottomInset
                                 : 0,
-                            boxInsets: EdgeInsets.fromLTRB(
-                              isGekiga ? 8 : 12,
-                              0,
-                              isGekiga ? 8 : 12,
-                              isGekiga
-                                  ? 8 + MediaQuery.viewPaddingOf(context).bottom
-                                  : 12 +
-                                        MediaQuery.viewPaddingOf(
-                                          context,
-                                        ).bottom,
-                            ),
                             positions: _itemPositionsListener.itemPositions,
                             lastIndex: reversedEntries.length - 1,
                             topRestInset: listTopInset + 12,
@@ -3986,7 +3998,13 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                                 12,
                                 12 + listTopInset,
                                 12,
-                                12 + bottomInset,
+                                // 入力欄の上端へ薄くなる長さを足す（一番新しいメッセージが
+                                // 止まった時に、薄くならない為）。
+                                12 +
+                                    bottomInset +
+                                    (bottomInset > 24
+                                        ? ChatEdgeFade.defaultBoxFade
+                                        : 0),
                               ),
                             ),
                           ),
@@ -5971,6 +5989,12 @@ class _MessageRow extends ConsumerWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: replyQuotes,
           );
+    // 文字の無い画像・動画への返信は、テキストと同じ吹き出しの中に、引用と画像を入れる
+    // （2026-11-27）。画像自身の枠は外し、角丸に切り抜くだけにする（二重の枠を避ける）。
+    final mediaInReplyBubble =
+        replyPreview != null &&
+        (message.contentType == 'image' || message.contentType == 'video') &&
+        (message.caption?.isEmpty ?? true);
 
     final isCallSummary = message.contentType == 'call';
     final isBotNotice =
@@ -6145,6 +6169,7 @@ class _MessageRow extends ConsumerWidget {
                         wrapInBubble(child, gekigaPadding: isAudio ? 46 : 30)
                   : null,
               groupGap: isGekiga ? 20 : 8,
+              bareMedia: mediaInReplyBubble,
             );
             return _attachmentWithCaption(
               context,
@@ -6342,8 +6367,9 @@ class _MessageRow extends ConsumerWidget {
     // 重ねると二重表示になる。スタンプは透過画像のため元々枠を付けない
     // （2026-09-04、コンテンツ側密着枠線の導入に伴い元の単一フラグに統合）。
     final skipBubbleFrame =
-        message.contentType == 'image' ||
-        message.contentType == 'video' ||
+        (!mediaInReplyBubble &&
+            (message.contentType == 'image' ||
+                message.contentType == 'video')) ||
         isMultiMediaOnly ||
         isMultiSplit ||
         isAudioWithCaption ||
@@ -8037,6 +8063,7 @@ class _MessageRow extends ConsumerWidget {
     VoidCallback? onForward,
     Widget Function(Widget child, bool isAudio)? wrapFileGroup,
     double groupGap = 6,
+    bool bareMedia = false,
   }) {
     if (message.contentType == 'multi') {
       return _multiAttachmentContent(
@@ -8052,6 +8079,17 @@ class _MessageRow extends ConsumerWidget {
       return Text(message.content, style: TextStyle(color: onBubbleColor));
     }
 
+    // 引用付きの返信（`bareMedia`）は、吹き出しの中に入れるため、画像自身の枠を付けず
+    // 角丸に切り抜くだけにする。
+    Widget previewFrame({required Widget child}) => bareMedia
+        ? ClipRRect(
+            borderRadius: BorderRadius.circular(mediaPreviewContentRadius),
+            child: child,
+          )
+        : mediaPreviewFrame(isGekiga: isGekiga, isMe: isMe, child: child);
+    Widget borderedFrame(Widget frame) =>
+        bareMedia ? frame : _borderedMediaFrame(context, isGekiga, frame);
+
     if (message.contentType == 'image') {
       final image = Image.network(
         metadata.url,
@@ -8060,9 +8098,7 @@ class _MessageRow extends ConsumerWidget {
         errorBuilder: (_, _, _) =>
             Icon(Icons.broken_image_outlined, color: onBubbleColor),
       );
-      return _borderedMediaFrame(
-        context,
-        isGekiga,
+      return borderedFrame(
         GestureDetector(
           onTap: () => openMediaViewer(
             context,
@@ -8071,22 +8107,14 @@ class _MessageRow extends ConsumerWidget {
               mediaMessages,
             ).indexWhere((item) => item.id == message.messageId),
           ),
-          child: mediaPreviewFrame(
-            isGekiga: isGekiga,
-            isMe: isMe,
-            child: image,
-          ),
+          child: previewFrame(child: image),
         ),
       );
     }
 
     if (message.contentType == 'video') {
-      return _borderedMediaFrame(
-        context,
-        isGekiga,
-        mediaPreviewFrame(
-          isGekiga: isGekiga,
-          isMe: isMe,
+      return borderedFrame(
+        previewFrame(
           // サムネイル（動画再生Web実装ではプラットフォームビュー＝実HTML
           // 要素になりうる）に直接`GestureDetector`を被せるだけだと、
           // Flutter既定の`HitTestBehavior.deferToChild`が子の描画内容に

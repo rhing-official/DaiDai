@@ -395,6 +395,21 @@ class DaiDaiApp extends ConsumerWidget {
     final accentColor = ref.watch(accentColorProvider);
     final textColorLight = ref.watch(effectiveTextColorLightProvider);
     final textColorDark = ref.watch(effectiveTextColorDarkProvider);
+    // カスタムの外観の間は、標準の文字色（外観ごとの既定）は使わず、設定で自分が適用した
+    // 色だけを使う（無ければテーマ既定のまま）。適用した色を捨てていた為、どの
+    // スタイルでもフォントカラーが反映されなかった。
+    final appliedTextColors = ref.watch(
+      appearanceColorsProvider.select((s) => s),
+    );
+    final darkSlot = AppearanceSlot.of(
+      ThemeMode.dark,
+      ref.watch(darkVariantProvider),
+    );
+    final appliedTextLight =
+        appliedTextColors[AppearanceSlot.light]?[AppearanceColorKind.text]
+            ?.applied;
+    final appliedTextDark =
+        appliedTextColors[darkSlot]?[AppearanceColorKind.text]?.applied;
     final onAccentColorLight = ref.watch(effectiveOnAccentColorLightProvider);
     final onAccentColorDark = ref.watch(effectiveOnAccentColorDarkProvider);
     final gekigaBackgroundColor = ref.watch(gekigaBackgroundColorProvider);
@@ -432,7 +447,7 @@ class DaiDaiApp extends ConsumerWidget {
     final theme = switch (uiStyle) {
       AppUiStyle.flat => AppTheme.light(
         accentColor,
-        textColor: custom.enabled ? null : textColorLight,
+        textColor: custom.enabled ? appliedTextLight : textColorLight,
         onAccentColor: onAccentColorLight,
         fontFamily: fontFamily,
         palette: palette,
@@ -444,7 +459,7 @@ class DaiDaiApp extends ConsumerWidget {
       ),
       AppUiStyle.glass => GlassTheme.light(
         accentColor,
-        textColor: custom.enabled ? null : textColorLight,
+        textColor: custom.enabled ? appliedTextLight : textColorLight,
         onAccentColor: onAccentColorLight,
         fontFamily: fontFamily,
         palette: palette,
@@ -464,7 +479,7 @@ class DaiDaiApp extends ConsumerWidget {
         activePack?.light.accent ?? accentColor,
         textColor: activePack != null
             ? activePack.light.text
-            : (custom.enabled ? null : textColorLight),
+            : (custom.enabled ? appliedTextLight : textColorLight),
         onAccentColor: activePack?.light.onAccent ?? onAccentColorLight,
         fontFamily: fontFamily,
         palette: activePack?.paletteFor(Brightness.light) ?? palette,
@@ -473,7 +488,7 @@ class DaiDaiApp extends ConsumerWidget {
     final darkTheme = switch (uiStyle) {
       AppUiStyle.flat => AppTheme.dark(
         accentColor,
-        textColor: custom.enabled ? null : textColorDark,
+        textColor: custom.enabled ? appliedTextDark : textColorDark,
         onAccentColor: onAccentColorDark,
         fontFamily: fontFamily,
         palette: palette,
@@ -486,7 +501,7 @@ class DaiDaiApp extends ConsumerWidget {
       ),
       AppUiStyle.glass => GlassTheme.dark(
         accentColor,
-        textColor: custom.enabled ? null : textColorDark,
+        textColor: custom.enabled ? appliedTextDark : textColorDark,
         onAccentColor: onAccentColorDark,
         fontFamily: fontFamily,
         palette: palette,
@@ -507,7 +522,7 @@ class DaiDaiApp extends ConsumerWidget {
         activePack?.dark.accent ?? accentColor,
         textColor: activePack != null
             ? activePack.dark.text
-            : (custom.enabled ? null : textColorDark),
+            : (custom.enabled ? appliedTextDark : textColorDark),
         onAccentColor: activePack?.dark.onAccent ?? onAccentColorDark,
         fontFamily: fontFamily,
         palette: activePack?.paletteFor(Brightness.dark) ?? palette,
