@@ -55,6 +55,8 @@ class ChalkTheme {
     Color accentColor,
     String? fontFamily, {
     Color? background,
+    Color? textColor,
+    Color? onAccentColor,
   }) {
     final palette = background == null
         ? const AppearancePalette(
@@ -67,16 +69,20 @@ class ChalkTheme {
         : AppearancePalette.fromBackground(background);
     final ink = inkFor(palette.background);
     final isDark = ink == ChalkColors.chalk;
+    // 設定のフォントカラー（適用済みのものだけ）。線はチョークの色のまま、文字だけを変える。
+    final textInk = textColor ?? ink;
     final base = isDark
         ? AppTheme.dark(
             accentColor,
-            textColor: ink,
+            textColor: textInk,
+            onAccentColor: onAccentColor,
             fontFamily: fontFamily,
             palette: palette,
           )
         : AppTheme.light(
             accentColor,
-            textColor: ink,
+            textColor: textInk,
+            onAccentColor: onAccentColor,
             fontFamily: fontFamily,
             palette: palette,
           );

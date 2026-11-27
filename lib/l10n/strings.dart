@@ -3166,7 +3166,7 @@ class Strings {
     settingsUiStyleGlassLabel: 'ガラス',
     settingsUiStyleBlockLabel: '版画',
     settingsUiStyleChalkLabel: 'チョーク',
-    settingsUiStyleKinariLabel: '生成り',
+    settingsUiStyleKinariLabel: '紙肌',
     settingsDesignPin: 'ピン留め',
     settingsDesignUnpin: 'ピン留めを外す',
     settingsThemePackFallbackTemplate: (reason) =>
@@ -4613,7 +4613,7 @@ class Strings {
     settingsUiStyleGlassLabel: 'Glass',
     settingsUiStyleBlockLabel: 'Woodcut',
     settingsUiStyleChalkLabel: 'Chalk',
-    settingsUiStyleKinariLabel: 'Ecru',
+    settingsUiStyleKinariLabel: 'Paper grain',
     settingsDesignPin: 'Pin',
     settingsDesignUnpin: 'Unpin',
     settingsThemePackFallbackTemplate: (reason) =>

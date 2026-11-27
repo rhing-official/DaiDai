@@ -17,6 +17,7 @@ class CallPresenceMark extends ConsumerWidget {
     this.size = 16,
     this.roomId,
     this.unplacedAmong,
+    this.fallbackRoomIds,
     this.tappable = true,
     this.badge = false,
     super.key,
@@ -35,6 +36,10 @@ class CallPresenceMark extends ConsumerWidget {
   /// 2026-11-18）。通話を始めた寄合のブロックに標が出るため、そちらに出る時は出さない。
   final Set<String>? unplacedAmong;
 
+  /// [roomId]と一緒に指定すると、通話を始めた寄合がこの並びに無い（不明を含む）時は、並びの
+  /// 先頭の寄合のブロックに出す（標を、必ず寄合のブロックの中に出すため）。
+  final List<String>? fallbackRoomIds;
+
   /// 自分が参加中の通話の標をタップして通話画面へ戻れるようにするか。
   final bool tappable;
   final Color color;
@@ -46,7 +51,13 @@ class CallPresenceMark extends ConsumerWidget {
     final presence = ref.watch(conversationCallProvider(conversationId));
     if (presence == null) return const SizedBox.shrink();
     if (roomId != null && presence.roomId != roomId) {
-      return const SizedBox.shrink();
+      final ids = fallbackRoomIds;
+      final unplaced =
+          ids != null &&
+          ids.isNotEmpty &&
+          ids.first == roomId &&
+          !ids.contains(presence.roomId);
+      if (!unplaced) return const SizedBox.shrink();
     }
     if (unplacedAmong != null && unplacedAmong!.contains(presence.roomId)) {
       return const SizedBox.shrink();

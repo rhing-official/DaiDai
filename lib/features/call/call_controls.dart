@@ -1,8 +1,12 @@
 import 'package:flutter/material.dart';
 
 import '../../theme/block/block_theme.dart';
+import '../../theme/chalk/chalk_paint.dart';
+import '../../theme/chalk/chalk_theme.dart';
 import '../../theme/gekiga/gekiga_colors.dart';
 import '../../theme/glass/glass_colors.dart';
+import '../../theme/kinari/kinari_theme.dart';
+import '../../widgets/kinari_surface.dart';
 import '../../widgets/gekiga/gekiga_badge.dart';
 import '../../widgets/glass/glass_surface.dart';
 
@@ -33,11 +37,57 @@ class CallRoundButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final enabled = onPressed != null;
+    final scheme = Theme.of(context).colorScheme;
+    final destructiveButton = color == Colors.red;
+    if (isChalkTheme(context)) {
+      // チョーク: チョークで引いた丸の縁。通話終了（赤）だけ赤く塗る（2026-11-27）。通話画面の
+      // 背景は黒の固定なので、線の色は、チョークの白。
+      return Opacity(
+        opacity: enabled ? 1 : 0.4,
+        child: SizedBox(
+          width: _size,
+          height: _size,
+          child: Material(
+            color: destructiveButton ? Colors.red.shade700 : Colors.transparent,
+            shape: ChalkShapeBorder(
+              borderRadius: BorderRadius.circular(_size / 2),
+              color: scheme.onSurface,
+              width: 2,
+            ),
+            child: InkWell(
+              customBorder: const CircleBorder(),
+              onTap: onPressed,
+              child: Center(
+                child: Icon(
+                  icon,
+                  color: destructiveButton ? Colors.white : scheme.onSurface,
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+    }
+    if (isKinariTheme(context)) {
+      // 生成り: 浮いた丸（明かり、細い線）。通話終了（赤）は、アイコンを赤くする（2026-11-27）。
+      return Opacity(
+        opacity: enabled ? 1 : 0.4,
+        child: KinariRaisedCircle(
+          color: scheme.surface,
+          lineColor: scheme.onSurface,
+          size: _size,
+          onTap: onPressed,
+          child: Icon(
+            icon,
+            color: destructiveButton ? Colors.red.shade700 : scheme.onSurface,
+          ),
+        ),
+      );
+    }
     if (isBlockTheme(context)) {
       // 版画は黒の太枠と硬い影の角丸の箱（2026-11-06）。通話終了（赤）だけ濃い赤の面に
       // 白いアイコン、他は淡い面に文字色のアイコン。アクセントは地色にも文字色にも使わない。
-      final scheme = Theme.of(context).colorScheme;
-      final destructive = color == Colors.red;
+      final destructive = destructiveButton;
       final fill = destructive
           ? Colors.red.shade700
           : (Theme.of(context).brightness == Brightness.light
@@ -125,9 +175,10 @@ class CallRoundButton extends StatelessWidget {
         ),
       );
     }
+    // フラット: アクセントカラーの線で囲む（2026-11-27）。塗りは、意味の有る色のまま。
     return Material(
       color: enabled ? color : Colors.grey[300],
-      shape: const CircleBorder(),
+      shape: CircleBorder(side: BorderSide(color: scheme.primary, width: 1.5)),
       child: InkWell(
         customBorder: const CircleBorder(),
         onTap: onPressed,

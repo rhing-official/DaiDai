@@ -115,7 +115,7 @@ final Strings _stringsFr = Strings._(
   settingsUiStyleGlassLabel: 'Verre',
   settingsUiStyleBlockLabel: 'Gravure',
   settingsUiStyleChalkLabel: 'Craie',
-  settingsUiStyleKinariLabel: 'Écru',
+  settingsUiStyleKinariLabel: 'Grain de papier',
   settingsDesignPin: 'Épingler',
   settingsDesignUnpin: 'Désépingler',
   settingsThemePackFallbackTemplate: (reason) =>

@@ -1,3 +1,4 @@
+import 'call_status_decoration.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -410,10 +411,7 @@ class _CallScreenState extends ConsumerState<CallScreen> {
     child: Container(
       margin: const EdgeInsets.only(top: 8, left: 12, right: 12),
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-      decoration: BoxDecoration(
-        color: Colors.black54,
-        borderRadius: BorderRadius.circular(8),
-      ),
+      decoration: callStatusDecoration(context, ref, radius: 8),
       child: Text(
         text,
         textAlign: TextAlign.center,

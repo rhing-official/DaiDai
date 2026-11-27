@@ -26,7 +26,11 @@ void main() {
     expect(eff(AppearanceSlot.standard, text), const Color(0xFFD5D5D5));
     expect(eff(AppearanceSlot.soft, text), const Color(0xFFD5D5D5));
     expect(eff(AppearanceSlot.black, text), const Color(0xFFD5D5D5));
-    for (final s in AppearanceSlot.values) {
+    // 明るい背景（胡粉）は純白。#EFEFF1は、明るい背景でクリーム色に見えた。
+    expect(eff(AppearanceSlot.light, onAccent), const Color(0xFFFFFFFF));
+    for (final s in AppearanceSlot.values.where(
+      (s) => s != AppearanceSlot.light,
+    )) {
       expect(eff(s, onAccent), const Color(0xFFEFEFF1));
     }
   });
@@ -53,7 +57,7 @@ void main() {
     );
   });
 
-  test('プリセットは外観ごとに最大3つ、重複と標準の色は増えない', () async {
+  test('プリセットは全外観で共通で最大3つ、重複と標準の色は増えない', () async {
     final c = make();
     final n = c.read(appearanceColorsProvider.notifier);
     const slot = AppearanceSlot.standard;
@@ -64,8 +68,8 @@ void main() {
     }
     expect(await n.addPreset(slot, text, const Color(0xFF000004)), isFalse);
     expect(n.of(slot, text).presets.length, kMaxAppearancePresets);
-    // 別の外観・別の種類には影響しない。
-    expect(n.of(AppearanceSlot.black, text).presets, isEmpty);
+    // 別の外観にも、同じ一覧が出る。別の種類には影響しない。
+    expect(n.of(AppearanceSlot.black, text).presets.length, 3);
     expect(n.of(slot, onAccent).presets, isEmpty);
   });
 
@@ -76,8 +80,12 @@ void main() {
     await n.addPreset(slot, text, const Color(0xFF123456));
     await n.removePreset(slot, text, const Color(0xFF123456));
     expect(n.of(slot, text).presets, isEmpty);
-    await n.removeDefault(slot, text);
-    expect(n.of(slot, text).defaultRemoved, isTrue);
+    await n.removeDefault(slot, text, const Color(0xFF71727B));
+    expect(n.of(slot, text).removedDefaults, [const Color(0xFF71727B)]);
+    // 標準の色の削除は、全外観で共通。
+    expect(n.of(AppearanceSlot.black, text).removedDefaults, [
+      const Color(0xFF71727B),
+    ]);
     expect(
       c.read(effectiveAppearanceColorProvider((slot, text))),
       const Color(0xFF71727B),
@@ -92,7 +100,11 @@ void main() {
     final n = c.read(appearanceColorsProvider.notifier);
     await n.apply(AppearanceSlot.black, text, const Color(0xFF445566));
     await n.addPreset(AppearanceSlot.black, onAccent, const Color(0xFF778899));
-    await n.removeDefault(AppearanceSlot.soft, onAccent);
+    await n.removeDefault(
+      AppearanceSlot.soft,
+      onAccent,
+      const Color(0xFFEFEFF1),
+    );
     final loaded = await loadInitialAppearanceColors();
     final c2 = ProviderContainer(
       overrides: [initialAppearanceColorsProvider.overrideWithValue(loaded)],
@@ -103,7 +115,9 @@ void main() {
     expect(n2.of(AppearanceSlot.black, onAccent).presets, [
       const Color(0xFF778899),
     ]);
-    expect(n2.of(AppearanceSlot.soft, onAccent).defaultRemoved, isTrue);
+    expect(n2.of(AppearanceSlot.soft, onAccent).removedDefaults, [
+      const Color(0xFFEFEFF1),
+    ]);
   });
 
   test('外観の区分はテーマの明暗とダークの種類で決まる', () {

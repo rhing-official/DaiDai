@@ -538,6 +538,9 @@ class BlockIconBadge extends StatelessWidget {
   }
 }
 
+/// 枠付きの入力欄（版画・チョーク・生成り）の、枠と文字の間の左右の余白。
+const double kBlockFieldInsetX = 14;
+
 /// 入力欄を、版画だけ太枠と硬い影の箱で囲む（他のスタイルでは[child]をそのまま返す）。
 /// 中の`TextField`は枠・塗り無し（[isBlockTheme]で`InputBorder.none`等にする）。
 ///
@@ -563,7 +566,11 @@ class BlockFieldFrame extends StatelessWidget {
             child: KinariInset(
               color: theme.colorScheme.surface,
               radius: 14,
-              padding: const EdgeInsets.symmetric(horizontal: 6),
+              // 枠なしの入力欄の文字は、左右の余白を持たず、枠に重なる。フラット・ガラスの入力欄と
+              // 同じく、左右に余白を取る（2026-11-27）。
+              padding: const EdgeInsets.symmetric(
+                horizontal: kBlockFieldInsetX,
+              ),
               child: child,
             ),
           )
@@ -574,7 +581,12 @@ class BlockFieldFrame extends StatelessWidget {
               color: theme.brightness == Brightness.light
                   ? Colors.white
                   : theme.colorScheme.surface,
-              child: child,
+              child: Padding(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: kBlockFieldInsetX,
+                ),
+                child: child,
+              ),
             ),
           );
     final label = this.label;

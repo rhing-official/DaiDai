@@ -17,6 +17,11 @@ const _prefsKey = 'appearanceColors';
 const kDefaultTextColorLight = Color(0xFF71727B);
 const kDefaultOnAccentColor = Color(0xFFEFEFF1);
 
+/// 胡粉（明るい背景）の、アクセント上の標準の色。純白。#EFEFF1は、明るい背景の上で、くすんだ
+/// クリーム色に見えた（生成り、チョークで、選択中のアイコンが白く見えなかった、2026-11-27）。
+/// 明るい背景の区分は、必ずこの色を標準にする（`test/appearance_colors_test.dart`が検査する）。
+const kDefaultOnAccentColorLight = Color(0xFFFFFFFF);
+
 /// 外観ごとに登録できるプリセット（標準の色とは別に、自分で登録する数）の上限。
 const kMaxAppearancePresets = 3;
 
@@ -43,7 +48,10 @@ enum AppearanceSlot {
       AppearanceSlot.soft => DarkVariant.soft.defaultTextColor,
       AppearanceSlot.black => DarkVariant.black.defaultTextColor,
     },
-    AppearanceColorKind.onAccent => kDefaultOnAccentColor,
+    AppearanceColorKind.onAccent =>
+      this == AppearanceSlot.light
+          ? kDefaultOnAccentColorLight
+          : kDefaultOnAccentColor,
   };
 }
 
@@ -56,7 +64,11 @@ class KindColors {
     this.applied,
     this.presets = const [],
     this.defaultRemoved = false,
+    this.removedDefaults = const [],
   });
+
+  /// 一覧から消した標準の色（全外観で共通。標準の色は外観ごとに違うので、色で持つ）。
+  final List<Color> removedDefaults;
 
   /// 適用中の色（null=標準の色）。
   final Color? applied;
@@ -71,16 +83,19 @@ class KindColors {
     Color? Function()? applied,
     List<Color>? presets,
     bool? defaultRemoved,
+    List<Color>? removedDefaults,
   }) => KindColors(
     applied: applied == null ? this.applied : applied(),
     presets: presets ?? this.presets,
     defaultRemoved: defaultRemoved ?? this.defaultRemoved,
+    removedDefaults: removedDefaults ?? this.removedDefaults,
   );
 
   Map<String, Object?> toJson() => {
     if (applied != null) 'applied': applied!.toARGB32(),
     'presets': [for (final c in presets) c.toARGB32()],
     'defaultRemoved': defaultRemoved,
+    'removedDefaults': [for (final c in removedDefaults) c.toARGB32()],
   };
 
   static KindColors fromJson(Object? json) {
@@ -96,6 +111,12 @@ class KindColors {
             ].take(kMaxAppearancePresets).toList()
           : const [],
       defaultRemoved: json['defaultRemoved'] == true,
+      removedDefaults: json['removedDefaults'] is List
+          ? [
+              for (final p in json['removedDefaults'] as List)
+                if (p is num) Color(p.toInt()),
+            ]
+          : const [],
     );
   }
 }
@@ -140,12 +161,57 @@ Future<AppearanceColors> loadInitialAppearanceColors() async {
   }
 }
 
+/// 一覧の先頭に並ぶ標準の色。全外観の標準の色を、重複なく並べる。
+List<Color> standardColorsOf(AppearanceColorKind kind) {
+  final result = <Color>[];
+  for (final s in AppearanceSlot.values) {
+    final c = s.defaultFor(kind);
+    if (!result.contains(c)) result.add(c);
+  }
+  return result;
+}
+
+/// 1つの外観の、1種類ぶんの色（表示・適用用）。フォントカラーもアクセント上も、プリセット（標準の色の削除を含む）を
+/// 背景（外観）に関わらず共通にし、適用中の色だけを外観ごとに持つ。共通のプリセットは、
+/// 胡粉の区分に保存する。以前に他の外観へ登録した色も、並びに足す。
+KindColors kindColorsOf(
+  AppearanceColors colors,
+  AppearanceSlot slot,
+  AppearanceColorKind kind,
+) {
+  final own = colors[slot]?[kind] ?? const KindColors();
+  final shared = <Color>[];
+  for (final s in [AppearanceSlot.light, ...AppearanceSlot.values]) {
+    for (final c in colors[s]?[kind]?.presets ?? const <Color>[]) {
+      if (!shared.contains(c) && shared.length < kMaxAppearancePresets) {
+        shared.add(c);
+      }
+    }
+  }
+  // 消した標準の色。以前の保存（外観ごとの`defaultRemoved`）は、その外観の標準の色を消したものとして引き継ぐ。
+  final removed = <Color>[];
+  for (final s in AppearanceSlot.values) {
+    final k = colors[s]?[kind];
+    if (k == null) continue;
+    for (final c in k.removedDefaults) {
+      if (!removed.contains(c)) removed.add(c);
+    }
+    final legacy = s.defaultFor(kind);
+    if (k.defaultRemoved && !removed.contains(legacy)) removed.add(legacy);
+  }
+  return KindColors(
+    applied: own.applied,
+    presets: shared,
+    removedDefaults: removed,
+  );
+}
+
 class AppearanceColorsNotifier extends Notifier<AppearanceColors> {
   @override
   AppearanceColors build() => ref.watch(initialAppearanceColorsProvider);
 
   KindColors of(AppearanceSlot slot, AppearanceColorKind kind) =>
-      state[slot]?[kind] ?? const KindColors();
+      kindColorsOf(state, slot, kind);
 
   /// アクセント上は常に不透明にする。
   Color _normalize(AppearanceColorKind kind, Color color) =>
@@ -159,8 +225,27 @@ class AppearanceColorsNotifier extends Notifier<AppearanceColors> {
     final next = {
       for (final e in state.entries) e.key: {...e.value},
     };
-    final slotMap = next[slot] ??= {};
-    slotMap[kind] = change(of(slot, kind));
+    final changed = change(of(slot, kind));
+    {
+      // 適用中の色はこの外観にだけ、プリセットは全外観で共通（胡粉の区分）に保存する。
+      final own = next[slot] ??= {};
+      own[kind] = KindColors(applied: changed.applied);
+      final shared = next[AppearanceSlot.light] ??= {};
+      shared[kind] = KindColors(
+        applied: shared[kind]?.applied,
+        presets: changed.presets,
+        removedDefaults: changed.removedDefaults,
+      );
+      if (slot == AppearanceSlot.light) {
+        shared[kind] = shared[kind]!.copyWith(applied: () => changed.applied);
+      }
+      // 他の外観に残る古いプリセットは、共通へ寄せたので消す。
+      for (final s in AppearanceSlot.values) {
+        if (s == AppearanceSlot.light) continue;
+        final k = next[s]?[kind];
+        if (k != null) next[s]![kind] = KindColors(applied: k.applied);
+      }
+    }
     state = next;
     final json = appearanceColorsToJson(next);
     final prefs = await SharedPreferences.getInstance();
@@ -191,9 +276,9 @@ class AppearanceColorsNotifier extends Notifier<AppearanceColors> {
   ) async {
     final c = _normalize(kind, color);
     final current = of(slot, kind);
-    final standard = slot.defaultFor(kind);
     final alreadyShown =
-        (!current.defaultRemoved && standard == c) ||
+        (standardColorsOf(kind).contains(c) &&
+            !current.removedDefaults.contains(c)) ||
         current.presets.contains(c);
     if (alreadyShown) return true;
     if (current.presets.length >= kMaxAppearancePresets) return false;
@@ -211,9 +296,16 @@ class AppearanceColorsNotifier extends Notifier<AppearanceColors> {
     (k) => k.copyWith(presets: k.presets.where((p) => p != color).toList()),
   );
 
-  /// 最初のプリセット（標準の色）を削除する（適用中の色はそのまま）。
-  Future<void> removeDefault(AppearanceSlot slot, AppearanceColorKind kind) =>
-      _update(slot, kind, (k) => k.copyWith(defaultRemoved: true));
+  /// 標準の色の1つを一覧から削除する（適用中の色はそのまま。全外観で共通）。
+  Future<void> removeDefault(
+    AppearanceSlot slot,
+    AppearanceColorKind kind,
+    Color color,
+  ) => _update(
+    slot,
+    kind,
+    (k) => k.copyWith(removedDefaults: [...k.removedDefaults, color]),
+  );
 
   /// ログイン時、アカウントに保存されている値で端末側を上書きする（書き戻しはしない）。
   Future<void> syncFromRemote(AppearanceColors colors) async {

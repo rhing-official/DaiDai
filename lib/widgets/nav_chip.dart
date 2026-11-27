@@ -95,8 +95,6 @@ class NavChip extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     // 塗りを層に任せる時（`liquid`）は、選択の見た目（色・文字色）をここでは出さない。
-    // 影の高さだけは、選択に従う。
-    final elevated = selected;
     final sel = selected && !(liquid && ref.watch(navFillOverlayProvider));
     final colorScheme = Theme.of(context).colorScheme;
     final uiStyle = ref.watch(appUiStyleProvider);
@@ -131,7 +129,8 @@ class NavChip extends ConsumerWidget {
     // 下のぼかしや重ね方で色が変わり、水で塗った時と「なし」の時で、色が違って見えた。
     final glassSelectedFill = glassSelectedChipFill(context);
     final background = sel ? colorScheme.primary : colorScheme.surface;
-    final foreground = sel
+    // 選択中のアイコンは、塗りを層に任せる時（`liquid`）も、塗りの上の色（`onPrimary`）にする。
+    final foreground = selected
         ? colorScheme.onPrimary
         : colorScheme.onSurfaceVariant;
 
@@ -160,7 +159,7 @@ class NavChip extends ConsumerWidget {
     final (Color plainIconColor, Color coveredIconColor) = switch (uiStyle) {
       AppUiStyle.flat => (colorScheme.onSurfaceVariant, colorScheme.onPrimary),
       AppUiStyle.glass => (colorScheme.onSurfaceVariant, colorScheme.onSurface),
-      AppUiStyle.block => (colorScheme.onSurface, colorScheme.onPrimary),
+      AppUiStyle.block => (colorScheme.onSurfaceVariant, colorScheme.onPrimary),
       AppUiStyle.gekiga => (GekigaColors.onPanel, GekigaColors.panel),
       AppUiStyle.chalk => (colorScheme.onSurface, colorScheme.onPrimary),
       AppUiStyle.kinari => (colorScheme.onSurface, colorScheme.onPrimary),
@@ -360,9 +359,9 @@ class NavChip extends ConsumerWidget {
           )
         : Material(
             color: background,
-            shape: const CircleBorder(),
-            elevation: elevated ? 8 : 4,
-            shadowColor: colorScheme.primary.withValues(alpha: 0.4),
+            // フラット: 浮かせず、アクセントカラーの線で囲む。
+            shape: CircleBorder(side: BorderSide(color: colorScheme.primary)),
+            elevation: 0,
             child: InkWell(
               onTap: onTap,
               customBorder: const CircleBorder(),

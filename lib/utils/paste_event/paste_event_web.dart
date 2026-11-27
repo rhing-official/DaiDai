@@ -3,6 +3,8 @@ import 'dart:js_interop';
 
 import 'package:web/web.dart' as web;
 
+import 'pasted_file.dart';
+
 Completer<String?>? _pending;
 bool _installed = false;
 
@@ -34,4 +36,39 @@ Future<String?> readPasteEventText({
   final completer = Completer<String?>();
   _pending = completer;
   return completer.future.timeout(timeout, onTimeout: () => null);
+}
+
+/// クリップボードにファイルが有る貼り付けを受け取る。テキストだけの貼り付けには
+/// 触れない（入力欄の通常の貼り付けのまま）。ファイルを受けた時だけ、ブラウザ既定の
+/// 挿入を止める。
+void Function() listenPasteFiles(
+  void Function(List<PastedFile> files) onFiles,
+) {
+  final listener = ((web.Event event) {
+    final files = (event as web.ClipboardEvent).clipboardData?.files;
+    if (files == null || files.length == 0) return;
+    event.preventDefault();
+    final picked = [for (var i = 0; i < files.length; i++) files.item(i)!];
+    () async {
+      final result = <PastedFile>[];
+      for (final f in picked) {
+        final buffer = await f.arrayBuffer().toDart;
+        result.add(
+          PastedFile(
+            bytes: buffer.toDart.asUint8List(),
+            name: f.name,
+            mimeType: f.type,
+          ),
+        );
+      }
+      onFiles(result);
+    }();
+  }).toJS;
+  final options = web.AddEventListenerOptions(capture: true);
+  web.document.addEventListener('paste', listener, options);
+  return () => web.document.removeEventListener(
+    'paste',
+    listener,
+    web.EventListenerOptions(capture: true),
+  );
 }

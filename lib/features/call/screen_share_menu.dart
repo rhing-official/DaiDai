@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:pointer_interceptor/pointer_interceptor.dart';
 
 import '../../l10n/strings.dart';
+import '../../models/app_ui_style.dart';
 import '../../providers/app_ui_style_provider.dart';
 import '../../providers/kiwami_providers.dart';
 import '../../providers/screen_share_settings_provider.dart';
@@ -167,8 +168,15 @@ class ScreenShareControl extends ConsumerWidget {
                     opacity: enabled ? 1 : 0.4,
                     child: Material(
                       color: Colors.grey[800],
-                      shape: const CircleBorder(
-                        side: BorderSide(color: Colors.white, width: 1.5),
+                      // フラットは、他のボタンと同じアクセントカラーの線にする（2026-11-27）。
+                      shape: CircleBorder(
+                        side: BorderSide(
+                          color:
+                              ref.watch(appUiStyleProvider) == AppUiStyle.flat
+                              ? Theme.of(context).colorScheme.primary
+                              : Colors.white,
+                          width: 1.5,
+                        ),
                       ),
                       child: InkWell(
                         customBorder: const CircleBorder(),

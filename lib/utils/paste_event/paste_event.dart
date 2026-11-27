@@ -7,10 +7,15 @@
 /// Web版/何もしないstub版を切り替える。
 ///
 /// 提供するAPI:
+/// - `VoidCallback listenPasteFiles(onFiles)`: クリップボードにファイル（画像のスクリーン
+///   ショット、エクスプローラーでコピーしたファイル等）が有る貼り付けを受け取る。
+///   戻り値で購読を解除する。Web以外では何もしない。
 /// - `Future<String?> readPasteEventText()`: 呼んだ直後から[timeout]の間に
 ///   発生した`paste`イベントのテキストを返す。貼り付けのキー入力を処理する
 ///   同期の区間（`await`より前）で呼ぶこと。
 library;
+
+export 'pasted_file.dart';
 
 export 'paste_event_stub.dart'
     if (dart.library.js_interop) 'paste_event_web.dart';

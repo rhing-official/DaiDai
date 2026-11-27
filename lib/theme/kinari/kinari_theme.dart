@@ -50,11 +50,6 @@ class KinariTheme {
     Color? background,
     Color? onAccentColor,
   }) {
-    // 標準の「アクセント上の色」（#EFEFF1、少し灰色がかった白）は、生成りの紙の上で、くすんだ
-    // クリーム色に見える。標準のままなら、純白にする（自分で選んだ色は、そのまま）。
-    if (onAccentColor == const Color(0xFFEFEFF1)) {
-      onAccentColor = Colors.white;
-    }
     final palette = background == null
         ? const AppearancePalette(
             background: KinariColors.paper,

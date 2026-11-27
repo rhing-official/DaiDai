@@ -2666,6 +2666,12 @@ class _ApplicationPage extends ConsumerWidget {
       // 横に並ぶ時は、列ごとに縦スクロールする（2026-11-06）。
       scrollPerColumn: true,
       storageId: 'application',
+      // 劇画は、アクセントカラー（背景色）を、横に3列並ぶ時の真ん中の列の最上部に置く
+      // （2026-11-27、ユーザー指示）。左は外観を除く先頭の2つ、中央は背景色から3つ、残りは右。
+      columnSplit: isGekiga ? (showNavChips ? [2, 3, 3] : [2, 3, 2]) : null,
+      // 縦画面（1列）では、劇画の背景を最上部に置く。並びは、UI、画面遷移、背景の順なので、
+      // 背景は3番目（番号2）。
+      singleColumnFirst: isGekiga ? 2 : null,
       sections: [
         // 劇画UI選択中は、外観（ライト/ダーク）が見た目に効かない為、項目ごと
         // 表示しない（2026-10-31、以前はグレーアウトして案内を出していた）。
@@ -2751,9 +2757,14 @@ class _MultiColumnSections extends StatelessWidget {
     this.columnSplit,
     this.scrollPerColumn = false,
     this.storageId,
+    this.singleColumnFirst,
   });
 
   final List<({double weight, Widget child})> sections;
+
+  /// 1列（縦画面など）の時だけ、このまとまり（[sections]の番号）を先頭へ移す。列が複数の時は、
+  /// 元の順のまま。
+  final int? singleColumnFirst;
 
   /// 列数が`columnSplit.length`に一致した時だけ、高さの目安に依らず、先頭から順に
   /// 各列へ入れるまとまりの数。例: `[3, 1, 1]`は左3・中央1・右1。
@@ -2781,12 +2792,18 @@ class _MultiColumnSections extends StatelessWidget {
             .clamp(1, math.min(_maxColumns, sections.length))
             .toInt();
         if (columns == 1) {
+          final first = singleColumnFirst;
+          final order = [
+            if (first != null) first,
+            for (var i = 0; i < sections.length; i++)
+              if (i != first) i,
+          ];
           return ListView(
             key: _keyFor('list'),
             padding: const EdgeInsets.only(bottom: 24),
             children: [
-              for (var i = 0; i < sections.length; i++) ...[
-                if (i > 0) const Divider(height: 24),
+              for (final (n, i) in order.indexed) ...[
+                if (n > 0) const Divider(height: 24),
                 sections[i].child,
               ],
             ],
@@ -3263,10 +3280,10 @@ class _CustomAppearanceEditorState
                             fillColor: Colors.transparent,
                             enabledBorder: _insetFieldTheme(context)
                                 ? InputBorder.none
-                                : null,
+                                : _accentFieldBorder(context, 1),
                             focusedBorder: _insetFieldTheme(context)
                                 ? InputBorder.none
-                                : null,
+                                : _accentFieldBorder(context, 2),
                             errorBorder: _insetFieldTheme(context)
                                 ? InputBorder.none
                                 : null,
@@ -3682,10 +3699,10 @@ class _AccentColorFolderState extends ConsumerState<AccentColorFolder> {
                 fillColor: Colors.transparent,
                 enabledBorder: _insetFieldTheme(context)
                     ? InputBorder.none
-                    : null,
+                    : _accentFieldBorder(context, 1),
                 focusedBorder: _insetFieldTheme(context)
                     ? InputBorder.none
-                    : null,
+                    : _accentFieldBorder(context, 2),
                 errorBorder: _insetFieldTheme(context)
                     ? InputBorder.none
                     : null,
@@ -3729,23 +3746,16 @@ class _AccentColorFolderState extends ConsumerState<AccentColorFolder> {
       children: [
         Padding(
           padding: const EdgeInsets.fromLTRB(16, 0, 16, 4),
-          child: GekigaSectionHeader(widget.strings.settingsAccentColor),
-        ),
-        // 劇画UI選択中は「背景色」の意味で使う（フラットUIのようにColorScheme
-        // 全体の種にはせず、背景のみを変更する。黒/白基調の他パーツは
-        // 引き続き固定）。2026-08-05変更、以前はこの欄自体を劇画UI選択中は
-        // 変更不可にしていた。
-        if (isGekiga)
-          Padding(
-            padding: const EdgeInsets.fromLTRB(16, 0, 16, 4),
-            child: Text(
-              widget.strings.settingsAccentColorGekigaHint,
-              style: TextStyle(
-                fontSize: 12,
-                color: Theme.of(context).hintColor,
-              ),
-            ),
+          // 劇画UI選択中は「背景色」の意味で使う（フラットUIのようにColorScheme
+          // 全体の種にはせず、背景のみを変更する。黒/白基調の他パーツは
+          // 引き続き固定）。2026-08-05変更、以前はこの欄自体を劇画UI選択中は
+          // 変更不可にしていた。見出しは「背景」にし、説明は出さない（2026-11-27、ユーザー指示）。
+          child: GekigaSectionHeader(
+            isGekiga
+                ? widget.strings.settingsAppearance
+                : widget.strings.settingsAccentColor,
           ),
+        ),
         Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -3961,7 +3971,7 @@ class _AppearanceColorEditorState
     );
     final kindColors = ref.watch(
       appearanceColorsProvider.select(
-        (s) => s[slot]?[widget.kind] ?? const KindColors(),
+        (s) => kindColorsOf(s, slot, widget.kind),
       ),
     );
     // 外観の切り替え・端末間の同期などで実効値が変わったら、入力欄の文字も合わせる。
@@ -3988,7 +3998,9 @@ class _AppearanceColorEditorState
     bool same(Color a, Color b) =>
         _isOnAccent ? a.withAlpha(0xFF) == b.withAlpha(0xFF) : a == b;
     final presetColors = [
-      if (!kindColors.defaultRemoved) (color: defaultColor, isDefault: true),
+      for (final c in standardColorsOf(widget.kind))
+        if (!kindColors.removedDefaults.contains(c))
+          (color: c, isDefault: true),
       for (final c in kindColors.presets) (color: c, isDefault: false),
     ];
 
@@ -4058,10 +4070,10 @@ class _AppearanceColorEditorState
                         fillColor: Colors.transparent,
                         enabledBorder: _insetFieldTheme(context)
                             ? InputBorder.none
-                            : null,
+                            : _accentFieldBorder(context, 1),
                         focusedBorder: _insetFieldTheme(context)
                             ? InputBorder.none
-                            : null,
+                            : _accentFieldBorder(context, 2),
                         errorBorder: _insetFieldTheme(context)
                             ? InputBorder.none
                             : null,
@@ -4133,7 +4145,11 @@ class _AppearanceColorEditorState
                       appearanceColorsProvider.notifier,
                     );
                     if (entry.isDefault) {
-                      await notifier.removeDefault(slot, widget.kind);
+                      await notifier.removeDefault(
+                        slot,
+                        widget.kind,
+                        entry.color,
+                      );
                     } else {
                       await notifier.removePreset(
                         slot,
@@ -6385,6 +6401,11 @@ class _NotificationsPage extends ConsumerWidget {
 
     return ListView(
       padding: const EdgeInsets.all(16),
+      // 全ての行を最初に組み立てる。通知のページは、高さの大きく違う行（音の選択の長い一覧など）が
+      // 並ぶ。必要な分だけ組み立てる既定の方式では、下から上へスクロールする時、まだ組み立てて
+      // いない行の高さを見積もって、位置が最下部へ戻され続けることが有る（2026-11-27、
+      // ユーザー報告。原因は実機で未確認）。
+      cacheExtent: double.infinity,
       children: [
         if (isGekiga)
           GekigaJointedTileList(
@@ -7210,3 +7231,14 @@ class _SettingsChoiceList<T> extends ConsumerWidget {
 /// 自分の枠・塗りを持たず、ラベルは箱の上に別の文字として置く（`BlockFieldFrame`）。
 bool _insetFieldTheme(BuildContext context) =>
     isBlockTheme(context) || isKinariTheme(context);
+
+/// カラーコード欄の枠（フラット・ガラス）。`border`だけ指定すると、Flutterが状態ごとの枠を
+/// 灰色で補うため、アクセントカラーの枠は、状態ごとに明示する。
+OutlineInputBorder _accentFieldBorder(BuildContext context, double width) =>
+    OutlineInputBorder(
+      borderRadius: BorderRadius.circular(16),
+      borderSide: BorderSide(
+        color: Theme.of(context).colorScheme.primary,
+        width: width,
+      ),
+    );

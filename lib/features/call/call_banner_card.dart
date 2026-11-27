@@ -4,8 +4,13 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../l10n/strings.dart';
 import '../../models/app_ui_style.dart';
 import '../../providers/app_ui_style_provider.dart';
+import '../../theme/block/block_theme.dart';
+import '../../theme/chalk/chalk_theme.dart';
 import '../../theme/gekiga/gekiga_colors.dart';
+import '../../theme/kinari/kinari_theme.dart';
+import '../../widgets/chalk_banner.dart';
 import '../../widgets/glass/glass_surface.dart';
+import '../../widgets/kinari_surface.dart';
 
 /// 通話の着信バナー（広場の通話開始・一対の着信）の共通の見た目（2026-10-23）。
 /// 左に丸いアイコン（右下に通話/ビデオの小さなバッジ）、右に広場名・相手の呼び名、
@@ -43,8 +48,25 @@ class CallBannerCard extends ConsumerWidget {
     final uiStyle = ref.watch(appUiStyleProvider);
     final isGekiga = uiStyle == AppUiStyle.gekiga;
     final isGlass = uiStyle == AppUiStyle.glass;
-    final background = isGekiga ? GekigaColors.panel : colorScheme.primary;
-    final foreground = isGekiga ? GekigaColors.onPanel : colorScheme.onPrimary;
+    // 版画・チョーク・生成り・フラットは、アクセントカラーで塗らず、面の色に文字色で描き、
+    // 各スタイルの線・箱で囲む（2026-11-27）。ガラスは従来どおりアクセントカラーの塗り。
+    final chalk = isChalkTheme(context);
+    final kinari = isKinariTheme(context);
+    final block = isBlockTheme(context) && !chalk;
+    final flat = uiStyle == AppUiStyle.flat && !chalk && !kinari && !block;
+    final plain = chalk || kinari || block || flat;
+    final background = isGekiga
+        ? GekigaColors.panel
+        : plain
+        ? (block && Theme.of(context).brightness == Brightness.light
+              ? Colors.white
+              : colorScheme.surface)
+        : colorScheme.primary;
+    final foreground = isGekiga
+        ? GekigaColors.onPanel
+        : plain
+        ? colorScheme.onSurface
+        : colorScheme.onPrimary;
     final radius = isGekiga ? BorderRadius.zero : BorderRadius.circular(12);
 
     final strings = ref.watch(appStringsProvider);
@@ -145,6 +167,39 @@ class CallBannerCard extends ConsumerWidget {
       return Material(
         color: background,
         shape: Border.all(color: GekigaColors.onPanel, width: 3),
+        child: content,
+      );
+    }
+    if (chalk) {
+      // 下の内容が透けると読めないので、黒板の色で塗る。
+      return ChalkBannerFrame(
+        color: background,
+        margin: EdgeInsets.zero,
+        radius: 12,
+        child: content,
+      );
+    }
+    if (kinari) return KinariBannerFrame(child: content);
+    if (block) {
+      return DecoratedBox(
+        decoration: framedCardDecoration(
+          context,
+          borderRadius: radius,
+          color: background,
+        ),
+        child: ClipRRect(
+          borderRadius: radius,
+          child: Material(type: MaterialType.transparency, child: content),
+        ),
+      );
+    }
+    if (flat) {
+      return Material(
+        color: background,
+        shape: RoundedRectangleBorder(
+          borderRadius: radius,
+          side: BorderSide(color: colorScheme.primary, width: 1.5),
+        ),
         child: content,
       );
     }

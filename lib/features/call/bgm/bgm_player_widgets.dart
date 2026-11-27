@@ -379,8 +379,8 @@ class BgmFavoriteButton extends StatelessWidget {
   }
 }
 
-/// ミニプレーヤーの面。劇画・ガラス・版画は、BGMのシートと同じ`CallPanelSurface`（各スタイルの面）にし、
-/// フラットは従来の丸い半透明の面にする。
+/// ミニプレーヤーの面。全てのスタイルで、BGMのシートと同じ`CallPanelSurface`（各スタイルの面）にする
+/// （2026-11-27、以前のフラットは丸い半透明の面）。
 class _MiniPlayerSurface extends ConsumerWidget {
   const _MiniPlayerSurface({required this.child});
 
@@ -391,7 +391,9 @@ class _MiniPlayerSurface extends ConsumerWidget {
     final style = ref.watch(appUiStyleProvider);
     if (style == AppUiStyle.gekiga ||
         style == AppUiStyle.glass ||
-        style.isBoxed) {
+        style.isBoxed ||
+        style == AppUiStyle.kinari ||
+        style == AppUiStyle.flat) {
       return CallPanelSurface(allRounded: true, child: child);
     }
     final scheme = Theme.of(context).colorScheme;

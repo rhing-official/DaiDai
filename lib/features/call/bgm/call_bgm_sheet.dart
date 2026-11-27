@@ -1,3 +1,5 @@
+import '../../../theme/chalk/chalk_paint.dart';
+import '../../../widgets/kinari_surface.dart';
 import '../../../utils/auto_dismiss_banner.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
@@ -106,6 +108,22 @@ class CallPanelSurface extends ConsumerWidget {
         borderRadius: radius,
         child: ClipRRect(borderRadius: radius, child: child),
       ),
+      // チョーク: チョークの線の箱（2026-11-27）。以前は、版画と別の分岐が無く、フラットと
+      // 同じ素の面になっていた。
+      AppUiStyle.chalk => DecoratedBox(
+        decoration: ChalkBoxDecoration(
+          color: theme.colorScheme.surface,
+          borderRadius: radius,
+          lineColor: theme.colorScheme.onSurface,
+        ),
+        child: ClipRRect(borderRadius: radius, child: child),
+      ),
+      // 生成り: へこんだ面（2026-11-27）。
+      AppUiStyle.kinari => KinariInset(
+        color: theme.colorScheme.surface,
+        radius: 24,
+        child: ClipRRect(borderRadius: radius, child: child),
+      ),
       AppUiStyle.block => DecoratedBox(
         decoration: BoxDecoration(
           borderRadius: radius,
@@ -127,9 +145,13 @@ class CallPanelSurface extends ConsumerWidget {
           child: child,
         ),
       ),
+      // フラット: アクセントカラーの線で囲む（2026-11-27）。
       _ => Material(
         color: theme.colorScheme.surface,
-        borderRadius: radius,
+        shape: RoundedRectangleBorder(
+          borderRadius: radius,
+          side: BorderSide(color: theme.colorScheme.primary),
+        ),
         clipBehavior: Clip.antiAlias,
         child: child,
       ),

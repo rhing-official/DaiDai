@@ -13,6 +13,10 @@ import '../../providers/call_display_provider.dart';
 import '../../providers/camera_availability_provider.dart';
 import '../../router/app_router.dart';
 import '../../theme/block/block_theme.dart';
+import '../../theme/chalk/chalk_paint.dart';
+import '../../theme/chalk/chalk_theme.dart';
+import '../../theme/kinari/kinari_theme.dart';
+import '../../widgets/kinari_surface.dart';
 import '../../theme/gekiga/gekiga_colors.dart';
 import '../../theme/glass/glass_colors.dart';
 import '../../l10n/strings.dart';
@@ -482,11 +486,64 @@ class _PinnedCallBubble extends ConsumerWidget {
       );
     }
 
+    final frameScheme = Theme.of(context).colorScheme;
+    if (isChalkTheme(context)) {
+      // チョーク: チョークの線の箱（2026-11-27）。
+      return GestureDetector(
+        onTap: () => _reopen(context, ref),
+        child: Container(
+          decoration: ChalkBoxDecoration(
+            color: Colors.grey.shade900,
+            borderRadius: BorderRadius.circular(16),
+            lineColor: frameScheme.onSurface,
+          ),
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(14),
+            child: bubbleSize,
+          ),
+        ),
+      );
+    }
+    if (isKinariTheme(context)) {
+      // 生成り: へこんだ枠（2026-11-27）。
+      return GestureDetector(
+        onTap: () => _reopen(context, ref),
+        child: KinariInset(
+          color: Colors.grey.shade900,
+          radius: 14,
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(12),
+            child: bubbleSize,
+          ),
+        ),
+      );
+    }
+    if (isBlockTheme(context)) {
+      // 版画: 太枠と硬い影の箱（2026-11-27）。
+      return GestureDetector(
+        onTap: () => _reopen(context, ref),
+        child: Container(
+          decoration: framedCardDecoration(
+            context,
+            borderRadius: BorderRadius.circular(12),
+            color: Colors.grey.shade900,
+          ),
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(10),
+            child: bubbleSize,
+          ),
+        ),
+      );
+    }
+    // フラット: アクセントカラーの線で囲む（2026-11-27）。
     // モバイルで映像を出す時は、影（elevation）とアンチエイリアス付きのクリップ（別レイヤーへ描いて
     // 合成する）をやめ、`hardEdge`で角丸に切る（負荷を下げる、2026-11-15）。
     return Material(
       elevation: (kPinnedNoClip || _lightMobileVideo) ? 0 : 8,
-      borderRadius: BorderRadius.circular(12),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(12),
+        side: BorderSide(color: frameScheme.primary, width: 1.5),
+      ),
       clipBehavior: kPinnedNoClip
           ? Clip.none
           : (_lightMobileVideo ? Clip.hardEdge : Clip.antiAlias),
@@ -581,10 +638,55 @@ class _MiniIconButton extends StatelessWidget {
     // ガラス分岐と同じ`GlassSurface`の円形パネルに切り替える（2026-08-30
     // 追加、新規追加時にどちらの対応スイープからも漏れていた）。
     final Widget button;
-    if (isBlockTheme(context)) {
+    final scheme = Theme.of(context).colorScheme;
+    final destructiveButton = color == Colors.red;
+    if (isChalkTheme(context)) {
+      // チョーク: `CallRoundButton`と同じ、チョークで引いた丸の縁（2026-11-27）。
+      button = Opacity(
+        opacity: enabled ? 1 : 0.4,
+        child: SizedBox(
+          width: 28,
+          height: 28,
+          child: Material(
+            color: destructiveButton ? Colors.red.shade700 : Colors.transparent,
+            shape: ChalkShapeBorder(
+              borderRadius: BorderRadius.circular(14),
+              color: scheme.onSurface,
+              width: 1.6,
+            ),
+            child: InkWell(
+              customBorder: const CircleBorder(),
+              onTap: enabled ? onTap : null,
+              child: Center(
+                child: Icon(
+                  icon,
+                  size: 14,
+                  color: destructiveButton ? Colors.white : scheme.onSurface,
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+    } else if (isKinariTheme(context)) {
+      // 生成り: `CallRoundButton`と同じ、浮いた丸（2026-11-27）。
+      button = Opacity(
+        opacity: enabled ? 1 : 0.4,
+        child: KinariRaisedCircle(
+          color: scheme.surface,
+          lineColor: scheme.onSurface,
+          size: 28,
+          onTap: enabled ? onTap : null,
+          child: Icon(
+            icon,
+            size: 14,
+            color: destructiveButton ? Colors.red.shade700 : scheme.onSurface,
+          ),
+        ),
+      );
+    } else if (isBlockTheme(context)) {
       // 版画は`CallRoundButton`と同じ黒の太枠＋硬い影の小さな箱（2026-11-06）。
-      final scheme = Theme.of(context).colorScheme;
-      final destructive = color == Colors.red;
+      final destructive = destructiveButton;
       button = Opacity(
         opacity: enabled ? 1 : 0.4,
         child: SizedBox(
@@ -663,9 +765,10 @@ class _MiniIconButton extends StatelessWidget {
         ),
       );
     } else {
+      // フラット: アクセントカラーの線で囲む（2026-11-27）。
       button = Material(
         color: enabled ? color : Colors.black26,
-        shape: const CircleBorder(),
+        shape: CircleBorder(side: BorderSide(color: scheme.primary)),
         child: InkWell(
           customBorder: const CircleBorder(),
           onTap: enabled ? onTap : null,

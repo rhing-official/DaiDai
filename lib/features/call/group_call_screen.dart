@@ -1,3 +1,4 @@
+import 'call_status_decoration.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_webrtc/flutter_webrtc.dart';
@@ -205,10 +206,7 @@ class _GroupCallScreenState extends ConsumerState<GroupCallScreen> {
           child: Container(
             margin: const EdgeInsets.only(top: 8, left: 12, right: 12),
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-            decoration: BoxDecoration(
-              color: Colors.black54,
-              borderRadius: BorderRadius.circular(8),
-            ),
+            decoration: callStatusDecoration(context, ref, radius: 8),
             child: Text(
               ref.read(appStringsProvider).callEstablishingGroup,
               textAlign: TextAlign.center,
@@ -598,10 +596,7 @@ class _GroupCallScreenState extends ConsumerState<GroupCallScreen> {
                     horizontal: 6,
                     vertical: 3,
                   ),
-                  decoration: BoxDecoration(
-                    color: Colors.black54,
-                    borderRadius: BorderRadius.circular(6),
-                  ),
+                  decoration: callStatusDecoration(context, ref, radius: 6),
                   child: Text(
                     connectionIssue
                         ? ref.read(appStringsProvider).callConnectionUnstable

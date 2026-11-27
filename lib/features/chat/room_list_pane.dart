@@ -272,6 +272,7 @@ class _RoomListPaneState extends ConsumerState<RoomListPane> {
             CallPresenceMark(
               conversationId: conversationId,
               roomId: room.roomId,
+              fallbackRoomIds: [for (final r in _rooms) r.roomId],
               color: fg,
               badge: true,
               size: 14,
@@ -432,23 +433,34 @@ class _RoomListPaneState extends ConsumerState<RoomListPane> {
       // `selectedTileColor`は、一番近い`Material`（ペイン全体）の上に描かれる為、並べ替えで
       // 行が動いても、塗りだけが元の位置に残っていた（フラットの縦画面で、非選択の行を
       // ドラッグすると、選択中のアクセントカラーの塗りだけが残る不具合、2026-11-27修正）。
-      return Material(
-        color: isSelected ? colorScheme.primary : Colors.transparent,
-        borderRadius: BorderRadius.circular(12),
-        clipBehavior: Clip.antiAlias,
-        child: ListTile(
+      // フラット: 1行ずつ、アクセントカラーの線で囲む。
+      return Padding(
+        padding: const EdgeInsets.symmetric(vertical: 3),
+        child: Material(
+          color: isSelected ? colorScheme.primary : colorScheme.surface,
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(12),
+            side: BorderSide(color: colorScheme.primary),
           ),
-          selected: isSelected,
-          selectedColor: colorScheme.onPrimary,
-          leading: tagIcon,
-          title: Text(room.name, maxLines: 1, overflow: TextOverflow.ellipsis),
-          trailing: trailingOf(
-            room,
-            isSelected ? colorScheme.onPrimary : colorScheme.onSurface,
+          clipBehavior: Clip.antiAlias,
+          child: ListTile(
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
+            ),
+            selected: isSelected,
+            selectedColor: colorScheme.onPrimary,
+            leading: tagIcon,
+            title: Text(
+              room.name,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
+            trailing: trailingOf(
+              room,
+              isSelected ? colorScheme.onPrimary : colorScheme.onSurface,
+            ),
+            onTap: () => widget.onSelectRoom(room),
           ),
-          onTap: () => widget.onSelectRoom(room),
         ),
       );
     }
@@ -505,16 +517,6 @@ class _RoomListPaneState extends ConsumerState<RoomListPane> {
                         Flexible(
                           child: TalksNameChip(label: widget.conversationName),
                         ),
-                        if (widget.conversationId != null) ...[
-                          const SizedBox(width: 8),
-                          CallPresenceMark(
-                            conversationId: widget.conversationId!,
-                            color: Theme.of(context).colorScheme.onSurface,
-                            label: true,
-                            // 通話を始めた寄合のブロックに標が出る時は、ここには出さない。
-                            unplacedAmong: {for (final r in _rooms) r.roomId},
-                          ),
-                        ],
                       ],
                     ),
                   ),

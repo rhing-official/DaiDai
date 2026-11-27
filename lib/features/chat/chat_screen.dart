@@ -87,6 +87,8 @@ import 'attachment_popup_button.dart';
 import 'pending_attachment_tray.dart';
 import 'button_anchored_menu.dart';
 import '../../utils/attachment_upload.dart';
+import '../../utils/audio_only_mp4.dart';
+import '../../utils/paste_event/paste_event.dart';
 import '../../utils/yokocho.dart';
 import '../../utils/multi_attachment_layout.dart';
 import '../../utils/auto_dismiss_banner.dart';
@@ -602,6 +604,8 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     // 別のアプリ・ウィンドウから戻った時に、入力欄へカーソルを戻す（2026-11-01、
     // Discordと同じ。コンピューターのみ、[_restoreComposerFocus]参照）。
     _lifecycleListener = AppLifecycleListener(onResume: _restoreComposerFocus);
+    // 入力欄へファイル（スクリーンショット等）を貼り付けたら、送信前のトレイへ入れる。
+    _cancelPasteFiles = listenPasteFiles(_onFilesPasted);
     // 語らい・寄合を開いた時に、入力欄へカーソルを合わせる（2026-11-01）。
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _restoreComposerFocus(force: true);
@@ -3166,6 +3170,41 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     _composerFocusNode.requestFocus();
   }
 
+  void Function()? _cancelPasteFiles;
+
+  /// 入力欄に、ファイルを貼り付けた時（Webの`paste`イベント）。入力欄にカーソルが有る時だけ、
+  /// ＋ボタンで選んだ時と同じく、送信前のトレイへ入れる。
+  void _onFilesPasted(List<PastedFile> files) {
+    if (!mounted ||
+        !_composerFocusNode.hasFocus ||
+        widget.disabled ||
+        widget.onSendAttachment == null ||
+        _editingMessage != null) {
+      return;
+    }
+    _onAttachmentsChosen([
+      for (final f in files)
+        () {
+          final isVideo =
+              isVideoFileName(f.name, mimeType: f.mimeType) ||
+              looksLikeVideoBytes(f.bytes);
+          final isImage = f.mimeType.startsWith('image/');
+          final isAudio = isVideo && isAudioOnlyIsoBmff(f.bytes);
+          return PickedAttachment(
+            bytes: f.bytes,
+            fileName: f.name,
+            contentType: isAudio
+                ? 'file'
+                : isVideo
+                ? 'video'
+                : isImage
+                ? 'image'
+                : 'file',
+          );
+        }(),
+    ]);
+  }
+
   /// ＋ボタンで選んだ添付の受け口。画像・動画・ファイルはどれも送信前のトレイへ入れ、
   /// 文字（あれば）と一緒に1つのメッセージとして送る（ファイルも複数まとめて送れる、2026-11-10。
   /// 以前は、ファイルだけ選んだ直後に1件ずつ送っていた）。
@@ -3247,6 +3286,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
 
   @override
   void dispose() {
+    _cancelPasteFiles?.call();
     ComposerDraftTracker.set(this, false);
     _composerAnimationTimer?.cancel();
     _lifecycleListener.dispose();
@@ -7877,6 +7917,16 @@ class _MessageRow extends ConsumerWidget {
     if (uiStyle == AppUiStyle.glass) {
       return GlassSurface(borderRadius: radius, child: frame);
     }
+    if (uiStyle == AppUiStyle.kinari) {
+      // 生成り: 画像・動画を、へこんだ面にはめ込む（紙の台座。他のスタイルの枠線の代わり、
+      // 2026-11-27）。
+      return KinariInset(
+        color: Theme.of(context).colorScheme.surface,
+        radius: mediaPreviewContentRadius + 4,
+        padding: const EdgeInsets.all(4),
+        child: frame,
+      );
+    }
     return Container(
       decoration: framedCardDecoration(context, borderRadius: radius),
       clipBehavior: Clip.antiAlias,
@@ -10775,6 +10825,10 @@ class _ReturnToMessageBlockBody extends StatelessWidget {
         padding: const EdgeInsets.only(right: 3, bottom: 3),
         child: blockMaterialBox(context, color: fill, child: body),
       );
+    }
+    // 生成りは、アクセントのへこんだ面にはめ込む（「最新へジャンプ」と同じ）。
+    if (uiStyle == AppUiStyle.kinari) {
+      return KinariInset(color: fill, radius: 999, depth: 2.2, child: body);
     }
     return Material(color: fill, shape: shape, child: body);
   }

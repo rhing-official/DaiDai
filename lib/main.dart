@@ -444,6 +444,13 @@ class DaiDaiApp extends ConsumerWidget {
     final palette = custom.enabled
         ? AppearancePalette.fromBackground(custom.color)
         : null;
+    // チョークは、黒板（または決めた背景）の明るさで、ライト/ダークのどちらの区分の色を使うかが
+    // 決まる。適用した色が無ければ、チョーク本来の色のまま。
+    final chalkBackground = custom.enabled ? custom.color : ChalkColors.board;
+    final chalkIsDark =
+        ThemeData.estimateBrightnessForColor(chalkBackground) ==
+        Brightness.dark;
+    final chalkText = chalkIsDark ? appliedTextDark : appliedTextLight;
     final theme = switch (uiStyle) {
       AppUiStyle.flat => AppTheme.light(
         accentColor,
@@ -468,6 +475,8 @@ class DaiDaiApp extends ConsumerWidget {
         accentColor,
         fontFamily,
         background: custom.enabled ? custom.color : null,
+        textColor: chalkText,
+        onAccentColor: chalkIsDark ? onAccentColorDark : onAccentColorLight,
       ),
       AppUiStyle.kinari => KinariTheme.build(
         accentColor,
@@ -511,6 +520,8 @@ class DaiDaiApp extends ConsumerWidget {
         accentColor,
         fontFamily,
         background: custom.enabled ? custom.color : null,
+        textColor: chalkText,
+        onAccentColor: chalkIsDark ? onAccentColorDark : onAccentColorLight,
       ),
       AppUiStyle.kinari => KinariTheme.build(
         accentColor,

@@ -4085,9 +4085,13 @@ class CategoryTab extends ConsumerWidget {
       );
     }
 
+    // フラット: アクセントカラーの線で囲む。
     return Material(
       color: background,
-      borderRadius: BorderRadius.circular(20),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(20),
+        side: BorderSide(color: colorScheme.primary),
+      ),
       child: InkWell(
         onTap: onTap,
         borderRadius: BorderRadius.circular(20),
@@ -7693,7 +7697,27 @@ class BlockTalkTileWrap extends StatelessWidget {
         child: KinariTileFrame(selected: selected, child: child),
       );
     }
-    if (!isBlockTheme(context)) return child;
+    if (!isBlockTheme(context)) {
+      // フラット: 1行ずつ、アクセントカラーの線で囲む。
+      return Consumer(
+        builder: (context, ref, _) {
+          if (ref.watch(appUiStyleProvider) != AppUiStyle.flat) return child;
+          final scheme = Theme.of(context).colorScheme;
+          return Padding(
+            padding: const EdgeInsets.symmetric(vertical: 3),
+            child: Material(
+              color: selected ? scheme.primary : scheme.surface,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+                side: BorderSide(color: scheme.primary),
+              ),
+              clipBehavior: Clip.antiAlias,
+              child: child,
+            ),
+          );
+        },
+      );
+    }
     final scheme = Theme.of(context).colorScheme;
     return Padding(
       padding: const EdgeInsets.fromLTRB(2, 3, 6, 7),
