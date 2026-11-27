@@ -251,8 +251,6 @@ class _SlidePainter extends CustomPainter {
           seed: entries[ci].icon.hashCode,
           invert: true,
         ).paint(canvas, chip.size);
-      } else if (chalk) {
-        ChalkPaint.fillPath(canvas, blob, fill);
       } else {
         canvas.drawPath(blob, Paint()..color = fill);
       }
@@ -268,7 +266,7 @@ class _SlidePainter extends CustomPainter {
     canvas.saveLayer(bounds, Paint()..blendMode = BlendMode.srcATop);
     for (var i = 0; i < entries.length && i < list.length; i++) {
       final cr = list[i];
-      if (cr == null) continue;
+      if (cr == null || chalk) continue;
       final en = entries[i];
       final painter = TextPainter(
         text: TextSpan(
@@ -288,6 +286,27 @@ class _SlidePainter extends CustomPainter {
       );
     }
     canvas.restore();
+    // チョーク: 塗りの粉の抜けは、アイコンを描き直した後に、アイコンの範囲を除いて、チップの中だけに作る。
+    if (chalk) {
+      for (var ci = 0; ci < list.length; ci++) {
+        final cr = list[ci];
+        if (cr == null) continue;
+        final chip = cr.deflate(inset);
+        if (!chip.overlaps(r)) continue;
+        canvas.save();
+        canvas.clipPath(Path()..addOval(chip));
+        ChalkPaint.punchGrainExcept(canvas, blob.getBounds().inflate(2), [
+          for (var i = 0; i < entries.length && i < list.length; i++)
+            if (list[i] != null)
+              Rect.fromCenter(
+                center: list[i]!.center,
+                width: entries[i].iconSize * 1.25,
+                height: entries[i].iconSize * 1.25,
+              ),
+        ]);
+        canvas.restore();
+      }
+    }
     canvas.restore();
   }
 

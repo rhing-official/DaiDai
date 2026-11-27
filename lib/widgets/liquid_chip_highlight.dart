@@ -11,6 +11,7 @@ import '../providers/app_ui_style_provider.dart';
 import '../providers/selection_motion_provider.dart';
 import '../theme/block/block_theme.dart';
 import '../theme/chalk/chalk_paint.dart';
+import '../theme/chalk/chalk_theme.dart';
 import '../theme/gekiga/gekiga_colors.dart';
 import 'draw_chip_highlight.dart';
 import 'gekiga/monochrome_box.dart';
@@ -211,7 +212,8 @@ class _LiquidChipHighlightState extends ConsumerState<LiquidChipHighlight>
       ),
       // 生成り: 帯のへこみの縁を残し、その内側だけを塗る（凹んだ穴に、アクセントが嵌まって見える）。
       AppUiStyle.kinari => (scheme.primary, scheme.onPrimary, true, 3.0),
-      _ => (scheme.primary, scheme.onPrimary, true, 0.0),
+      // チョーク: アイコンは、チップ自身が描く（塗りは、チップの下の層）。描き直すと、粉の抜けで薄くなる。
+      _ => (scheme.primary, scheme.onPrimary, style != AppUiStyle.chalk, 0.0),
     };
     return CustomPaint(
       painter: _WaterPainter(
@@ -339,15 +341,6 @@ class _WaterPainter extends CustomPainter {
 
     paintLiquidStreamAndDrops(canvas, sim, fill, square: square);
 
-    if (chalk) {
-      Rect? area;
-      for (final r in rects) {
-        if (r == null) continue;
-        area = area == null ? r : area.expandToInclude(r);
-      }
-      if (area != null) ChalkPaint.punchGrain(canvas, area.inflate(40));
-    }
-
     if (kinari) {
       paintKinariRecess(canvas, bounds, [
         for (final r in rects)
@@ -380,6 +373,26 @@ class _WaterPainter extends CustomPainter {
         );
       }
       canvas.restore();
+    }
+    // チョーク: 塗りに、粉の抜けを作る。アイコンの上には作らない（抜けると、アイコンが部分的に
+    // 透けて、白いアイコンが灰色に見えた）。アイコンを描き直した後に、アイコンの範囲を除いて抜く。
+    if (chalk) {
+      Rect? area;
+      for (final r in rects) {
+        if (r == null) continue;
+        area = area == null ? r : area.expandToInclude(r);
+      }
+      if (area != null) {
+        ChalkPaint.punchGrainExcept(canvas, area.inflate(40), [
+          for (var i = 0; i < entries.length && i < rects.length; i++)
+            if (rects[i] != null)
+              Rect.fromCenter(
+                center: rects[i]!.center,
+                width: entries[i].iconSize * 1.25,
+                height: entries[i].iconSize * 1.25,
+              ),
+        ]);
+      }
     }
     canvas.restore();
   }
@@ -432,13 +445,14 @@ class _LiquidChipStripState extends State<LiquidChipStrip> {
 
   @override
   Widget build(BuildContext context) {
+    final chalk = isChalkTheme(context);
     return LiquidChipScope(
       sim: _sim,
       chipKeys: [for (final e in widget.entries) e.chipKey],
       child: Stack(
         clipBehavior: Clip.none,
         children: [
-          widget.child,
+          if (!chalk) widget.child,
           Positioned.fill(
             child: IgnorePointer(
               child: LiquidChipHighlight(
@@ -470,6 +484,8 @@ class _LiquidChipStripState extends State<LiquidChipStrip> {
               ),
             ),
           ),
+          // チョーク: チップは、塗りの上に置く。アイコンを、設定の項目と同じく、チップ自身が描く。
+          if (chalk) widget.child,
         ],
       ),
     );

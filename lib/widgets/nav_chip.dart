@@ -222,7 +222,10 @@ class NavChip extends ConsumerWidget {
                   child: Icon(
                     icon,
                     size: iconSize,
-                    color: sel ? colorScheme.onPrimary : colorScheme.onSurface,
+                    // 塗りを層に任せる時も、選択中は塗りの上の色。設定の項目と同じ。
+                    color: selected
+                        ? colorScheme.onPrimary
+                        : colorScheme.onSurface,
                   ),
                 ),
               ),

@@ -229,14 +229,6 @@ class _DrawPainter extends CustomPainter {
       canvas.restore();
       return;
     }
-    if (chalk) {
-      Rect? area;
-      for (final r in list) {
-        if (r == null) continue;
-        area = area == null ? r : area.expandToInclude(r);
-      }
-      if (area != null) ChalkPaint.punchGrain(canvas, area.inflate(40));
-    }
     if (kinari) {
       paintKinariRecess(canvas, bounds, [
         for (final r in list)
@@ -247,7 +239,7 @@ class _DrawPainter extends CustomPainter {
     canvas.saveLayer(bounds, Paint()..blendMode = BlendMode.srcATop);
     for (var i = 0; i < entries.length && i < list.length; i++) {
       final r = list[i];
-      if (r == null) continue;
+      if (r == null || chalk) continue;
       final en = entries[i];
       final painter = TextPainter(
         text: TextSpan(
@@ -267,6 +259,25 @@ class _DrawPainter extends CustomPainter {
       );
     }
     canvas.restore();
+    // チョーク: 塗りの粉の抜けは、アイコンを描き直した後に、アイコンの範囲を除いて作る。
+    if (chalk) {
+      Rect? area;
+      for (final r in list) {
+        if (r == null) continue;
+        area = area == null ? r : area.expandToInclude(r);
+      }
+      if (area != null) {
+        ChalkPaint.punchGrainExcept(canvas, area.inflate(40), [
+          for (var i = 0; i < entries.length && i < list.length; i++)
+            if (list[i] != null)
+              Rect.fromCenter(
+                center: list[i]!.center,
+                width: entries[i].iconSize * 1.25,
+                height: entries[i].iconSize * 1.25,
+              ),
+        ]);
+      }
+    }
     canvas.restore();
   }
 

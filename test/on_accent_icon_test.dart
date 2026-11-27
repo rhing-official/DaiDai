@@ -4,28 +4,18 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:daidai/models/app_ui_style.dart';
 import 'package:daidai/providers/accent_color_provider.dart';
 import 'package:daidai/providers/app_ui_style_provider.dart';
-import 'package:daidai/providers/appearance_colors_provider.dart';
 import 'package:daidai/theme/app_theme.dart';
 import 'package:daidai/theme/block/block_theme.dart';
 import 'package:daidai/theme/chalk/chalk_theme.dart';
 import 'package:daidai/theme/kinari/kinari_theme.dart';
 import 'package:daidai/widgets/nav_chip.dart';
 
-/// 再発防止（2026-11-27）。明るい背景で、アクセントで塗った選択中のメニューチップのアイコンが、
-/// 白ではなくクリーム色になる不具合が、デザインごとに繰り返し出た。原因は、標準のアクセント上の色
-/// （#EFEFF1）が、明るい背景で白く見えなかったこと。標準の色は純白に固定し、どのデザインでも、
-/// 選択中のアイコンがテーマの`onPrimary`（＝設定のアクセント上の色）になることを検査する。
+/// 再発防止（2026-11-27）。選択中のメニューチップのアイコンは、どのデザインでも、テーマの`onPrimary`
+/// （＝設定のアクセント上の色）そのものになる。色を変える処理を、アイコンの上に重ねない
+/// （チョークの粉が、白いアイコンを灰色にしていた）。
 void main() {
   const accent = Color(0xFF3D2EE0);
   const white = Color(0xFFFFFFFF);
-
-  test('明るい背景（胡粉）の、アクセント上の標準の色は純白', () {
-    expect(
-      AppearanceSlot.light.defaultFor(AppearanceColorKind.onAccent),
-      white,
-    );
-    expect(kDefaultOnAccentColorLight, white);
-  });
 
   final themes = <AppUiStyle, ThemeData>{
     AppUiStyle.flat: AppTheme.light(accent, onAccentColor: white),

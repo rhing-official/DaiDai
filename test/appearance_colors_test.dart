@@ -26,11 +26,7 @@ void main() {
     expect(eff(AppearanceSlot.standard, text), const Color(0xFFD5D5D5));
     expect(eff(AppearanceSlot.soft, text), const Color(0xFFD5D5D5));
     expect(eff(AppearanceSlot.black, text), const Color(0xFFD5D5D5));
-    // 明るい背景（胡粉）は純白。#EFEFF1は、明るい背景でクリーム色に見えた。
-    expect(eff(AppearanceSlot.light, onAccent), const Color(0xFFFFFFFF));
-    for (final s in AppearanceSlot.values.where(
-      (s) => s != AppearanceSlot.light,
-    )) {
+    for (final s in AppearanceSlot.values) {
       expect(eff(s, onAccent), const Color(0xFFEFEFF1));
     }
   });

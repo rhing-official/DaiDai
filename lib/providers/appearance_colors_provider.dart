@@ -17,11 +17,6 @@ const _prefsKey = 'appearanceColors';
 const kDefaultTextColorLight = Color(0xFF71727B);
 const kDefaultOnAccentColor = Color(0xFFEFEFF1);
 
-/// 胡粉（明るい背景）の、アクセント上の標準の色。純白。#EFEFF1は、明るい背景の上で、くすんだ
-/// クリーム色に見えた（生成り、チョークで、選択中のアイコンが白く見えなかった、2026-11-27）。
-/// 明るい背景の区分は、必ずこの色を標準にする（`test/appearance_colors_test.dart`が検査する）。
-const kDefaultOnAccentColorLight = Color(0xFFFFFFFF);
-
 /// 外観ごとに登録できるプリセット（標準の色とは別に、自分で登録する数）の上限。
 const kMaxAppearancePresets = 3;
 
@@ -48,10 +43,7 @@ enum AppearanceSlot {
       AppearanceSlot.soft => DarkVariant.soft.defaultTextColor,
       AppearanceSlot.black => DarkVariant.black.defaultTextColor,
     },
-    AppearanceColorKind.onAccent =>
-      this == AppearanceSlot.light
-          ? kDefaultOnAccentColorLight
-          : kDefaultOnAccentColor,
+    AppearanceColorKind.onAccent => kDefaultOnAccentColor,
   };
 }
 

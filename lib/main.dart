@@ -542,17 +542,19 @@ class DaiDaiApp extends ConsumerWidget {
     };
     // 背景画像を持つ意匠は、画面の塗りを透明にして、後ろの画像を見せる。
     final packImage = activePack?.backgroundImage;
+    // 画面の下に、背景の層（意匠の画像・チョークの粉）を敷く時は、画面の塗りを透明にする。
+    final hasBackdropLayer = packImage != null || uiStyle == AppUiStyle.chalk;
     return MaterialApp.router(
       title: 'DaiDai',
       debugShowCheckedModeBanner: false,
       scrollBehavior: const NoVerticalOverscrollBehavior(),
       theme: _withoutHover(
-        packImage == null
+        !hasBackdropLayer
             ? theme
             : theme.copyWith(scaffoldBackgroundColor: Colors.transparent),
       ),
       darkTheme: _withoutHover(
-        packImage == null
+        !hasBackdropLayer
             ? darkTheme
             : darkTheme.copyWith(scaffoldBackgroundColor: Colors.transparent),
       ),
@@ -597,7 +599,27 @@ class DaiDaiApp extends ConsumerWidget {
                 // 設定>アカウントへ戻ってしまう。常に同じ位置に1つの層を置き、中身だけ替える。
                 Positioned.fill(
                   child: packImage == null
-                      ? const SizedBox.shrink()
+                      // チョーク: 黒板に残った粉は、画面の中身の下に敷く。上に重ねると、白いアイコンや
+                      // 文字が粉で灰色になる（2026-11-27）。画面の塗りは透明にしてある。
+                      ? (uiStyle == AppUiStyle.chalk
+                            ? Stack(
+                                fit: StackFit.expand,
+                                children: [
+                                  ColoredBox(
+                                    color: Theme.of(
+                                      context,
+                                    ).colorScheme.surface,
+                                  ),
+                                  ChalkBoardDust(
+                                    color: ChalkTheme.inkFor(
+                                      custom.enabled
+                                          ? custom.color
+                                          : ChalkColors.board,
+                                    ),
+                                  ),
+                                ],
+                              )
+                            : const SizedBox.shrink())
                       : Stack(
                           fit: StackFit.expand,
                           children: [
@@ -622,17 +644,6 @@ class DaiDaiApp extends ConsumerWidget {
                     ),
                   ),
                 ),
-                // チョーク: 黒板に残った粉を、画面全体へ薄く重ねる（2026-11-26）。
-                // チョーク: 黒板に残った粉を、画面全体へ薄く重ねる（2026-11-26）。他のスタイルで
-                // 背景に黒板の色を選んでも、粉は重ねず、一面を同じ色にする。
-                if (uiStyle == AppUiStyle.chalk)
-                  Positioned.fill(
-                    child: ChalkBoardDust(
-                      color: ChalkTheme.inkFor(
-                        custom.enabled ? custom.color : ChalkColors.board,
-                      ),
-                    ),
-                  ),
                 const PinnedCallOverlay(),
                 // PC・Webの通話画面は、今の画面の上に重ねる（2026-10-23）。
                 const CallOverlay(),

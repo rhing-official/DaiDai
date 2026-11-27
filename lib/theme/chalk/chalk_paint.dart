@@ -17,6 +17,22 @@ class ChalkPaint {
   /// 塗りを、チョークで塗ったような質感にする。[area]の中に、粉の抜け（細かい点）と、斜めのかすれ
   /// （チョークを寝かせてこすった跡）を、塗りの透けとして彫る。`saveLayer`の中で、塗りを描いた
   /// 後に呼ぶ。位置から決まる乱数なので、動かしてもちらつかない。
+  /// [punchGrain]を、[keep]の範囲（アイコンの範囲）を除いて行う。塗りの上にアイコンを描き直した後に
+  /// 使う。アイコンの上に粉の抜けを作ると、アイコンが部分的に透けて、白いアイコンが灰色に見える。
+  static void punchGrainExcept(Canvas canvas, Rect area, Iterable<Rect> keep) {
+    if (area.isEmpty) return;
+    final keepPath = Path();
+    for (final r in keep) {
+      keepPath.addRect(r);
+    }
+    canvas.save();
+    canvas.clipPath(
+      Path.combine(PathOperation.difference, Path()..addRect(area), keepPath),
+    );
+    punchGrain(canvas, area);
+    canvas.restore();
+  }
+
   static void punchGrain(Canvas canvas, Rect area) {
     if (area.isEmpty) return;
     final random = math.Random(5);
