@@ -551,8 +551,9 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
       });
     }
     final chips = [
-      for (final i in displayOrder)
+      for (final (order, i) in displayOrder.indexed)
         NavChip(
+          ringIndex: order,
           key: _chipKeys[i],
           icon: _icons[i],
           iconSize: _iconSizes[i],

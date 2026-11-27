@@ -97,10 +97,9 @@ class KinariTheme {
     );
     // ポップアップは、へこんだ面（少し濃い紙色に、内側の影）。
     final popupColor = Color.lerp(palette.surface, Colors.black, 0.04);
-    KinariInsetBorder insetShape(double radius) => KinariInsetBorder(
-      borderRadius: BorderRadius.circular(radius),
-      side: BorderSide(color: ink.withValues(alpha: 0.4)),
-    );
+    // 線は付けない（既読のポップアップと同じ、へこみだけ、2026-11-27、ユーザー指示）。
+    KinariInsetBorder insetShape(double radius) =>
+        KinariInsetBorder(borderRadius: BorderRadius.circular(radius));
     // 浮く部品（ボタン・カード）は、柔らかい影でわずかに浮かせる。
     final lift = ink.withValues(alpha: 0.4);
     final onAccent =
@@ -178,9 +177,8 @@ class KinariTheme {
         elevation: 0,
         shadowColor: Colors.transparent,
         surfaceTintColor: Colors.transparent,
-        shape: KinariInsetBorder(
-          borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
-          side: BorderSide(color: ink.withValues(alpha: 0.4)),
+        shape: const KinariInsetBorder(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
         ),
       ),
       dropdownMenuTheme: DropdownMenuThemeData(

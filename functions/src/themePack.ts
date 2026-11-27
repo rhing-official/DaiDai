@@ -1,7 +1,7 @@
 // 意匠の検査（サーバー側）。HomePage の `src/lib/themePack/` の `spec.ts`・`contrast.ts`・
 // `imageSize.ts` を、規則・上限・文言とも揃えて移植したもの（2026-11-26）。形式の一次情報は
 // DaiDai 本体の `lib/theme_pack/theme_pack.dart` の `ThemePackParser`。
-// HomePage の検査は投稿者への案内で、信頼の根拠はここの再検査。規則を変える時は、
+// HomePage の検査は投稿者への案内で、信頼の根拠はここの再検査。メニューチップ画像（images.menuChip）は2026-11-27に追加。規則を変える時は、
 // HomePage・アプリ・ここの3か所と、各テストの入力例を揃えること。
 
 
@@ -11,6 +11,10 @@ export const THEME_PACK_FORMAT_VERSION = 1;
 export const THEME_PACK_LIMITS = {
     /** 背景画像の各辺（px） */
     imageMaxSide: 2048,
+    /** メニューチップ画像の各辺（px）。HomePage の `menuChipMaxSide` と同じ */
+    menuChipMaxSide: 512,
+    /** メニューチップ画像1枚の容量（バイト）。HomePage の `menuChipMaxBytes` と同じ */
+    menuChipMaxBytes: 512 * 1024,
     /** 画像1枚の容量（バイト） */
     imageMaxBytes: 2 * 1024 * 1024,
     /** zip全体（展開後の合計）の容量（バイト） */
@@ -54,6 +58,7 @@ export type ParsedThemePack = {
     shape: { borderWidth: number; radius: number; shadowOffset: [number, number] };
     colors: { light: ThemePackColors; dark: ThemePackColors };
     backgroundImage?: string;
+    menuChipImage?: string;
 };
 
 export type ParseResult =
@@ -198,10 +203,21 @@ export function parseThemePack(source: string): ParseResult {
         }
         backgroundImage = bg;
     }
+    let menuChipImage: string | undefined;
+    const chip = imagesSrc.menuChip;
+    if (chip !== undefined) {
+        if (typeof chip !== "string" || !IMAGE_FILE_PATTERN.test(chip)) {
+            return {
+                ok: false,
+                error: "メニューチップ画像のファイル名が正しくありません。ディレクトリや「..」、URLは使えません。英数字・アンダースコア・ハイフンと、拡張子だけにしてください。",
+            };
+        }
+        menuChipImage = chip;
+    }
 
     return {
         ok: true,
-        pack: { formatVersion, id, name: name.trim(), author, brightness, shape: { borderWidth, radius, shadowOffset }, colors, backgroundImage },
+        pack: { formatVersion, id, name: name.trim(), author, brightness, shape: { borderWidth, radius, shadowOffset }, colors, backgroundImage, menuChipImage },
         warnings,
     };
 }
@@ -432,6 +448,8 @@ export function validateThemePackFiles(files: Map<string, Uint8Array>): FilesVal
 
     // 他のファイル。背景画像として指定された1枚だけを許す
     const bg = pack.backgroundImage;
+    const chip = pack.menuChipImage;
+    if (chip && chip === bg) errors.push("メニューチップ画像は、背景画像と別のファイルにしてください。");
     for (const [name, bytes] of files) {
         if (name === PACK_FILE) continue;
         if (name.startsWith(".")) {
@@ -448,12 +466,19 @@ export function validateThemePackFiles(files: Map<string, Uint8Array>): FilesVal
             errors.push(`「${name}」は、使えないファイルです。pack.jsonと、png・webp・jpegの画像だけにしてください。`);
             continue;
         }
-        if (name !== bg) {
-            errors.push(`「${name}」は、pack.jsonの背景画像として指定されていません。背景画像は1枚だけです。`);
+        if (name !== bg && name !== chip) {
+            errors.push(`「${name}」は、pack.jsonで指定されていません。画像は、背景画像1枚とメニューチップ画像1枚だけです。`);
             continue;
         }
-        if (bytes.length > L.imageMaxBytes) {
-            errors.push(`「${name}」の容量が大きすぎます。1枚あたり${formatBytes(L.imageMaxBytes)}以下にしてください。`);
+        const isChip = name === chip && name !== bg;
+        const maxBytes = isChip ? L.menuChipMaxBytes : L.imageMaxBytes;
+        const maxSide = isChip ? L.menuChipMaxSide : L.imageMaxSide;
+        if (isChip && ext !== "png") {
+            errors.push(`「${name}」は、メニューチップ画像です。PNGだけにしてください。`);
+            continue;
+        }
+        if (bytes.length > maxBytes) {
+            errors.push(`「${name}」の容量が大きすぎます。1枚あたり${formatBytes(maxBytes)}以下にしてください。`);
         }
         const info = readImageInfo(bytes);
         if (!info) {
@@ -461,11 +486,12 @@ export function validateThemePackFiles(files: Map<string, Uint8Array>): FilesVal
             continue;
         }
         if (info.type !== expected) errors.push(`「${name}」の拡張子と、画像の中身の形式が一致しません。`);
-        if (info.width > L.imageMaxSide || info.height > L.imageMaxSide) {
-            errors.push(`「${name}」の大きさが${info.width}×${info.height}です。各辺${L.imageMaxSide}px以下にしてください。`);
+        if (info.width > maxSide || info.height > maxSide) {
+            errors.push(`「${name}」の大きさが${info.width}×${info.height}です。各辺${maxSide}px以下にしてください。`);
         }
     }
     if (bg && !files.has(bg)) errors.push(`背景画像「${bg}」が、ありません。`);
+    if (chip && !files.has(chip)) errors.push(`メニューチップ画像「${chip}」が、ありません。`);
 
     // コントラスト
     for (const c of checkContrast(pack).checks) {

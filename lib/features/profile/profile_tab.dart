@@ -999,7 +999,8 @@ class _ProfileCategoryList extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final isGekiga = ref.watch(appUiStyleProvider) == AppUiStyle.gekiga;
+    // 劇画の個別の箱。囲みの時は、他のデザインと同じ大きな箱にまとめる（2026-11-27）。
+    final isGekiga = ref.watch(gekigaBoxedListProvider);
     // 設定タブの`_CategoryList`と同じく、縦になぞって選べる（2026-11-02）。
     final narrow = large;
     final chipLayout = ref.watch(navChipLayoutProvider);

@@ -33,8 +33,9 @@ class KeyboardStableBody extends StatelessWidget {
 
   /// キーボードが出ている間、上端からこの高さ（上部バーの下まで）の範囲は、ずらした中身を
   /// 描かない（上部バーの裏にメッセージが透けて通らないように）。キーボードが閉じて
-  /// いる時は切らない（上部バーの裏までメッセージを伸ばす従来の見た目のまま）。
-  /// 切る量は、ずらす量に応じて滑らかに0から[topClip]へ変わる。
+  /// いる時は切らない。切る量は、ずらす量に応じて滑らかに0から[topClip]へ変わる。
+  /// メッセージ一覧は、この範囲を`ChatEdgeFade`で先に透明にしている為、この切り口は
+  /// 見えない。一覧以外（バナー等）を隠す為に残している。
   final double topClip;
 
   /// キーボードとは別に、本体を上へずらす量（ぺったんドックの高さ − 下の安全領域、
@@ -104,7 +105,7 @@ class KeyboardStableBody extends StatelessWidget {
               clipBehavior: shift > 0 ? Clip.hardEdge : Clip.none,
               child: Transform.translate(
                 offset: Offset(0, -shift),
-                child: child,
+                child: KeyboardShiftScope(shift: shift, child: child!),
               ),
             );
           },
@@ -114,6 +115,28 @@ class KeyboardStableBody extends StatelessWidget {
   }
 
   static const _keyboardDuration = Duration(milliseconds: 250);
+}
+
+/// [KeyboardStableBody]が今ずらしている量を、子孫へ伝える（2026-11-27）。
+///
+/// メッセージ一覧の上端フェード（`ChatEdgeFade`）が、ずれた分だけ透明な範囲を広げ、
+/// 上部バーの裏へずらしたメッセージを見せない為に使う。無い場所では0。
+class KeyboardShiftScope extends InheritedWidget {
+  const KeyboardShiftScope({
+    required this.shift,
+    required super.child,
+    super.key,
+  });
+
+  final double shift;
+
+  static double of(BuildContext context) =>
+      context.dependOnInheritedWidgetOfExactType<KeyboardShiftScope>()?.shift ??
+      0;
+
+  @override
+  bool updateShouldNotify(KeyboardShiftScope oldWidget) =>
+      oldWidget.shift != shift;
 }
 
 /// 上端から[top]だけ内側を切り口にする（左右・下は元の大きさ）。

@@ -9,10 +9,14 @@ import '../../l10n/strings.dart';
 import '../../l10n/vocabulary.dart';
 import '../../models/app_ui_style.dart';
 import '../../providers/app_ui_style_provider.dart';
+import '../../providers/selection_motion_provider.dart';
 import '../../theme/gekiga/gekiga_colors.dart';
 import '../../widgets/gekiga/gekiga_icon_badge.dart';
 import '../../widgets/gekiga/gekiga_panel_box.dart';
 import '../../widgets/glass/glass_surface.dart';
+import '../../widgets/kinari_surface.dart';
+import '../../widgets/liquid_tile_group.dart';
+import '../../widgets/ring_list_scope.dart';
 import '../../widgets/unread_badge.dart';
 import 'call_presence_mark.dart';
 import 'room_list_pane.dart' show RoomListEntry, promptForRoomName;
@@ -248,8 +252,7 @@ class _RoomTabBarState extends ConsumerState<RoomTabBar> {
   /// が`MonochromeBoxPainter`でまとめて描くため、ここでは中身
   /// （選択中=黒文字/未選択=白文字のテキスト）のみを組み立てる
   /// （2026-08-06追加）。
-  Widget _gekigaCell(RoomListEntry room) {
-    final selected = room.roomId == _effectiveSelectedRoomId;
+  Widget _gekigaCell(RoomListEntry room, bool selected) {
     final fg = selected ? GekigaColors.panel : GekigaColors.onPanel;
     return Material(
       color: Colors.transparent,
@@ -430,6 +433,8 @@ class _RoomTabBarState extends ConsumerState<RoomTabBar> {
     final vocab = ref.watch(vocabularyProvider);
     final uiStyle = ref.watch(appUiStyleProvider);
     final isGekiga = uiStyle == AppUiStyle.gekiga;
+    // 劇画の個別の箱。囲みの時は、他のデザインと同じ大きな箱にまとめる（2026-11-27）。
+    final gekigaBoxed = ref.watch(gekigaBoxedListProvider);
     final isGlass = uiStyle == AppUiStyle.glass;
     // 以前はAppBar.bottomとして使われる前提でAppBar自身のIconThemeから色を
     // 引き継いでいたが、`ChatScreen`の外（`chat_panes.dart`）へ配置される
@@ -443,7 +448,7 @@ class _RoomTabBarState extends ConsumerState<RoomTabBar> {
     final rows = RoomTabBar._chunkIntoRows(
       rooms: widget.rooms,
       hasAddCell: widget.onCreateRoom != null,
-      maxWidth: isGekiga
+      maxWidth: gekigaBoxed
           ? widget.maxWidth
           : widget.maxWidth - RoomTabBar._chipSidePad * 2,
       textScaler: widget.textScaler,
@@ -459,18 +464,27 @@ class _RoomTabBarState extends ConsumerState<RoomTabBar> {
     // フラット/ガラス/版画共通のチップ状のセル（2026-11-15、区切り線で仕切る平らな
     // 見た目から、他の画面のナビチップ・項目と同じ角丸の箱へ変更）。`room`がnullなら
     // 末尾の「＋」追加セル。
-    Widget flatCell(RoomListEntry? room) {
+    //
+    // 選択の動き（2026-11-27）: 選ばれた見た目（[selected]）は、[LiquidTile]が動きに合わせて
+    // 渡す（液体・描き・滑りは、選ばれた版と選ばれていない版を重ねて描くため、この関数は
+    // 同じ寄合で2回呼ばれることがある。鍵（GlobalKey）は、ここでは付けない）。囲みの時は、
+    // 並びが大きなブロックと枠を描くので、セルは塗らない。
+    Widget cellBody(BuildContext ctx, RoomListEntry? room, bool selected) {
       final isAdd = room == null;
-      final selected = !isAdd && room.roomId == _effectiveSelectedRoomId;
-      final scheme = Theme.of(context).colorScheme;
-      final isBlock = isBlockTheme(context);
+      final scheme = Theme.of(ctx).colorScheme;
+      final ringed = RingListScope.styleOf(ctx) != null;
+      final isBlock = !ringed && isBlockTheme(ctx);
+      final isKinari = !ringed && uiStyle == AppUiStyle.kinari;
       final cellMaxWidth = isAdd
           ? RoomTabBar._cellMinWidth
           : RoomTabBar._itemWidth(room, widget.textScaler);
       // 版画・フラットの選択中は、アクセントの塗りに onPrimary。ガラスは背景の塗りだけで
       // 選択を表し、文字色は変えない（寄合一覧[RoomListPane]と同じ）。
-      final onAccent = selected && !isGlass;
-      final fg = onAccent ? scheme.onPrimary : foregroundColor;
+      // 囲みの時は、選択中のセルの背面を、並びが塗り潰す（[RingOnPrimary]の中）。その時も、塗りの
+      // 反対色にする（ガラスは変えない。`RingOnPrimary`が付くのは、ガラス以外）。
+      final ringOn = RingOnPrimary.activeColor(ctx);
+      final onAccent = selected && !isGlass && !ringed;
+      final fg = ringOn ?? (onAccent ? scheme.onPrimary : foregroundColor);
       final label = isAdd
           ? Icon(Icons.add, size: 20, color: fg)
           : _withUnreadBadge(
@@ -503,12 +517,20 @@ class _RoomTabBarState extends ConsumerState<RoomTabBar> {
         ),
       );
       final Widget chip;
-      if (isBlock) {
+      if (ringed) {
+        chip = Material(type: MaterialType.transparency, child: inner);
+      } else if (isKinari) {
+        // 生成り: 選択中はアクセントカラーのへこんだ面、他は紙のへこんだ面。
+        chip = KinariTileFrame(
+          selected: selected,
+          child: Material(type: MaterialType.transparency, child: inner),
+        );
+      } else if (isBlock) {
         chip = blockMaterialBox(
-          context,
+          ctx,
           color: selected
               ? scheme.primary
-              : (Theme.of(context).brightness == Brightness.light
+              : (Theme.of(ctx).brightness == Brightness.light
                     ? Colors.white
                     : scheme.surface),
           child: Material(type: MaterialType.transparency, child: inner),
@@ -536,16 +558,36 @@ class _RoomTabBarState extends ConsumerState<RoomTabBar> {
         );
       }
       // 版画の硬い影が右・下へはみ出す分、余白を多めに取る。
-      final padded = Padding(
+      return Padding(
         padding: isBlock
             ? const EdgeInsets.fromLTRB(0, 3, 3, 5)
             : const EdgeInsets.symmetric(vertical: 4),
         child: chip,
       );
-      return isAdd
-          ? padded
-          : KeyedSubtree(key: _keyFor(room.roomId), child: padded);
     }
+
+    // 寄合の通し番号（折り返した行をまたぐ並び順）。選択の動きが、この番号で動く。
+    final indexOfRoom = <String, int>{
+      for (final (i, r) in widget.rooms.indexed) r.roomId: i,
+    };
+    final selectedIndex = indexOfRoom[_effectiveSelectedRoomId];
+
+    Widget flatCell(RoomListEntry? room) {
+      if (room == null) {
+        return Builder(builder: (ctx) => cellBody(ctx, null, false));
+      }
+      return KeyedSubtree(
+        key: _keyFor(room.roomId),
+        child: LiquidTile(
+          index: indexOfRoom[room.roomId] ?? 0,
+          builder: (ctx, sel) => cellBody(ctx, room, sel),
+        ),
+      );
+    }
+
+    // 囲みの時は、全ての寄合を1つの大きなブロックにまとめる（劇画も、囲みの時は同じ）。
+    // ブロックの左右の余白は、行ではなく外側で取る。
+    final ringBlock = ref.watch(navBandMergedProvider) && !gekigaBoxed;
 
     Widget buildRow(List<RoomListEntry?> row) {
       // 「＋」は`_chunkIntoRows`の構成上、必ず全体の最後の要素＝最後の行の
@@ -562,7 +604,7 @@ class _RoomTabBarState extends ConsumerState<RoomTabBar> {
       // 「＋」の座標を劇画と揃えた）。
       final realRooms = row.whereType<RoomListEntry>().toList();
       final hasAdd = row.isNotEmpty && row.last == null;
-      if (isGekiga) {
+      if (gekigaBoxed) {
         // 「＋」は劇画でも他の一覧と共通の`GekigaIconBadge`を使う、
         // ジョイント枠の外の独立したセルのまま維持する（追加セルの並びが
         // 変わっても既存の見た目を保つため）。
@@ -581,9 +623,17 @@ class _RoomTabBarState extends ConsumerState<RoomTabBar> {
                     ],
                     children: [
                       for (final room in realRooms)
+                        // 外側の`ValueKey`は、接合リストが子のキーを引き継いで包む為
+                        // （`GlobalKey`をそのまま渡すと、同じ鍵が2つの部品に付いてしまう）。
                         KeyedSubtree(
-                          key: _keyFor(room.roomId),
-                          child: _gekigaCell(room),
+                          key: ValueKey(room.roomId),
+                          child: KeyedSubtree(
+                            key: _keyFor(room.roomId),
+                            child: LiquidTile(
+                              index: indexOfRoom[room.roomId] ?? 0,
+                              builder: (ctx, sel) => _gekigaCell(room, sel),
+                            ),
+                          ),
                         ),
                     ],
                   ),
@@ -614,8 +664,8 @@ class _RoomTabBarState extends ConsumerState<RoomTabBar> {
       return SizedBox(
         height: RoomTabBar._height,
         child: Padding(
-          padding: const EdgeInsets.symmetric(
-            horizontal: RoomTabBar._chipSidePad,
+          padding: EdgeInsets.symmetric(
+            horizontal: ringBlock ? 0 : RoomTabBar._chipSidePad,
           ),
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -663,17 +713,26 @@ class _RoomTabBarState extends ConsumerState<RoomTabBar> {
         // （`_verticalScrollController`自体は残し、そちらからの
         // `jumpTo`/`animateTo`でのみ動かす）。
         physics: const NeverScrollableScrollPhysics(),
-        child: Column(
-          children: [
-            for (var i = 0; i < rows.length; i++) ...[
-              // 行間の区切り幅は`_itemGap`（本来は横方向のセル間隔用）と同じ値
-              // （劇画8px／それ以外1px）を流用する。`totalHeight`の計算にも
-              // この値を使っており、ずれると劇画UIで2行目が途切れる不具合に
-              // なる（2026-09-11修正）。
-              if (i > 0) SizedBox(height: widget._itemGap),
-              buildRow(rows[i]),
-            ],
-          ],
+        child: Padding(
+          padding: EdgeInsets.symmetric(
+            horizontal: ringBlock ? RoomTabBar._chipSidePad : 0,
+          ),
+          child: LiquidTileGroup(
+            itemCount: widget.rooms.length,
+            selectedIndex: selectedIndex,
+            child: Column(
+              children: [
+                for (var i = 0; i < rows.length; i++) ...[
+                  // 行間の区切り幅は`_itemGap`（本来は横方向のセル間隔用）と同じ値
+                  // （劇画8px／それ以外1px）を流用する。`totalHeight`の計算にも
+                  // この値を使っており、ずれると劇画UIで2行目が途切れる不具合に
+                  // なる（2026-09-11修正）。
+                  if (i > 0) SizedBox(height: widget._itemGap),
+                  buildRow(rows[i]),
+                ],
+              ],
+            ),
+          ),
         ),
       ),
     );
@@ -726,7 +785,11 @@ class _RoomTabBarState extends ConsumerState<RoomTabBar> {
             // アイコン行の背景を消す」変更の対象外として現状の見た目を保つ）。
             decoration: BoxDecoration(
               color: Theme.of(context).scaffoldBackgroundColor,
-              border: Border(top: BorderSide(color: borderColor)),
+              // 版画は、上端の横線を引かない（2026-11-27、ユーザー指示）。チョークは
+              // 従来どおり。
+              border: Theme.of(context).extension<BlockThemeMarker>() != null
+                  ? null
+                  : Border(top: BorderSide(color: borderColor)),
             ),
             child: SafeArea(
               bottom: false,

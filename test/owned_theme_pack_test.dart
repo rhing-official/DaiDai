@@ -10,6 +10,7 @@ import 'package:daidai/theme/block/block_tokens.dart';
 import 'package:daidai/theme_pack/owned_theme_pack_repository.dart';
 import 'package:daidai/theme_pack/theme_pack.dart';
 import 'package:daidai/theme_pack/theme_pack_cache.dart';
+import 'package:flutter/painting.dart' show MemoryImage;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -155,6 +156,48 @@ void main() {
       // 新しい版が有っても、取得した版（1）を読む。
       expect(src.reads, ['themePacks/$_packId/1/pack.json']);
       expect(await cache.latestVersion(_packId), 1);
+    });
+
+    test('メニューチップ画像も取得・キャッシュし、意匠へ付ける', () async {
+      final cache = MemoryThemePackCache();
+      final src = _FakeSource(
+        files: {
+          'themePacks/$_packId/1/pack.json': _packJson(
+            extra: {
+              'images': {'menuChip': 'chip.png'},
+            },
+          ),
+          'themePacks/$_packId/1/chip.png': Uint8List.fromList([1, 2, 3]),
+        },
+      );
+      final pack = await OwnedThemePackRepository(
+        source: src,
+        cache: cache,
+      ).load(_packId);
+      expect(pack.menuChipImage, isA<MemoryImage>());
+      expect(pack.backgroundImage, isNull);
+      // 通信できなくても、キャッシュから読める。
+      final again = await OwnedThemePackRepository(cache: cache).load(_packId);
+      expect(again.menuChipImage, isA<MemoryImage>());
+    });
+
+    test('メニューチップ画像の指定先が無ければ読まない', () async {
+      final src = _FakeSource(
+        files: {
+          'themePacks/$_packId/1/pack.json': _packJson(
+            extra: {
+              'images': {'menuChip': 'chip.png'},
+            },
+          ),
+        },
+      );
+      await expectLater(
+        OwnedThemePackRepository(
+          source: src,
+          cache: MemoryThemePackCache(),
+        ).load(_packId),
+        throwsA(isA<ThemePackException>()),
+      );
     });
 
     test('idが識別子と合わなければ読まない', () async {

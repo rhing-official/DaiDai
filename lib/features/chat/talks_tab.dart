@@ -1741,6 +1741,7 @@ class _TalksTabState extends ConsumerState<TalksTab>
     Widget Function(VoidCallback closeSelf) contentBuilder,
   ) {
     final isGlass = ref.read(appUiStyleProvider) == AppUiStyle.glass;
+    final isKinari = ref.read(appUiStyleProvider) == AppUiStyle.kinari;
     return showGeneralDialog<void>(
       context: context,
       barrierDismissible: true,
@@ -1755,9 +1756,12 @@ class _TalksTabState extends ConsumerState<TalksTab>
         return Center(
           child: Dialog(
             backgroundColor: isGlass ? Colors.transparent : null,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(20),
-            ),
+            // 生成りは、テーマの、へこんだ形（既読のポップアップと同じ）に従う。
+            shape: isKinari
+                ? null
+                : RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(20),
+                  ),
             child: isGlass
                 ? GlassSurface(
                     variant: GlassVariant.floating,
@@ -1978,9 +1982,8 @@ class _TalksTabState extends ConsumerState<TalksTab>
                             // スクロールいずれも無しで収まるようにした
                             // （2026-08-27発覚・修正）。
                             Expanded(
-                              child:
-                                  ref.watch(appUiStyleProvider) ==
-                                      AppUiStyle.gekiga
+                              // 劇画の個別の箱。囲みの時は、他のデザインと同じ並びにする。
+                              child: ref.watch(gekigaBoxedListProvider)
                                   ? LiquidTileGroup(
                                       itemCount: 2,
                                       slidePosition: _categorySlidePos,
@@ -2800,28 +2803,63 @@ class _TalksTabState extends ConsumerState<TalksTab>
       onTap: () => _setCategory(_TalksCategory.group),
     );
 
-    final tabs = isGekiga
+    // 縦に並ぶ2つのトグルは、同じ横幅に揃える（2026-11-27、ユーザー指示。長いほうに合わせる）。
+    // 劇画は箱の寸法を別に計算するため、文字の幅を測って揃える（太字の幅で測る）。
+    double gekigaTabWidth() {
+      double textWidth(String text) {
+        final painter = TextPainter(
+          text: TextSpan(
+            text: text,
+            style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+          ),
+          textDirection: TextDirection.ltr,
+          textScaler: MediaQuery.textScalerOf(context),
+          maxLines: 1,
+        )..layout();
+        return painter.width;
+      }
+
+      // 左右の余白（14ずつ）を足す。
+      return math.max(
+            textWidth('${vocab.dm} ${directMessages.length}'),
+            textWidth('${vocab.plaza} ${groups.length}'),
+          ) +
+          28;
+    }
+
+    final tabs = ref.watch(gekigaBoxedListProvider)
         ? LiquidTileGroup(
             itemCount: 2,
             slidePosition: _categorySlidePos,
             selectedIndex: _category == _TalksCategory.dm ? 0 : 1,
-            child: GekigaJointedTileList(
-              axis: Axis.vertical,
-              seeds: [vocab.dm.hashCode, vocab.plaza.hashCode],
-              selectedFlags: [
-                _category == _TalksCategory.dm,
-                _category == _TalksCategory.group,
-              ],
-              children: [dmTab, groupTab],
+            child: Builder(
+              builder: (context) {
+                final width = gekigaTabWidth();
+                return GekigaJointedTileList(
+                  axis: Axis.vertical,
+                  seeds: [vocab.dm.hashCode, vocab.plaza.hashCode],
+                  selectedFlags: [
+                    _category == _TalksCategory.dm,
+                    _category == _TalksCategory.group,
+                  ],
+                  children: [
+                    SizedBox(width: width, child: dmTab),
+                    SizedBox(width: width, child: groupTab),
+                  ],
+                );
+              },
             ),
           )
         : LiquidTileGroup(
             itemCount: 2,
             slidePosition: _categorySlidePos,
             selectedIndex: _category == _TalksCategory.dm ? 0 : 1,
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [dmTab, const SizedBox(height: 4), groupTab],
+            child: IntrinsicWidth(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [dmTab, const SizedBox(height: 4), groupTab],
+              ),
             ),
           );
 
@@ -3100,7 +3138,7 @@ class _TalksTabState extends ConsumerState<TalksTab>
     final orderedDms = _applyDmSortOrder(visibleDms, sortOrder, prefsById);
     final sortedDms = _sortedByPin(orderedDms, prefsById, (dm) => dm.dmId);
 
-    if (ref.watch(appUiStyleProvider) == AppUiStyle.gekiga) {
+    if (ref.watch(gekigaBoxedListProvider)) {
       final seeds = <int>[
         for (final request in incomingRequests) request.requestId.hashCode,
         for (final request in outgoingRequests) request.requestId.hashCode,
@@ -3210,7 +3248,7 @@ class _TalksTabState extends ConsumerState<TalksTab>
       (g) => g.groupId,
     );
 
-    if (ref.watch(appUiStyleProvider) == AppUiStyle.gekiga) {
+    if (ref.watch(gekigaBoxedListProvider)) {
       final seeds = <int>[
         for (final request in pendingRequests) request.requestId.hashCode,
         for (final group in sortedGroups) group.groupId.hashCode,
@@ -3898,12 +3936,18 @@ class CategoryTab extends ConsumerWidget {
             // フラット側に無いジグザグ枠の線に文字が重ならないよう
             // 14を維持する。
             padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
-            child: Text(
-              '$label $count',
-              style: TextStyle(
-                color: fg,
-                fontSize: 16,
-                fontWeight: selected ? FontWeight.bold : FontWeight.normal,
+            // 幅が文字より広い時（縦に並べて同じ幅に揃えた時）は、文字を中央に置く。
+            child: Align(
+              heightFactor: 1,
+              child: Text(
+                '$label $count',
+                style: TextStyle(
+                  color: fg,
+                  fontSize: 16,
+                  // 選択中も、同じ太さ（2026-11-27）。同梱のフォントは標準の太さだけで、太字は合成の為、選択中だけ
+                  // 太字にすると、環境によって、見た目と幅が非選択と食い違った。選択は、箱の色で表す。
+                  fontWeight: FontWeight.normal,
+                ),
               ),
             ),
           ),
@@ -3937,7 +3981,9 @@ class CategoryTab extends ConsumerWidget {
         child: Text(
           '$label $count',
           style: TextStyle(
-            fontWeight: selected ? FontWeight.bold : FontWeight.normal,
+            // 選択中も、同じ太さ（2026-11-27）。同梱のフォントは標準の太さだけで、太字は合成の為、選択中だけ
+            // 太字にすると、環境によって、見た目と幅が非選択と食い違った。選択は、箱の色で表す。
+            fontWeight: FontWeight.normal,
             color: foreground,
             fontSize: 13,
           ),
@@ -5044,7 +5090,8 @@ class _ConversationIconTile extends ConsumerWidget {
     // 選択中の面に載る文字・アイコンの色（劇画は白黒反転、チョーク・生成りは選択中がアクセントの面）。
     final labelColor = switch (uiStyle) {
       AppUiStyle.gekiga => selected ? GekigaColors.panel : GekigaColors.onPanel,
-      AppUiStyle.chalk || AppUiStyle.kinari =>
+      // フラットも、選択中はアクセントカラーで塗り潰す（2026-11-27、ユーザー指示）。
+      AppUiStyle.chalk || AppUiStyle.kinari || AppUiStyle.flat =>
         selected ? colorScheme.onPrimary : colorScheme.onSurface,
       _ => colorScheme.onSurface,
     };
@@ -5055,7 +5102,12 @@ class _ConversationIconTile extends ConsumerWidget {
         margin: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
         padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 4),
         decoration: BoxDecoration(
-          color: selected ? colorScheme.primary.withValues(alpha: 0.18) : null,
+          // 選択中は、アクセントカラーで塗り潰す（2026-11-27。以前は18%の薄い塗り）。この
+          // `tile`は、フラットだけが、そのまま使う（他のデザインは、中身だけを取り出して使う）。
+          color: selected ? colorScheme.primary : null,
+          // 非選択は、アクセントカラーの線で囲む（2026-11-27、ユーザー指示）。選択中は塗りと同じ色の
+          // 線で、大きさを揃える。
+          border: Border.all(color: colorScheme.primary, width: 1.5),
           borderRadius: BorderRadius.circular(12),
         ),
         child: LayoutBuilder(
@@ -5310,18 +5362,24 @@ class _ConversationIconTile extends ConsumerWidget {
               variant: GlassVariant.card,
               borderRadius: BorderRadius.circular(12),
               accentColorOverride: selected ? colorScheme.primary : null,
-              child: Material(
-                color: selected
-                    ? colorScheme.primary.withValues(alpha: 0.45)
-                    : Colors.transparent,
-                child: InkWell(
-                  onTap: onTap,
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(
-                      vertical: 8,
-                      horizontal: 4,
+              // `GlassSurface`の中は、ゆるい制約で組まれる為、幅いっぱいへ広げないと、選択中の
+              // 塗りとタップ領域が、中身（アイコン・名前）の大きさにしか付かず、中身も左へ
+              // 寄る（2026-11-27修正、アカウントの切り替えの区画と同じ）。
+              child: SizedBox(
+                width: double.infinity,
+                child: Material(
+                  color: selected
+                      ? colorScheme.primary.withValues(alpha: 0.45)
+                      : Colors.transparent,
+                  child: InkWell(
+                    onTap: onTap,
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(
+                        vertical: 8,
+                        horizontal: 4,
+                      ),
+                      child: faceContent,
                     ),
-                    child: faceContent,
                   ),
                 ),
               ),

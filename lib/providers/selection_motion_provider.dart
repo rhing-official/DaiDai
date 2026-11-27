@@ -1,6 +1,8 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../models/app_ui_style.dart';
+import 'app_ui_style_provider.dart';
 import 'repository_providers.dart';
 
 const _prefsKey = 'selectionMotion';
@@ -16,12 +18,13 @@ enum SelectionMotion {
   /// チップを1つずつ分けて、選択色が、ペンで往復して塗られる（2026-11-26追加）。
   draw,
 
-  /// 帯を1本にして、選択中を丸で囲む。丸が次の項目へ滑る。
-  ring,
-
   /// チップを1つずつ分けて、アクセントカラーの塗り1枚が、選択中の項目へゆっくり滑る。
   /// スワイプで切り替わる画面では、指に追従する（2026-11-27追加）。
   slide,
+
+  /// 帯を1本にして、選択中を丸で囲む。丸が次の項目へ滑る。
+  /// 並びは、液体・描き・滑り・囲み・無し（2026-11-27、ユーザー指示で、囲みと滑りを入れ替えた）。
+  ring,
 
   /// チップを1つずつ分けて、選択色は即時に切り替わる。
   none;
@@ -114,4 +117,13 @@ final navWaterMotionProvider = Provider<bool>(
 /// メニューチップの帯を1本にするか（丸で囲む時だけ）。分ける時は、チップが1つずつ独立する。
 final navBandMergedProvider = Provider<bool>(
   (ref) => ref.watch(selectionMotionProvider) == SelectionMotion.ring,
+);
+
+/// 劇画の一覧を、個別の箱（`GekigaJointedTileList`）で描くか（2026-11-27）。劇画でも、囲みの時は、他の
+/// デザインと同じく、一覧を1つの大きな箱にまとめ、選択中を白い箱で囲む（`RingListBlock`）ので、
+/// 個別の箱は使わない。一覧の呼び出し側が、劇画の個別の箱の分岐に入るかの判定に使う。
+final gekigaBoxedListProvider = Provider<bool>(
+  (ref) =>
+      ref.watch(appUiStyleProvider) == AppUiStyle.gekiga &&
+      !ref.watch(navBandMergedProvider),
 );

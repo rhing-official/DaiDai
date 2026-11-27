@@ -33,7 +33,6 @@ import '../../models/scheduled_message.dart';
 import 'scheduled_send_ui.dart';
 import '../../theme/block/block_theme.dart';
 import '../../theme/chalk/chalk_paint.dart';
-import '../../theme/chalk/chalk_theme.dart';
 import '../../theme/motion.dart';
 import '../../l10n/vocabulary.dart';
 import '../../models/app_ui_style.dart';
@@ -134,6 +133,7 @@ import '../../widgets/app_dialog.dart';
 import '../../widgets/sticker_image.dart';
 import '../../widgets/toggles/app_checkbox.dart';
 import '../../widgets/delayed_spinner.dart';
+import '../../widgets/chat_edge_fade.dart';
 import '../../widgets/keyboard_stable_body.dart';
 import '../../widgets/transitioned_overlay.dart';
 
@@ -1239,16 +1239,11 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     }
   }
 
-  /// 入力欄オーバーレイの背景。ガラスUIでは半透明の塗り＋縁の光彩
-  /// （影は無し、`GlassVariant.card`）にする（2026-08-29追加）。劇画は
-  /// 背景を透明にし、入力欄の奥をメッセージがスクロールして通っていく
-  /// ように見せる（2026-08-30追加。`_GekigaComposerField`が自前の白い
-  /// 塗り（`_GekigaComposerFieldPainter`のfillColor）を持つため、外側の
-  /// このコンテナが透明でも入力欄自体の視認性は失われない）。フラットは
-  /// 同じ透明化を試みたところ、テキスト入力欄自体（`TextField`の
-  /// `filled: false`）には自前の塗りが無く視認性を損なうことが判明した
-  /// ため、フラットのみ元の不透明な背景に戻す（2026-08-30、ユーザー
-  /// 指摘により修正）。
+  /// 入力欄オーバーレイの背景（2026-11-27刷新）。全スタイルで画面の端から浮かせる。
+  /// 劇画は外側を透明にし、入力欄自体（`_GekigaComposerField`）の白塗りと太線で浮かせる。
+  /// 他は面の素材のまま角丸の箱にし、左右・下に余白を取る。ガラスは半透明のぼかし、
+  /// 他は不透明（フラットは、透明にすると`TextField`自体に塗りが無く視認性を損なう為、
+  /// 2026-08-30から不透明のまま）。一覧は`ChatEdgeFade`で、入力欄の上端から下へ薄くなる。
   /// [_composerAreaKey]は[_measureComposerArea]の計測対象の為、
   /// どの分岐でも同じキーを付ける（現在は一番外側の[GestureDetector]に付与、
   /// 子のサイズをそのまま反映するプロキシのため計測結果は変わらない）。
@@ -1264,36 +1259,55 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
             mainAxisSize: MainAxisSize.min,
             children: [_uploadProgressIndicator(progress), child],
           );
+    // 入力欄は全スタイルで画面の端から浮かせる（2026-11-27、劇画の見た目に揃える）。
+    // 劇画は入力欄自体（`_GekigaComposerField`）が白塗りと太線で浮いている為、外側は
+    // 透明のまま。他のスタイルは、各スタイルの面の素材のまま、角丸の箱にして左右・下に
+    // 余白を取る。透けて一覧が見えるかは素材任せ（ガラスだけ半透明、他は不透明）。
+    // 下の余白は端末の安全領域を含む。キーボードの有無では変えない（変えると高さが
+    // 変わり、`KeyboardStableBody`のずらす量とずれてメッセージが跳ねる）。
+    final theme = Theme.of(context);
     final Widget background;
-    if (isGlass) {
-      background = GlassSurface(
-        variant: GlassVariant.chrome,
-        borderRadius: BorderRadius.zero,
-        enableEdgeStroke: false,
-        child: content,
-      );
-    } else if (isGekiga) {
+    if (isGekiga) {
       background = Container(child: content);
-    } else if (isBlockTheme(context) && !isChalkTheme(context)) {
-      // 版画は入力欄の上（返信・編集のラベルなども含めた領域とメッセージ一覧の境界）に
-      // 上部のヘッダーの下線と同じ太さ（[BlockTheme.borderWidth]）の線を引く（2026-11-06）。
-      final theme = Theme.of(context);
-      background = Container(
-        decoration: BoxDecoration(
-          color: theme.scaffoldBackgroundColor,
-          border: Border(
-            top: BorderSide(
-              color: BlockTheme.lineColor(theme.brightness),
-              width: BlockTheme.borderWidth,
-            ),
-          ),
-        ),
-        child: content,
-      );
     } else {
-      background = Container(
-        color: Theme.of(context).scaffoldBackgroundColor,
-        child: content,
+      final Widget card;
+      if (isGlass) {
+        card = GlassSurface(
+          variant: GlassVariant.chrome,
+          borderRadius: BorderRadius.circular(24),
+          child: content,
+        );
+      } else if (isBlockTheme(context)) {
+        // 版画・チョーク。太い枠（版画は硬い影も、チョークは手描きの線）。
+        card = Container(
+          decoration: framedCardDecoration(
+            context,
+            borderRadius: BorderRadius.circular(BlockTheme.radius),
+            color: theme.scaffoldBackgroundColor,
+          ),
+          child: content,
+        );
+      } else {
+        card = Container(
+          decoration: BoxDecoration(
+            color: theme.scaffoldBackgroundColor,
+            borderRadius: BorderRadius.circular(24),
+            border: Border.all(color: theme.colorScheme.outlineVariant),
+          ),
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(23),
+            child: content,
+          ),
+        );
+      }
+      background = Padding(
+        padding: EdgeInsets.fromLTRB(
+          12,
+          0,
+          12,
+          12 + MediaQuery.viewPaddingOf(context).bottom,
+        ),
+        child: card,
       );
     }
     // 語らい画面全体は`InteractiveSwipeBackTransition`で右スワイプの
@@ -3887,6 +3901,11 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                           ),
                       };
 
+                      final listTopInset = widget.banner != null
+                          ? 0.0
+                          : appBar.preferredSize.height +
+                                MediaQuery.paddingOf(context).top;
+
                       return TweenAnimationBuilder<double>(
                         tween: Tween<double>(
                           end:
@@ -3918,27 +3937,57 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                           // 入力欄の高さが安定するまでは一覧を見せない（過渡的な
                           // 高さで一瞬配置され、安定時に一気にずれて見える為）。
                           opacity: _composerAreaMeasured ? 1 : 0,
-                          child: ScrollablePositionedList.builder(
-                            itemScrollController: _itemScrollController,
-                            scrollOffsetController: _scrollOffsetController,
-                            itemPositionsListener: _itemPositionsListener,
-                            reverse: true,
-                            // 上限・下限を超えたラバーバンド（iOSの
-                            // バウンス）を無効化する（2026-11-23、他の一覧
-                            // 系ウィジェットと同じ統一方針）。
-                            physics: const ClampingScrollPhysics(),
-                            itemCount: reversedEntries.length,
-                            itemBuilder: (context, index) =>
-                                buildEntry(reversedEntries[index]),
-                            initialScrollIndex: initialScrollIndex,
-                            initialAlignment: anchoredIndex == null
-                                ? 0
-                                : initialAnchor!.leadingEdge,
-                            padding: EdgeInsets.fromLTRB(
-                              12,
-                              12,
-                              12,
-                              12 + bottomInset,
+                          // 上下をアルファマスクで透明へ溶かす（2026-11-27、全UI
+                          // スタイル共通）。上は上部バーの裏を完全に透明にして、その
+                          // 下端からフェードイン。下はフェードしない（2026-11-27、ユーザー
+                          // 指示。入力欄は不透明のまま、周りの余白で、背面を
+                          // スクロールするメッセージを見せる）。バナーが有る時は一覧が上部バーの下から始まる為、
+                          // 上の透明範囲は0。
+                          child: ChatEdgeFade(
+                            topClear: listTopInset,
+                            bottomFade: 0,
+                            // 入力欄の周り全てを滲ませる（入力欄が出ている時だけ）。
+                            boxTopFromBottom: bottomInset > 24
+                                ? bottomInset
+                                : 0,
+                            boxInsets: EdgeInsets.fromLTRB(
+                              isGekiga ? 8 : 12,
+                              0,
+                              isGekiga ? 8 : 12,
+                              isGekiga
+                                  ? 8 + MediaQuery.viewPaddingOf(context).bottom
+                                  : 12 +
+                                        MediaQuery.viewPaddingOf(
+                                          context,
+                                        ).bottom,
+                            ),
+                            positions: _itemPositionsListener.itemPositions,
+                            lastIndex: reversedEntries.length - 1,
+                            topRestInset: listTopInset + 12,
+                            child: ScrollablePositionedList.builder(
+                              itemScrollController: _itemScrollController,
+                              scrollOffsetController: _scrollOffsetController,
+                              itemPositionsListener: _itemPositionsListener,
+                              reverse: true,
+                              // 上限・下限を超えたラバーバンド（iOSの
+                              // バウンス）を無効化する（2026-11-23、他の一覧
+                              // 系ウィジェットと同じ統一方針）。
+                              physics: const ClampingScrollPhysics(),
+                              itemCount: reversedEntries.length,
+                              itemBuilder: (context, index) =>
+                                  buildEntry(reversedEntries[index]),
+                              initialScrollIndex: initialScrollIndex,
+                              initialAlignment: anchoredIndex == null
+                                  ? 0
+                                  : initialAnchor!.leadingEdge,
+                              // 上は、上部バーの下から始まる（バナーが無い時）。止まった時に
+                              // 一番古いメッセージが上部バーの裏へ入らない。
+                              padding: EdgeInsets.fromLTRB(
+                                12,
+                                12 + listTopInset,
+                                12,
+                                12 + bottomInset,
+                              ),
                             ),
                           ),
                         ),
@@ -3996,6 +4045,9 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                               ),
                             SafeArea(
                               top: false,
+                              // 劇画以外は入力欄が浮いた箱で、下の安全領域は箱の外の余白
+                              // （`_buildComposerArea`）に取る。
+                              bottom: isGekiga,
                               // ドックが出ている間も下端の安全領域は外さない（入力欄の高さが
                               // 変わると、メッセージが跳ねる。本体をずらす量は「ドックの高さ
                               // − 下の安全領域」で、入力欄の下端がドックの上端に付く）。
@@ -5039,13 +5091,16 @@ class _PinnedMessagesPopupContentState
     return SizedBox(
       width: 300,
       child: Container(
-        decoration: BoxDecoration(
-          color: popupCardBackground(brightness, widget.uiStyle),
-          border: Border.all(
-            color: popupCardBorder(brightness, widget.uiStyle),
-          ),
-          borderRadius: BorderRadius.circular(16),
-        ),
+        decoration: widget.uiStyle == AppUiStyle.kinari
+            // 生成りは、へこんだ面（既読のポップアップと同じ）。
+            ? popupCardDecoration(context, brightness, widget.uiStyle)
+            : BoxDecoration(
+                color: popupCardBackground(brightness, widget.uiStyle),
+                border: Border.all(
+                  color: popupCardBorder(brightness, widget.uiStyle),
+                ),
+                borderRadius: BorderRadius.circular(16),
+              ),
         child: padded,
       ),
     );
@@ -6435,24 +6490,30 @@ class _MessageRow extends ConsumerWidget {
               ),
             ],
           );
-    final badge = Container(
-      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
-      decoration: BoxDecoration(
-        color: switch (uiStyle) {
-          AppUiStyle.gekiga => GekigaColors.panel,
-          AppUiStyle.flat ||
-          AppUiStyle.kinari ||
-          AppUiStyle.chalk ||
-          AppUiStyle.block => colorScheme.surface,
-          AppUiStyle.glass => colorScheme.surface.withValues(alpha: 0.72),
-        },
-        borderRadius: BorderRadius.circular(999),
-        boxShadow: uiStyle == AppUiStyle.kinari
-            ? KinariSurface.raisedShadows(colorScheme.onSurface)
-            : floatingShadow,
-      ),
-      child: badgeContent,
-    );
+    // 生成り: 既読の✓は、浮かさず、へこませる（2026-11-27、ユーザー指示）。
+    final badge = uiStyle == AppUiStyle.kinari
+        ? KinariInset(
+            color: colorScheme.surface,
+            radius: 12,
+            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+            child: badgeContent,
+          )
+        : Container(
+            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+            decoration: BoxDecoration(
+              color: switch (uiStyle) {
+                AppUiStyle.gekiga => GekigaColors.panel,
+                AppUiStyle.flat ||
+                AppUiStyle.kinari ||
+                AppUiStyle.chalk ||
+                AppUiStyle.block => colorScheme.surface,
+                AppUiStyle.glass => colorScheme.surface.withValues(alpha: 0.72),
+              },
+              borderRadius: BorderRadius.circular(999),
+              boxShadow: floatingShadow,
+            ),
+            child: badgeContent,
+          );
 
     final readBadge = showReadMark
         ? (isSimpleDmReadMark || isCountOnlyMark

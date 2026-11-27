@@ -55,6 +55,7 @@ class ThemePack {
     required this.light,
     required this.dark,
     this.backgroundImage,
+    this.menuChipImage,
   });
 
   final String id;
@@ -70,6 +71,9 @@ class ThemePack {
 
   /// 背景画像。意匠を置いた場所に応じて、読み込み側が解決する。
   final ImageProvider? backgroundImage;
+
+  /// メニューチップの丸い面に敷く画像（2026-11-27）。無ければ版画の標準の面。
+  final ImageProvider? menuChipImage;
 
   ThemePackColors colorsFor(Brightness b) =>
       b == Brightness.dark ? dark : light;
@@ -106,6 +110,7 @@ class ThemePack {
     light: light,
     dark: dark,
     backgroundImage: backgroundImage,
+    menuChipImage: menuChipImage,
   );
 
   ThemePack withBackgroundImage(ImageProvider? image) => ThemePack(
@@ -117,6 +122,19 @@ class ThemePack {
     light: light,
     dark: dark,
     backgroundImage: image,
+    menuChipImage: menuChipImage,
+  );
+
+  ThemePack withMenuChipImage(ImageProvider? image) => ThemePack(
+    id: id,
+    name: name,
+    author: author,
+    brightness: brightness,
+    tokens: tokens,
+    light: light,
+    dark: dark,
+    backgroundImage: backgroundImage,
+    menuChipImage: image,
   );
 }
 
@@ -217,6 +235,14 @@ class ThemePackParser {
       }
       imageFile = bg;
     }
+    String? menuChipFile;
+    final chip = images['menuChip'];
+    if (chip != null) {
+      if (chip is! String || !_safeImagePath.hasMatch(chip)) {
+        throw const ThemePackException('メニューチップ画像のファイル名が正しくありません');
+      }
+      menuChipFile = chip;
+    }
 
     return ParsedThemePack(
       pack: ThemePack(
@@ -229,6 +255,7 @@ class ThemePackParser {
         dark: darkColors,
       ),
       backgroundImageFile: imageFile,
+      menuChipImageFile: menuChipFile,
     );
   }
 
@@ -256,7 +283,12 @@ class ThemePackParser {
 
 /// 設定ファイルの読み取り結果。画像は、置き場所の側が解決する。
 class ParsedThemePack {
-  const ParsedThemePack({required this.pack, this.backgroundImageFile});
+  const ParsedThemePack({
+    required this.pack,
+    this.backgroundImageFile,
+    this.menuChipImageFile,
+  });
   final ThemePack pack;
   final String? backgroundImageFile;
+  final String? menuChipImageFile;
 }

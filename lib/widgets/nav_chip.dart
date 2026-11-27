@@ -11,6 +11,7 @@ import '../theme/gekiga/gekiga_colors.dart';
 import 'gekiga/gekiga_badge.dart';
 import 'glass/glass_surface.dart';
 import '../providers/selection_motion_provider.dart';
+import '../providers/theme_pack_provider.dart';
 import '../theme/chalk/chalk_paint.dart';
 import 'chalk_nav_bar.dart';
 import 'kinari_nav_bar.dart';
@@ -25,6 +26,30 @@ const kNavChipMargin = 16.0;
 /// サイドバー（縦並び）と下部（横並び）を切り替える画面幅のしきい値。
 /// Material Design 3のmedium windowサイズクラス（600dp）を採用する。
 const kNavChipWideBreakpoint = 600.0;
+
+/// 「丸で囲む」時の、囲みの丸の位置（チップの並びの中の小数の番号。滑っている途中は小数）。帯が、
+/// チップを包んで流す。チップは、これと自分の番号から、丸がどれだけ重なっているかを知り、アイコンの
+/// 色を、塗りの反対色へ少しずつ変える（2026-11-27。選択が変わった瞬間に切り替えると、塗りがまだ
+/// 着いていない間、白いアイコンが背景に溶けて、一瞬消えて見えた）。
+class RingBarPosition extends InheritedWidget {
+  const RingBarPosition({
+    required this.position,
+    required super.child,
+    super.key,
+  });
+
+  final double position;
+
+  static RingBarPosition? maybeOf(BuildContext context) =>
+      context.dependOnInheritedWidgetOfExactType<RingBarPosition>();
+
+  /// 番号[index]のチップに、丸が重なっている割合（0〜1）。
+  double coverageOf(int index) =>
+      (1 - (position - index).abs()).clamp(0.0, 1.0);
+
+  @override
+  bool updateShouldNotify(RingBarPosition old) => old.position != position;
+}
 
 /// メニューバーを使わず、タブ切り替えを1つずつ独立した丸いチップで表す。
 /// 選択中はアクセントカラーで塗り、常に浮いて見えるよう影を付ける。
@@ -42,8 +67,12 @@ class NavChip extends ConsumerWidget {
     required this.vertical,
     required this.onTap,
     this.liquid = false,
+    this.ringIndex,
     super.key,
   });
+
+  /// 並びの中の番号。囲みの時に、囲みの丸が重なる割合から、アイコンの色を決める。
+  final int? ringIndex;
 
   final IconData icon;
   final double iconSize;
@@ -79,6 +108,21 @@ class NavChip extends ConsumerWidget {
     final isKinari = uiStyle == AppUiStyle.kinari;
     // 「丸で囲む」の時は、帯が1本になり、チップは塗らない（印・輪は帯が描く）。
     final merged = ref.watch(navBandMergedProvider);
+    // 意匠のメニューチップ画像。版画の時だけ、丸い面の下に敷く（2026-11-27）。
+    final chipImage = isBlock ? ref.watch(menuChipImageProvider) : null;
+    final chipFace = chipImage == null
+        ? null
+        : Positioned.fill(
+            child: IgnorePointer(
+              child: ClipOval(
+                child: Image(
+                  image: chipImage,
+                  fit: BoxFit.cover,
+                  errorBuilder: (_, _, _) => const SizedBox.shrink(),
+                ),
+              ),
+            ),
+          );
     final brightness = Theme.of(context).brightness;
     final glassWater = liquid && isGlass && ref.watch(navWaterMotionProvider)
         ? LiquidChipScope.of(context, key)
@@ -104,17 +148,28 @@ class NavChip extends ConsumerWidget {
     // （2026-08-04変更。以前は選択中のみアクセントカラー塗りのバッジだったが、
     // アクセントカラーは劇画UI選択中は変更不可にした為、この画面だけ
     // 固定色になったアクセントカラーが残るのは一貫しない）。
-    // 丸で囲む時は、丸は塗らない（線だけ）ので、選択中も文字色のまま。
-    final mergedIconColor = switch (uiStyle) {
-      AppUiStyle.flat =>
-        sel ? colorScheme.onSurface : colorScheme.onSurfaceVariant,
-      AppUiStyle.glass =>
-        sel ? colorScheme.onSurface : colorScheme.onSurfaceVariant,
-      AppUiStyle.block => colorScheme.onSurface,
-      AppUiStyle.gekiga => GekigaColors.onPanel,
-      AppUiStyle.chalk => colorScheme.onSurface,
-      AppUiStyle.kinari => colorScheme.onSurface,
+    // 丸で囲む時の丸は、アクセントカラーの線で囲み、同じ色で塗り潰す（2026-11-27）。塗りの上の
+    // 選択中のアイコンは、塗りの反対色にする（劇画は白い塗りに黒、ガラスは選択色の上の中立色）。
+    // 色は、囲みの丸が重なる割合で、少しずつ変える（丸が滑る間、丸の無いチップの白いアイコンが
+    // 背景に溶けないように）。割合が分からない時（番号・帯が無い時）は、選択中かどうかで決める。
+    final ringPosition = RingBarPosition.maybeOf(context);
+    final index = ringIndex;
+    final coverage = ringPosition != null && index != null
+        ? ringPosition.coverageOf(index)
+        : (selected ? 1.0 : 0.0);
+    final (Color plainIconColor, Color coveredIconColor) = switch (uiStyle) {
+      AppUiStyle.flat => (colorScheme.onSurfaceVariant, colorScheme.onPrimary),
+      AppUiStyle.glass => (colorScheme.onSurfaceVariant, colorScheme.onSurface),
+      AppUiStyle.block => (colorScheme.onSurface, colorScheme.onPrimary),
+      AppUiStyle.gekiga => (GekigaColors.onPanel, GekigaColors.panel),
+      AppUiStyle.chalk => (colorScheme.onSurface, colorScheme.onPrimary),
+      AppUiStyle.kinari => (colorScheme.onSurface, colorScheme.onPrimary),
     };
+    final mergedIconColor = Color.lerp(
+      plainIconColor,
+      coveredIconColor,
+      coverage,
+    )!;
     final chip = merged
         ? Material(
             color: Colors.transparent,
@@ -134,6 +189,7 @@ class NavChip extends ConsumerWidget {
                       ),
                     ),
                   ),
+                ?chipFace,
                 InkWell(
                   onTap: onTap,
                   customBorder: const CircleBorder(),
@@ -286,14 +342,19 @@ class NavChip extends ConsumerWidget {
                   width: BlockTheme.borderWidth,
                 ),
               ),
-              child: InkWell(
-                onTap: onTap,
-                customBorder: const CircleBorder(),
-                child: SizedBox(
-                  width: kNavChipSize,
-                  height: kNavChipSize,
-                  child: Icon(icon, size: iconSize, color: foreground),
-                ),
+              child: Stack(
+                children: [
+                  ?chipFace,
+                  InkWell(
+                    onTap: onTap,
+                    customBorder: const CircleBorder(),
+                    child: SizedBox(
+                      width: kNavChipSize,
+                      height: kNavChipSize,
+                      child: Icon(icon, size: iconSize, color: foreground),
+                    ),
+                  ),
+                ],
               ),
             ),
           )
@@ -477,6 +538,7 @@ class _ChipNavShellState extends State<ChipNavShell> {
             vertical: isWide,
             onTap: () => widget.onSelected(i),
             liquid: true,
+            ringIndex: i,
           );
           return wrap == null ? chip : wrap(i, chip);
         }(),

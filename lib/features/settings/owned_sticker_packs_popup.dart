@@ -135,11 +135,14 @@ class _OwnedPackCard extends ConsumerWidget {
     final foreground = popupCardForeground(brightness, uiStyle);
     final border = popupCardBorder(brightness, uiStyle);
     return Container(
-      decoration: BoxDecoration(
-        color: background,
-        border: Border.all(color: border),
-        borderRadius: BorderRadius.circular(12),
-      ),
+      decoration: uiStyle == AppUiStyle.kinari
+          // 生成りは、へこんだ面（既読のポップアップと同じ）。
+          ? popupCardDecoration(context, brightness, uiStyle, radius: 12)
+          : BoxDecoration(
+              color: background,
+              border: Border.all(color: border),
+              borderRadius: BorderRadius.circular(12),
+            ),
       child: Padding(
         padding: const EdgeInsets.all(12),
         child: Column(

@@ -1,6 +1,8 @@
 import 'dart:typed_data';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
+
+import 'pending_last_message_at.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:flutter/foundation.dart' show ValueChanged;
 
@@ -491,7 +493,12 @@ class FirestoreDirectMessageRepository implements DirectMessageRepository {
           final dms = <DirectMessage>[];
           for (final doc in snapshot.docs) {
             try {
-              dms.add(DirectMessage.fromJson(doc.id, doc.data()));
+              dms.add(
+                DirectMessage.fromJson(
+                  doc.id,
+                  dataWithPendingLastMessageAt(doc),
+                ),
+              );
             } catch (_) {
               // 過去の移行漏れで不完全なドキュメントが混ざっていても一覧全体を
               // 巻き込まないよう、その1件だけ読み飛ばす

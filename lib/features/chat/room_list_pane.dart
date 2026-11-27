@@ -234,7 +234,10 @@ class _RoomListPaneState extends ConsumerState<RoomListPane> {
             scale: 1.0 + 0.03 * t,
             child: DecoratedBox(
               decoration: BoxDecoration(
-                color: colorScheme.surface,
+                // 劇画は、一覧の箱と同じ黒。
+                color: style == AppUiStyle.gekiga
+                    ? GekigaColors.panel
+                    : colorScheme.surface,
                 borderRadius: BorderRadius.circular(12),
               ),
               // 枠は付けない。選択中の項目には、項目自身の枠が付く。
@@ -253,6 +256,8 @@ class _RoomListPaneState extends ConsumerState<RoomListPane> {
     final colorScheme = Theme.of(context).colorScheme;
     final uiStyle = ref.watch(appUiStyleProvider);
     final isGekiga = uiStyle == AppUiStyle.gekiga;
+    // 劇画の個別の箱。囲みの時は、他のデザインと同じ大きな箱にまとめる（2026-11-27）。
+    final gekigaBoxed = ref.watch(gekigaBoxedListProvider);
     final isGlass = uiStyle == AppUiStyle.glass;
 
     // 寄合のブロックの右端: 通話を始めた寄合なら通話中の標、未読があれば件数（2026-11-18）。
@@ -301,7 +306,7 @@ class _RoomListPaneState extends ConsumerState<RoomListPane> {
               ],
             );
 
-      if (isGekiga) {
+      if (gekigaBoxed) {
         // 外枠は呼び出し側（下の`GekigaJointedTileList`）が寄合一覧全体を
         // まとめて描くため、ここでは内容だけを返す（2026-08-04変更）。
         return GekigaTileContent(
@@ -423,18 +428,28 @@ class _RoomListPaneState extends ConsumerState<RoomListPane> {
         );
       }
 
-      return ListTile(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-        selected: isSelected,
-        selectedTileColor: colorScheme.primary,
-        selectedColor: colorScheme.onPrimary,
-        leading: tagIcon,
-        title: Text(room.name, maxLines: 1, overflow: TextOverflow.ellipsis),
-        trailing: trailingOf(
-          room,
-          isSelected ? colorScheme.onPrimary : colorScheme.onSurface,
+      // 選択中の塗りは、`ListTile.selectedTileColor`ではなく、行ごとの`Material`で塗る。
+      // `selectedTileColor`は、一番近い`Material`（ペイン全体）の上に描かれる為、並べ替えで
+      // 行が動いても、塗りだけが元の位置に残っていた（フラットの縦画面で、非選択の行を
+      // ドラッグすると、選択中のアクセントカラーの塗りだけが残る不具合、2026-11-27修正）。
+      return Material(
+        color: isSelected ? colorScheme.primary : Colors.transparent,
+        borderRadius: BorderRadius.circular(12),
+        clipBehavior: Clip.antiAlias,
+        child: ListTile(
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+          ),
+          selected: isSelected,
+          selectedColor: colorScheme.onPrimary,
+          leading: tagIcon,
+          title: Text(room.name, maxLines: 1, overflow: TextOverflow.ellipsis),
+          trailing: trailingOf(
+            room,
+            isSelected ? colorScheme.onPrimary : colorScheme.onSurface,
+          ),
+          onTap: () => widget.onSelectRoom(room),
         ),
-        onTap: () => widget.onSelectRoom(room),
       );
     }
 
@@ -525,7 +540,7 @@ class _RoomListPaneState extends ConsumerState<RoomListPane> {
         ),
         const Divider(height: 1),
         Expanded(
-          child: isGekiga && widget.onReorderRooms == null
+          child: gekigaBoxed && widget.onReorderRooms == null
               ? SingleChildScrollView(
                   // 上下端で跳ね返らないようにする（2026-11-23追加）。
                   physics: const ClampingScrollPhysics(),
@@ -547,7 +562,7 @@ class _RoomListPaneState extends ConsumerState<RoomListPane> {
                     children: [for (final room in _rooms) buildRoomTile(room)],
                   ),
                 )
-              : !isGekiga && widget.onReorderRooms == null
+              : !gekigaBoxed && widget.onReorderRooms == null
               ? RingListBlock(
                   fitContent: true,
                   child: ListView(
@@ -590,7 +605,7 @@ class _RoomListPaneState extends ConsumerState<RoomListPane> {
                     ),
                     onReorderItem: _handleReorder,
                     proxyDecorator: (child, index, animation) =>
-                        ringFit && !isGekiga
+                        ringFit && !gekigaBoxed
                         ? _ringDragDecorator(
                             child,
                             animation,
@@ -602,14 +617,14 @@ class _RoomListPaneState extends ConsumerState<RoomListPane> {
                             index,
                             animation,
                             colorScheme,
-                            isGekiga,
+                            gekigaBoxed,
                             showOutline: !uiStyle.isBoxed,
                           ),
                     children: [
                       for (final (index, room) in _rooms.indexed)
                         KeyedSubtree(
                           key: ValueKey(room.roomId),
-                          child: isGekiga
+                          child: gekigaBoxed
                               ? GekigaJointedTileList(
                                   seeds: [room.roomId.hashCode],
                                   selectedFlags: [

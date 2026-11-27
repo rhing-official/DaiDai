@@ -1,6 +1,7 @@
 import '../../widgets/kinari_surface.dart';
 import '../../theme/block/block_theme.dart';
 import '../../widgets/kiwami_only_dialog.dart';
+import '../../providers/selection_motion_provider.dart';
 import '../../providers/kiwami_providers.dart';
 import '../guide/tutorial/tutorial_target.dart';
 import 'room_viewing_presence.dart';
@@ -659,7 +660,7 @@ class _DmChatPaneState extends ConsumerState<DmChatPane> {
                 MediaQuery.sizeOf(context).width -
                 MediaQuery.paddingOf(context).horizontal,
             textScaler: MediaQuery.textScalerOf(context),
-            isGekiga: ref.watch(appUiStyleProvider) == AppUiStyle.gekiga,
+            isGekiga: ref.watch(gekigaBoxedListProvider),
             onSelectRoom: (room) => _switchRoom(room.roomId, room.name),
             conversationId: dm.dmId,
             onCreateRoom: (name) =>
@@ -2727,7 +2728,7 @@ class _GroupChatPaneState extends ConsumerState<GroupChatPane> {
                 MediaQuery.sizeOf(context).width -
                 MediaQuery.paddingOf(context).horizontal,
             textScaler: MediaQuery.textScalerOf(context),
-            isGekiga: ref.watch(appUiStyleProvider) == AppUiStyle.gekiga,
+            isGekiga: ref.watch(gekigaBoxedListProvider),
             onSelectRoom: (room) => _switchRoom(room.roomId, room.name),
             conversationId: group.groupId,
             onCreateRoom: canManageRooms

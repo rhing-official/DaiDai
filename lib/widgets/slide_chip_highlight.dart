@@ -10,6 +10,7 @@ import '../theme/chalk/chalk_paint.dart';
 import '../theme/gekiga/gekiga_colors.dart';
 import 'kinari_nav_bar.dart' show paintKinariRecess;
 import 'liquid_chip_highlight.dart';
+import 'gekiga/monochrome_box.dart';
 
 /// 「滑り」の、クリックで切り替えた時の移動の長さと曲線（2026-11-27、ユーザー決定）。
 const kSlideMotionDuration = Duration(milliseconds: 420);
@@ -226,13 +227,31 @@ class _SlidePainter extends CustomPainter {
         : (Path()..addOval(rect));
     // 塗りは、メニューチップの中だけを動く（チップの間の領域には何も出さない）。
     final blob = shapeOf(r.deflate(inset));
-    for (final cr in list) {
+    for (var ci = 0; ci < list.length; ci++) {
+      final cr = list[ci];
       if (cr == null) continue;
       final chip = cr.deflate(inset);
       if (!chip.overlaps(r)) continue;
       canvas.save();
       canvas.clipPath(shapeOf(chip));
-      if (chalk) {
+      if (square && ci < entries.length) {
+        // 劇画: 選ばれた箱（白い外枠・黒い中枠・白い塗り）そのものを、塗り1枚の範囲だけ現す
+        // （液体と同じ。ただの白い面だと、枠線が潰れて、箱と違って見えた、2026-11-27）。
+        canvas.clipPath(blob);
+        canvas.translate(chip.left, chip.top);
+        MonochromeBoxPainter(
+          vertices: [
+            Offset.zero,
+            Offset(chip.width, 0),
+            Offset(chip.width, chip.height),
+            Offset(0, chip.height),
+          ],
+          thicknessBase: chip.width,
+          fillColor: fill,
+          seed: entries[ci].icon.hashCode,
+          invert: true,
+        ).paint(canvas, chip.size);
+      } else if (chalk) {
         ChalkPaint.fillPath(canvas, blob, fill);
       } else {
         canvas.drawPath(blob, Paint()..color = fill);

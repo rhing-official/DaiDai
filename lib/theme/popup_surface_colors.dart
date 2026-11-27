@@ -5,6 +5,7 @@ import 'block/block_theme.dart';
 import 'chalk/chalk_paint.dart';
 import 'chalk/chalk_theme.dart';
 import 'gekiga/gekiga_colors.dart';
+import '../widgets/kinari_surface.dart';
 import 'glass/glass_colors.dart';
 
 /// ボタン直下に`showMenu`で出す独自デザインのポップアップ（ピン留め
@@ -51,12 +52,20 @@ Color popupCardBorder(Brightness brightness, AppUiStyle uiStyle) {
 }
 
 /// ポップアップ内のカードの装飾（背景・枠・角丸16）。ブロックだけ、太枠に加えて
-/// ぼかしの無い硬い影（このスタイルだけの例外）を付ける。
-BoxDecoration popupCardDecoration(
+/// ぼかしの無い硬い影（このスタイルだけの例外）を付ける。生成りは、枠線を付けず、へこんだ面
+/// （既読のポップアップと同じ、2026-11-27、ユーザー指示）。
+Decoration popupCardDecoration(
   BuildContext context,
   Brightness brightness,
-  AppUiStyle uiStyle,
-) {
+  AppUiStyle uiStyle, {
+  double radius = 16,
+}) {
+  if (uiStyle == AppUiStyle.kinari) {
+    return KinariInsetDecoration(
+      color: Theme.of(context).colorScheme.surface,
+      radius: radius,
+    );
+  }
   final isBlock = uiStyle == AppUiStyle.block;
   if (uiStyle == AppUiStyle.chalk) {
     return ChalkBoxDecoration(

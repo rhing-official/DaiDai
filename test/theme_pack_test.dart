@@ -133,6 +133,31 @@ void main() {
       );
     });
 
+    test('メニューチップ画像のファイル名を読む', () {
+      final parsed = ThemePackParser.parse(
+        _json({
+          'images': {'background': 'bg.png', 'menuChip': 'menu-chip.png'},
+        }),
+      );
+      expect(parsed.menuChipImageFile, 'menu-chip.png');
+      expect(parsed.backgroundImageFile, 'bg.png');
+      expect(ThemePackParser.parse(_json({})).menuChipImageFile, isNull);
+    });
+
+    test('意匠の外を指すメニューチップ画像のパスは読まない', () {
+      for (final bad in ['../a.png', '/etc/passwd', 'https://x/y.png', 3]) {
+        expect(
+          () => ThemePackParser.parse(
+            _json({
+              'images': {'menuChip': bad},
+            }),
+          ),
+          throwsA(isA<ThemePackException>()),
+          reason: '$bad',
+        );
+      }
+    });
+
     test('意匠の外を指す画像のパスは読まない', () {
       for (final bad in [
         '../a.png',

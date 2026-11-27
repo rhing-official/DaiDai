@@ -2,6 +2,8 @@ import 'dart:io' show Platform;
 import 'dart:typed_data';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
+
+import 'pending_last_message_at.dart';
 import '../services/app_functions.dart';
 import 'package:collection/collection.dart';
 import 'package:firebase_storage/firebase_storage.dart';
@@ -669,7 +671,9 @@ class FirestoreGroupRepository implements GroupRepository {
       snapshot,
     ) {
       final groups = snapshot.docs
-          .map((doc) => Group.fromJson(doc.id, doc.data()))
+          .map(
+            (doc) => Group.fromJson(doc.id, dataWithPendingLastMessageAt(doc)),
+          )
           .toList();
       groups.sort(
         (a, b) => (b.lastMessageAt?.millisecondsSinceEpoch ?? 0).compareTo(

@@ -54,6 +54,11 @@ class LiquidTileGroup extends ConsumerStatefulWidget {
   static LiquidSim? simOf(BuildContext context) =>
       context.dependOnInheritedWidgetOfExactType<_LiquidScope>()?.sim;
 
+  /// 並びが「滑り」「描き」の時の、選ばれた見た目を現す範囲（無ければ`null`）。劇画の箱の並びが、
+  /// 箱の塗りを、水と同じく、動きに合わせて描くのに使う（2026-11-27）。
+  static TileReveal? revealOf(BuildContext context) =>
+      context.dependOnInheritedWidgetOfExactType<_LiquidScope>()?.reveal;
+
   @override
   ConsumerState<LiquidTileGroup> createState() => _LiquidTileGroupState();
 }
@@ -64,6 +69,9 @@ class _LiquidTileGroupState extends ConsumerState<LiquidTileGroup>
 
   /// 滑り: 塗り1枚の位置（項目の座標）と、自前の移動のアニメーション。
   final _SlideSim _slide = _SlideSim();
+  final TileDrawProgress _drawProgress = TileDrawProgress();
+  late final TileReveal _slideReveal = _SlideReveal(_slide);
+  late final TileReveal _drawReveal = DrawReveal(_drawProgress);
   late final AnimationController _slideController = AnimationController(
     vsync: this,
   )..addListener(_onSlideTick);
@@ -131,6 +139,7 @@ class _LiquidTileGroupState extends ConsumerState<LiquidTileGroup>
     _slidePosL?.removeListener(_onSlideExternal);
     _slideController.dispose();
     _slide.dispose();
+    _drawProgress.dispose();
     _ticker.dispose();
     _sim.dispose();
     super.dispose();
@@ -258,8 +267,11 @@ class _LiquidTileGroupState extends ConsumerState<LiquidTileGroup>
     final fill = gekiga ? GekigaColors.onPanel : scheme.primary;
     // ガラスは、不透明で描いて層ごと透明にする（重なっても濃くならない）。
     final layerAlpha = style == AppUiStyle.glass ? 0.45 : 1.0;
+    final draw = widget.enabled && ref.watch(selectionDrawMotionProvider);
     return _LiquidScope(
-      draw: widget.enabled && ref.watch(selectionDrawMotionProvider),
+      draw: draw,
+      drawProgress: draw ? _drawProgress : null,
+      reveal: slide ? _slideReveal : (draw ? _drawReveal : null),
       slide: slide ? _slide : null,
       sim: widget.enabled && water ? _sim : null,
       keyFor: _keyFor,
@@ -288,51 +300,54 @@ extension on _LiquidTileGroupState {
   Widget _buildRing(BuildContext context, AppUiStyle style) {
     final selected = widget.selectedIndex;
     // 項目は、選択の見た目（塗り）を出さない（選択は、枠で表す）。
+    // 選択中の項目の背面を塗り潰す（2026-11-27）。塗りの上の文字・アイコンは、塗りの反対色にする。
+    // 劇画も、他のデザインと同じく、大きな箱の中で、選択中の項目を白い箱で囲む。
     final body = _LiquidScope(
       sim: null,
       keyFor: _keyFor,
       selectedIndex: null,
       glass: false,
+      ringSelectedIndex: ringNeedsOnPrimary(style) ? selected : null,
+      ringOnColor: RingOnPrimary.colorFor(style),
       child: RingListBlock(withBackground: false, child: widget.child),
+    );
+    // 選択中の項目に重ねる層。選択が移ると、少し遅れて、次の項目へ滑る。
+    Widget rectLayer(Widget Function() shape) => Positioned.fill(
+      child: IgnorePointer(
+        child: ListenableBuilder(
+          listenable: _sim,
+          builder: (context, _) {
+            final rects = _sim.rects;
+            final rect = selected != null && selected < rects.length
+                ? rects[selected]
+                : null;
+            if (rect == null) return const SizedBox.shrink();
+            return TweenAnimationBuilder<Rect?>(
+              tween: RectTween(end: rect),
+              duration: const Duration(milliseconds: 320),
+              curve: Curves.easeOutCubic,
+              builder: (context, r, _) => Stack(
+                clipBehavior: Clip.none,
+                children: [
+                  Positioned.fromRect(
+                    rect: (r ?? rect).deflate(1),
+                    child: shape(),
+                  ),
+                ],
+              ),
+            );
+          },
+        ),
+      ),
     );
     return Stack(
       clipBehavior: Clip.none,
       children: [
-        if (style != AppUiStyle.gekiga)
-          Positioned.fill(child: ringBlockBackground(context, style)),
+        Positioned.fill(child: ringBlockBackground(context, style)),
+        rectLayer(() => RingFill(style: style, radius: widget.ringRadius)),
         body,
         // 選択中の項目を囲む枠。選択が移ると、枠が次の項目へ、少し遅れて滑る。
-        Positioned.fill(
-          child: IgnorePointer(
-            child: ListenableBuilder(
-              listenable: _sim,
-              builder: (context, _) {
-                final rects = _sim.rects;
-                final rect = selected != null && selected < rects.length
-                    ? rects[selected]
-                    : null;
-                if (rect == null) return const SizedBox.shrink();
-                return TweenAnimationBuilder<Rect?>(
-                  tween: RectTween(end: rect),
-                  duration: const Duration(milliseconds: 320),
-                  curve: Curves.easeOutCubic,
-                  builder: (context, r, _) => Stack(
-                    clipBehavior: Clip.none,
-                    children: [
-                      Positioned.fromRect(
-                        rect: (r ?? rect).deflate(1),
-                        child: RingOutline(
-                          style: style,
-                          radius: widget.ringRadius,
-                        ),
-                      ),
-                    ],
-                  ),
-                );
-              },
-            ),
-          ),
-        ),
+        rectLayer(() => RingOutline(style: style, radius: widget.ringRadius)),
       ],
     );
   }
@@ -370,8 +385,25 @@ class _LiquidScope extends InheritedWidget {
     required this.glass,
     required super.child,
     this.draw = false,
+    this.drawProgress,
+    this.reveal,
     this.slide,
+    this.ringSelectedIndex,
+    this.ringOnColor,
   });
+
+  /// 塗りの上の文字色（無ければ`onPrimary`。劇画は黒）。
+  final Color? ringOnColor;
+
+  /// 囲み（生成り）で、背面がアクセントカラーで塗り潰される項目の番号。その項目の文字・アイコンは、
+  /// 塗りの反対色にする。
+  final int? ringSelectedIndex;
+
+  /// 描きの項目が、塗りの進み具合を知らせる先（劇画の箱の塗りが読む）。
+  final TileDrawProgress? drawProgress;
+
+  /// 劇画の箱の塗りを、滑り・描きに合わせて描く窓口。
+  final TileReveal? reveal;
 
   /// 滑り: 塗り1枚が滑る位置。
   final _SlideSim? slide;
@@ -391,6 +423,8 @@ class _LiquidScope extends InheritedWidget {
       old.selectedIndex != selectedIndex ||
       old.glass != glass ||
       old.draw != draw ||
+      old.reveal != reveal ||
+      old.ringSelectedIndex != ringSelectedIndex ||
       old.slide != slide;
 }
 
@@ -475,14 +509,27 @@ class _LiquidTileState extends State<LiquidTile> {
         child: _DrawTile(
           selected: scope.selectedIndex == widget.index,
           builder: widget.builder,
+          index: widget.index,
+          progress: scope.drawProgress,
         ),
       );
     }
     if (sim == null) {
       // 水を使わない時（丸で囲む等）。測るための鍵だけは付ける。
+      final selected = scope.selectedIndex == widget.index;
       return KeyedSubtree(
         key: scope.keyFor(widget.index),
-        child: widget.builder(context, scope.selectedIndex == widget.index),
+        // 囲みで塗り潰される項目は、ビルダーを、文字色を切り替える層（[RingOnPrimary]）の内側で呼ぶ。
+        // 外で呼ぶと、ビルダーが、この`context`の`Theme`から文字色を決める部品（一対・広場の
+        // トグルなど）に、塗りの反対色が届かず、白い塗りに白い文字になる（2026-11-27修正）。
+        child: scope.ringSelectedIndex == widget.index
+            ? RingOnPrimary(
+                color: scope.ringOnColor,
+                child: Builder(
+                  builder: (inner) => widget.builder(inner, selected),
+                ),
+              )
+            : widget.builder(context, selected),
       );
     }
     final mode = _mode ?? _modeOf(sim, scope.selectedIndex == widget.index);
@@ -627,10 +674,20 @@ class DrawSelectionTile extends ConsumerWidget {
 
 /// 描き: 選ばれた見た目を、ペンが往復して塗るように現す（選択が外れた時は、塗りが短く消える）。
 class _DrawTile extends StatefulWidget {
-  const _DrawTile({required this.selected, required this.builder});
+  const _DrawTile({
+    required this.selected,
+    required this.builder,
+    this.index,
+    this.progress,
+  });
 
   final bool selected;
   final Widget Function(BuildContext context, bool selected) builder;
+
+  /// 塗りの進み具合を知らせる先と、並びの中の番号（劇画の箱の塗りが、同じ進み具合で描く為）。
+  /// 無ければ、近くの[DrawIndexScope]を使う。
+  final int? index;
+  final TileDrawProgress? progress;
 
   @override
   State<_DrawTile> createState() => _DrawTileState();
@@ -641,7 +698,25 @@ class _DrawTileState extends State<_DrawTile>
   late final AnimationController _c = AnimationController(
     vsync: this,
     value: widget.selected ? 1 : 0,
-  );
+  )..addListener(_report);
+
+  TileDrawProgress? _reportTo;
+  int? _reportIndex;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final scope = DrawIndexScope.maybeOf(context);
+    final to = widget.progress ?? scope?.progress;
+    final index = widget.index ?? scope?.index;
+    if (!identical(to, _reportTo) || index != _reportIndex) {
+      _reportTo?.remove(_reportIndex);
+      _reportTo = to;
+      _reportIndex = index;
+    }
+  }
+
+  void _report() => _reportTo?.set(_reportIndex, _c.value);
 
   @override
   void didUpdateWidget(covariant _DrawTile old) {
@@ -664,6 +739,7 @@ class _DrawTileState extends State<_DrawTile>
 
   @override
   void dispose() {
+    _reportTo?.remove(_reportIndex);
     _c.dispose();
     super.dispose();
   }
@@ -691,6 +767,139 @@ class _DrawTileState extends State<_DrawTile>
         );
       },
     );
+  }
+}
+
+/// 描きの項目ごとの、塗りの進み具合（0〜1）。劇画の箱の塗りが、項目の文字と同じ進み具合で
+/// 描く為に、項目が知らせる（2026-11-27）。知らせが無い項目は、選ばれているかどうかだけで決まる。
+class TileDrawProgress extends ChangeNotifier {
+  final Map<int, double> _values = {};
+
+  double? valueOf(int index) => _values[index];
+
+  void set(int? index, double value) {
+    if (index == null || _values[index] == value) return;
+    _values[index] = value;
+    notifyListeners();
+  }
+
+  /// 項目が無くなった時。描き直しは、次の知らせで足りる為、知らせない。
+  void remove(int? index) {
+    if (index != null) _values.remove(index);
+  }
+}
+
+/// 子（劇画の箱の1つ）が、描きの進み具合を知らせる先と、並びの中の番号。
+class DrawIndexScope extends InheritedWidget {
+  const DrawIndexScope({
+    required this.progress,
+    required this.index,
+    required super.child,
+    super.key,
+  });
+
+  final TileDrawProgress progress;
+  final int index;
+
+  static DrawIndexScope? maybeOf(BuildContext context) =>
+      context.dependOnInheritedWidgetOfExactType<DrawIndexScope>();
+
+  @override
+  bool updateShouldNotify(DrawIndexScope old) =>
+      !identical(progress, old.progress) || index != old.index;
+}
+
+/// 劇画の箱の塗りを、液体の水と同じように、動きに合わせて描く窓口（2026-11-27）。
+/// 箱は、選ばれていない形を描いた上に、[paintRevealed]で、選ばれた形を現す範囲だけ重ねる。
+abstract class TileReveal {
+  /// 動きが進むたびに、箱を描き直す為の通知元。
+  Listenable get listenable;
+
+  /// [index]番目の箱（大きさ[size]）の、選ばれた形を、現す範囲だけ[paintSelected]で描く。
+  /// [selected]は、その箱が選ばれているか（動きの情報が無い時の既定）。
+  void paintRevealed(
+    Canvas canvas,
+    int index,
+    Size size,
+    bool selected,
+    VoidCallback paintSelected,
+  );
+}
+
+/// 滑り: 塗り1枚が重なる範囲だけ、選ばれた形を現す。
+class _SlideReveal implements TileReveal {
+  _SlideReveal(this._sim);
+
+  final _SlideSim _sim;
+
+  @override
+  Listenable get listenable => _sim;
+
+  @override
+  void paintRevealed(
+    Canvas canvas,
+    int index,
+    Size size,
+    bool selected,
+    VoidCallback paintSelected,
+  ) {
+    final rects = _sim.rects;
+    final slab = _sim.slab;
+    final tile = index < rects.length ? rects[index] : null;
+    if (tile == null || slab == null) {
+      if (selected) paintSelected();
+      return;
+    }
+    final local = slab.shift(-tile.topLeft);
+    // 塗りが項目をちょうど覆う時は、箱全体を選ばれた形にする（余白の端まで）。
+    if ((slab.left - tile.left).abs() < 0.5 &&
+        (slab.top - tile.top).abs() < 0.5 &&
+        (slab.width - tile.width).abs() < 0.5 &&
+        (slab.height - tile.height).abs() < 0.5) {
+      paintSelected();
+      return;
+    }
+    final region = local.intersect(Offset.zero & size);
+    if (region.width <= 0.5 || region.height <= 0.5) return;
+    canvas
+      ..save()
+      ..clipRect(region);
+    paintSelected();
+    canvas.restore();
+  }
+}
+
+/// 描き: ペンで塗った所だけ、選ばれた形を現す（項目の文字と同じ進み具合）。
+class DrawReveal implements TileReveal {
+  DrawReveal(this._progress);
+
+  final TileDrawProgress _progress;
+
+  @override
+  Listenable get listenable => _progress;
+
+  @override
+  void paintRevealed(
+    Canvas canvas,
+    int index,
+    Size size,
+    bool selected,
+    VoidCallback paintSelected,
+  ) {
+    final p = _progress.valueOf(index) ?? (selected ? 1.0 : 0.0);
+    if (p <= 0) return;
+    if (p >= 1) {
+      paintSelected();
+      return;
+    }
+    final rect = Offset.zero & size;
+    canvas.saveLayer(rect.inflate(2), Paint());
+    paintSelected();
+    // マスク: ペンで塗った所だけ残す（`ScribbleReveal`と同じ）。
+    canvas.saveLayer(rect.inflate(2), Paint()..blendMode = BlendMode.dstIn);
+    ScribblePen.paint(canvas, rect, Colors.black, p);
+    canvas.restore();
+    canvas.restore();
   }
 }
 

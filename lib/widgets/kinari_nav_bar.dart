@@ -36,14 +36,17 @@ class KinariNavBar extends ConsumerWidget {
       tween: Tween(end: target),
       duration: const Duration(milliseconds: 320),
       curve: Curves.easeOutCubic,
-      builder: (context, position, child) => CustomPaint(
-        painter: _KinariBarPainter(
-          position: position,
-          vertical: vertical,
-          base: scheme.surface,
-          pill: scheme.primary,
+      builder: (context, position, child) => RingBarPosition(
+        position: position,
+        child: CustomPaint(
+          painter: _KinariBarPainter(
+            position: position,
+            vertical: vertical,
+            base: scheme.surface,
+            pill: scheme.primary,
+          ),
+          child: child,
         ),
-        child: child,
       ),
       child: Padding(padding: const EdgeInsets.all(_kPad), child: child),
     );
@@ -96,16 +99,11 @@ class _KinariBarPainter extends CustomPainter {
         width: h,
         height: h,
       );
-      // 囲んだ範囲は、帯よりさらにへこませる。
+      // 囲んだ範囲は、帯よりさらにへこませ、アクセントカラーで塗り潰す（2026-11-27。以前は
+      // 塗らず、線で囲むだけだった）。アクセントの面が、へこんだ穴に嵌まって見える。
       final circle = RRect.fromRectAndRadius(rect, Radius.circular(h / 2));
-      paintKinariInset(
-        canvas,
-        circle,
-        Color.lerp(base, Colors.black, 0.06)!,
-        shadowOffset * 1.3,
-        depth: 2.4,
-      );
-      // 印は塗らず、濃い線で囲む（へこんだ帯の中に、細い線の丸）。
+      paintKinariInset(canvas, circle, pill, shadowOffset * 1.3, depth: 2.4);
+      // 縁は、同じ色の線で囲む。
       canvas.drawRRect(
         circle,
         Paint()

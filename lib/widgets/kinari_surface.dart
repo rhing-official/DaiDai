@@ -301,3 +301,48 @@ class _RaisedCirclePainter extends CustomPainter {
   bool shouldRepaint(covariant _RaisedCirclePainter old) =>
       old.color != color || old.line != line;
 }
+
+/// へこんだ面の[Decoration]（2026-11-27）。`Container(decoration: ...)`の背景に使える、[KinariInset]
+/// と同じへこみ（紙より少し濃い面に、内側の影と明かり）。ポップアップの背景が、枠線付きの平らな面
+/// ではなく、へこんで見えるようにする。
+class KinariInsetDecoration extends Decoration {
+  const KinariInsetDecoration({required this.color, this.radius = 16});
+
+  /// 面の色（紙色。実際は、これより少し濃く塗る）。
+  final Color color;
+  final double radius;
+
+  @override
+  Path getClipPath(Rect rect, TextDirection textDirection) =>
+      Path()..addRRect(RRect.fromRectAndRadius(rect, Radius.circular(radius)));
+
+  @override
+  BoxPainter createBoxPainter([VoidCallback? onChanged]) =>
+      _KinariInsetDecorationPainter(this);
+
+  @override
+  bool operator ==(Object other) =>
+      other is KinariInsetDecoration &&
+      other.color == color &&
+      other.radius == radius;
+
+  @override
+  int get hashCode => Object.hash(color, radius);
+}
+
+class _KinariInsetDecorationPainter extends BoxPainter {
+  _KinariInsetDecorationPainter(this.decoration);
+
+  final KinariInsetDecoration decoration;
+
+  @override
+  void paint(Canvas canvas, Offset offset, ImageConfiguration configuration) {
+    final size = configuration.size;
+    if (size == null) return;
+    final rrect = RRect.fromRectAndRadius(
+      offset & size,
+      Radius.circular(decoration.radius),
+    );
+    paintKinariInset(canvas, rrect, decoration.color, const Offset(1.5, 2));
+  }
+}

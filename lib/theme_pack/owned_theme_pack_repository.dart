@@ -62,6 +62,7 @@ bool themePackHasUpdate({required int owned, required int latest}) =>
 
 const _packJsonMaxBytes = 64 * 1024;
 const _imageMaxBytes = 2 * 1024 * 1024;
+const _menuChipMaxBytes = 512 * 1024;
 final _safePackId = RegExp(r'^[A-Za-z0-9_\-]{1,200}$');
 
 /// 取得済みの意匠を読む。[source]がnullなら、端末に置いた素材だけを読む（通信しない）。
@@ -160,6 +161,10 @@ class OwnedThemePackRepository implements ThemePackRepository {
       if (image != null) {
         files[image] = await s.readFile('$base/$image', _imageMaxBytes);
       }
+      final chip = parsed.menuChipImageFile;
+      if (chip != null) {
+        files[chip] = await s.readFile('$base/$chip', _menuChipMaxBytes);
+      }
       await cache.write(id, version, files);
       return files;
     } on ThemePackException {
@@ -182,10 +187,21 @@ class OwnedThemePackRepository implements ThemePackRepository {
       throw const ThemePackException('idが意匠の識別子と合いません');
     }
     final pack = parsed.pack.withId(id);
+    var result = pack;
     final image = parsed.backgroundImageFile;
-    if (image == null) return pack;
-    final bytes = files[image];
-    if (bytes == null) throw const ThemePackException('背景画像が見つかりません');
-    return pack.withBackgroundImage(MemoryImage(bytes));
+    if (image != null) {
+      final bytes = files[image];
+      if (bytes == null) throw const ThemePackException('背景画像が見つかりません');
+      result = result.withBackgroundImage(MemoryImage(bytes));
+    }
+    final chip = parsed.menuChipImageFile;
+    if (chip != null) {
+      final bytes = files[chip];
+      if (bytes == null) {
+        throw const ThemePackException('メニューチップ画像が見つかりません');
+      }
+      result = result.withMenuChipImage(MemoryImage(bytes));
+    }
+    return result;
   }
 }

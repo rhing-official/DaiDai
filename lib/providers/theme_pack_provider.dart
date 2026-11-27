@@ -1,3 +1,4 @@
+import 'package:flutter/widgets.dart' show ImageProvider;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -152,6 +153,11 @@ class ThemePackNotifier extends Notifier<ThemePackState> {
 
 final themePackProvider = NotifierProvider<ThemePackNotifier, ThemePackState>(
   ThemePackNotifier.new,
+);
+
+/// 適用中の意匠が持つ、メニューチップの面の画像。無ければnull。
+final menuChipImageProvider = Provider<ImageProvider?>(
+  (ref) => ref.watch(themePackProvider.select((s) => s.pack?.menuChipImage)),
 );
 
 /// 使える意匠の一覧。

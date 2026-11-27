@@ -314,3 +314,60 @@ test("ファイルの検査: コントラスト不足（3:1未満）と不正な
   assert.equal(r.ok, true);
   if (r.ok) assert.equal(r.warnings.length, 1);
 });
+
+// ---------------- メニューチップ画像（images.menuChip、2026-11-27） ----------------
+
+const chipFiles = (chipName = "menu-chip.png") => {
+  const files = goodFiles();
+  files.set("pack.json", text(samplePackJson({ images: { background: "background.png", menuChip: chipName } })));
+  files.set(chipName, pngBytes(512, 512));
+  return files;
+};
+
+test("メニューチップ画像: 背景と並べて指定すれば合格し、parseにも出る", () => {
+  const r = validateThemePackFiles(chipFiles());
+  assert.equal(r.ok, true);
+  if (r.ok) assert.equal(r.pack.menuChipImage, "menu-chip.png");
+  const noBg = new Map([
+    ["pack.json", text(samplePackJson({ images: { menuChip: "menu-chip.png" } }))],
+    ["menu-chip.png", pngBytes(64, 64)],
+  ]);
+  assert.equal(validateThemePackFiles(noBg).ok, true);
+});
+
+test("メニューチップ画像: 不正なファイル名・背景と同じファイル・指定先なしは不合格", () => {
+  for (const bad of ["../x.png", "a/b.png", "https://x/y.png", 3]) {
+    const r = parseThemePack(samplePackJson({ images: { menuChip: bad } }));
+    assert.equal(r.ok, false, String(bad));
+  }
+  const same = chipFiles("background.png");
+  assert.match(errorsOf(same).join(), /別のファイル/);
+  const missing = chipFiles();
+  missing.delete("menu-chip.png");
+  assert.match(errorsOf(missing).join(), /メニューチップ画像「menu-chip.png」が、ありません/);
+});
+
+test("メニューチップ画像: PNGのみ・512px以下・512KB以下", () => {
+  const webp = chipFiles("menu-chip.webp");
+  webp.set("menu-chip.webp", webpLosslessBytes(64, 64));
+  assert.match(errorsOf(webp).join(), /PNGだけ/);
+  const wide = chipFiles();
+  wide.set("menu-chip.png", pngBytes(513, 100));
+  assert.match(errorsOf(wide).join(), /512px/);
+  const exact = chipFiles();
+  exact.set("menu-chip.png", pngBytes(512, 1));
+  assert.equal(validateThemePackFiles(exact).ok, true);
+  const heavy = chipFiles();
+  heavy.set("menu-chip.png", pngBytes(10, 10, THEME_PACK_LIMITS.menuChipMaxBytes));
+  assert.match(errorsOf(heavy).join(), /容量が大きすぎ/);
+  // 背景は従来どおり2048pxまで許す
+  const bigBg = chipFiles();
+  bigBg.set("background.png", pngBytes(2048, 2048));
+  assert.equal(validateThemePackFiles(bigBg).ok, true);
+});
+
+test("メニューチップ画像: 指定していない余分な画像は、menuChipがあっても不合格", () => {
+  const files = chipFiles();
+  files.set("extra.png", pngBytes(10, 10));
+  assert.equal(validateThemePackFiles(files).ok, false);
+});

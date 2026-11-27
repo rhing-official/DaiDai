@@ -10,6 +10,7 @@ import '../theme/gekiga/gekiga_colors.dart';
 import 'kinari_nav_bar.dart' show paintKinariRecess;
 import 'liquid_chip_highlight.dart';
 import 'scribble_paint.dart';
+import 'gekiga/monochrome_box.dart';
 
 /// 「描き」の時の、メニューチップの選択色（2026-11-26）。選ばれたチップを、アクセントカラーの
 /// ペンが往復して塗りつぶす。外れたチップは、塗りが短く消える。塗りの上にだけ、選択中の文字色で
@@ -165,6 +166,39 @@ class _DrawPainter extends CustomPainter {
   final bool chalk;
   final bool kinari;
 
+  /// 劇画: 選ばれた箱を、ペンで[progress]まで塗った所だけ描く。
+  void _paintBox(Canvas canvas, Rect rect, int seed, double progress) {
+    void box() {
+      canvas.save();
+      canvas.translate(rect.left, rect.top);
+      MonochromeBoxPainter(
+        vertices: [
+          Offset.zero,
+          Offset(rect.width, 0),
+          Offset(rect.width, rect.height),
+          Offset(0, rect.height),
+        ],
+        thicknessBase: rect.width,
+        fillColor: fill,
+        seed: seed,
+        invert: true,
+      ).paint(canvas, rect.size);
+      canvas.restore();
+    }
+
+    if (progress >= 1) {
+      box();
+      return;
+    }
+    canvas.saveLayer(rect.inflate(2), Paint());
+    box();
+    // マスク: ペンで塗った所だけ残す。
+    canvas.saveLayer(rect.inflate(2), Paint()..blendMode = BlendMode.dstIn);
+    ScribblePen.paint(canvas, rect, Colors.black, progress);
+    canvas.restore();
+    canvas.restore();
+  }
+
   Path _shape(Rect r) => square
       ? (Path()..addRRect(RRect.fromRectAndRadius(r, const Radius.circular(3))))
       : (Path()..addOval(r));
@@ -183,6 +217,12 @@ class _DrawPainter extends CustomPainter {
       if (r == null || p <= 0) continue;
       any = true;
       final inner = r.deflate(inset);
+      if (square && i < entries.length) {
+        // 劇画: 選ばれた箱（白い外枠・黒い中枠・白い塗り）そのものを、ペンで塗った所だけ現す
+        // （液体と同じ。ただの白い面だと、枠線が潰れて、箱と違って見えた、2026-11-27）。
+        _paintBox(canvas, inner, entries[i].icon.hashCode, p);
+        continue;
+      }
       ScribblePen.paint(canvas, inner, fill, p, clip: _shape(inner));
     }
     if (!any) {

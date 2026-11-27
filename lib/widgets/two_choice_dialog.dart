@@ -132,9 +132,10 @@ Future<T?> showTwoChoiceDialog<T>({
       return Center(
         child: Dialog(
           backgroundColor: isGlass ? Colors.transparent : null,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(20),
-          ),
+          // 生成りは、テーマの、へこんだ形（既読のポップアップと同じ）に従う。
+          shape: uiStyle == AppUiStyle.kinari
+              ? null
+              : RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
           child: isGlass
               ? GlassSurface(
                   variant: GlassVariant.floating,

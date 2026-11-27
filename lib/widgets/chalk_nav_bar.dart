@@ -43,15 +43,18 @@ class ChalkNavBar extends ConsumerWidget {
       tween: Tween(end: target),
       duration: const Duration(milliseconds: 320),
       curve: Curves.easeOutCubic,
-      builder: (context, position, child) => CustomPaint(
-        painter: _ChalkBarPainter(
-          position: position,
-          count: count,
-          vertical: vertical,
-          color: Theme.of(context).colorScheme.onSurface,
-          ringColor: Theme.of(context).colorScheme.primary,
+      builder: (context, position, child) => RingBarPosition(
+        position: position,
+        child: CustomPaint(
+          painter: _ChalkBarPainter(
+            position: position,
+            count: count,
+            vertical: vertical,
+            color: Theme.of(context).colorScheme.onSurface,
+            ringColor: Theme.of(context).colorScheme.primary,
+          ),
+          child: child,
         ),
-        child: child,
       ),
       child: Padding(padding: const EdgeInsets.all(_kPad), child: child),
     );
@@ -131,6 +134,8 @@ class _ChalkBarPainter extends CustomPainter {
     }
     ChalkPaint.stroke(canvas, path, color, width: 2.4);
     if (ring != null) {
+      // 輪の中を、アクセントカラーのチョークで塗り潰してから、輪で囲む（2026-11-27）。
+      ChalkPaint.fillPath(canvas, Path.from(ring)..close(), ringColor);
       ChalkPaint.stroke(canvas, ring, ringColor, width: 2.6, seed: 5);
     }
   }

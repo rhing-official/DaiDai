@@ -217,11 +217,15 @@ class _GekigaJointedList extends MultiChildRenderObjectWidget {
     required this.selectedFlags,
     required this.horizontal,
     required this.water,
+    required this.reveal,
     required super.children,
   });
 
   /// 選択色を水で移す時の、水の計算（無ければ、従来どおり即時に切り替える）。
   final LiquidSim? water;
+
+  /// 選択色を、滑り・描きで移す時の窓口（水が無い時に使う。無ければ、即時に切り替える）。
+  final TileReveal? reveal;
   final Axis axis;
   final NavChipAlignment horizontal;
   final List<int> seeds;
@@ -235,6 +239,7 @@ class _GekigaJointedList extends MultiChildRenderObjectWidget {
       selectedFlags: selectedFlags,
       horizontal: horizontal,
       water: water,
+      reveal: reveal,
     );
   }
 
@@ -248,7 +253,8 @@ class _GekigaJointedList extends MultiChildRenderObjectWidget {
       ..seeds = seeds
       ..selectedFlags = selectedFlags
       ..horizontal = horizontal
-      ..water = water;
+      ..water = water
+      ..reveal = reveal;
   }
 }
 
@@ -289,13 +295,69 @@ class GekigaJointedTileList extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return _GekigaJointedList(
+    return _JointedRevealHost(
       axis: axis,
       seeds: seeds,
       selectedFlags: selectedFlags,
       horizontal: horizontal,
-      water: LiquidTileGroup.simOf(context),
       children: children,
+    );
+  }
+}
+
+/// 接合リストを描く。選択色を、水・滑り・描きに合わせて描く窓口を用意する（2026-11-27）。
+/// 並びが水・滑り・描きの項目グループ（`LiquidTileGroup`）の中なら、その動きを使う。
+/// グループの外でも、各箱を[DrawIndexScope]で包み、描きの項目が進み具合を知らせられるようにする
+/// （箱の塗りと、項目の文字が、同じ進み具合で現れる）。
+class _JointedRevealHost extends StatefulWidget {
+  const _JointedRevealHost({
+    required this.axis,
+    required this.seeds,
+    required this.selectedFlags,
+    required this.horizontal,
+    required this.children,
+  });
+
+  final Axis axis;
+  final List<int> seeds;
+  final List<bool> selectedFlags;
+  final NavChipAlignment horizontal;
+  final List<Widget> children;
+
+  @override
+  State<_JointedRevealHost> createState() => _JointedRevealHostState();
+}
+
+class _JointedRevealHostState extends State<_JointedRevealHost> {
+  final TileDrawProgress _progress = TileDrawProgress();
+  late final TileReveal _ownReveal = DrawReveal(_progress);
+
+  @override
+  void dispose() {
+    _progress.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final groupReveal = LiquidTileGroup.revealOf(context);
+    return _GekigaJointedList(
+      axis: widget.axis,
+      seeds: widget.seeds,
+      selectedFlags: widget.selectedFlags,
+      horizontal: widget.horizontal,
+      water: LiquidTileGroup.simOf(context),
+      reveal: groupReveal ?? _ownReveal,
+      children: [
+        for (var i = 0; i < widget.children.length; i++)
+          DrawIndexScope(
+            // 子のキーを引き継ぐ（並べ替えで、子の状態が位置に引きずられない為）。
+            key: widget.children[i].key,
+            progress: _progress,
+            index: i,
+            child: widget.children[i],
+          ),
+      ],
     );
   }
 }
@@ -321,12 +383,11 @@ class GekigaJointedPair extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return _GekigaJointedList(
+    return _JointedRevealHost(
       axis: Axis.horizontal,
       seeds: [leftSeed, rightSeed],
       selectedFlags: [leftSelected, rightSelected],
       horizontal: NavChipAlignment.start,
-      water: LiquidTileGroup.simOf(context),
       children: [left, right],
     );
   }
@@ -348,7 +409,9 @@ class _RenderGekigaJointedList extends RenderBox
     required List<bool> selectedFlags,
     required NavChipAlignment horizontal,
     LiquidSim? water,
+    TileReveal? reveal,
   }) : _water = water,
+       _reveal = reveal,
        _axis = axis,
        _seeds = seeds,
        _selectedFlags = selectedFlags,
@@ -394,15 +457,26 @@ class _RenderGekigaJointedList extends RenderBox
     markNeedsPaint();
   }
 
+  TileReveal? _reveal;
+  set reveal(TileReveal? value) {
+    if (identical(_reveal, value)) return;
+    if (attached) _reveal?.listenable.removeListener(markNeedsPaint);
+    _reveal = value;
+    if (attached) _reveal?.listenable.addListener(markNeedsPaint);
+    markNeedsPaint();
+  }
+
   @override
   void attach(PipelineOwner owner) {
     super.attach(owner);
     _water?.addListener(markNeedsPaint);
+    _reveal?.listenable.addListener(markNeedsPaint);
   }
 
   @override
   void detach() {
     _water?.removeListener(markNeedsPaint);
+    _reveal?.listenable.removeListener(markNeedsPaint);
     super.detach();
   }
 
@@ -513,7 +587,32 @@ class _RenderGekigaJointedList extends RenderBox
           offset.dx + childParentData.offset.dx,
           offset.dy + childParentData.offset.dy,
         );
-      if (water == null) {
+      final reveal = _reveal;
+      if (water == null && reveal != null) {
+        // 滑り・描きで移す時: 選ばれていない形を描き、その上に、選ばれた形を、動きが現した
+        // 範囲だけ重ねる（水と同じ。以前は、選ばれた瞬間に箱が塗り替わり、項目の文字の色と
+        // 食い違っていた、2026-11-27）。動きの情報が無い箱は、選ばれているかどうかで決める。
+        MonochromeBoxPainter(
+          vertices: vertices,
+          thicknessBase: _fixedThicknessBase,
+          fillColor: GekigaColors.panel,
+          seed: _seeds[i],
+        ).paint(context.canvas, box.size);
+        final seed = _seeds[i];
+        reveal.paintRevealed(
+          context.canvas,
+          i,
+          box.size,
+          selected,
+          () => MonochromeBoxPainter(
+            vertices: vertices,
+            thicknessBase: _fixedThicknessBase,
+            fillColor: GekigaColors.onPanel,
+            seed: seed,
+            invert: true,
+          ).paint(context.canvas, box.size),
+        );
+      } else if (water == null) {
         MonochromeBoxPainter(
           vertices: vertices,
           thicknessBase: _fixedThicknessBase,

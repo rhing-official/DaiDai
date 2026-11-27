@@ -9,6 +9,8 @@ import '../providers/selection_motion_provider.dart';
 import '../theme/block/block_theme.dart';
 import '../theme/chalk/chalk_paint.dart';
 import '../theme/gekiga/gekiga_colors.dart';
+import 'gekiga/gekiga_panel_box.dart' show kGekigaBoxThicknessBase;
+import 'gekiga/monochrome_box.dart';
 import 'glass/glass_surface.dart';
 import 'kinari_nav_bar.dart';
 
@@ -35,7 +37,8 @@ class _FlatStyleNotifier extends AppUiStyleNotifier {
 }
 
 /// 「丸で囲む」の時だけ、[child]（項目の並び）を、1つの大きなブロックの中に置き、中の項目から、
-/// 箱・選択の塗りを取り除く。それ以外の時、劇画（並び全体を既に1つの箱で描く）は、[child]をそのまま返す。
+/// 箱・選択の塗りを取り除く。それ以外の時は、[child]をそのまま返す。劇画も、囲みの時は、他のデザインと
+/// 同じく、大きな箱の中に項目を置き、選択中を白い箱で囲む（2026-11-27、ユーザー指示）。
 ///
 /// 項目は、UIスタイルをフラットとして描くようにしてある（枠付きの箱・ガラス・選択の塗りは
 /// 出ない）。選択中の枠は、並びの種類ごとに、[RingOutline]で重ねる。
@@ -60,7 +63,7 @@ class RingListBlock extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final style = ref.watch(appUiStyleProvider);
-    if (!ref.watch(navBandMergedProvider) || style == AppUiStyle.gekiga) {
+    if (!ref.watch(navBandMergedProvider)) {
       return child;
     }
     final theme = Theme.of(context);
@@ -153,7 +156,8 @@ Widget ringBlockBackground(BuildContext context, AppUiStyle style) {
       // メニューチップの帯と同じ: へこんだ面。
       return CustomPaint(painter: KinariInsetBlockPainter(scheme.surface, 16));
     case AppUiStyle.gekiga:
-      return const SizedBox.shrink();
+      // 劇画: 一覧全体を、1つの大きな箱（黒い塗りに、白い外枠・黒い中枠）で包む。
+      return CustomPaint(painter: const _GekigaBlockPainter(inverted: false));
     case AppUiStyle.flat:
       return DecoratedBox(
         decoration: BoxDecoration(
@@ -193,7 +197,9 @@ class RingOutline extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final scheme = theme.colorScheme;
-    final r = BorderRadius.circular(style == AppUiStyle.gekiga ? 3 : radius);
+    // 劇画: 選択中の箱（白い外枠・黒い中枠・白い塗り）が、枠の役目をする（[RingFill]）。線は重ねない。
+    if (style == AppUiStyle.gekiga) return const SizedBox.shrink();
+    final r = BorderRadius.circular(radius);
     if (style == AppUiStyle.chalk) {
       return DecoratedBox(
         decoration: ChalkBoxDecoration(
@@ -215,7 +221,6 @@ class RingOutline extends StatelessWidget {
         BlockTheme.lineColor(theme.brightness),
         BlockTheme.borderWidth,
       ),
-      AppUiStyle.gekiga => (GekigaColors.onPanel, 3),
       AppUiStyle.kinari => (scheme.primary, 1.8),
       _ => (scheme.primary, 2),
     };
@@ -241,18 +246,8 @@ class _KinariOutlinePainter extends CustomPainter {
       Offset.zero & size,
       Radius.circular(radius),
     );
-    // 枠は項目の文字の上に重なる為、面は不透明に塗らず、薄い影と、縁の内側の影・明かりだけで
-    // へこませる（塗ると文字が隠れる）。
-    canvas.drawRRect(
-      rrect,
-      Paint()..color = Colors.black.withValues(alpha: 0.05),
-    );
-    paintKinariInsetShadows(
-      canvas,
-      rrect,
-      const Offset(2, 3) * 1.3,
-      depth: 2.4,
-    );
+    // 面は、項目の背面の[KinariRingFill]が、アクセントカラーで塗り潰してへこませる
+    // （2026-11-27）。この枠は、文字の上に重なる為、線だけを描く。
     canvas.drawRRect(
       rrect.deflate(0.9),
       Paint()
@@ -265,6 +260,204 @@ class _KinariOutlinePainter extends CustomPainter {
   @override
   bool shouldRepaint(covariant _KinariOutlinePainter old) =>
       old.base != base || old.line != line || old.radius != radius;
+}
+
+/// 生成りの囲みで、選択中の項目の背面を、アクセントカラーで塗り潰す面（2026-11-27）。へこんだ穴に、
+/// アクセントの面が嵌まって見える（メニューチップの帯の囲みと同じ作り）。項目の文字は、この上に
+/// 載るので、[RingOnPrimary]で、塗りの反対色にする。
+class KinariRingFill extends StatelessWidget {
+  const KinariRingFill({this.radius = 12, super.key});
+
+  final double radius;
+
+  @override
+  Widget build(BuildContext context) => CustomPaint(
+    painter: _KinariRingFillPainter(
+      Theme.of(context).colorScheme.primary,
+      radius,
+    ),
+  );
+}
+
+/// 囲みで、選択中の項目の背面を塗り潰す面（2026-11-27）。フラット・版画はアクセントカラー、ガラスは
+/// 選択色（背景にアクセントを45%で重ねた不透明な色）、チョークはチョークで塗った質感、生成りは
+/// へこんだ面。劇画は、箱の並びが自分で塗るので、ここでは描かない。
+class RingFill extends StatelessWidget {
+  const RingFill({required this.style, this.radius = 12, super.key});
+
+  final AppUiStyle style;
+  final double radius;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final r = BorderRadius.circular(radius);
+    return switch (style) {
+      AppUiStyle.gekiga => const CustomPaint(
+        painter: _GekigaBlockPainter(inverted: true),
+      ),
+      AppUiStyle.kinari => KinariRingFill(radius: radius),
+      AppUiStyle.chalk => CustomPaint(
+        painter: _ChalkRingFillPainter(scheme.primary, radius),
+      ),
+      AppUiStyle.glass => DecoratedBox(
+        decoration: BoxDecoration(
+          color: Color.alphaBlend(
+            scheme.primary.withValues(alpha: 0.45),
+            Theme.of(context).scaffoldBackgroundColor,
+          ),
+          borderRadius: r,
+        ),
+      ),
+      AppUiStyle.flat || AppUiStyle.block => DecoratedBox(
+        decoration: BoxDecoration(color: scheme.primary, borderRadius: r),
+      ),
+    };
+  }
+}
+
+/// 劇画の箱。[inverted]が偽なら、黒い塗りの箱（一覧全体を包む大きな箱）。真なら、白い外枠・黒い中枠・
+/// 白い塗りの箱（選択中の項目）。枠の太さは、一覧の箱と同じ基準（[kGekigaBoxThicknessBase]）。
+class _GekigaBlockPainter extends CustomPainter {
+  const _GekigaBlockPainter({required this.inverted});
+
+  final bool inverted;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    MonochromeBoxPainter(
+      vertices: [
+        Offset.zero,
+        Offset(size.width, 0),
+        Offset(size.width, size.height),
+        Offset(0, size.height),
+      ],
+      thicknessBase: kGekigaBoxThicknessBase,
+      fillColor: inverted ? GekigaColors.onPanel : GekigaColors.panel,
+      seed: 7,
+      invert: inverted,
+    ).paint(canvas, size);
+  }
+
+  @override
+  bool shouldRepaint(covariant _GekigaBlockPainter old) =>
+      old.inverted != inverted;
+}
+
+class _ChalkRingFillPainter extends CustomPainter {
+  _ChalkRingFillPainter(this.color, this.radius);
+
+  final Color color;
+  final double radius;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    ChalkPaint.fillPath(
+      canvas,
+      Path()..addRRect(
+        RRect.fromRectAndRadius(Offset.zero & size, Radius.circular(radius)),
+      ),
+      color,
+    );
+  }
+
+  @override
+  bool shouldRepaint(covariant _ChalkRingFillPainter old) =>
+      old.color != color || old.radius != radius;
+}
+
+class _RingOnPrimaryScope extends InheritedWidget {
+  const _RingOnPrimaryScope({required this.color, required super.child});
+
+  final Color color;
+
+  @override
+  bool updateShouldNotify(_RingOnPrimaryScope old) => old.color != color;
+}
+
+/// 囲みで、塗り潰された選択中の項目の文字・アイコンを、塗りの反対色にするか。ガラスは、選択色の上でも
+/// 文字を変えない（他の一覧と同じ）。劇画は、箱が白黒に反転する（項目が選択の見た目になる）。
+bool ringNeedsOnPrimary(AppUiStyle style) =>
+    style == AppUiStyle.gekiga ||
+    style == AppUiStyle.flat ||
+    style == AppUiStyle.block ||
+    style == AppUiStyle.chalk ||
+    style == AppUiStyle.kinari;
+
+class _KinariRingFillPainter extends CustomPainter {
+  _KinariRingFillPainter(this.color, this.radius);
+
+  final Color color;
+  final double radius;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    paintKinariInset(
+      canvas,
+      RRect.fromRectAndRadius(Offset.zero & size, Radius.circular(radius)),
+      color,
+      const Offset(1.5, 2),
+      depth: 2.2,
+      light: 0.3,
+    );
+  }
+
+  @override
+  bool shouldRepaint(covariant _KinariRingFillPainter old) =>
+      old.color != color || old.radius != radius;
+}
+
+/// アクセントカラーで塗り潰された面の上の、文字・アイコンの色を、塗りの反対色（`onPrimary`）にする
+/// （2026-11-27）。`ListTile`・`Text`・`Icon`の既定の色と、`colorScheme`の`onSurface`系を差し替える。
+class RingOnPrimary extends StatelessWidget {
+  const RingOnPrimary({required this.child, this.color, super.key});
+
+  final Widget child;
+
+  /// 塗りの上の文字色。無ければ`onPrimary`。劇画は、白い箱の上なので黒。
+  final Color? color;
+
+  /// 囲みの[style]の、塗りの上の文字色（`onPrimary`でよければ`null`）。
+  static Color? colorFor(AppUiStyle style) =>
+      style == AppUiStyle.gekiga ? GekigaColors.panel : null;
+
+  /// [context]が、塗り潰された選択中の項目の中なら、その文字色。外なら`null`。文字色を固定で決めて
+  /// いる部品（寄合タブのセルなど）が、塗りの反対色にするかの判定と、その色に使う。
+  static Color? activeColor(BuildContext context) =>
+      context.getInheritedWidgetOfExactType<_RingOnPrimaryScope>()?.color;
+
+  /// [context]が、塗り潰された選択中の項目の中か。
+  static bool isActive(BuildContext context) => activeColor(context) != null;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final on = color ?? theme.colorScheme.onPrimary;
+    return _RingOnPrimaryScope(color: on, child: _themed(theme, on, child));
+  }
+
+  Widget _themed(ThemeData theme, Color on, Widget child) {
+    return Theme(
+      data: theme.copyWith(
+        colorScheme: theme.colorScheme.copyWith(
+          onSurface: on,
+          onSurfaceVariant: on,
+        ),
+        iconTheme: theme.iconTheme.copyWith(color: on),
+        listTileTheme: theme.listTileTheme.copyWith(
+          textColor: on,
+          iconColor: on,
+        ),
+      ),
+      child: DefaultTextStyle.merge(
+        style: TextStyle(color: on),
+        child: IconTheme.merge(
+          data: IconThemeData(color: on),
+          child: child,
+        ),
+      ),
+    );
+  }
 }
 
 /// 囲みの大きなブロックの中で、項目の押せる範囲を、ブロックの端いっぱいまで広げる（2026-11-26）。
@@ -465,6 +658,55 @@ class RingSlideHostState extends State<RingSlideHost>
     });
   }
 
+  /// 選択中の項目に重ねる層（枠、または背面の塗り）。[shape]が、その形を作る。選択が移る時は、
+  /// 前の位置から滑る。
+  Widget _layer(Widget Function() shape) {
+    return Positioned.fill(
+      child: IgnorePointer(
+        child: ClipRect(
+          child: Stack(
+            clipBehavior: Clip.none,
+            children: [
+              if (_ghostRect != null)
+                Positioned.fromRect(
+                  rect: _ghostRect!,
+                  child: _RingGate(
+                    // 元の位置を覚えている時だけ。覚えていない時（並べ替えで持ち上げた後など）は、
+                    // 古い位置に枠が一瞬出てしまう。
+                    isHidden: () => !_pending || _lastRect == null,
+                    child: shape(),
+                  ),
+                ),
+              AnimatedBuilder(
+                animation: _controller,
+                builder: (context, _) {
+                  final t = Curves.easeOutCubic.transform(_controller.value);
+                  final size = Size.lerp(_fromSize, _toSize, t);
+                  final animating = _controller.isAnimating;
+                  return _RingGate(
+                    isHidden: () => _pending,
+                    child: CompositedTransformFollower(
+                      link: link,
+                      showWhenUnlinked: false,
+                      offset: animating ? _displacement * (1 - t) : Offset.zero,
+                      child: animating && size != null
+                          ? SizedBox(
+                              width: size.width,
+                              height: size.height,
+                              child: shape(),
+                            )
+                          : _RingToTargetSize(shape: shape()),
+                    ),
+                  );
+                },
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return _RingSlideScope(
@@ -479,58 +721,10 @@ class RingSlideHostState extends State<RingSlideHost>
             },
             child: widget.child,
           ),
-          Positioned.fill(
-            child: IgnorePointer(
-              child: ClipRect(
-                child: Stack(
-                  clipBehavior: Clip.none,
-                  children: [
-                    if (_ghostRect != null)
-                      Positioned.fromRect(
-                        rect: _ghostRect!,
-                        child: _RingGate(
-                          // 元の位置を覚えている時だけ。覚えていない時（並べ替えで持ち上げた後など）は、
-                          // 古い位置に枠が一瞬出てしまう。
-                          isHidden: () => !_pending || _lastRect == null,
-                          child: RingOutline(
-                            style: widget.style,
-                            radius: kRingListOutlineRadius,
-                          ),
-                        ),
-                      ),
-                    AnimatedBuilder(
-                      animation: _controller,
-                      builder: (context, _) {
-                        final t = Curves.easeOutCubic.transform(
-                          _controller.value,
-                        );
-                        final size = Size.lerp(_fromSize, _toSize, t);
-                        final animating = _controller.isAnimating;
-                        return _RingGate(
-                          isHidden: () => _pending,
-                          child: CompositedTransformFollower(
-                            link: link,
-                            showWhenUnlinked: false,
-                            offset: animating
-                                ? _displacement * (1 - t)
-                                : Offset.zero,
-                            child: animating && size != null
-                                ? SizedBox(
-                                    width: size.width,
-                                    height: size.height,
-                                    child: RingOutline(
-                                      style: widget.style,
-                                      radius: kRingListOutlineRadius,
-                                    ),
-                                  )
-                                : _RingToTargetSize(style: widget.style),
-                          ),
-                        );
-                      },
-                    ),
-                  ],
-                ),
-              ),
+          _layer(
+            () => RingOutline(
+              style: widget.style,
+              radius: kRingListOutlineRadius,
             ),
           ),
         ],
@@ -541,20 +735,17 @@ class RingSlideHostState extends State<RingSlideHost>
 
 /// 選択中の項目の大きさに合わせて枠を描く（滑っていない時）。大きさは、項目側が、[RingSlideHost]へ渡す。
 class _RingToTargetSize extends StatelessWidget {
-  const _RingToTargetSize({required this.style});
+  const _RingToTargetSize({required this.shape});
 
-  final AppUiStyle style;
+  /// 選択中の項目と同じ大きさに広げる、枠（[RingOutline]）か、背面の塗り（[KinariRingFill]）。
+  final Widget shape;
 
   @override
   Widget build(BuildContext context) {
     final state = RingSlideHost.maybeOf(context);
     final size = state?._toSize ?? Size.zero;
     if (size.isEmpty) return const SizedBox.shrink();
-    return SizedBox(
-      width: size.width,
-      height: size.height,
-      child: RingOutline(style: style),
-    );
+    return SizedBox(width: size.width, height: size.height, child: shape);
   }
 }
 
@@ -628,10 +819,38 @@ class _RingSelectedMarkerState extends State<RingSelectedMarker> {
   @override
   Widget build(BuildContext context) {
     final host = _host;
+    // 選択中の項目は、背面が塗り潰される為、文字・アイコンを塗りの反対色にする（生成りも他も同じ）。
+    // 塗りは、項目自身の背面に置く。枠を滑らせる層（[CompositedTransformFollower]）は、項目より後に
+    // 描く必要があり、項目の背面には置けない為。劇画は、箱の並びが塗る。
+    final content = ringNeedsOnPrimary(widget.style)
+        ? RingOnPrimary(
+            color: RingOnPrimary.colorFor(widget.style),
+            child: widget.child,
+          )
+        : widget.child;
+    final child = Stack(
+      children: [
+        Positioned.fill(
+          child: IgnorePointer(
+            child: TweenAnimationBuilder<double>(
+              // 選ばれた項目の塗りは、すっと現す（前の項目の塗りは、すぐに消える）。
+              tween: Tween(begin: 0, end: 1),
+              duration: const Duration(milliseconds: 220),
+              builder: (context, t, fill) => Opacity(opacity: t, child: fill),
+              child: RingFill(
+                style: widget.style,
+                radius: kRingListOutlineRadius,
+              ),
+            ),
+          ),
+        ),
+        content,
+      ],
+    );
     if (host == null) {
       return Stack(
         children: [
-          widget.child,
+          child,
           Positioned.fill(
             child: IgnorePointer(
               child: RingOutline(
@@ -643,7 +862,7 @@ class _RingSelectedMarkerState extends State<RingSelectedMarker> {
         ],
       );
     }
-    return CompositedTransformTarget(link: host.link, child: widget.child);
+    return CompositedTransformTarget(link: host.link, child: child);
   }
 }
 

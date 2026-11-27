@@ -772,7 +772,8 @@ class _CategoryList extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final isGekiga = ref.watch(appUiStyleProvider) == AppUiStyle.gekiga;
+    // 劇画の個別の箱。囲みの時は、他のデザインと同じ大きな箱にまとめる（2026-11-27）。
+    final isGekiga = ref.watch(gekigaBoxedListProvider);
     // 一覧の上を縦になぞって選べる（メニューチップと同じ操作、2026-11-02）。広い画面の
     // サイドバーはなぞった先をその場で選び、狭い画面（[large]）はなぞっている間だけ
     // 強調して、指を離した項目を開く。
@@ -7048,8 +7049,8 @@ class _SelectionMotionChoice extends ConsumerWidget {
     final options = [
       (SelectionMotion.liquid, strings.settingsMotionLiquid),
       (SelectionMotion.draw, strings.settingsMotionDraw),
-      (SelectionMotion.ring, strings.settingsMotionRing),
       (SelectionMotion.slide, strings.settingsMotionSlide),
+      (SelectionMotion.ring, strings.settingsMotionRing),
       (SelectionMotion.none, strings.settingsMotionNone),
     ];
     final control = isGekiga

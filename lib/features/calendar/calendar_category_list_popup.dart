@@ -365,11 +365,14 @@ class CalendarCategoryListPopup extends ConsumerWidget {
     return SizedBox(
       width: 300,
       child: Container(
-        decoration: BoxDecoration(
-          color: background,
-          border: Border.all(color: border),
-          borderRadius: BorderRadius.circular(16),
-        ),
+        decoration: uiStyle == AppUiStyle.kinari
+            // 生成りは、へこんだ面（既読のポップアップと同じ）。
+            ? popupCardDecoration(context, brightness, uiStyle)
+            : BoxDecoration(
+                color: background,
+                border: Border.all(color: border),
+                borderRadius: BorderRadius.circular(16),
+              ),
         child: content,
       ),
     );

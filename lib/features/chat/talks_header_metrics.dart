@@ -192,14 +192,20 @@ class TalksNameChip extends ConsumerWidget {
           ),
         );
       case AppUiStyle.kinari:
-      case AppUiStyle.flat:
-        return Material(
+        // 生成り: トグル（`CategoryTab`）の非選択と同じ、紙のへこんだ面（2026-11-27）。
+        // 他のデザインは、トグルと同じ箱で描いているが、ここだけ単なる面だった。
+        return KinariInset(
           color: scheme.surface,
+          radius: 20,
+          child: Padding(padding: padding, child: text(13, scheme.onSurface)),
+        );
+      case AppUiStyle.flat:
+        // フラット: アクセントカラーで塗り潰す（2026-11-27、ユーザー指示。影は使わない）。
+        // 文字は、塗りの反対色（`onPrimary`、CLAUDE.mdの方針）。
+        return Material(
+          color: scheme.primary,
           borderRadius: BorderRadius.circular(20),
-          child: Padding(
-            padding: padding,
-            child: text(13, scheme.onSurfaceVariant),
-          ),
+          child: Padding(padding: padding, child: text(13, scheme.onPrimary)),
         );
     }
   }
