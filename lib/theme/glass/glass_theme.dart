@@ -134,8 +134,8 @@ class GlassTheme {
       chromeTintAlpha: isDark ? 0.45 : 0.55,
       floatingTintAlpha: isDark ? 0.5 : 0.6,
       cardTintAlpha: isDark ? 0.6 : 0.72,
-      edgeBorderBaseAlpha: isDark ? 0.32 : 0.28,
-      edgeBorderHighlightAlpha: isDark ? 0.75 : 0.65,
+      edgeBorderBaseAlpha: 1.0,
+      edgeBorderHighlightAlpha: 1.0,
       textTertiary: textTertiary,
     );
 

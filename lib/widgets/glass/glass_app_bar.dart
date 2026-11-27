@@ -41,8 +41,8 @@ class GlassAppBar extends ConsumerWidget implements PreferredSizeWidget {
           chromeTintAlpha: 0.55,
           floatingTintAlpha: 0.6,
           cardTintAlpha: 0.72,
-          edgeBorderBaseAlpha: 0.28,
-          edgeBorderHighlightAlpha: 0.65,
+          edgeBorderBaseAlpha: 1.0,
+          edgeBorderHighlightAlpha: 1.0,
           textTertiary: TextProminence.lightTertiary,
         );
     final colorScheme = Theme.of(context).colorScheme;
