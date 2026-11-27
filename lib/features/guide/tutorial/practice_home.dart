@@ -110,6 +110,9 @@ class _PracticeHomeState extends ConsumerState<PracticeHome> {
         conversationPrefsRepositoryProvider.overrideWithValue(
           PracticeConversationPrefsRepository(),
         ),
+        draftFileRepositoryProvider.overrideWithValue(
+          PracticeDraftFileRepository(),
+        ),
         // リポジトリを読む「アプリ全体の」プロバイダーは、入れ子の差し替えが届かず
         // 本物のリポジトリを読んでしまうため、練習用の画面の中で作り直す。
         watchedUserProvider.overrideWith(

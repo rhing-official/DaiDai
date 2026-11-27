@@ -31,6 +31,7 @@ class PickedAttachment {
     required this.bytes,
     required this.fileName,
     required this.contentType,
+    this.syncId,
   });
 
   final Uint8List bytes;
@@ -38,6 +39,17 @@ class PickedAttachment {
 
   /// file | image | video
   final String contentType;
+
+  /// 入力欄の下書きとして、他の端末へ同期済みの時の、ファイルのid（`DraftFile.id`、2026-11-27）。
+  /// 同期していない（上限を超える、同期がオフ）時は`null`。
+  final String? syncId;
+
+  PickedAttachment withSyncId(String id) => PickedAttachment(
+    bytes: bytes,
+    fileName: fileName,
+    contentType: contentType,
+    syncId: id,
+  );
 }
 
 enum _AttachmentMenuItem { file, image, video, capture, scheduleList }

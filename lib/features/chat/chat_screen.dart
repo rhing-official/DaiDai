@@ -42,6 +42,7 @@ import '../../models/app_ui_style.dart';
 import '../poll/poll_message_card.dart';
 import '../../models/chat_layout_style.dart';
 import '../../models/conversation_prefs.dart';
+import '../../models/draft_file.dart';
 import '../../models/message.dart';
 import '../../models/message_time_format.dart';
 import '../../models/note.dart';
@@ -520,6 +521,10 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   Timer? _draftSaveTimer;
   bool _suppressDraftSync = false;
 
+  /// 最後にサーバーへ書いた下書き。他端末から届いた下書きが、自分の書き込みの反響と同じ値なら、
+  /// 入力欄へ反映しない（2026-11-27）。
+  String? _lastWrittenDraft;
+
   /// 他端末の下書き変化を継続的に購読する為の手動購読（2026-08-20追加）。
   /// 以前は`initState`で一度だけ読み込むだけで、開いたまま他端末の下書きが
   /// 変わっても・後から開き直しても反映されない不具合があった為、
@@ -832,12 +837,26 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   /// （空文字列に戻した）操作が一切反映されない不具合になっていたため外した
   /// （2026-08-20修正）。
   void _applyRemoteDraft(Map<String, ConversationPrefs>? prefsMap) {
-    if (!mounted || prefsMap == null || _composerFocusNode.hasFocus) return;
-    final draft =
-        prefsMap[widget.conversationId!]?.draftByRoom[widget.roomId!] ?? '';
+    if (!mounted || prefsMap == null) return;
+    final prefs = prefsMap[widget.conversationId!];
+    final draft = prefs?.draftByRoom[widget.roomId!] ?? '';
+    _applyRemoteDraftFiles(prefs?.draftFilesByRoom[widget.roomId!] ?? const []);
     if (draft == _textController.text) return;
+    // 自分の書き込みの反響は、反映しない。
+    if (draft == _lastWrittenDraft) return;
+    // 入力の途中（保存待ち）・変換中・編集中は、自分の入力を上書きしない。
+    // 以前は、フォーカスが有る間は一切反映しなかった（2026-11-01から、コンピューターは語らいを
+    // 開くと入力欄へ自動でカーソルが合い、開いたままの端末には、他端末の下書きが届かなくなった、
+    // 2026-11-27に修正）。
+    if (_draftSaveTimer?.isActive ?? false) return;
+    if (_editingMessage != null) return;
+    final composing = _textController.value.composing;
+    if (composing.isValid && !composing.isCollapsed) return;
     _suppressDraftSync = true;
-    _textController.text = draft;
+    _textController.value = TextEditingValue(
+      text: draft,
+      selection: TextSelection.collapsed(offset: draft.length),
+    );
     _suppressDraftSync = false;
   }
 
@@ -847,15 +866,19 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     // 背景色の範囲だけが変わった通知では、何もしない。
     final current = _textController.value;
     if (current == _lastComposerValue) return;
+    final textChanged = current.text != (_lastComposerValue?.text ?? '');
     _lastComposerValue = current;
     ComposerDraftTracker.set(this, current.text.trim().isNotEmpty);
     _updateMentionSuggestions();
     _updateStickerSuggestions();
     if (_suppressDraftSync || _editingMessage != null) return;
+    // カーソルの移動だけでは、下書きを保存しない（保存待ちが立つと、他の端末の下書きを反映できない）。
+    if (!textChanged) return;
     if (!_draftSyncActive) return;
     _draftSaveTimer?.cancel();
     final text = _textController.text;
     _draftSaveTimer = Timer(const Duration(milliseconds: 600), () {
+      _lastWrittenDraft = text;
       ref
           .read(conversationPrefsRepositoryProvider)
           .setDraft(
@@ -1029,6 +1052,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   void _clearDraftNow() {
     _draftSaveTimer?.cancel();
     if (!_draftSyncActive) return;
+    _lastWrittenDraft = '';
     ref
         .read(conversationPrefsRepositoryProvider)
         .setDraft(
@@ -3205,6 +3229,171 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     ]);
   }
 
+  // --- 下書きのファイルの同期（2026-11-27） ---
+
+  /// 同期済みのファイルの、保存先などの情報（`PickedAttachment.syncId`→情報）。
+  final Map<String, DraftFile> _draftFileMeta = {};
+
+  /// 他の端末から取得中のファイルのid（二重に取得しない）。
+  final Set<String> _downloadingDraftIds = {};
+
+  /// 一覧の書き込み中の数。書き込み中は、他の端末の一覧を反映しない（自分の追加を消さない）。
+  int _publishingDraftFiles = 0;
+
+  /// 最後に届いた、他の端末も含む、サーバー上の一覧。
+  List<DraftFile> _latestRemoteDraftFiles = const [];
+
+  bool get _fileSyncActive =>
+      _draftSyncActive && widget.onSendAttachment != null;
+
+  String _newDraftFileId() {
+    final r = math.Random.secure();
+    return '${DateTime.now().microsecondsSinceEpoch.toRadixString(36)}'
+        '${r.nextInt(1 << 32).toRadixString(36)}';
+  }
+
+  /// [added]のうち、上限以下のものをサーバーへ一時保存し、一覧へ載せる。
+  Future<void> _uploadDraftFiles(List<PickedAttachment> added) async {
+    if (!_fileSyncActive) return;
+    final repo = ref.read(draftFileRepositoryProvider);
+    final userId = widget.currentUserId;
+    final conversationId = widget.conversationId!;
+    final roomId = widget.roomId!;
+    var changed = false;
+    for (final a in added) {
+      if (a.syncId != null || a.bytes.length > kMaxDraftFileSyncBytes) continue;
+      final id = _newDraftFileId();
+      try {
+        final path = await repo.upload(
+          userId: userId,
+          conversationId: conversationId,
+          roomId: roomId,
+          fileId: id,
+          bytes: a.bytes,
+          contentType: _draftMimeType(a),
+        );
+        final index = _pendingAttachments.indexWhere((p) => identical(p, a));
+        // 上げている間に、外された・画面が閉じられた時は、保存したファイルを消す。
+        if (!mounted || index < 0) {
+          await repo.delete(path);
+          continue;
+        }
+        _draftFileMeta[id] = DraftFile(
+          id: id,
+          name: a.fileName,
+          contentType: a.contentType,
+          path: path,
+          size: a.bytes.length,
+        );
+        setState(() => _pendingAttachments[index] = a.withSyncId(id));
+        changed = true;
+      } catch (_) {
+        // 同期できなかったファイルは、この端末の入力欄にだけ残る。
+      }
+    }
+    if (changed && mounted) await _publishDraftFiles();
+  }
+
+  String _draftMimeType(PickedAttachment a) => switch (a.contentType) {
+    'image' => 'image/webp',
+    'video' => 'video/mp4',
+    _ => 'application/octet-stream',
+  };
+
+  /// 今の入力欄の、同期済みのファイルの一覧を、サーバーへ書く。
+  Future<void> _publishDraftFiles() async {
+    if (!_fileSyncActive) return;
+    final files = [
+      for (final a in _pendingAttachments)
+        if (a.syncId != null && _draftFileMeta[a.syncId] != null)
+          _draftFileMeta[a.syncId]!,
+    ];
+    _publishingDraftFiles++;
+    try {
+      await ref
+          .read(conversationPrefsRepositoryProvider)
+          .setDraftFiles(
+            userId: widget.currentUserId,
+            conversationId: widget.conversationId!,
+            roomId: widget.roomId!,
+            files: files,
+          )
+          .timeout(const Duration(seconds: 5));
+    } catch (_) {
+      // 通信できない間は、次の機会に任せる。
+    } finally {
+      _publishingDraftFiles--;
+    }
+    if (mounted && _publishingDraftFiles == 0) {
+      _applyRemoteDraftFiles(_latestRemoteDraftFiles);
+    }
+  }
+
+  /// 外した・送った[attachments]のうち、同期済みのものを、一覧とサーバーから消す。
+  Future<void> _releaseDraftFiles(List<PickedAttachment> attachments) async {
+    final released = <DraftFile>[];
+    for (final a in attachments) {
+      final id = a.syncId;
+      if (id == null) continue;
+      final meta = _draftFileMeta.remove(id);
+      if (meta != null) released.add(meta);
+    }
+    if (released.isEmpty) return;
+    if (_fileSyncActive) await _publishDraftFiles();
+    final repo = ref.read(draftFileRepositoryProvider);
+    for (final f in released) {
+      await repo.delete(f.path);
+    }
+  }
+
+  /// 他の端末の一覧を、入力欄のトレイへ反映する。トレイに無いものは取得して足し、一覧から
+  /// 外れた（他の端末で送った・外した）同期済みのものは、トレイから外す。
+  void _applyRemoteDraftFiles(List<DraftFile> remote) {
+    _latestRemoteDraftFiles = remote;
+    if (!mounted || !_fileSyncActive || _publishingDraftFiles > 0) return;
+    final remoteIds = {for (final f in remote) f.id};
+    final gone = _pendingAttachments
+        .where((a) => a.syncId != null && !remoteIds.contains(a.syncId))
+        .toList();
+    if (gone.isNotEmpty) {
+      for (final a in gone) {
+        _draftFileMeta.remove(a.syncId);
+      }
+      setState(() => _pendingAttachments.removeWhere(gone.contains));
+    }
+    for (final f in remote) {
+      final have = _pendingAttachments.any((a) => a.syncId == f.id);
+      if (have || !_downloadingDraftIds.add(f.id)) continue;
+      unawaited(_downloadDraftFile(f));
+    }
+  }
+
+  Future<void> _downloadDraftFile(DraftFile f) async {
+    try {
+      final bytes = await ref
+          .read(draftFileRepositoryProvider)
+          .download(f.path, kMaxDraftFileSyncBytes);
+      if (bytes == null || !mounted) return;
+      // 取得している間に、一覧から外れた・トレイが一杯になった時は、足さない。
+      if (!_latestRemoteDraftFiles.any((r) => r.id == f.id)) return;
+      if (_pendingAttachments.length >= kMaxMultiAttachments) return;
+      if (_pendingAttachments.any((a) => a.syncId == f.id)) return;
+      _draftFileMeta[f.id] = f;
+      setState(
+        () => _pendingAttachments.add(
+          PickedAttachment(
+            bytes: bytes,
+            fileName: f.name,
+            contentType: f.contentType,
+            syncId: f.id,
+          ),
+        ),
+      );
+    } finally {
+      _downloadingDraftIds.remove(f.id);
+    }
+  }
+
   /// ＋ボタンで選んだ添付の受け口。画像・動画・ファイルはどれも送信前のトレイへ入れ、
   /// 文字（あれば）と一緒に1つのメッセージとして送る（ファイルも複数まとめて送れる、2026-11-10。
   /// 以前は、ファイルだけ選んだ直後に1件ずつ送っていた）。
@@ -3212,7 +3401,10 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     if (picked.isEmpty) return;
     final staged = picked;
     final room = kMaxMultiAttachments - _pendingAttachments.length;
-    setState(() => _pendingAttachments.addAll(staged.take(room)));
+    final added = staged.take(room).toList();
+    setState(() => _pendingAttachments.addAll(added));
+    // 他の端末の入力欄へ同期する（上限を超えるものは、この端末だけに残す）。
+    unawaited(_uploadDraftFiles(added));
     _refocusComposerForTray();
     if (staged.length > room) {
       _bannerTimer = showAutoDismissBanner(
@@ -3235,6 +3427,8 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     if (_pendingAttachments.isEmpty) return;
     final toSend = List<PickedAttachment>.of(_pendingAttachments);
     setState(_pendingAttachments.clear);
+    // 送ったので、他の端末の入力欄からも、サーバーの一時保存からも消す。
+    unawaited(_releaseDraftFiles(toSend));
     await _handleAttachmentsPicked(
       toSend,
       caption: caption,
@@ -3272,7 +3466,9 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
       isGekiga: isGekiga,
       isGlass: isGlass,
       onRemove: (index) {
+        final removed = _pendingAttachments[index];
         setState(() => _pendingAttachments.removeAt(index));
+        unawaited(_releaseDraftFiles([removed]));
         _refocusComposerForTray();
       },
       onViewerClosed: _refocusComposerForTray,

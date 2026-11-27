@@ -1,5 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 
+import 'draft_file.dart';
+
 /// 一対・広場に対する個人的な表示設定（`users/{userId}/conversationPrefs/{conversationId}`）。
 /// conversationIdはdmId又はgroupId。相手には一切公開されない。
 class ConversationPrefs {
@@ -8,6 +10,7 @@ class ConversationPrefs {
     this.notificationsMuted = false,
     this.roomNotificationOverrides = const {},
     this.draftByRoom = const {},
+    this.draftFilesByRoom = const {},
     this.lastReadAt,
     this.unreadCount = 0,
     this.unreadByRoom = const {},
@@ -47,6 +50,10 @@ class ConversationPrefs {
   /// 時に読み込み・デバウンス保存する（2026-08-13追加）。
   final Map<String, String> draftByRoom;
 
+  /// 寄合毎の、入力欄の下書きに添えたファイル（roomId→ファイルの並び、2026-11-27追加）。
+  /// 下書きの同期がオンの間、他の端末の入力欄（送信前のトレイ）へ同期する。
+  final Map<String, List<DraftFile>> draftFilesByRoom;
+
   /// この語らいのカレンダーに使う暦（`CalendarSystem.name`、2026-11-05追加）。
   /// nullなら全体の暦に従う。自分の表示にだけ効き、相手や予定のデータには影響しない。
   final String? calendarSystem;
@@ -67,6 +74,7 @@ class ConversationPrefs {
     bool? notificationsMuted,
     Map<String, bool>? roomNotificationOverrides,
     Map<String, String>? draftByRoom,
+    Map<String, List<DraftFile>>? draftFilesByRoom,
     Timestamp? lastReadAt,
     int? unreadCount,
     Map<String, int>? unreadByRoom,
@@ -80,6 +88,7 @@ class ConversationPrefs {
       roomNotificationOverrides:
           roomNotificationOverrides ?? this.roomNotificationOverrides,
       draftByRoom: draftByRoom ?? this.draftByRoom,
+      draftFilesByRoom: draftFilesByRoom ?? this.draftFilesByRoom,
       lastReadAt: lastReadAt ?? this.lastReadAt,
       unreadCount: unreadCount ?? this.unreadCount,
       unreadByRoom: unreadByRoom ?? this.unreadByRoom,
@@ -100,6 +109,12 @@ class ConversationPrefs {
       draftByRoom: (json['draftByRoom'] as Map? ?? const {}).map(
         (key, value) => MapEntry(key as String, value as String),
       ),
+      draftFilesByRoom: (json['draftFilesByRoom'] as Map? ?? const {}).map(
+        (key, value) => MapEntry(key as String, [
+          for (final f in (value as List? ?? const []))
+            if (f is Map) DraftFile.fromJson(f.cast<String, dynamic>()),
+        ]),
+      ),
       lastReadAt: json['lastReadAt'] as Timestamp?,
       unreadCount: json['unreadCount'] as int? ?? 0,
       unreadByRoom: (json['unreadByRoom'] as Map? ?? const {}).map(
@@ -118,6 +133,10 @@ class ConversationPrefs {
       'notificationsMuted': notificationsMuted,
       'roomNotificationOverrides': roomNotificationOverrides,
       'draftByRoom': draftByRoom,
+      'draftFilesByRoom': {
+        for (final e in draftFilesByRoom.entries)
+          e.key: [for (final f in e.value) f.toJson()],
+      },
       'lastReadAt': lastReadAt,
       'unreadCount': unreadCount,
       'unreadByRoom': unreadByRoom,

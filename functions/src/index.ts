@@ -51,6 +51,7 @@ import {
   type AccountDeletionStore,
   deleteThemePackData,
 } from "./themePackAccountDeletion";
+import { cleanupExpiredDraftFiles, type DraftFileStore } from "./draftFileCleanup";
 import {
   type OrphanCleanupStore,
   cleanupOrphanSubmissionAssets,
@@ -2225,6 +2226,32 @@ export const cleanupOrphanThemePackAssets = onSchedule(
     const { deleted, failed } = await cleanupOrphanSubmissionAssets(themePackOrphanStore, Date.now());
     logger.info(`提出されなかった意匠の素材を掃除: 削除${deleted.length}件、失敗${failed.length}件`);
     if (failed.length > 0) logger.warn("掃除に失敗した素材", failed);
+  },
+);
+
+/**
+ * 入力欄の下書きに添えたファイル（`draftFiles/`、2026-11-27）を、7日を過ぎたものから消す。
+ * 送信・取り外しで消えずに残ったものの掃除。判断は`draftFileCleanup.ts`、ここはStorageの一覧と削除だけ。
+ */
+const draftFileStore: DraftFileStore = {
+  async list() {
+    const [files] = await getStorage().bucket().getFiles({ prefix: "draftFiles/" });
+    return files.map((f) => ({
+      name: f.name,
+      createdMillis: Date.parse(String(f.metadata.timeCreated ?? "")),
+    }));
+  },
+  async delete(name) {
+    await getStorage().bucket().file(name).delete({ ignoreNotFound: true });
+  },
+};
+
+export const cleanupExpiredDraftFilesDaily = onSchedule(
+  { schedule: "30 4 * * *", timeZone: "Asia/Tokyo", region: "asia-northeast1", timeoutSeconds: 540 },
+  async () => {
+    const { deleted, failed } = await cleanupExpiredDraftFiles(draftFileStore, Date.now());
+    logger.info(`期限を過ぎた下書きのファイルを掃除: 削除${deleted.length}件、失敗${failed.length}件`);
+    if (failed.length > 0) logger.warn("掃除に失敗した下書きのファイル", failed);
   },
 );
 

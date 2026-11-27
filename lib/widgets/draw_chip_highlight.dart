@@ -36,14 +36,25 @@ class _DrawChipHighlightState extends ConsumerState<DrawChipHighlight>
   static const _drawDuration = Duration(milliseconds: 450);
 
   final Map<int, AnimationController> _controllers = {};
+
+  /// 塗りの進み具合が変わった時に、チップのアイコン（[ChipIconReveal]）を描き直す通知元。
+  final _RevealPing _ping = _RevealPing();
   final ValueNotifier<List<Rect?>> _rects = ValueNotifier(const []);
   int? _selected;
 
   AnimationController _controllerFor(int i, {double initial = 0}) =>
       _controllers.putIfAbsent(
         i,
-        () => AnimationController(vsync: this, value: initial),
+        () =>
+            AnimationController(vsync: this, value: initial)
+              ..addListener(_ping.ping),
       );
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    LiquidChipScope.hubOf(context)?.draw = DrawChipReveal(_controllers, _ping);
+  }
 
   @override
   void initState() {
@@ -81,6 +92,7 @@ class _DrawChipHighlightState extends ConsumerState<DrawChipHighlight>
       c.dispose();
     }
     _rects.dispose();
+    _ping.dispose();
     super.dispose();
   }
 
@@ -290,4 +302,8 @@ class _DrawPainter extends CustomPainter {
       old.chalk != chalk ||
       old.kinari != kinari ||
       old.entries != entries;
+}
+
+class _RevealPing extends ChangeNotifier {
+  void ping() => notifyListeners();
 }

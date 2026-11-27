@@ -1,6 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 
 import '../models/conversation_prefs.dart';
+import '../models/draft_file.dart';
 
 /// 一対・広場のピン留め・通知オフといった、個人的な表示設定を扱うリポジトリ。
 abstract class ConversationPrefsRepository {
@@ -83,6 +84,15 @@ abstract class ConversationPrefsRepository {
     required String conversationId,
     required String roomId,
     required String draft,
+  });
+
+  /// 寄合毎の、入力欄の下書きに添えたファイルの一覧を保存する（複数端末同期、2026-11-27）。
+  /// [files]が空なら、そのキー自体を削除する。
+  Future<void> setDraftFiles({
+    required String userId,
+    required String conversationId,
+    required String roomId,
+    required List<DraftFile> files,
   });
 }
 
@@ -238,6 +248,23 @@ class FirestoreConversationPrefsRepository
     // 更新する。
     await _prefsOf(userId).doc(conversationId).set({
       'draftByRoom': {roomId: draft.isEmpty ? FieldValue.delete() : draft},
+    }, SetOptions(merge: true));
+  }
+
+  @override
+  Future<void> setDraftFiles({
+    required String userId,
+    required String conversationId,
+    required String roomId,
+    required List<DraftFile> files,
+  }) async {
+    // `setDraft`と同じく、ネストしたマップ＋`merge: true`で、該当の寄合だけを更新する。
+    await _prefsOf(userId).doc(conversationId).set({
+      'draftFilesByRoom': {
+        roomId: files.isEmpty
+            ? FieldValue.delete()
+            : [for (final f in files) f.toJson()],
+      },
     }, SetOptions(merge: true));
   }
 }

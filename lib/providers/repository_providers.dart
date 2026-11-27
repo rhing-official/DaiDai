@@ -13,6 +13,7 @@ import '../repositories/residence_repository.dart';
 import '../repositories/calendar_category_repository.dart';
 import '../repositories/calendar_event_repository.dart';
 import '../repositories/call_repository.dart';
+import '../repositories/draft_file_repository.dart';
 import '../repositories/conversation_prefs_repository.dart';
 import '../repositories/direct_message_repository.dart';
 import '../repositories/friend_repository.dart';
@@ -95,6 +96,10 @@ final conversationPrefsRepositoryProvider =
     Provider<ConversationPrefsRepository>((ref) {
       return FirestoreConversationPrefsRepository();
     });
+
+final draftFileRepositoryProvider = Provider<DraftFileRepository>((ref) {
+  return FirebaseDraftFileRepository();
+});
 
 final blockRepositoryProvider = Provider<BlockRepository>((ref) {
   return FirestoreBlockRepository();

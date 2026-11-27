@@ -64,6 +64,12 @@ class _SlideChipHighlightState extends ConsumerState<SlideChipHighlight>
   }
 
   @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    LiquidChipScope.hubOf(context)?.slide = SlideChipReveal(_rects, _pos);
+  }
+
+  @override
   void didUpdateWidget(covariant SlideChipHighlight old) {
     super.didUpdateWidget(old);
     if (old.externalPosition != widget.externalPosition) {

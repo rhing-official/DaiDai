@@ -270,6 +270,11 @@ object CallNotifications {
             "incoming urgentFlag=${data["urgent"]} policyAccess=${hasPolicyAccess(context)} dnd=${isDndActive(context)}",
         )
         val soundId = ringSoundId(context)
+        // 診断用（2026-11-27）。保存された着信音の値と、実際に選んだ音を、実機のログで確かめる。
+        android.util.Log.d(
+            "DaiDaiCall",
+            "ring sound saved=${context.getSharedPreferences("FlutterSharedPreferences", Context.MODE_PRIVATE).getString("flutter.ringtoneSound", null)} chosen=$soundId ringEnabled=${ringtoneEnabled(context)}",
+        )
         ensureChannel(context, soundId)
         if (urgent) ensureUrgentChannels(context, soundId)
 

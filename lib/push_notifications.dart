@@ -358,12 +358,18 @@ Future<AndroidNotificationChannel> _resolveAndroidChannel() async {
   // 背景のisolateは古い設定を持ち続けることがあるため、読む前に取り直す（2026-11-13）。
   await prefs.reload();
   final selected = prefs.getString('notificationSound');
+  // 診断用（2026-11-27）。選ばれた通知音と、実際に使うチャンネルを、実機のログで確かめる。
+  debugPrint(
+    '[SOUND] notification selected=$selected '
+    'readyUrl=${prefs.getString('notificationSoundCustomChannelReadyUrl')}',
+  );
   if (selected == null) return standard;
   if (selected.startsWith('http')) {
     final readyUrl = prefs.getString('notificationSoundCustomChannelReadyUrl');
     // 音ファイルが消えている時は、音なしのチャンネルを自動作成させず標準プリセットで鳴らす。
     if (readyUrl == selected &&
         await (await customNotificationSoundFile(selected)).exists()) {
+      debugPrint('[SOUND] notification channel=custom');
       return AndroidNotificationChannel(
         androidCustomNotificationChannelIdFor(selected),
         'メッセージ（カスタム音）',
@@ -371,9 +377,12 @@ Future<AndroidNotificationChannel> _resolveAndroidChannel() async {
         importance: Importance.high,
       );
     }
+    debugPrint('[SOUND] notification channel=standard (custom not ready)');
     return standard;
   }
-  return _notificationChannels[selected] ?? standard;
+  final resolved = _notificationChannels[selected] ?? standard;
+  debugPrint('[SOUND] notification channel=${resolved.id}');
+  return resolved;
 }
 
 Future<Uint8List?> _downloadBytes(String? url) async {

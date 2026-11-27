@@ -29,6 +29,7 @@ import '../../../models/scheduled_message.dart';
 import '../../../repositories/poll_repository.dart';
 import '../../../repositories/schedule_coordination_repository.dart';
 import '../../../repositories/conversation_prefs_repository.dart';
+import '../../../repositories/draft_file_repository.dart';
 import '../../../repositories/direct_message_repository.dart';
 import '../../../repositories/friend_repository.dart';
 import '../../../repositories/group_repository.dart';
@@ -350,6 +351,12 @@ class PracticeConversationPrefsRepository
   Stream<Map<String, ConversationPrefs>> watchAll(String userId) =>
       Stream.value(const <String, ConversationPrefs>{});
 
+  @override
+  dynamic noSuchMethod(Invocation invocation) => _lenient(invocation);
+}
+
+/// 練習用の`DraftFileRepository`。何も保存しない。
+class PracticeDraftFileRepository implements DraftFileRepository {
   @override
   dynamic noSuchMethod(Invocation invocation) => _lenient(invocation);
 }

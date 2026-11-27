@@ -17,6 +17,7 @@ import 'draw_chip_highlight.dart';
 import 'gekiga/monochrome_box.dart';
 import 'liquid_paint.dart';
 import 'liquid_sim.dart';
+import 'scribble_paint.dart';
 import 'slide_chip_highlight.dart';
 import 'water_columns.dart';
 
@@ -436,6 +437,8 @@ class LiquidChipStrip extends StatefulWidget {
 
 class _LiquidChipStripState extends State<LiquidChipStrip> {
   final LiquidSim _sim = LiquidSim();
+  late final ChipRevealHub _hub = ChipRevealHub()
+    ..water = WaterChipReveal(_sim);
 
   @override
   void dispose() {
@@ -448,6 +451,7 @@ class _LiquidChipStripState extends State<LiquidChipStrip> {
     final chalk = isChalkTheme(context);
     return LiquidChipScope(
       sim: _sim,
+      hub: _hub,
       chipKeys: [for (final e in widget.entries) e.chipKey],
       child: Stack(
         clipBehavior: Clip.none,
@@ -498,11 +502,25 @@ class LiquidChipScope extends InheritedWidget {
     required this.sim,
     required this.chipKeys,
     required super.child,
+    this.hub,
     super.key,
   });
 
   final LiquidSim sim;
   final List<GlobalKey> chipKeys;
+
+  /// 塗りの層（水・ペン・滑る塗り）が、塗りの範囲を、チップへ知らせる先。
+  final ChipRevealHub? hub;
+
+  /// 塗りの層が、自分の範囲を登録する先（無ければ`null`）。
+  static ChipRevealHub? hubOf(BuildContext context) =>
+      context.getInheritedWidgetOfExactType<LiquidChipScope>()?.hub;
+
+  /// [key]のチップの、いまの選択の動きでの塗りの範囲（無ければ`null`）。
+  static ChipReveal? revealOf(BuildContext context, SelectionMotion motion) {
+    final scope = context.dependOnInheritedWidgetOfExactType<LiquidChipScope>();
+    return scope?.hub?.of(motion);
+  }
 
   /// [key]のチップの水の計算と番号（無ければ`null`）。
   static (LiquidSim, int)? of(BuildContext context, Key? key) {
@@ -549,4 +567,254 @@ class LiquidGlassFillPainter extends CustomPainter {
   @override
   bool shouldRepaint(covariant LiquidGlassFillPainter old) =>
       old.sim != sim || old.index != index || old.color != color;
+}
+
+/// メニューチップの塗りが、いま、そのチップのどこまで来ているか（2026-11-27）。設定の項目の
+/// `TileReveal`と同じ考えで、チップは、アイコンを「選ばれていない色」と「選ばれた色」の2つで描き、
+/// 選ばれた色のほうを、塗りの範囲だけに切り抜く。選んだ瞬間に色を変えると、塗りが届く前に、
+/// アクセント上の色（白など）が背景の上に出てしまう。
+abstract class ChipReveal {
+  /// 塗りが動くたびに描き直す為の通知元。
+  Listenable get listenable;
+
+  /// [index]番目のチップ（大きさ[size]）の、塗りの範囲だけに、[paintSelected]を描く。
+  /// [selected]は、そのチップが選ばれているか（動きの情報が無い時の既定）。
+  void paintRevealed(
+    Canvas canvas,
+    int index,
+    Size size,
+    bool selected,
+    VoidCallback paintSelected,
+  );
+}
+
+/// 塗りの層（液体・描き・滑り）が、自分の[ChipReveal]を登録する先。帯（[LiquidChipStrip]）が持つ。
+class ChipRevealHub {
+  ChipReveal? water;
+  ChipReveal? draw;
+  ChipReveal? slide;
+
+  ChipReveal? of(SelectionMotion motion) => switch (motion) {
+    SelectionMotion.liquid => water,
+    SelectionMotion.draw => draw,
+    SelectionMotion.slide => slide,
+    _ => null,
+  };
+}
+
+/// 液体: 水の領域だけ、選ばれた色にする。
+class WaterChipReveal implements ChipReveal {
+  WaterChipReveal(this.sim);
+
+  final LiquidSim sim;
+
+  @override
+  Listenable get listenable => sim;
+
+  @override
+  void paintRevealed(
+    Canvas canvas,
+    int index,
+    Size size,
+    bool selected,
+    VoidCallback paintSelected,
+  ) {
+    final tank = sim.tanks[index];
+    if (tank == null) {
+      // まだ水槽が無い。最初から選ばれているチップだけ、選ばれた色にする。
+      if (selected && sim.tanks.isEmpty) paintSelected();
+      return;
+    }
+    if (tank.isEmpty) return;
+    if (tank.isFull) {
+      paintSelected();
+      return;
+    }
+    canvas
+      ..save()
+      ..clipPath(sim.waterRegion(index, size));
+    paintSelected();
+    canvas.restore();
+  }
+}
+
+/// 滑り: 塗り1枚が重なる範囲だけ、選ばれた色にする。
+class SlideChipReveal implements ChipReveal {
+  SlideChipReveal(this.rects, this.position)
+    : listenable = Listenable.merge([rects, position]);
+
+  final ValueNotifier<List<Rect?>> rects;
+  final ValueNotifier<double?> position;
+
+  @override
+  final Listenable listenable;
+
+  @override
+  void paintRevealed(
+    Canvas canvas,
+    int index,
+    Size size,
+    bool selected,
+    VoidCallback paintSelected,
+  ) {
+    final list = rects.value;
+    final p = position.value;
+    final chip = index < list.length ? list[index] : null;
+    if (p == null || chip == null) {
+      if (selected) paintSelected();
+      return;
+    }
+    final lo = p.floor().clamp(0, list.length - 1);
+    final hi = p.ceil().clamp(0, list.length - 1);
+    final a = list[lo];
+    final b = list[hi];
+    final slab = a == null || b == null
+        ? (a ?? b)
+        : Rect.lerp(a, b, p - p.floor());
+    if (slab == null) return;
+    final local = slab.shift(-chip.topLeft);
+    if ((slab.left - chip.left).abs() < 0.5 &&
+        (slab.top - chip.top).abs() < 0.5 &&
+        (slab.width - chip.width).abs() < 0.5) {
+      paintSelected();
+      return;
+    }
+    if (!local.overlaps(Offset.zero & size)) return;
+    canvas
+      ..save()
+      ..clipPath(Path()..addOval(local));
+    paintSelected();
+    canvas.restore();
+  }
+}
+
+/// 描き: ペンで塗った所だけ、選ばれた色にする。
+class DrawChipReveal implements ChipReveal {
+  DrawChipReveal(this.controllers, this.listenable);
+
+  final Map<int, AnimationController> controllers;
+
+  @override
+  final Listenable listenable;
+
+  @override
+  void paintRevealed(
+    Canvas canvas,
+    int index,
+    Size size,
+    bool selected,
+    VoidCallback paintSelected,
+  ) {
+    final p = controllers[index]?.value ?? (selected ? 1.0 : 0.0);
+    if (p <= 0) return;
+    if (p >= 1) {
+      paintSelected();
+      return;
+    }
+    final rect = Offset.zero & size;
+    canvas.saveLayer(rect.inflate(2), Paint());
+    paintSelected();
+    canvas.saveLayer(rect.inflate(2), Paint()..blendMode = BlendMode.dstIn);
+    ScribblePen.paint(canvas, rect, Colors.black, p);
+    canvas.restore();
+    canvas.restore();
+  }
+}
+
+/// チップのアイコン。[plain]の色で描き、[revealed]の色を、塗りの範囲だけに重ねる。
+/// 塗りの層がチップの下にあるデザイン（チョーク）で使う。塗りが届く前に、アクセント上の色が
+/// 背景の上へ出ない（設定の項目と同じ作り）。
+class ChipIconReveal extends StatelessWidget {
+  const ChipIconReveal({
+    required this.icon,
+    required this.size,
+    required this.plain,
+    required this.revealed,
+    required this.index,
+    required this.reveal,
+    required this.selected,
+    super.key,
+  });
+
+  final IconData icon;
+  final double size;
+  final Color plain;
+  final Color revealed;
+  final int index;
+  final ChipReveal reveal;
+  final bool selected;
+
+  @override
+  Widget build(BuildContext context) => CustomPaint(
+    painter: _ChipIconPainter(
+      icon: icon,
+      iconSize: size,
+      plain: plain,
+      revealed: revealed,
+      index: index,
+      reveal: reveal,
+      selected: selected,
+    ),
+  );
+}
+
+class _ChipIconPainter extends CustomPainter {
+  _ChipIconPainter({
+    required this.icon,
+    required this.iconSize,
+    required this.plain,
+    required this.revealed,
+    required this.index,
+    required this.reveal,
+    required this.selected,
+  }) : super(repaint: reveal.listenable);
+
+  final IconData icon;
+  final double iconSize;
+  final Color plain;
+  final Color revealed;
+  final int index;
+  final ChipReveal reveal;
+  final bool selected;
+
+  void _glyph(Canvas canvas, Size size, Color color) {
+    final painter = TextPainter(
+      text: TextSpan(
+        text: String.fromCharCode(icon.codePoint),
+        style: TextStyle(
+          fontFamily: icon.fontFamily,
+          package: icon.fontPackage,
+          fontSize: iconSize,
+          color: color,
+        ),
+      ),
+      textDirection: TextDirection.ltr,
+    )..layout();
+    painter.paint(
+      canvas,
+      size.center(Offset.zero) - Offset(painter.width / 2, painter.height / 2),
+    );
+  }
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    _glyph(canvas, size, plain);
+    reveal.paintRevealed(
+      canvas,
+      index,
+      size,
+      selected,
+      () => _glyph(canvas, size, revealed),
+    );
+  }
+
+  @override
+  bool shouldRepaint(covariant _ChipIconPainter old) =>
+      old.icon != icon ||
+      old.iconSize != iconSize ||
+      old.plain != plain ||
+      old.revealed != revealed ||
+      old.index != index ||
+      old.reveal != reveal ||
+      old.selected != selected;
 }

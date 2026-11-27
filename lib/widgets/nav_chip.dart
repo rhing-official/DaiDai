@@ -129,10 +129,17 @@ class NavChip extends ConsumerWidget {
     // 下のぼかしや重ね方で色が変わり、水で塗った時と「なし」の時で、色が違って見えた。
     final glassSelectedFill = glassSelectedChipFill(context);
     final background = sel ? colorScheme.primary : colorScheme.surface;
-    // 選択中のアイコンは、塗りを層に任せる時（`liquid`）も、塗りの上の色（`onPrimary`）にする。
-    final foreground = selected
+    // 塗りを層に任せる時（`liquid`）、アイコンの選ばれた色（`onPrimary`）は、層が塗りの範囲だけに
+    // 描く。ここで選んだ瞬間に変えると、塗りが届く前に、背景の上へ白などが出る（2026-11-27）。
+    final foreground = sel
         ? colorScheme.onPrimary
         : colorScheme.onSurfaceVariant;
+    // チョークは、塗りがチップの下の層にあり、アイコンはチップ自身が描く。塗りの範囲だけを
+    // 選ばれた色にする（設定の項目と同じ、2つの色の重ね）。
+    final chalkReveal = isChalk && liquid && ref.watch(navFillOverlayProvider)
+        ? LiquidChipScope.revealOf(context, ref.watch(selectionMotionProvider))
+        : null;
+    final chalkIndex = LiquidChipScope.of(context, key)?.$2;
 
     // popped中は帯から浮き出させ、指を離す（popped=falseに戻る）と
     // AnimatedSlideが規定位置までスライドして戻す。
@@ -219,14 +226,23 @@ class NavChip extends ConsumerWidget {
                 child: SizedBox(
                   width: kNavChipSize,
                   height: kNavChipSize,
-                  child: Icon(
-                    icon,
-                    size: iconSize,
-                    // 塗りを層に任せる時も、選択中は塗りの上の色。設定の項目と同じ。
-                    color: selected
-                        ? colorScheme.onPrimary
-                        : colorScheme.onSurface,
-                  ),
+                  child: chalkReveal != null && chalkIndex != null
+                      ? ChipIconReveal(
+                          icon: icon,
+                          size: iconSize,
+                          plain: colorScheme.onSurface,
+                          revealed: colorScheme.onPrimary,
+                          index: chalkIndex,
+                          reveal: chalkReveal,
+                          selected: selected,
+                        )
+                      : Icon(
+                          icon,
+                          size: iconSize,
+                          color: sel
+                              ? colorScheme.onPrimary
+                              : colorScheme.onSurface,
+                        ),
                 ),
               ),
             ),
