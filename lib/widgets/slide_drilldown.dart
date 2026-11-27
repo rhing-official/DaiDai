@@ -108,7 +108,7 @@ class _SlideInDetailState extends State<_SlideInDetail>
         // 背景色/インク効果を隠してしまう（Flutterのアサーションで検出済み）
         // ため、それ自体がMaterial祖先になる`Material`を使う。
         child: Material(
-          color: Theme.of(context).scaffoldBackgroundColor,
+          color: _opaqueBackdrop(Theme.of(context)),
           child: widget.child,
         ),
       ),
@@ -215,10 +215,18 @@ class _StackLayerState extends State<_StackLayer>
         // 直下の階層へのヒットテスト透過・見た目上の欠けを防ぐため、不透明な
         // `Material`で裏打ちする（[_SlideInDetail]と同じ）。
         child: Material(
-          color: Theme.of(context).scaffoldBackgroundColor,
+          color: _opaqueBackdrop(Theme.of(context)),
           child: layer.child,
         ),
       ),
     );
   }
+}
+
+/// 詳細画面の裏打ちの色。チョークや背景画像の意匠は、画面の塗りを透明にして後ろの層を
+/// 見せる為、そのまま使うと一覧が透けて見える。透明な時だけ、面の色（`colorScheme.surface`）で
+/// 不透明に塗る（他のデザインは従来どおり画面の塗り）。
+Color _opaqueBackdrop(ThemeData theme) {
+  final color = theme.scaffoldBackgroundColor;
+  return color.a < 1 ? theme.colorScheme.surface : color;
 }
