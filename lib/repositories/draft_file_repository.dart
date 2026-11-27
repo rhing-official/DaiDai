@@ -1,6 +1,7 @@
 import 'dart:typed_data';
 
 import 'package:firebase_storage/firebase_storage.dart';
+import 'package:flutter/foundation.dart' show debugPrint;
 
 /// 入力欄の下書きに添えたファイルを、他の端末へ同期する為の保存先（2026-11-27）。
 /// 保存先は、サーバーの実装を差し替えられるよう、パスで受け渡す。
@@ -48,7 +49,8 @@ class FirebaseDraftFileRepository implements DraftFileRepository {
   Future<Uint8List?> download(String path, int maxBytes) async {
     try {
       return await _storage.ref(path).getData(maxBytes);
-    } catch (_) {
+    } catch (e) {
+      debugPrint('[DRAFT-FILE] download failed: $path $e');
       return null;
     }
   }

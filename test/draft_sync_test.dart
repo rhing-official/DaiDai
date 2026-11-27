@@ -178,6 +178,29 @@ void main() {
     expect(find.text('abcd'), findsOneWidget);
   });
 
+  testWidgets('変換中の表示が残っていても、入力が止まっていれば、他の端末の削除が届く', (tester) async {
+    final prefs = await _pump(tester);
+    prefs.controller.add(_prefs(draft: 'abc'));
+    await tester.pump();
+    await tester.pump();
+    expect(find.text('abc'), findsOneWidget);
+    // AndroidのIMEが、反映の直後に、語を変換中として示す。
+    await tester.showKeyboard(find.byType(TextField));
+    tester.testTextInput.updateEditingValue(
+      const TextEditingValue(
+        text: 'abc',
+        selection: TextSelection.collapsed(offset: 3),
+        composing: TextRange(start: 0, end: 3),
+      ),
+    );
+    await tester.pump();
+    await tester.pump(const Duration(seconds: 4));
+    prefs.controller.add(_prefs());
+    await tester.pump();
+    await tester.pump();
+    expect(find.text('abc'), findsNothing);
+  });
+
   testWidgets('他の端末の下書きのファイルが、トレイへ入り、外れると消える', (tester) async {
     final prefs = await _pump(tester);
     expect(find.byType(PendingAttachmentTray), findsNothing);

@@ -525,6 +525,9 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   /// 入力欄へ反映しない（2026-11-27）。
   String? _lastWrittenDraft;
 
+  /// この端末で、最後に入力欄の文字を変えた時刻（他の端末の下書きを反映してよいかの判断に使う）。
+  DateTime? _lastLocalEditAt;
+
   /// 他端末の下書き変化を継続的に購読する為の手動購読（2026-08-20追加）。
   /// 以前は`initState`で一度だけ読み込むだけで、開いたまま他端末の下書きが
   /// 変わっても・後から開き直しても反映されない不具合があった為、
@@ -850,8 +853,17 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     // 2026-11-27に修正）。
     if (_draftSaveTimer?.isActive ?? false) return;
     if (_editingMessage != null) return;
+    // 変換中でも、少し入力が止まっていれば反映する。AndroidのIME（Gboardなど）は、反映した直後に、
+    // カーソルの下の語を変換中として再び示すことが有り、変換中を理由にずっと止めると、他の端末の
+    // 削除が二度と届かなくなる（2026-11-27）。
     final composing = _textController.value.composing;
-    if (composing.isValid && !composing.isCollapsed) return;
+    final lastEdit = _lastLocalEditAt;
+    if (composing.isValid &&
+        !composing.isCollapsed &&
+        lastEdit != null &&
+        DateTime.now().difference(lastEdit) < const Duration(seconds: 3)) {
+      return;
+    }
     _suppressDraftSync = true;
     _textController.value = TextEditingValue(
       text: draft,
@@ -872,6 +884,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     _updateMentionSuggestions();
     _updateStickerSuggestions();
     if (_suppressDraftSync || _editingMessage != null) return;
+    if (textChanged) _lastLocalEditAt = DateTime.now();
     // カーソルの移動だけでは、下書きを保存しない（保存待ちが立つと、他の端末の下書きを反映できない）。
     if (!textChanged) return;
     if (!_draftSyncActive) return;
@@ -3246,10 +3259,13 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   bool get _fileSyncActive =>
       _draftSyncActive && widget.onSendAttachment != null;
 
+  /// 下書きのファイルの新しいid。`1 << 32`は、Webでは0になり、`nextInt`が例外になる
+  /// （2026-11-27）。Webでも通る範囲（2の30乗未満）で、2回引く。
   String _newDraftFileId() {
     final r = math.Random.secure();
     return '${DateTime.now().microsecondsSinceEpoch.toRadixString(36)}'
-        '${r.nextInt(1 << 32).toRadixString(36)}';
+        '${r.nextInt(1 << 30).toRadixString(36)}'
+        '${r.nextInt(1 << 30).toRadixString(36)}';
   }
 
   /// [added]のうち、上限以下のものをサーバーへ一時保存し、一覧へ載せる。
@@ -3287,8 +3303,9 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
         );
         setState(() => _pendingAttachments[index] = a.withSyncId(id));
         changed = true;
-      } catch (_) {
+      } catch (e) {
         // 同期できなかったファイルは、この端末の入力欄にだけ残る。
+        debugPrint('[DRAFT-FILE] upload failed: $e');
       }
     }
     if (changed && mounted) await _publishDraftFiles();
@@ -3319,8 +3336,9 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
             files: files,
           )
           .timeout(const Duration(seconds: 5));
-    } catch (_) {
+    } catch (e) {
       // 通信できない間は、次の機会に任せる。
+      debugPrint('[DRAFT-FILE] publish failed: $e');
     } finally {
       _publishingDraftFiles--;
     }
