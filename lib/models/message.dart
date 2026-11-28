@@ -211,6 +211,8 @@ class Message {
     this.scheduleCoordinationId,
     this.pollId,
     this.noteId,
+    this.expiresAt,
+    this.attachmentsExpired = false,
   });
 
   final String messageId;
@@ -375,6 +377,16 @@ class Message {
   /// `showPollDetailDialog`を開く。
   final String? pollId;
 
+  /// 添付の保存期限（2026-11-28）。サーバー（Cloud Functions）だけが付ける為、読み取り専用で、
+  /// [toJson]には出さない。無料は送信から30日、極みは180日。添付の無いメッセージ、期限の前の
+  /// メッセージ（まだ付いていない）、期限が切れた後のメッセージでは、null。
+  final Timestamp? expiresAt;
+
+  /// 添付のファイルが、保存期限で消された（2026-11-28）。真の時は、添付の画像・動画・ファイルを
+  /// 読み込まず、「期限切れ」の表示にする。メッセージ本体（文字・返信・反応）は残る。
+  /// サーバーだけが立てる為、読み取り専用で、[toJson]には出さない。
+  final bool attachmentsExpired;
+
   /// contentType='noteCreated'（ノート作成通知、2026-09-06追加）専用
   /// フィールド。[content]にはノートのタイトルをそのまま入れ、UI
   /// （`_MessageRow`）はこのIDでノートの全画面エディタを開く。
@@ -456,6 +468,8 @@ class Message {
       calendarEventId: json['calendarEventId'] as String?,
       scheduleCoordinationId: json['scheduleCoordinationId'] as String?,
       pollId: json['pollId'] as String?,
+      expiresAt: json['expiresAt'] as Timestamp?,
+      attachmentsExpired: json['attachmentsExpired'] as bool? ?? false,
       noteId: json['noteId'] as String?,
     );
   }

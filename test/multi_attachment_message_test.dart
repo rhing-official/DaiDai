@@ -137,4 +137,57 @@ void main() {
     expect(tester.takeException(), isNull);
     expect(find.byType(Image), findsOneWidget);
   });
+
+  // 保存期限で添付が消えたメッセージ（2026-11-28）は、画像を読み込まず、案内だけを出す。
+  for (final type in ['image', 'multi']) {
+    testWidgets('期限切れの$type添付は、画像を読み込まず案内を出す', (tester) async {
+      tester.view.physicalSize = const Size(500, 900);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.reset);
+      final meta = _meta('p.webp', 'image/webp');
+      final message = Message(
+        messageId: 'm1',
+        conversationId: 'c',
+        conversationType: 'room',
+        senderId: 'u2',
+        content: 'p.webp',
+        contentType: type,
+        sentAt: Timestamp.fromMillisecondsSinceEpoch(1000),
+        fileMetadata: meta,
+        attachments: type == 'multi' ? [meta, meta] : const [],
+        attachmentsExpired: true,
+      );
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            initialAccentColorProvider.overrideWithValue(Colors.orange),
+            initialSendKeyModeProvider.overrideWithValue(
+              SendKeyMode.enterToSend,
+            ),
+            initialMessageTimeFormatProvider.overrideWithValue(
+              MessageTimeFormat.h24,
+            ),
+            initialAppLocaleProvider.overrideWithValue(AppLocale.japanese),
+            initialChatLayoutStyleProvider.overrideWithValue(
+              ChatLayoutStyle.sideBySide,
+            ),
+            initialAppUiStyleProvider.overrideWithValue(AppUiStyle.flat),
+          ],
+          child: MaterialApp(
+            home: ChatScreen(
+              title: 't',
+              currentUserId: 'u1',
+              isDm: false,
+              messagesStream: Stream.value([message]),
+            ),
+          ),
+        ),
+      );
+      await tester.pump();
+      await tester.pump();
+      expect(tester.takeException(), isNull);
+      expect(find.byType(Image), findsNothing);
+      expect(find.textContaining('保存期限が過ぎた'), findsOneWidget);
+    });
+  }
 }

@@ -122,8 +122,14 @@ class _AlbumMessagePickerScreenState
         // hiddenForに自分のuserIdを含むメッセージ（範囲選択削除で自分が
         // 消した分）は、他の一覧箇所（`talks_search.dart`等）と同じ慣習で
         // クライアント側フィルタして表示しない。
+        // 保存期限で添付が消えたメッセージ（2026-11-28）は、元のファイルが無く、アルバムへ
+        // コピー出来ない為、出さない。
         final messages = (snapshot.data ?? const <Message>[])
-            .where((m) => !m.hiddenFor.contains(widget.currentUserId))
+            .where(
+              (m) =>
+                  !m.hiddenFor.contains(widget.currentUserId) &&
+                  !m.attachmentsExpired,
+            )
             .toList();
 
         final title = Text(strings.albumMessagePickerTitle);

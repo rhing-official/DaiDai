@@ -24,7 +24,11 @@ enum HomeTabId {
   settings,
 
   /// 保存したアカウントが2つ以上の時だけ出る、アカウント切り替えのタブ（2026-11-11）。
-  account;
+  account,
+
+  /// daidai横丁（ぺったんの閲覧・所持・お気に入り・カート）。Android・iOS・Webだけに出る
+  /// （2026-11-28）。デスクトップはブラウザで足りるので出さない。
+  yokocho;
 
   static HomeTabId? tryParse(String? name) {
     for (final tab in HomeTabId.values) {
@@ -60,6 +64,7 @@ class NavChipLayout {
       HomeTabId.profile,
       HomeTabId.settings,
       HomeTabId.account,
+      HomeTabId.yokocho,
     ],
   });
 
@@ -97,7 +102,10 @@ class NavChipLayout {
 List<int> visibleNavChipIndexes(
   Iterable<HomeTabId> order, {
   required bool showAccount,
+  bool showYokocho = false,
 }) => [
   for (final tab in order)
-    if (tab != HomeTabId.account || showAccount) tab.index,
+    if ((tab != HomeTabId.account || showAccount) &&
+        (tab != HomeTabId.yokocho || showYokocho))
+      tab.index,
 ];

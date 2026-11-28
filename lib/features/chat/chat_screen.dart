@@ -3950,10 +3950,11 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                       final mediaMessages = combined
                           .where(
                             (m) =>
-                                m.contentType == 'image' ||
-                                m.contentType == 'video' ||
-                                (m.contentType == 'multi' &&
-                                    m.attachments.any((a) => a.isMedia)),
+                                !m.attachmentsExpired &&
+                                (m.contentType == 'image' ||
+                                    m.contentType == 'video' ||
+                                    (m.contentType == 'multi' &&
+                                        m.attachments.any((a) => a.isMedia))),
                           )
                           .toList()
                           .reversed
@@ -6312,7 +6313,12 @@ class _MessageRow extends ConsumerWidget {
     // マークダウンプレビューカード（`_FileAttachmentBlock`）は自前の枠
     // （`GekigaStraightMonochromeBox`）を持つため、`_GekigaBubble`側の枠は
     // 二重表示になる（2026-08-10、ユーザー指摘により画像と同じ扱いにした）。
+    // 保存期限で添付が消えたメッセージは、添付を読み込まず、文字の吹き出しで「期限切れ」と
+    // 出す（2026-11-28）。添付の種類に応じた表示（枠なしの画像・複数の吹き出し・プレビュー）は
+    // 全て使わない。
+    final isExpiredAttachment = isAttachment && message.attachmentsExpired;
     final isMarkdownPreview =
+        !isExpiredAttachment &&
         message.contentType == 'file' &&
         message.fileMetadata != null &&
         _FileAttachmentBlock.isPreviewableMarkdown(message.fileMetadata!);
@@ -6321,6 +6327,7 @@ class _MessageRow extends ConsumerWidget {
     // 囲む（`_FileAttachmentBlock._buildPdfBlock`）ため、吹き出しの枠は付けない
     // （2026-10-30、ユーザー指示）。
     final isPdfPreview =
+        !isExpiredAttachment &&
         message.contentType == 'file' &&
         message.fileMetadata != null &&
         isPreviewablePdf(message.fileMetadata!) &&
@@ -6329,8 +6336,9 @@ class _MessageRow extends ConsumerWidget {
     // 複数添付は、種類ごとに吹き出しを分けて表示する（文字・URLのプレビュー・画像と動画
     // （この2つだけは1つにまとめる）・音声・その他のファイル、2026-11-10、ユーザー指示）。
     // 外側には吹き出しを付けず、各グループが自分の枠（吹き出し）を持つ。
-    final isMultiSplit = message.contentType == 'multi';
+    final isMultiSplit = !isExpiredAttachment && message.contentType == 'multi';
     final isMultiMediaOnly =
+        !isExpiredAttachment &&
         message.contentType == 'multi' &&
         message.attachments.isNotEmpty &&
         message.attachments.every((a) => a.isMedia);
@@ -6339,14 +6347,16 @@ class _MessageRow extends ConsumerWidget {
     // 2026-11-10、ユーザー指示）。
     final isAudioWithCaption =
         isAttachment &&
+        !isExpiredAttachment &&
         (message.caption?.isNotEmpty ?? false) &&
         message.contentType == 'file' &&
         message.fileMetadata != null &&
         _FileAttachmentBlock.isPlayableAudio(message.fileMetadata!);
 
     final skipBubbleFrame =
-        message.contentType == 'image' ||
-        message.contentType == 'video' ||
+        (!isExpiredAttachment &&
+            (message.contentType == 'image' ||
+                message.contentType == 'video')) ||
         isMultiMediaOnly ||
         isMultiSplit ||
         isAudioWithCaption ||
@@ -6577,6 +6587,8 @@ class _MessageRow extends ConsumerWidget {
               deleted: deleted,
             ),
           )
+        else if (isExpiredAttachment)
+          _expiredAttachmentContent(onBubbleColor, strings)
         else if (isAttachment)
           () {
             final attachmentBody = _attachmentContent(
@@ -6948,6 +6960,7 @@ class _MessageRow extends ConsumerWidget {
           : null,
       onAddToAlbum:
           (onAddToAlbum != null &&
+              !message.attachmentsExpired &&
               (message.contentType == 'image' ||
                   message.contentType == 'video' ||
                   message.attachments.any((a) => a.isMedia)))
@@ -8409,6 +8422,42 @@ class _MessageRow extends ConsumerWidget {
         if (preview != null)
           Padding(padding: const EdgeInsets.only(bottom: 6), child: preview),
         last,
+      ],
+    );
+  }
+
+  /// 保存期限で添付のファイルが消えたメッセージの表示（2026-11-28）。添付は読み込まず、
+  /// 一緒に送った文字（あれば）と、期限切れの案内だけを出す。
+  Widget _expiredAttachmentContent(Color onBubbleColor, Strings strings) {
+    final caption = message.caption;
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        if (caption != null && caption.isNotEmpty) ...[
+          Text(caption, style: TextStyle(color: onBubbleColor)),
+          const SizedBox(height: 6),
+        ],
+        Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              Icons.hide_image_outlined,
+              size: 16,
+              color: onBubbleColor.withValues(alpha: 0.7),
+            ),
+            const SizedBox(width: 6),
+            Flexible(
+              child: Text(
+                strings.chatAttachmentExpired,
+                style: TextStyle(
+                  color: onBubbleColor.withValues(alpha: 0.7),
+                  fontSize: 13,
+                ),
+              ),
+            ),
+          ],
+        ),
       ],
     );
   }

@@ -109,9 +109,9 @@ bool canForwardMessage(Message message) {
     case 'image':
     case 'video':
     case 'file':
-      return message.fileMetadata != null;
+      return message.fileMetadata != null && !message.attachmentsExpired;
     case 'multi':
-      return message.attachments.isNotEmpty;
+      return message.attachments.isNotEmpty && !message.attachmentsExpired;
     case 'sticker':
       return message.stickerData != null;
     default:

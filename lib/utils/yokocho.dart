@@ -1,3 +1,5 @@
+import 'package:flutter/foundation.dart';
+
 import 'kiwami.dart';
 
 /// daidai横丁（ぺったんのWebストア、HomePage-Rhingリポジトリ）のトップ。
@@ -21,3 +23,10 @@ Uri yokochoUri({String? packId, String? platform}) {
       ? uri
       : uri.replace(queryParameters: {'platform': platform});
 }
+
+/// アプリ内の横丁タブ（メニューチップ）を出すか（2026-11-28）。Android・iOS・Webだけ。
+/// デスクトップは、ブラウザの横丁で足りるので出さない。
+bool yokochoTabAvailable() =>
+    kIsWeb ||
+    defaultTargetPlatform == TargetPlatform.android ||
+    defaultTargetPlatform == TargetPlatform.iOS;

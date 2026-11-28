@@ -293,18 +293,13 @@ class _RoomListPaneState extends ConsumerState<RoomListPane> {
       bool isSelected, {
       int? index,
     }) {
-      final tagIcon = index == null
-          ? const Icon(Icons.tag)
-          : Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                ReorderableDragStartListener(
-                  index: index,
-                  child: const Icon(Icons.drag_indicator, size: 18),
-                ),
-                const SizedBox(width: 4),
-                const Icon(Icons.tag),
-              ],
+      // 寄合の名前には`#`もアイコンも付けない（2026-11-28）。並べ替え中だけ、
+      // 左にドラッグハンドルを出す。
+      final Widget? tagIcon = index == null
+          ? null
+          : ReorderableDragStartListener(
+              index: index,
+              child: const Icon(Icons.drag_indicator, size: 18),
             );
 
       if (gekigaBoxed) {

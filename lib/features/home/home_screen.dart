@@ -25,6 +25,8 @@ import '../../widgets/pane_visibility.dart';
 import '../chat/talks_tab.dart';
 import '../profile/profile_tab.dart';
 import '../settings/settings_tab.dart';
+import '../yokocho/yokocho_tab.dart';
+import '../../utils/yokocho.dart';
 
 /// サイドバー/下部ナビの切り替えしきい値。Material Design 3の
 /// medium windowサイズクラス（600dp）を採用する。
@@ -472,12 +474,13 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
     Icons.face_outlined,
     Icons.settings_outlined,
     Icons.switch_account_outlined,
+    Icons.storefront_outlined,
   ];
 
   /// [_icons]の各グリフの見た目の密度差を補正する表示サイズ
   /// （2026-08-27追加）。face_outlined/settings_outlinedはforum_outlinedより
   /// グリフ内側の余白が大きく同じ24でも小さく見える為、個別に拡大する。
-  static const _iconSizes = [24.0, 28.0, 28.0, 26.0];
+  static const _iconSizes = [24.0, 28.0, 28.0, 26.0, 26.0];
 
   static const _chipSize = kNavChipSize;
   static const _chipGap = kNavChipGap;
@@ -512,6 +515,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
       strings.navProfile,
       strings.navSettings,
       strings.navAccount,
+      strings.navYokocho,
     ];
 
     // チップのタップ・なぞりの`setState`のたびに各タブが再構築されないよう、
@@ -524,6 +528,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
         ProfileTab(currentUser: widget.currentUser),
         SettingsTab(currentUser: widget.currentUser),
         AccountTab(currentUser: widget.currentUser),
+        YokochoTab(currentUser: widget.currentUser),
       ];
     }
     final tabs = _cachedTabs!;
@@ -540,6 +545,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
     final displayOrder = visibleNavChipIndexes(
       chipLayout.order,
       showAccount: showAccount,
+      showYokocho: yokochoTabAvailable(),
     );
     // 「アカウント」のチップが消えた時（保存が2つ未満に戻った・画面が横表示になった）、
     // そのタブを開いていたら語らいへ戻す（2026-11-11）。

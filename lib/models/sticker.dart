@@ -53,6 +53,8 @@ class StickerPack {
     required this.tags,
     required this.salesCount,
     this.createdAt,
+    this.coverStickerId,
+    this.deleteScheduledAt,
   });
 
   final String packId;
@@ -67,6 +69,21 @@ class StickerPack {
   final List<String> tags;
   final int salesCount;
   final Timestamp? createdAt;
+
+  /// 代表にするぺったんの[Sticker.stickerId]。未設定・不正なら先頭の1枚（[cover]）。
+  final String? coverStickerId;
+
+  /// 運営が承認した削除の予定の日時。有れば、新しく入手できない（2026-11-28、横丁の一覧用）。
+  final Timestamp? deleteScheduledAt;
+
+  /// 一覧に出す代表の1枚。ぺったんが無い時はnull。
+  Sticker? get cover {
+    if (stickers.isEmpty) return null;
+    for (final sticker in stickers) {
+      if (sticker.stickerId == coverStickerId) return sticker;
+    }
+    return stickers.first;
+  }
 
   factory StickerPack.fromJson(String packId, Map<String, dynamic> json) {
     return StickerPack(
@@ -83,6 +100,8 @@ class StickerPack {
           .toList(),
       salesCount: json['salesCount'] as int? ?? 0,
       createdAt: json['createdAt'] as Timestamp?,
+      coverStickerId: json['coverStickerId'] as String?,
+      deleteScheduledAt: json['deleteScheduledAt'] as Timestamp?,
     );
   }
 

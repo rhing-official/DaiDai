@@ -2,6 +2,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../repositories/soundboard_repository.dart';
+import '../repositories/yokocho_repository.dart';
 import '../repositories/announcement_repository.dart';
 import '../repositories/turn_credentials_repository.dart';
 import '../repositories/album_repository.dart';
@@ -150,6 +151,10 @@ final linkPreviewRepositoryProvider = Provider<LinkPreviewRepository>((ref) {
 
 final stickerRepositoryProvider = Provider<StickerRepository>((ref) {
   return FirestoreStickerRepository();
+});
+
+final yokochoRepositoryProvider = Provider<YokochoRepository>((ref) {
+  return FirestoreYokochoRepository();
 });
 
 final albumRepositoryProvider = Provider<AlbumRepository>((ref) {

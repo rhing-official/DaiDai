@@ -15,6 +15,25 @@ class Strings {
     required this.navProfile,
     required this.navSettings,
     required this.navAccount,
+    required this.navYokocho,
+    required this.yokochoSearchHint,
+    required this.yokochoFilterAll,
+    required this.yokochoFilterOwned,
+    required this.yokochoFilterFavourites,
+    required this.yokochoFilterCart,
+    required this.yokochoEmpty,
+    required this.yokochoFree,
+    required this.yokochoAcquire,
+    required this.yokochoAcquired,
+    required this.yokochoAcquireFailed,
+    required this.yokochoOwnedBadge,
+    required this.yokochoAddFavourite,
+    required this.yokochoRemoveFavourite,
+    required this.yokochoAddCart,
+    required this.yokochoRemoveCart,
+    required this.yokochoAcquireAllFree,
+    required this.yokochoEnding,
+    required this.yokochoSignInNeeded,
     required this.addMenuDmTitleTemplate,
     required this.addMenuDmSubtitle,
     required this.addMenuGroupTitleTemplate,
@@ -125,6 +144,7 @@ class Strings {
     required this.settingsSlideTransitionSuck,
     required this.settingsSlideTransitionPop,
     required this.settingsSlideTransitionDraw,
+    required this.chatAttachmentExpired,
     required this.settingsTalksListLayoutTitle,
     required this.settingsTalksListLayoutNote,
     required this.settingsTextSizeTitle,
@@ -1346,6 +1366,25 @@ class Strings {
   final String navProfile;
   final String navSettings;
   final String navAccount;
+  final String navYokocho;
+  final String yokochoSearchHint;
+  final String yokochoFilterAll;
+  final String yokochoFilterOwned;
+  final String yokochoFilterFavourites;
+  final String yokochoFilterCart;
+  final String yokochoEmpty;
+  final String yokochoFree;
+  final String yokochoAcquire;
+  final String yokochoAcquired;
+  final String yokochoAcquireFailed;
+  final String yokochoOwnedBadge;
+  final String yokochoAddFavourite;
+  final String yokochoRemoveFavourite;
+  final String yokochoAddCart;
+  final String yokochoRemoveCart;
+  final String yokochoAcquireAllFree;
+  final String yokochoEnding;
+  final String yokochoSignInNeeded;
 
   /// 一対/DM等の用語を差し込んだタイトルを組み立てる（例: 「一対を始める」）。
   final String Function(String dmTerm) addMenuDmTitleTemplate;
@@ -1496,6 +1535,9 @@ class Strings {
   final String settingsSlideTransitionSuck;
   final String settingsSlideTransitionPop;
   final String settingsSlideTransitionDraw;
+
+  /// 保存期限で添付が消えたメッセージの案内（2026-11-28）。
+  final String chatAttachmentExpired;
 
   /// 縦表示での語らい一覧レイアウト（2026-09-11追加、設定＞語らい）。
   final String settingsTalksListLayoutTitle;
@@ -3071,6 +3113,25 @@ class Strings {
     navProfile: '身だしなみ',
     navSettings: '設定',
     navAccount: 'アカウント',
+    navYokocho: '横丁',
+    yokochoSearchHint: 'ぺったんを検索',
+    yokochoFilterAll: 'すべて',
+    yokochoFilterOwned: '所持',
+    yokochoFilterFavourites: 'お気に入り',
+    yokochoFilterCart: 'カート',
+    yokochoEmpty: 'ぺったんが有りません',
+    yokochoFree: '無料',
+    yokochoAcquire: '入手する',
+    yokochoAcquired: '入手しました',
+    yokochoAcquireFailed: '入手できませんでした',
+    yokochoOwnedBadge: '所持中',
+    yokochoAddFavourite: 'お気に入りに追加',
+    yokochoRemoveFavourite: 'お気に入りから外す',
+    yokochoAddCart: 'カートに入れる',
+    yokochoRemoveCart: 'カートから出す',
+    yokochoAcquireAllFree: 'カートの無料分を全て入手',
+    yokochoEnding: 'まもなく公開を終了します',
+    yokochoSignInNeeded: 'ログインすると使えます',
     addMenuDmTitleTemplate: (dmTerm) => '$dmTermを始める',
     addMenuDmSubtitle: '1対1で話す相手を追加する',
     addMenuGroupTitleTemplate: (plazaTerm) => '$plazaTermを作る',
@@ -3192,6 +3253,7 @@ class Strings {
     settingsSlideTransitionSuck: '吸い込み',
     settingsSlideTransitionPop: 'ポップ',
     settingsSlideTransitionDraw: '描き',
+    chatAttachmentExpired: '保存期限が過ぎたため、この添付は削除されました',
     settingsTalksListLayoutTitle: '語らい一覧のレイアウト',
     settingsTalksListLayoutNote:
         '縦画面・横画面でそれぞれ別に保存されます。\n横画面のコンピューターでは、この設定にかかわらず左右分割で表示されます。',
@@ -4509,6 +4571,25 @@ class Strings {
     navProfile: 'Profile',
     navSettings: 'Settings',
     navAccount: 'Accounts',
+    navYokocho: 'Yokocho',
+    yokochoSearchHint: 'Search stickers',
+    yokochoFilterAll: 'All',
+    yokochoFilterOwned: 'Owned',
+    yokochoFilterFavourites: 'Favourites',
+    yokochoFilterCart: 'Cart',
+    yokochoEmpty: 'No stickers here',
+    yokochoFree: 'Free',
+    yokochoAcquire: 'Get',
+    yokochoAcquired: 'Added to your stickers',
+    yokochoAcquireFailed: 'Couldn’t get this sticker',
+    yokochoOwnedBadge: 'Owned',
+    yokochoAddFavourite: 'Add to favourites',
+    yokochoRemoveFavourite: 'Remove from favourites',
+    yokochoAddCart: 'Add to cart',
+    yokochoRemoveCart: 'Remove from cart',
+    yokochoAcquireAllFree: 'Get all free stickers in cart',
+    yokochoEnding: 'Ending soon',
+    yokochoSignInNeeded: 'Sign in to use this',
     addMenuDmTitleTemplate: (dmTerm) => 'Start a $dmTerm',
     addMenuDmSubtitle: 'Add someone to talk to one-on-one',
     addMenuGroupTitleTemplate: (plazaTerm) => 'Create a $plazaTerm',
@@ -4643,6 +4724,8 @@ class Strings {
     settingsSlideTransitionSuck: 'Suck in',
     settingsSlideTransitionPop: 'Pop',
     settingsSlideTransitionDraw: 'Draw',
+    chatAttachmentExpired:
+        'This attachment was deleted because its storage period has passed',
     settingsTalksListLayoutTitle: 'Talks list layout',
     settingsTalksListLayoutNote:
         'Saved separately for portrait and landscape orientation. On a computer with a wide, landscape window, the list is always shown in a split view regardless of this setting.',

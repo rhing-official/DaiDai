@@ -383,7 +383,6 @@ class _ForwardTargetDialogState extends ConsumerState<_ForwardTargetDialog> {
             for (final r in dmSearchingRooms ? dmRoomMatches : dmRooms) {
               tiles.add(
                 tile(
-                  leading: const Icon(Icons.tag),
                   title: r.name,
                   indent: true,
                   selected: _isSelected(dm.dmId, r.roomId),
@@ -432,7 +431,6 @@ class _ForwardTargetDialogState extends ConsumerState<_ForwardTargetDialog> {
             for (final r in searchingRooms ? roomMatches : rooms) {
               tiles.add(
                 tile(
-                  leading: const Icon(Icons.tag),
                   title: r.name,
                   indent: true,
                   selected: _isSelected(g.groupId, r.roomId),
@@ -463,7 +461,6 @@ class _ForwardTargetDialogState extends ConsumerState<_ForwardTargetDialog> {
               }
               tiles.add(
                 tile(
-                  leading: const Icon(Icons.tag),
                   title: r.name,
                   subtitle: label,
                   selected: _isSelected(dm.dmId, r.roomId),
@@ -484,7 +481,6 @@ class _ForwardTargetDialogState extends ConsumerState<_ForwardTargetDialog> {
               }
               tiles.add(
                 tile(
-                  leading: const Icon(Icons.tag),
                   title: r.name,
                   subtitle: g.name,
                   selected: _isSelected(g.groupId, r.roomId),

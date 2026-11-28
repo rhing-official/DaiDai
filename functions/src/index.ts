@@ -150,6 +150,17 @@ import {
   parseProfileViewRequest,
 } from "./adminUsers";
 import { recallPayload, recallRecipients } from "./messageRecall";
+import {
+  RETENTION_EXPIRE_LIMIT,
+  conversationFromDocPath,
+  deleteMessageAttachments,
+  expireMessageAttachments,
+  hasExpirableAttachment,
+  legacyExpiresAtMs,
+  retentionExpiresAtMs,
+  type ChatMessageData,
+  type RetentionStore,
+} from "./retention";
 import { renderOgImage } from "./ogImage";
 import { checkRequest, checkRespond, ISSUED_QR_TTL_MS } from "./qrLoginIssued";
 import { parseAllowedUrl, resolveReferer, resolveUserAgent } from "./urlFetchRelay";
@@ -5627,6 +5638,185 @@ async function sendMessageRecall(params: {
   });
 }
 
+/**
+ * 語らい内の画像・動画の保存期間（2026-11-28、ユーザー決定）。無料は30日、極みは180日。
+ * 判断は`retention.ts`（Firebase非依存）。ここはFirestore・Storageの窓口だけ。
+ * アルバム（`albumFiles/`）は別のパスへコピー済みなので、対象にしない。
+ */
+const retentionDeleteEnabled = defineString("RETENTION_DELETE_ENABLED", { default: "false" });
+
+const retentionStore: RetentionStore = {
+  async deleteFile(path) {
+    await getStorage().bucket().file(path).delete({ ignoreNotFound: true });
+  },
+  async markExpired(docPath) {
+    // 印を付け、期限（`expiresAt`）を消す。索引から外れ、翌日以降に拾い直されない。
+    await db.doc(docPath).update({
+      attachmentsExpired: true,
+      expiresAt: FieldValue.delete(),
+    });
+  },
+};
+
+/** 送信者が極みかを、サーバー側で読む（botやシステムの送信者は`users`に無く、無料の扱い）。 */
+async function senderIsKiwami(senderId: unknown): Promise<boolean> {
+  if (typeof senderId !== "string" || senderId.length === 0) return false;
+  const snap = await db.doc(`users/${senderId}`).get();
+  return isKiwamiPlan(snap.data());
+}
+
+/** 送信日時（ミリ秒）。無ければ今。 */
+function messageSentAtMs(data: ChatMessageData): number {
+  const sentAt = data.sentAt;
+  return sentAt instanceof Timestamp ? sentAt.toMillis() : Date.now();
+}
+
+/**
+ * 添付を持つメッセージが作られた時に、期限（`expiresAt`）を付ける。クライアントからは書かせない
+ * （改造で好きな期限を付けられないように。`firestore.rules`のupdateは、この項目を許さない）。
+ * サムネイル・再生用動画の生成も同じメッセージを更新するので、この項目だけを更新する。
+ */
+async function assignMessageExpiry(docPath: string, data: ChatMessageData | undefined): Promise<void> {
+  if (!data || !hasExpirableAttachment(data)) return;
+  const expiresAtMs = retentionExpiresAtMs(messageSentAtMs(data), await senderIsKiwami(data.senderId));
+  await db.doc(docPath).update({ expiresAt: Timestamp.fromMillis(expiresAtMs) });
+}
+
+export const setDmMessageExpiry = onDocumentCreated(
+  {
+    document: "directMessages/{dmId}/rooms/{roomId}/messages/{messageId}",
+    region: "asia-northeast1",
+  },
+  async (event) => {
+    await assignMessageExpiry(
+      `directMessages/${event.params.dmId}/rooms/${event.params.roomId}/messages/${event.params.messageId}`,
+      event.data?.data(),
+    );
+  },
+);
+
+export const setGroupMessageExpiry = onDocumentCreated(
+  {
+    document: "groups/{groupId}/rooms/{roomId}/messages/{messageId}",
+    region: "asia-northeast1",
+  },
+  async (event) => {
+    await assignMessageExpiry(
+      `groups/${event.params.groupId}/rooms/${event.params.roomId}/messages/${event.params.messageId}`,
+      event.data?.data(),
+    );
+  },
+);
+
+/** メッセージが消えた時（送信取消・全員が削除）に、添付のファイルも消す。 */
+async function deleteChatMessageFiles(docPath: string, data: ChatMessageData): Promise<void> {
+  const { failed } = await deleteMessageAttachments(retentionStore, docPath, data);
+  if (failed.length > 0) logger.warn("消えたメッセージの添付を消せなかった", { docPath, failed });
+}
+
+/**
+ * 期限を過ぎた添付を、毎日消す。`RETENTION_DELETE_ENABLED`が`true`の時だけ消し、それ以外は、
+ * 件数と先頭の数件をログに出すだけ（最初に、件数を確かめてから有効にする為）。消した後も、
+ * メッセージは残し、`attachmentsExpired: true`にする（画面は「期限切れ」の表示になる）。
+ */
+export const cleanupExpiredChatAttachmentsDaily = onSchedule(
+  { schedule: "45 4 * * *", timeZone: "Asia/Tokyo", region: "asia-northeast1", timeoutSeconds: 540 },
+  async () => {
+    const snap = await db
+      .collectionGroup("messages")
+      .where("expiresAt", "<=", Timestamp.now())
+      .orderBy("expiresAt")
+      .limit(RETENTION_EXPIRE_LIMIT)
+      .get();
+    const messages = snap.docs
+      .filter((d) => conversationFromDocPath(d.ref.path) !== null)
+      .map((d) => ({ docPath: d.ref.path, data: d.data() as ChatMessageData }));
+    const result = await expireMessageAttachments(
+      retentionStore,
+      messages,
+      retentionDeleteEnabled.value() === "true",
+    );
+    if (result.dryRun) {
+      logger.info(`期限を過ぎた添付（消さずに数えただけ）: ${result.wouldExpire}件`, {
+        examples: messages.slice(0, 5).map((m) => m.docPath),
+      });
+      return;
+    }
+    logger.info(`期限を過ぎた添付を消した: ${result.expired.length}件、失敗${result.failed.length}件`);
+    if (result.failed.length > 0) logger.warn("消せなかったメッセージ", result.failed.slice(0, 20));
+  },
+);
+
+/**
+ * 一度きりの移行（管理者のみ）。この仕組みの前に送られた添付メッセージに、期限を付ける。
+ * 期限は、送信日から30日（送信者が極みなら180日）と、予告の日から30日の、遅いほう。
+ * `dryRun`なら数えるだけ。1回の呼び出しで`maxDocs`件まで処理し、続きは`nextCursor`で呼び直す。
+ * 実行を終えたら、この関数はソースから削除する（過去の`...Once`と同じ運用）。
+ */
+export const backfillMessageExpiryOnce = onCall(
+  { region: "asia-northeast1", timeoutSeconds: 540 },
+  async (request) => {
+    if (request.auth?.token.admin !== true) {
+      throw new HttpsError("permission-denied", "管理者のみ実行できます");
+    }
+    const noticeAtMs = request.data?.noticeAtMs;
+    if (typeof noticeAtMs !== "number" || !Number.isFinite(noticeAtMs)) {
+      throw new HttpsError("invalid-argument", "noticeAtMs（予告の日時、ミリ秒）が必要です");
+    }
+    const dryRun = request.data?.dryRun !== false;
+    const maxDocs = Math.min(Number(request.data?.maxDocs) || 2000, 5000);
+    const types = ["image", "video", "file", "multi"];
+    const kiwamiCache = new Map<string, boolean>();
+    let scanned = 0;
+    let updated = 0;
+    let skipped = 0;
+    let nextCursor: { type: string; path: string } | null = null;
+    const startType = typeof request.data?.cursorType === "string" ? request.data.cursorType : types[0];
+    const startPath = typeof request.data?.cursorPath === "string" ? request.data.cursorPath : null;
+    for (const type of types.slice(types.indexOf(startType!))) {
+      let q = db.collectionGroup("messages").where("contentType", "==", type).limit(300);
+      if (type === startType && startPath) q = q.startAfter(db.doc(startPath));
+      for (;;) {
+        const page = await q.get();
+        if (page.empty) break;
+        const batch = db.batch();
+        for (const d of page.docs) {
+          scanned++;
+          const data = d.data() as ChatMessageData;
+          if (
+            conversationFromDocPath(d.ref.path) === null ||
+            data.expiresAt != null ||
+            data.attachmentsExpired === true ||
+            !hasExpirableAttachment(data)
+          ) {
+            skipped++;
+            continue;
+          }
+          const senderId = typeof data.senderId === "string" ? data.senderId : "";
+          if (!kiwamiCache.has(senderId)) kiwamiCache.set(senderId, await senderIsKiwami(senderId));
+          const expiresAtMs = legacyExpiresAtMs(
+            messageSentAtMs(data),
+            kiwamiCache.get(senderId) === true,
+            noticeAtMs,
+          );
+          updated++;
+          if (!dryRun) batch.update(d.ref, { expiresAt: Timestamp.fromMillis(expiresAtMs) });
+        }
+        if (!dryRun) await batch.commit();
+        const last = page.docs[page.docs.length - 1]!;
+        if (scanned >= maxDocs) {
+          nextCursor = { type, path: last.ref.path };
+          break;
+        }
+        q = db.collectionGroup("messages").where("contentType", "==", type).limit(300).startAfter(last);
+      }
+      if (nextCursor) break;
+    }
+    logger.info(`期限の移行: 走査${scanned}、${dryRun ? "付与の予定" : "付与"}${updated}、対象外${skipped}`);
+    return { scanned, updated, skipped, dryRun, nextCursor };
+  },
+);
+
 export const onDmMessageDeleted = onDocumentDeleted(
   {
     document: "directMessages/{dmId}/rooms/{roomId}/messages/{messageId}",
@@ -5635,6 +5825,10 @@ export const onDmMessageDeleted = onDocumentDeleted(
   async (event) => {
     const message = event.data?.data();
     if (!message) return;
+    await deleteChatMessageFiles(
+      `directMessages/${event.params.dmId}/rooms/${event.params.roomId}/messages/${event.params.messageId}`,
+      message,
+    );
     const dmDoc = await db.doc(`directMessages/${event.params.dmId}`).get();
     await sendMessageRecall({
       participantIds: dmDoc.data()?.participants,
@@ -5654,6 +5848,10 @@ export const onGroupMessageDeleted = onDocumentDeleted(
   async (event) => {
     const message = event.data?.data();
     if (!message) return;
+    await deleteChatMessageFiles(
+      `groups/${event.params.groupId}/rooms/${event.params.roomId}/messages/${event.params.messageId}`,
+      message,
+    );
     const groupDoc = await db.doc(`groups/${event.params.groupId}`).get();
     await sendMessageRecall({
       participantIds: groupDoc.data()?.memberIds,

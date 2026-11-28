@@ -113,7 +113,7 @@ class RoomTabBar extends ConsumerStatefulWidget {
   static double _itemWidth(RoomListEntry? room, TextScaler textScaler) {
     if (room == null) return _cellMinWidth;
     final painter = TextPainter(
-      text: TextSpan(text: '#${room.name}', style: _measureStyle),
+      text: TextSpan(text: room.name, style: _measureStyle),
       textDirection: TextDirection.ltr,
       textScaler: textScaler,
     )..layout();
@@ -276,7 +276,7 @@ class _RoomTabBarState extends ConsumerState<RoomTabBar> {
             room,
             selected,
             Text(
-              '#${room.name}',
+              room.name,
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
               style: TextStyle(
@@ -491,7 +491,7 @@ class _RoomTabBarState extends ConsumerState<RoomTabBar> {
               room,
               selected,
               Text(
-                '#${room.name}',
+                room.name,
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
                 style: TextStyle(

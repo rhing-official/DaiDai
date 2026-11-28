@@ -329,7 +329,7 @@ class _UserProfileCardDialogState extends ConsumerState<UserProfileCardDialog> {
                                 vertical: 12,
                               ),
                               child: Text(
-                                '# ${room.name}',
+                                room.name,
                                 maxLines: 1,
                                 overflow: TextOverflow.ellipsis,
                                 style: TextStyle(color: fg),

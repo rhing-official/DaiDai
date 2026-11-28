@@ -33,6 +33,7 @@ import 'package:url_launcher/url_launcher.dart';
 
 import '../../providers/kiwami_providers.dart';
 import '../../utils/kiwami.dart';
+import '../../utils/yokocho.dart';
 import '../../widgets/kiwami_only_dialog.dart';
 import '../../providers/account_switcher_providers.dart';
 import 'account_switcher_section.dart';
@@ -5029,6 +5030,15 @@ class NavChipLayoutFolder extends ConsumerWidget {
     HomeTabId.profile: Icons.face_outlined,
     HomeTabId.settings: Icons.settings_outlined,
     HomeTabId.account: Icons.switch_account_outlined,
+    HomeTabId.yokocho: Icons.storefront_outlined,
+  };
+
+  /// 並べ替えに出すタブか。「アカウント」は保存が2つ以上で縦画面の時だけ、「横丁」は
+  /// Android・iOS・Webだけ。
+  bool _navChipListed(HomeTabId tab, bool accountChipListed) => switch (tab) {
+    HomeTabId.account => accountChipListed,
+    HomeTabId.yokocho => yokochoTabAvailable(),
+    _ => true,
   };
 
   String _tabLabel(HomeTabId tab) => switch (tab) {
@@ -5036,6 +5046,7 @@ class NavChipLayoutFolder extends ConsumerWidget {
     HomeTabId.profile => strings.navProfile,
     HomeTabId.settings => strings.navSettings,
     HomeTabId.account => strings.navAccount,
+    HomeTabId.yokocho => strings.navYokocho,
   };
 
   /// 広い画面（幅600px以上、`home_screen.dart`の縦並びサイドバー）では上・下、
@@ -5190,17 +5201,24 @@ class NavChipLayoutFolder extends ConsumerWidget {
             // 横表示（設定が分割表示になる幅）では出ないので、並べ替えの対象にもしない。
             order: [
               for (final t in layout.order)
-                if (t != HomeTabId.account || accountChipListed) t,
+                if (_navChipListed(t, accountChipListed)) t,
             ],
             onReorder: (list) {
-              if (accountChipListed) {
+              // 並べ替えの対象外のタブ（保存が2つ未満の「アカウント」、デスクトップの「横丁」）は、
+              // 今の位置を残したまま、対象のタブだけを入れ替える。
+              final hidden = [
+                for (final t in layout.order)
+                  if (!_navChipListed(t, accountChipListed)) t,
+              ];
+              if (hidden.isEmpty) {
                 notifier.setOrder(list);
                 return;
               }
-              // 並べ替えの対象外の間は、「アカウント」の位置を今のまま残す。
-              final at = layout.order.indexOf(HomeTabId.account);
-              final merged = [...list]
-                ..insert(at.clamp(0, list.length), HomeTabId.account);
+              final merged = [...list];
+              for (final t in hidden) {
+                final at = layout.order.indexOf(t);
+                merged.insert(at.clamp(0, merged.length), t);
+              }
               notifier.setOrder(merged);
             },
             tileBuilder: (tab, handle) {

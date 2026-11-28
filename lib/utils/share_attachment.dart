@@ -30,9 +30,10 @@ Future<void> shareMessageAttachments(
 
 /// 共有出来るメッセージか（添付がある、又は本文だけの通常のメッセージ）。
 bool shareableMessage(Message message) =>
-    message.fileMetadata != null ||
-    message.attachments.isNotEmpty ||
-    (message.contentType == 'text' && message.content.trim().isNotEmpty);
+    !message.attachmentsExpired &&
+    (message.fileMetadata != null ||
+        message.attachments.isNotEmpty ||
+        (message.contentType == 'text' && message.content.trim().isNotEmpty));
 
 /// 本文を共有する。共有シートが使えない環境（Linux等）では何もしない。
 Future<void> shareText(String text) async {

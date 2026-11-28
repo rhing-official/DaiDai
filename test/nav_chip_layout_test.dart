@@ -13,12 +13,13 @@ void main() {
       HomeTabId.talk,
       HomeTabId.profile,
       HomeTabId.account,
+      HomeTabId.yokocho,
     ]);
   });
 
   test('「アカウント」は、保存済みの3タブの並びを壊さず末尾に補われ、出すか出さないかを選べる', () {
     final order = normalizeNavChipOrder(['settings', 'talk', 'profile']);
-    expect(order.last, HomeTabId.account);
+    expect(order.sublist(3), [HomeTabId.account, HomeTabId.yokocho]);
     expect(visibleNavChipIndexes(order, showAccount: false), [2, 0, 1]);
     expect(visibleNavChipIndexes(order, showAccount: true), [2, 0, 1, 3]);
   });
@@ -28,6 +29,7 @@ void main() {
     expect(HomeTabId.profile.index, 1);
     expect(HomeTabId.settings.index, 2);
     expect(HomeTabId.account.index, 3);
+    expect(HomeTabId.yokocho.index, 4);
   });
 
   test('揃えの標準は狭い画面=右、広い画面=上。不明な値も標準', () {
@@ -60,6 +62,7 @@ void main() {
       HomeTabId.talk,
       HomeTabId.profile,
       HomeTabId.account,
+      HomeTabId.yokocho,
     ]);
   });
 
