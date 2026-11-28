@@ -13,6 +13,7 @@ import '../../providers/repository_providers.dart';
 import '../../router/back_stack.dart';
 import '../../models/app_user.dart';
 import '../../models/nav_chip_layout.dart';
+import '../../providers/nav_chip_band_provider.dart';
 import '../../providers/nav_chip_layout_provider.dart';
 import '../../providers/home_shell_providers.dart';
 import '../../providers/slide_pick_enabled_provider.dart';
@@ -84,7 +85,14 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
   List<int> _displayOrderNow() => visibleNavChipIndexes(
     ref.read(navChipLayoutProvider).order,
     showAccount: _accountChipShown(),
+    showYokocho: _yokochoChipShown(),
   );
+
+  /// 「横丁」のチップを出すか。出せる環境で、設定（端末ごと）がオンの時だけ（2026-11-29）。
+  /// スワイプ・なぞりのタブ移動も、画面のチップと同じ並びで数える為、ここを1つの出所にする。
+  bool _yokochoChipShown() =>
+      yokochoTabAvailable() &&
+      ref.read(navChipLayoutProvider).yokochoChipEnabled;
 
   /// ドラッグの単位はタブ数（画面幅1つ分＝1タブ）。画面幅を超えて引けば2つ以上先へ進める。
   void _onDragDelta(double dx) {
@@ -269,6 +277,27 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
   // チップ列で始めたタッチを、そのまま項目一覧（設定・身だしなみのトップ）へ滑らせて
   // 選べるようにする状態（2026-11-03、`ItemPickBridge`）。
   final GlobalKey _stripKey = GlobalKey();
+
+  /// 下端に横並びのチップの帯。範囲を[navChipBandRectProvider]へ渡す（2026-11-29）。
+  final GlobalKey _bandKey = GlobalKey();
+
+  /// チップの帯の範囲（global座標）を、描いた後に[navChipBandRectProvider]へ渡す。
+  /// アイコン列がチップの下へ潜り込む時、チップの周りを滲ませる為（`NavChipHalo`）。
+  /// 縦並び（広い画面）では、アイコン列はチップに重ならないのでnull。
+  void _publishBandRect({required bool isWide}) {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      Rect? rect;
+      if (!isWide) {
+        final box = _bandKey.currentContext?.findRenderObject();
+        if (box is RenderBox && box.attached && box.hasSize) {
+          rect = box.localToGlobal(Offset.zero) & box.size;
+        }
+      }
+      ref.read(navChipBandRectProvider.notifier).set(rect);
+    });
+  }
+
   bool _stripTouch = false;
   ItemPickTarget? _pickTarget;
   int? _pickedIndex;
@@ -465,8 +494,16 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
   /// 現在のタブに対応する戻る・進む履歴のスコープを[BackStackController]へ
   /// 伝える（2026-10-06追加）。
   void _syncBackScope() {
-    ref.read(backStackControllerProvider).activeScope =
-        BackScope.values[_selectedIndex.clamp(0, 2)];
+    ref
+        .read(backStackControllerProvider)
+        .activeScope = switch (_selectedIndex) {
+      0 => BackScope.talks,
+      1 => BackScope.profile,
+      // 横丁は、WebView内のページの戻る・進みを、専用のスコープで持つ（2026-11-29）。
+      // 以前は、アカウントと共に設定のスコープに入っていた。
+      final i when i == HomeTabId.yokocho.index => BackScope.yokocho,
+      _ => BackScope.settings,
+    };
   }
 
   static const _icons = [
@@ -545,13 +582,22 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
     final displayOrder = visibleNavChipIndexes(
       chipLayout.order,
       showAccount: showAccount,
-      showYokocho: yokochoTabAvailable(),
+      showYokocho: yokochoTabAvailable() && chipLayout.yokochoChipEnabled,
     );
     // 「アカウント」のチップが消えた時（保存が2つ未満に戻った・画面が横表示になった）、
     // そのタブを開いていたら語らいへ戻す（2026-11-11）。
     if (!showAccount && _selectedIndex == HomeTabId.account.index) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (mounted && _selectedIndex == HomeTabId.account.index) {
+          setState(() => _setSelectedIndex(kTalksTabIndex));
+        }
+      });
+    }
+    // 「横丁」のチップを設定で消した時も、そのタブを開いていたら語らいへ戻す（2026-11-29）。
+    if (!displayOrder.contains(HomeTabId.yokocho.index) &&
+        _selectedIndex == HomeTabId.yokocho.index) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted && _selectedIndex == HomeTabId.yokocho.index) {
           setState(() => _setSelectedIndex(kTalksTabIndex));
         }
       });
@@ -736,6 +782,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
       );
     }
 
+    _publishBandRect(isWide: isWide);
+
     // ホーム表示中は常に履歴の「ベース」エントリを積み、戻るボタンでアプリの
     // 外（ホームより前）へ出ないようにする（2026-10-04追加）。
     return BackBaseGuard(
@@ -808,6 +856,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
                           horizontal: _chipMargin,
                         ),
                         child: NavChipBand(
+                          key: _bandKey,
                           entries: liquidEntries,
                           selectedIndex: liquidSelected,
                           slidePosition: _slidePos,

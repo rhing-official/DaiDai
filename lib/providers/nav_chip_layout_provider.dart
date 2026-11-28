@@ -7,6 +7,7 @@ const _alignmentKey = 'navChipAlignment';
 const _wideAlignmentKey = 'navChipAlignmentWide';
 const _orderKey = 'navChipOrder';
 const _accountChipKey = 'navChipAccountEnabled';
+const _yokochoChipKey = 'navChipYokochoEnabled';
 
 /// 端末に保存されている初期のメニューチップの揃え・並び（2026-11-01）。アカウントには保存せず、
 /// 端末毎に持つ（画面の幅や持ち方が端末で違うため。同日ユーザー指示）。main()で起動前に
@@ -30,6 +31,7 @@ Future<NavChipLayout> loadInitialNavChipLayout() async {
               ? alignment
               : NavChipAlignment.start),
     accountChipEnabled: prefs.getBool(_accountChipKey) ?? false,
+    yokochoChipEnabled: prefs.getBool(_yokochoChipKey) ?? true,
     order: normalizeNavChipOrder(prefs.getStringList(_orderKey)),
   );
 }
@@ -54,6 +56,12 @@ class NavChipLayoutNotifier extends Notifier<NavChipLayout> {
     state = state.copyWith(accountChipEnabled: enabled);
     final prefs = await SharedPreferences.getInstance();
     await prefs.setBool(_accountChipKey, enabled);
+  }
+
+  Future<void> setYokochoChipEnabled(bool enabled) async {
+    state = state.copyWith(yokochoChipEnabled: enabled);
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(_yokochoChipKey, enabled);
   }
 
   Future<void> setOrder(List<HomeTabId> order) async {

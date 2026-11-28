@@ -78,6 +78,8 @@ class Strings {
     required this.settingsNavChipsOrderTitle,
     required this.settingsNavChipsAccountTitle,
     required this.settingsNavChipsAccountSubtitle,
+    required this.settingsNavChipsYokochoTitle,
+    required this.settingsNavChipsYokochoSubtitle,
     required this.settingsCallJoinCameraTitle,
     required this.settingsCallJoinCameraSubtitle,
     required this.settingsFolderSupport,
@@ -1452,6 +1454,8 @@ class Strings {
   final String settingsNavChipsOrderTitle;
   final String settingsNavChipsAccountTitle;
   final String settingsNavChipsAccountSubtitle;
+  final String settingsNavChipsYokochoTitle;
+  final String settingsNavChipsYokochoSubtitle;
   final String settingsCallJoinCameraTitle;
   final String settingsCallJoinCameraSubtitle;
   final String settingsFolderSupport;
@@ -3192,6 +3196,8 @@ class Strings {
     settingsNavChipsOrderTitle: '並び',
     settingsNavChipsAccountTitle: 'アカウントのタブを表示する',
     settingsNavChipsAccountSubtitle: '縦画面で、アカウントを2つ以上保存している時に出ます（この端末のみ）',
+    settingsNavChipsYokochoTitle: '横丁のタブを表示する',
+    settingsNavChipsYokochoSubtitle: 'ぺったんの閲覧・入手をアプリの中で行います（この端末のみ）',
     settingsCallJoinCameraTitle: 'ビデオ通話に参加する時カメラをオンにする',
     settingsCallJoinCameraSubtitle:
         'オフにすると、ビデオ通話に応答・参加した時はカメラを切った状態（音声のみ）で入ります。\n通話中にいつでもオンに出来ます。\n自分から発信する1対1のビデオ通話には影響しません。',
@@ -4661,6 +4667,9 @@ class Strings {
     settingsNavChipsAccountTitle: 'Show the Accounts tab',
     settingsNavChipsAccountSubtitle:
         'Shown in portrait when you have two or more saved accounts (this device only)',
+    settingsNavChipsYokochoTitle: 'Show the Yokocho tab',
+    settingsNavChipsYokochoSubtitle:
+        'Browse and get stickers inside the app (this device only)',
     settingsCallJoinCameraTitle: 'Turn the camera on when joining a video call',
     settingsCallJoinCameraSubtitle:
         'When off, you join video calls you answer or join with your camera off (audio only). You can turn it on at any time during the call. This doesn\'t affect one-to-one video calls you start yourself.',

@@ -80,6 +80,9 @@ final Strings _stringsFr = Strings._(
   settingsNavChipsAccountTitle: "Afficher l’onglet Comptes",
   settingsNavChipsAccountSubtitle:
       "Affiché en mode portrait si vous avez au moins deux comptes enregistrés (cet appareil uniquement)",
+  settingsNavChipsYokochoTitle: "Afficher l’onglet Yokocho",
+  settingsNavChipsYokochoSubtitle:
+      "Parcourir et obtenir des stickers dans l’application (cet appareil uniquement)",
   settingsCallJoinCameraTitle: "Activer la caméra en rejoignant un appel vidéo",
   settingsCallJoinCameraSubtitle:
       "Désactivé, vous rejoignez les appels vidéo que vous acceptez ou rejoignez avec la caméra coupée (audio seul). Vous pouvez l’activer à tout moment pendant l’appel. Cela n’affecte pas les appels vidéo en tête-à-tête que vous lancez.",

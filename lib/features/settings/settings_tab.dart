@@ -5035,9 +5035,13 @@ class NavChipLayoutFolder extends ConsumerWidget {
 
   /// 並べ替えに出すタブか。「アカウント」は保存が2つ以上で縦画面の時だけ、「横丁」は
   /// Android・iOS・Webだけ。
-  bool _navChipListed(HomeTabId tab, bool accountChipListed) => switch (tab) {
+  bool _navChipListed(
+    HomeTabId tab,
+    bool accountChipListed,
+    bool yokochoChipEnabled,
+  ) => switch (tab) {
     HomeTabId.account => accountChipListed,
-    HomeTabId.yokocho => yokochoTabAvailable(),
+    HomeTabId.yokocho => yokochoTabAvailable() && yokochoChipEnabled,
     _ => true,
   };
 
@@ -5201,14 +5205,24 @@ class NavChipLayoutFolder extends ConsumerWidget {
             // 横表示（設定が分割表示になる幅）では出ないので、並べ替えの対象にもしない。
             order: [
               for (final t in layout.order)
-                if (_navChipListed(t, accountChipListed)) t,
+                if (_navChipListed(
+                  t,
+                  accountChipListed,
+                  layout.yokochoChipEnabled,
+                ))
+                  t,
             ],
             onReorder: (list) {
               // 並べ替えの対象外のタブ（保存が2つ未満の「アカウント」、デスクトップの「横丁」）は、
               // 今の位置を残したまま、対象のタブだけを入れ替える。
               final hidden = [
                 for (final t in layout.order)
-                  if (!_navChipListed(t, accountChipListed)) t,
+                  if (!_navChipListed(
+                    t,
+                    accountChipListed,
+                    layout.yokochoChipEnabled,
+                  ))
+                    t,
               ];
               if (hidden.isEmpty) {
                 notifier.setOrder(list);
@@ -5368,6 +5382,10 @@ class NavChipLayoutFolder extends ConsumerWidget {
           child: GekigaSectionHeader(strings.settingsNavChipsOrderTitle),
         ),
         orderControl,
+        if (yokochoTabAvailable()) ...[
+          const SizedBox(height: 8),
+          _YokochoChipSwitch(strings: strings),
+        ],
         // 項目一覧の縦の位置は、2026-11-07に縦表示（幅600px未満）限定で追加し、
         // 2026-11-23に一度画面の広さを問わず常時出す形へ変更したが、同日中に
         // 広い画面は上の「揃え」（ナビチップの`wideAlignment`）へ同期する方式に
@@ -5428,6 +5446,49 @@ class _AccountChipSwitch extends ConsumerWidget {
       value: enabled,
       title: Text(strings.settingsNavChipsAccountTitle),
       subtitle: Text(strings.settingsNavChipsAccountSubtitle),
+      onChanged: set,
+    );
+  }
+}
+
+/// 「横丁」のチップを出すか（2026-11-29、端末ごとの保存、標準オン）。Android・iOS・Webだけで、
+/// 幅を問わず出す。作りは[_AccountChipSwitch]と同じ。
+class _YokochoChipSwitch extends ConsumerWidget {
+  const _YokochoChipSwitch({required this.strings});
+
+  final Strings strings;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final enabled = ref.watch(
+      navChipLayoutProvider.select((l) => l.yokochoChipEnabled),
+    );
+    final isGekiga = ref.watch(appUiStyleProvider) == AppUiStyle.gekiga;
+    void set(bool value) =>
+        ref.read(navChipLayoutProvider.notifier).setYokochoChipEnabled(value);
+    if (isGekiga) {
+      return GekigaJointedTileList(
+        seeds: const [3],
+        selectedFlags: const [false],
+        children: [
+          GekigaTileContent(
+            selected: false,
+            title: Text(strings.settingsNavChipsYokochoTitle),
+            subtitle: Text(strings.settingsNavChipsYokochoSubtitle),
+            trailing: AppSwitch(
+              value: enabled,
+              onChanged: set,
+              onDarkSurface: true,
+            ),
+            onTap: () => set(!enabled),
+          ),
+        ],
+      );
+    }
+    return AppSwitchListTile(
+      value: enabled,
+      title: Text(strings.settingsNavChipsYokochoTitle),
+      subtitle: Text(strings.settingsNavChipsYokochoSubtitle),
       onChanged: set,
     );
   }

@@ -20,6 +20,7 @@ import '../../theme/block/block_theme.dart';
 import '../../theme/chalk/chalk_paint.dart';
 import '../../theme/chalk/chalk_theme.dart';
 import '../../theme/kinari/kinari_theme.dart';
+import '../../widgets/nav_chip_halo.dart';
 import '../../widgets/kinari_surface.dart';
 import 'talks_header_metrics.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -2656,7 +2657,9 @@ class _TalksTabState extends ConsumerState<TalksTab>
             base: splitWidths.rail,
             isRail: true,
             builder: (w, child) => SizedBox(width: w, child: child),
-            child: iconRail,
+            // 列が下端まで伸びてチップの下へ潜り込む時だけ、チップの周りを滲ませる。
+            // 木の形が変わらないよう、常に`NavChipHalo`で包む（伸ばさない時は帯をnullと同じ扱い）。
+            child: NavChipHalo(enabled: extend, child: iconRail),
           ),
           railDivider(splitWidths.rail),
           // 余白の有無で子の木の形が変わらないよう、常に`Padding`で包む。

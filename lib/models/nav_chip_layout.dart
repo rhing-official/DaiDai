@@ -59,6 +59,8 @@ class NavChipLayout {
     this.wideAlignment = NavChipAlignment.start,
     // 標準では「アカウント」チップを作らない（2026-11-15、以前はオン）。保存のある端末は変わらない。
     this.accountChipEnabled = false,
+    // 「横丁」チップは標準で出す（2026-11-29）。Android・iOS・Webだけで、保存の無い端末も出る。
+    this.yokochoChipEnabled = true,
     this.order = const [
       HomeTabId.talk,
       HomeTabId.profile,
@@ -81,6 +83,10 @@ class NavChipLayout {
   /// 端末ごとの保存。標準はオン）。
   final bool accountChipEnabled;
 
+  /// 「横丁」のチップを出すか（2026-11-29、端末ごとの保存、標準オン）。出せない環境
+  /// （デスクトップ）では、オンでも出ない（`yokochoTabAvailable()`）。
+  final bool yokochoChipEnabled;
+
   /// チップを左から並べるタブの順。
   final List<HomeTabId> order;
 
@@ -88,11 +94,13 @@ class NavChipLayout {
     NavChipAlignment? alignment,
     NavChipAlignment? wideAlignment,
     bool? accountChipEnabled,
+    bool? yokochoChipEnabled,
     List<HomeTabId>? order,
   }) => NavChipLayout(
     alignment: alignment ?? this.alignment,
     wideAlignment: wideAlignment ?? this.wideAlignment,
     accountChipEnabled: accountChipEnabled ?? this.accountChipEnabled,
+    yokochoChipEnabled: yokochoChipEnabled ?? this.yokochoChipEnabled,
     order: order ?? this.order,
   );
 }

@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -6,6 +8,8 @@ import 'package:webview_flutter/webview_flutter.dart';
 import '../../models/app_user.dart';
 import '../../models/nav_chip_layout.dart';
 import '../../providers/home_shell_providers.dart';
+import '../../providers/nav_chip_layout_provider.dart';
+import '../../router/back_stack.dart';
 import '../../services/app_functions.dart';
 import '../../utils/yokocho.dart';
 import 'yokocho_palette.dart';
@@ -48,7 +52,13 @@ class _YokochoWebViewTabState extends ConsumerState<_YokochoWebViewTab> {
   bool _activated = false;
   bool _failed = false;
   bool _canGoBack = false;
+  bool _canGoForward = false;
   Brightness? _loadedBrightness;
+  String? _appliedBackground;
+  Timer? _preloadTimer;
+
+  /// アプリを開いてから、裏で横丁を読み込み始めるまでの待ち。起動の処理と競わせない為。
+  static const _preloadDelay = Duration(seconds: 2);
 
   @override
   void initState() {
@@ -78,6 +88,12 @@ class _YokochoWebViewTabState extends ConsumerState<_YokochoWebViewTab> {
   }
 
   @override
+  void dispose() {
+    _preloadTimer?.cancel();
+    super.dispose();
+  }
+
+  @override
   void didUpdateWidget(covariant _YokochoWebViewTab oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.currentUser.userId != widget.currentUser.userId &&
@@ -88,19 +104,53 @@ class _YokochoWebViewTabState extends ConsumerState<_YokochoWebViewTab> {
 
   Future<void> _refreshBack() async {
     final canGoBack = await _controller.canGoBack();
-    if (mounted && canGoBack != _canGoBack) {
-      setState(() => _canGoBack = canGoBack);
-    }
+    final canGoForward = await _controller.canGoForward();
+    if (!mounted) return;
+    // 戻る要求で`BackEntry`が外れた後も、まだ戻れるなら積み直す為、値が同じでも組み直す。
+    setState(() {
+      _canGoBack = canGoBack;
+      _canGoForward = canGoForward;
+    });
+  }
+
+  /// アプリの背景色（設定>背景、UIスタイル、ダークの種類を全て反映した、今の画面の背景）を、
+  /// `RRGGBB`で返す。横丁の背景だけを、これに合わせる（2026-11-29）。
+  String _backgroundHex() {
+    final c = Theme.of(context).scaffoldBackgroundColor;
+    int ch(double v) => (v * 255).round().clamp(0, 255);
+    String two(double v) => ch(v).toRadixString(16).padLeft(2, '0');
+    return '${two(c.r)}${two(c.g)}${two(c.b)}';
+  }
+
+  /// 読み込み済みの横丁の背景色を、読み直さずに差し替える。
+  void _syncBackground() {
+    final hex = _backgroundHex();
+    if (_appliedBackground == hex) return;
+    _appliedBackground = hex;
+    _controller.runJavaScript(
+      'window.__daidaiSetBackground&&window.__daidaiSetBackground("$hex")',
+    );
+  }
+
+  void _activate() {
+    _activated = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _start();
+    });
   }
 
   Future<void> _start() async {
     final brightness = Theme.of(context).brightness;
     _loadedBrightness = brightness;
+    final background = _backgroundHex();
+    _appliedBackground = background;
     final platform = Theme.of(context).platform == TargetPlatform.iOS
         ? 'ios'
         : 'android';
     if (mounted) setState(() => _failed = false);
-    await _controller.setBackgroundColor(YokochoPalette.of(context).surface);
+    await _controller.setBackgroundColor(
+      Theme.of(context).scaffoldBackgroundColor,
+    );
     String? token;
     try {
       final result = await AppFunctions.instanceFor(
@@ -115,22 +165,54 @@ class _YokochoWebViewTabState extends ConsumerState<_YokochoWebViewTab> {
         'embed': '1',
         'platform': platform,
         'theme': brightness == Brightness.dark ? 'dark' : 'light',
+        'bg': background,
       },
       fragment: token == null ? null : 'token=$token',
     );
     await _controller.loadRequest(uri);
   }
 
+  /// 左端から右へ引けば戻る、右端から左へ引けば進む（ブラウザと同じ、2026-11-29）。
+  /// WebViewの上に、画面の両端だけ細い帯を置き、横のドラッグだけを受ける。
+  void _onEdgeDragEnd(DragEndDetails details, {required bool fromLeft}) {
+    final v = details.primaryVelocity ?? 0;
+    if (fromLeft && v > 150 && _canGoBack) {
+      _controller.goBack();
+    } else if (!fromLeft && v < -150 && _canGoForward) {
+      _controller.goForward();
+    }
+  }
+
+  Widget _edgeStrip({required bool fromLeft}) => Positioned(
+    left: fromLeft ? 0 : null,
+    right: fromLeft ? null : 0,
+    top: 0,
+    bottom: 0,
+    width: 20,
+    child: GestureDetector(
+      behavior: HitTestBehavior.translucent,
+      onHorizontalDragEnd: (d) => _onEdgeDragEnd(d, fromLeft: fromLeft),
+    ),
+  );
+
   @override
   Widget build(BuildContext context) {
-    // 最初に横丁のタブを開いた時だけ、読み込みを始める（開かない人には、通信もトークンの発行もしない）。
+    // 初めて開いた時に待たされないよう、アプリを開いて少し経ったら、裏で読み込み始める
+    // （2026-11-29）。タブを先に開いた場合は、その場で始める。チップを消している間は読まない。
     final selected =
         ref.watch(homeSelectedTabProvider) == HomeTabId.yokocho.index;
-    if (selected && !_activated) {
-      _activated = true;
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (mounted) _start();
-      });
+    final chipEnabled = ref.watch(
+      navChipLayoutProvider.select((l) => l.yokochoChipEnabled),
+    );
+    if (!_activated) {
+      if (selected) {
+        _preloadTimer?.cancel();
+        _activate();
+      } else if (chipEnabled && _preloadTimer == null) {
+        _preloadTimer = Timer(_preloadDelay, () {
+          if (mounted && !_activated) setState(_activate);
+        });
+      }
     }
     final palette = YokochoPalette.of(context);
     // アプリの明るさが変わったら、横丁もその明るさで読み込み直す。
@@ -142,45 +224,62 @@ class _YokochoWebViewTabState extends ConsumerState<_YokochoWebViewTab> {
       });
     }
 
-    return ColoredBox(
-      color: palette.surface,
-      child: SafeArea(
-        bottom: false,
-        child: Stack(
-          children: [
-            if (_activated) WebViewWidget(controller: _controller),
-            if (_failed)
-              Center(
-                child: GestureDetector(
-                  onTap: _start,
-                  child: Icon(Icons.refresh, size: 32, color: palette.subtle),
-                ),
-              ),
-            // 横丁のヘッダーを隠しているので、詳細などから戻る手段を、ここに置く。
-            if (_canGoBack)
-              Positioned(
-                left: 12,
-                top: 8,
-                child: Material(
-                  color: palette.card.withValues(alpha: 0.9),
-                  shape: CircleBorder(
-                    side: BorderSide(color: palette.outlineVariant),
+    if (_activated) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) _syncBackground();
+      });
+    }
+
+    return BackEntry(
+      // 画面の戻る・Androidの戻るも、横丁の中のページを戻す。
+      active: _activated && _canGoBack,
+      scope: BackScope.yokocho,
+      onBack: () => _controller.goBack(),
+      onForward: () => _controller.goForward(),
+      child: ColoredBox(
+        color: Theme.of(context).scaffoldBackgroundColor,
+        child: SafeArea(
+          bottom: false,
+          child: Stack(
+            children: [
+              if (_activated) WebViewWidget(controller: _controller),
+              if (_activated) ...[
+                _edgeStrip(fromLeft: true),
+                _edgeStrip(fromLeft: false),
+              ],
+              if (_failed)
+                Center(
+                  child: GestureDetector(
+                    onTap: _start,
+                    child: Icon(Icons.refresh, size: 32, color: palette.subtle),
                   ),
-                  child: InkWell(
-                    customBorder: const CircleBorder(),
-                    onTap: () => _controller.goBack(),
-                    child: Padding(
-                      padding: const EdgeInsets.all(8),
-                      child: Icon(
-                        Icons.arrow_back,
-                        size: 22,
-                        color: palette.onSurface,
+                ),
+              // 横丁のヘッダーを隠しているので、詳細などから戻る手段を、ここに置く。
+              if (_canGoBack)
+                Positioned(
+                  left: 12,
+                  top: 8,
+                  child: Material(
+                    color: palette.card.withValues(alpha: 0.9),
+                    shape: CircleBorder(
+                      side: BorderSide(color: palette.outlineVariant),
+                    ),
+                    child: InkWell(
+                      customBorder: const CircleBorder(),
+                      onTap: () => _controller.goBack(),
+                      child: Padding(
+                        padding: const EdgeInsets.all(8),
+                        child: Icon(
+                          Icons.arrow_back,
+                          size: 22,
+                          color: palette.onSurface,
+                        ),
                       ),
                     ),
                   ),
                 ),
-              ),
-          ],
+            ],
+          ),
         ),
       ),
     );

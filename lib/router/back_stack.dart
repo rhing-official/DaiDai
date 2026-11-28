@@ -8,7 +8,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 /// 戻る・進む履歴を保持するタブ単位のスコープ（2026-10-06追加）。履歴は
 /// タブ毎に独立しており、あるタブの「戻る」が別のタブの状態を戻すことは
 /// ない（タブの切り替え自体は履歴に記録しない）。
-enum BackScope { talks, profile, settings, admin }
+enum BackScope { talks, profile, settings, admin, yokocho }
 
 /// タブ毎に保存する履歴件数の上限（2026-10-06、ユーザー指示）。
 /// 設定画面からは変更せず、ここで事前に決める。
