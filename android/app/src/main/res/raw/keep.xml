@@ -1,5 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!-- 通知のチャンネルの音（着信音・メッセージの通知音）は、コードから`R.raw`で参照せず、名前で引く。
-     リソースの縮小で消されないよう、`raw`の全てを残す（2026-11-25）。 -->
+     リソースの縮小で消されないよう、`raw`の全てを残す（2026-11-25）。
+     `default_web_client_id`は、google_sign_inがAndroidで名前から探す。コードから参照されず、
+     縮小で消えるとGoogleログインが「serverClientId must be provided」で失敗する為、残す
+     （2026-11-28。Dart側でも`googleWebClientId`を明示的に渡している）。 -->
 <resources xmlns:tools="http://schemas.android.com/tools"
-    tools:keep="@raw/*" />
+    tools:keep="@raw/*,@string/default_web_client_id" />

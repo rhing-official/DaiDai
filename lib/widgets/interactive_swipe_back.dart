@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import '../models/slide_transition_style.dart';
 import 'liquify_effect.dart';
 import '../theme/motion.dart';
+import 'slide_drilldown.dart';
 import 'scribble_paint.dart';
 import 'swipe_gestures.dart';
 
@@ -425,7 +426,7 @@ Route<T> slideBackRoute<T>({required WidgetBuilder builder}) {
         onBack: () {
           if (Navigator.of(context).canPop()) Navigator.of(context).pop();
         },
-        child: Builder(builder: builder),
+        child: OpaqueScreenBackdrop(child: Builder(builder: builder)),
       );
     },
   );

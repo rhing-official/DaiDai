@@ -1,4 +1,17 @@
+import 'package:flutter/foundation.dart';
 import 'package:google_sign_in/google_sign_in.dart';
+
+/// FirebaseのウェブクライアントID（`android/app/google-services.json`の`client_type: 3`と同じ値。
+/// 公開前提のOAuthクライアントID）。Firebase Console > Authentication > Sign-in method >
+/// Google > ウェブSDK構成の値。
+///
+/// Androidのgoogle_sign_inは、`serverClientId`が無いと、リソース`default_web_client_id`を
+/// 名前で探す。このリソースはコードから参照されないため、リリースビルドのリソース縮小で
+/// 消されることがあり、その時`serverClientId must be provided on Android, null`で
+/// ログインに失敗していた（2026-11-28）。そのため、リソースに頼らず、コードから明示的に渡す。
+/// 値が`google-services.json`と一致することは`test/google_sign_in_config_test.dart`が守る。
+const String googleWebClientId =
+    '380243513330-n5mejgg1sberbkjhrtgf5qti6js9gf26.apps.googleusercontent.com';
 
 /// `GoogleSignIn.instance.initialize()`は「アプリ全体で厳密に1回だけ」
 /// 呼ばなければならない制約がある（2回目以降の呼び出しは未定義動作、
@@ -15,6 +28,9 @@ import 'package:google_sign_in/google_sign_in.dart';
 Future<void> ensureGoogleSignInInitialized({String? clientId}) {
   return _initializeFuture ??= GoogleSignIn.instance.initialize(
     clientId: clientId,
+    serverClientId: !kIsWeb && defaultTargetPlatform == TargetPlatform.android
+        ? googleWebClientId
+        : null,
   );
 }
 

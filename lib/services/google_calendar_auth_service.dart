@@ -46,8 +46,7 @@ class GoogleCalendarAuthService {
   /// Firebase Console（Authentication > Sign-in method > Google >
   /// ウェブSDK構成 > ウェブ クライアント ID）から取得した値
   /// （2026-09-01設定、Phase 0完了）。
-  static const String? _webClientId =
-      '380243513330-n5mejgg1sberbkjhrtgf5qti6js9gf26.apps.googleusercontent.com';
+  static const String? _webClientId = googleWebClientId;
 
   Future<void> ensureInitialized() {
     return ensureGoogleSignInInitialized(

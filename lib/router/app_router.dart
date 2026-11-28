@@ -30,6 +30,7 @@ import '../theme/motion.dart';
 import '../utils/auto_dismiss_banner.dart';
 import '../utils/platform_info.dart';
 import '../widgets/interactive_swipe_back.dart';
+import '../widgets/slide_drilldown.dart';
 import 'back_stack.dart';
 
 /// 語らい系の画面遷移をURL付きのブラウザ履歴に載せる為のルーター。
@@ -236,8 +237,9 @@ final goRouterProvider = Provider<GoRouter>((ref) {
       // Androidのシステムの戻る（戻るボタン・戻るジェスチャー）は、右スワイプと同じく、上の層を
       // 先に閉じ、無ければこの画面を閉じて一覧へ戻す。ルーター任せだと何も起きないことがあった為、
       // 画面側で確実に受ける（Webはブラウザの履歴で処理するため対象外）。
+      // チョーク・背景画像の意匠は画面の塗りが透明で、下の画面が透けるため、不透明に裏打ちする。
       child: consumeBack == null || kIsWeb
-          ? child
+          ? OpaqueScreenBackdrop(child: child)
           : BackButtonListener(
               onBackButtonPressed: () async {
                 if (consumeBack()) return true;
@@ -247,7 +249,7 @@ final goRouterProvider = Provider<GoRouter>((ref) {
                 }
                 return false;
               },
-              child: child,
+              child: OpaqueScreenBackdrop(child: child),
             ),
     ),
     transition: transition,
