@@ -53,6 +53,7 @@ Future<List<int>> _alphas(
 }
 
 void main() {
+  _layeredChild();
   const band = Rect.fromLTWH(60, 220, 160, 56);
 
   testWidgets('チップの帯の中は透明に近く、離れた所は不透明のまま', (tester) async {
@@ -90,5 +91,56 @@ void main() {
       ),
       [255],
     );
+  });
+}
+
+void _layeredChild() {
+  testWidgets('子が別のレイヤー（RepaintBoundary・スクロール）を作っても、例外を出さず滲む', (tester) async {
+    final key = GlobalKey();
+    final container = ProviderContainer();
+    addTearDown(container.dispose);
+    container
+        .read(navChipBandRectProvider.notifier)
+        .set(const Rect.fromLTWH(60, 220, 160, 56));
+    await tester.binding.setSurfaceSize(const Size(300, 300));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    await tester.pumpWidget(
+      UncontrolledProviderScope(
+        container: container,
+        child: Directionality(
+          textDirection: TextDirection.ltr,
+          child: RepaintBoundary(
+            key: key,
+            child: NavChipHalo(
+              child: ListView(
+                children: [
+                  for (var i = 0; i < 20; i++)
+                    RepaintBoundary(
+                      child: Container(
+                        height: 40,
+                        color: const Color(0xFFFF0000),
+                      ),
+                    ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pump();
+    expect(tester.takeException(), isNull);
+    late int center;
+    late int far;
+    await tester.runAsync(() async {
+      final b = key.currentContext!.findRenderObject() as RenderRepaintBoundary;
+      final img = await b.toImage(pixelRatio: 1);
+      final d = (await img.toByteData(format: ui.ImageByteFormat.rawRgba))!;
+      int a(int x, int y) => d.getUint8((y * img.width + x) * 4 + 3);
+      center = a(140, 248);
+      far = a(140, 60);
+    });
+    expect(center, lessThan(30));
+    expect(far, 255);
   });
 }

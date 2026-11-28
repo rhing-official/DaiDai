@@ -1,3 +1,6 @@
+import 'dart:math' as math;
+import 'dart:ui' as ui;
+
 import 'package:flutter/rendering.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -65,6 +68,11 @@ class _RenderHalo extends RenderProxyBox {
   Rect? _bandGlobal;
   double _reach;
 
+  /// 滲みの形を描いたマスク画像（不透明な面から、ぼかした角丸を抜いたもの）と、その作り元。
+  /// 帯の位置・大きさが変わらない間は、作り直さない。
+  ui.Image? _mask;
+  ({Size size, RRect rrect, double reach})? _maskKey;
+
   set bandGlobal(Rect? value) {
     if (_bandGlobal == value) return;
     _bandGlobal = value;
@@ -78,33 +86,27 @@ class _RenderHalo extends RenderProxyBox {
   }
 
   @override
-  void paint(PaintingContext context, Offset offset) {
-    final band = _bandGlobal;
-    final child = this.child;
-    if (child == null) return;
-    if (band == null) {
-      context.paintChild(child, offset);
-      return;
-    }
-    // チップの帯を、この部品の座標へ直す。
-    final origin = localToGlobal(Offset.zero);
-    final local = band.shift(-origin);
-    // 滲みの外へはみ出す分（ぼかしの裾）まで含めて、重ならなければそのまま描く。
-    final bounds = offset & size;
-    final halo = local.shift(offset).inflate(_reach);
-    if (!halo.overlaps(bounds)) {
-      context.paintChild(child, offset);
-      return;
-    }
-    // 帯の角丸は、チップの丸（半径=高さの半分）に合わせ、そこへ余白を足す。
-    final core = local.shift(offset).inflate(_reach * 0.5);
-    final rrect = RRect.fromRectAndRadius(
-      core,
-      Radius.circular(core.shortestSide / 2),
+  bool get alwaysNeedsCompositing => child != null && _bandGlobal != null;
+
+  @override
+  void dispose() {
+    _mask?.dispose();
+    _mask = null;
+    layer = null;
+    super.dispose();
+  }
+
+  /// 帯の範囲（この部品の座標）から、マスク画像を作る。画像の透明度は、帯の中で0、離れた所で1。
+  ui.Image _maskFor(Size size, RRect rrect) {
+    final key = (size: size, rrect: rrect, reach: _reach);
+    if (_mask != null && _maskKey == key) return _mask!;
+    _mask?.dispose();
+    final recorder = ui.PictureRecorder();
+    final canvas = Canvas(recorder, Offset.zero & size);
+    canvas.drawRect(
+      Offset.zero & size,
+      Paint()..color = const Color(0xFF000000),
     );
-    final canvas = context.canvas;
-    canvas.saveLayer(bounds.inflate(_reach), Paint());
-    context.paintChild(child, offset);
     canvas.drawRRect(
       rrect,
       Paint()
@@ -112,6 +114,62 @@ class _RenderHalo extends RenderProxyBox {
         ..color = const Color(0xFF000000)
         ..maskFilter = MaskFilter.blur(BlurStyle.normal, _reach * 0.6),
     );
-    canvas.restore();
+    final picture = recorder.endRecording();
+    final image = picture.toImageSync(
+      math.max(1, size.width.ceil()),
+      math.max(1, size.height.ceil()),
+    );
+    picture.dispose();
+    _mask = image;
+    _maskKey = key;
+    return image;
+  }
+
+  @override
+  void paint(PaintingContext context, Offset offset) {
+    final band = _bandGlobal;
+    final child = this.child;
+    if (child == null) return;
+    if (band == null || size.isEmpty) {
+      layer = null;
+      context.paintChild(child, offset);
+      return;
+    }
+    // チップの帯を、この部品の座標へ直す。
+    final local = band.shift(-localToGlobal(Offset.zero));
+    // 滲みの裾まで含めて、重ならなければそのまま描く。
+    if (!local.inflate(_reach).overlaps(Offset.zero & size)) {
+      layer = null;
+      context.paintChild(child, offset);
+      return;
+    }
+    // 帯の角丸は、チップの丸（半径=高さの半分）に合わせ、そこへ余白を足す。
+    final core = local.inflate(_reach * 0.5);
+    final rrect = RRect.fromRectAndRadius(
+      core,
+      Radius.circular(core.shortestSide / 2),
+    );
+    final image = _maskFor(size, rrect);
+    // `ShaderMask`と同じ作り。子が別のレイヤーを作っても壊れないよう、`canvas`ではなくレイヤーで掛ける。
+    layer = (layer as ShaderMaskLayer?)
+      ?..shader = ImageShader(
+        image,
+        TileMode.clamp,
+        TileMode.clamp,
+        Matrix4.identity().storage,
+      )
+      ..maskRect = offset & size
+      ..blendMode = BlendMode.dstIn;
+    layer ??= ShaderMaskLayer(
+      shader: ImageShader(
+        image,
+        TileMode.clamp,
+        TileMode.clamp,
+        Matrix4.identity().storage,
+      ),
+      maskRect: offset & size,
+      blendMode: BlendMode.dstIn,
+    );
+    context.pushLayer(layer!, super.paint, offset);
   }
 }

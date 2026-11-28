@@ -51,6 +51,13 @@ android {
     }
 
     buildTypes {
+        // 開発中の`flutter run`（ホットリロード）で、入れてあるリリース版のAPKを消さずに上書き
+        // する為、署名鍵が有る端末では、デバッグ版もリリースと同じ鍵で署名する（2026-11-29）。
+        debug {
+            if (keystorePropertiesFile.exists()) {
+                signingConfig = signingConfigs.getByName("release")
+            }
+        }
         release {
             signingConfig = if (keystorePropertiesFile.exists()) {
                 signingConfigs.getByName("release")

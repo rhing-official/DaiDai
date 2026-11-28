@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -52,9 +53,11 @@ class _YokochoWebViewTabState extends ConsumerState<_YokochoWebViewTab> {
   bool _activated = false;
   bool _failed = false;
   bool _canGoBack = false;
-  bool _canGoForward = false;
   Brightness? _loadedBrightness;
-  String? _appliedBackground;
+
+  /// 最後に差し込んだスクリプト。今の内容と違えば、差し込み直す（背景の設定が変わった時や、
+  /// 開発中のホットリロードで差し込みの内容が変わった時に、ページを読み直さず反映する為）。
+  String? _appliedScript;
   Timer? _preloadTimer;
 
   /// アプリを開いてから、裏で横丁を読み込み始めるまでの待ち。起動の処理と競わせない為。
@@ -76,8 +79,15 @@ class _YokochoWebViewTabState extends ConsumerState<_YokochoWebViewTab> {
             launchUrl(uri, mode: LaunchMode.externalApplication);
             return NavigationDecision.prevent;
           },
-          onPageFinished: (_) => _refreshBack(),
-          onUrlChange: (_) => _refreshBack(),
+          onPageStarted: (_) => _injectStyle(),
+          onPageFinished: (_) {
+            _injectStyle();
+            _refreshBack();
+          },
+          onUrlChange: (_) {
+            _injectStyle();
+            _refreshBack();
+          },
           onWebResourceError: (error) {
             if (error.isForMainFrame ?? false) {
               if (mounted) setState(() => _failed = true);
@@ -104,12 +114,10 @@ class _YokochoWebViewTabState extends ConsumerState<_YokochoWebViewTab> {
 
   Future<void> _refreshBack() async {
     final canGoBack = await _controller.canGoBack();
-    final canGoForward = await _controller.canGoForward();
     if (!mounted) return;
     // 戻る要求で`BackEntry`が外れた後も、まだ戻れるなら積み直す為、値が同じでも組み直す。
     setState(() {
       _canGoBack = canGoBack;
-      _canGoForward = canGoForward;
     });
   }
 
@@ -122,14 +130,73 @@ class _YokochoWebViewTabState extends ConsumerState<_YokochoWebViewTab> {
     return '${two(c.r)}${two(c.g)}${two(c.b)}';
   }
 
-  /// 読み込み済みの横丁の背景色を、読み直さずに差し替える。
-  void _syncBackground() {
+  /// アプリで開いた横丁にだけ当てるCSS。横丁のサイトの実装は変えず、アプリ側から差し込む
+  /// （2026-11-29、ユーザー指示）。
+  ///
+  /// - 左上: ホームページでRhingのロゴが有る場所に、「daidai横丁」を置く。押すと横丁のトップへ移る。
+  ///   要素は[_injectStyle]が作る（`#daidai-app-home`）。
+  /// - 右上: バー（お気に入り・カート・アカウント）は、ホームページのバーと同じ並び（左からお気に入り、
+  ///   カート、アカウント）で、チップの間を縦線にして、上の端へ寄せる。ホームページの実装は
+  ///   `DaidaiYokochoMenu.tsx`。狭い画面では、元の区切りが横線（`h-px w-6`）になる為、縦線に直す。
+  ///   見た目は、ホームページのヘッダーのバー（半透明の面・細い縁・影・ぼかし・丸いボタン）に揃える。
+  ///   ホームページのバーに入っているハンバーガーとモード切り替えは、入れない。
+  static const _injectedCss = r'''
+main{padding-top:4.5rem!important}
+nav[aria-label="お気に入り・カート・アカウント"]{flex-direction:row!important;background:color-mix(in srgb,var(--color-surface) 80%,transparent)!important;border:1px solid color-mix(in srgb,var(--color-outline-variant) 60%,transparent)!important;box-shadow:var(--shadow-elevation-3)!important;-webkit-backdrop-filter:blur(12px)!important;backdrop-filter:blur(12px)!important;border-radius:9999px!important}
+nav[aria-label="お気に入り・カート・アカウント"]>span[aria-hidden]{width:1px!important;height:1.5rem!important}
+nav[aria-label="お気に入り・カート・アカウント"] a,nav[aria-label="お気に入り・カート・アカウント"] button{border-radius:9999px!important}
+.recede-hide.fixed{top:.75rem!important;right:.75rem!important;left:auto!important}
+#daidai-app-home{position:absolute;top:.75rem;left:1rem;height:48px;display:flex;align-items:center;z-index:50;font-family:var(--font-sans),sans-serif;font-size:1.25rem;font-weight:500;letter-spacing:.15em;color:var(--color-on-surface);text-decoration:none;-webkit-tap-highlight-color:transparent}
+''';
+
+  /// 背景をアプリの設定に合わせ、[_injectedCss]を差し込む。何度呼んでも同じ結果になる。
+  /// 読み込みの始め・終わり・ページの移動のたびに呼ぶ（ページが作り直されても、差し込みが残るように）。
+  String _injectionScript() {
     final hex = _backgroundHex();
-    if (_appliedBackground == hex) return;
-    _appliedBackground = hex;
-    _controller.runJavaScript(
-      'window.__daidaiSetBackground&&window.__daidaiSetBackground("$hex")',
-    );
+    return '''
+(function(){
+  var e=document.documentElement;
+  if(!e)return;
+  e.style.setProperty("--color-surface","#$hex");
+  var id="daidai-app-style";
+  var st=document.getElementById(id);
+  if(!st){st=document.createElement("style");st.id=id;(document.head||e).appendChild(st);}
+  st.textContent=${jsonEncode(_injectedCss)};
+  if(!window.__daidaiTitleObserver){
+    var hideTitle=function(){
+      var hs=document.querySelectorAll("h1");
+      for(var i=0;i<hs.length;i++){
+        var h=hs[i];
+        if(h.textContent.trim()==="daidai横丁"){
+          var box=h.closest(".container")||h.parentElement;
+          if(box)box.style.display="none";
+        }
+      }
+    };
+    hideTitle();
+    window.__daidaiTitleObserver=new MutationObserver(hideTitle);
+    window.__daidaiTitleObserver.observe(document.documentElement,{childList:true,subtree:true});
+  }
+  if(document.body&&!document.getElementById("daidai-app-home")){
+    var a=document.createElement("a");
+    a.id="daidai-app-home";
+    a.href="/daidai-yokocho";
+    a.textContent="daidai横丁";
+    document.body.appendChild(a);
+  }
+})();
+''';
+  }
+
+  Future<void> _injectStyle() async {
+    if (!mounted) return;
+    final js = _injectionScript();
+    _appliedScript = js;
+    try {
+      await _controller.runJavaScript(js);
+    } catch (_) {
+      // ページがまだ作られていない間は、次の呼び出しで差し込む。
+    }
   }
 
   void _activate() {
@@ -142,8 +209,6 @@ class _YokochoWebViewTabState extends ConsumerState<_YokochoWebViewTab> {
   Future<void> _start() async {
     final brightness = Theme.of(context).brightness;
     _loadedBrightness = brightness;
-    final background = _backgroundHex();
-    _appliedBackground = background;
     final platform = Theme.of(context).platform == TargetPlatform.iOS
         ? 'ios'
         : 'android';
@@ -165,35 +230,11 @@ class _YokochoWebViewTabState extends ConsumerState<_YokochoWebViewTab> {
         'embed': '1',
         'platform': platform,
         'theme': brightness == Brightness.dark ? 'dark' : 'light',
-        'bg': background,
       },
       fragment: token == null ? null : 'token=$token',
     );
     await _controller.loadRequest(uri);
   }
-
-  /// 左端から右へ引けば戻る、右端から左へ引けば進む（ブラウザと同じ、2026-11-29）。
-  /// WebViewの上に、画面の両端だけ細い帯を置き、横のドラッグだけを受ける。
-  void _onEdgeDragEnd(DragEndDetails details, {required bool fromLeft}) {
-    final v = details.primaryVelocity ?? 0;
-    if (fromLeft && v > 150 && _canGoBack) {
-      _controller.goBack();
-    } else if (!fromLeft && v < -150 && _canGoForward) {
-      _controller.goForward();
-    }
-  }
-
-  Widget _edgeStrip({required bool fromLeft}) => Positioned(
-    left: fromLeft ? 0 : null,
-    right: fromLeft ? null : 0,
-    top: 0,
-    bottom: 0,
-    width: 20,
-    child: GestureDetector(
-      behavior: HitTestBehavior.translucent,
-      onHorizontalDragEnd: (d) => _onEdgeDragEnd(d, fromLeft: fromLeft),
-    ),
-  );
 
   @override
   Widget build(BuildContext context) {
@@ -226,7 +267,9 @@ class _YokochoWebViewTabState extends ConsumerState<_YokochoWebViewTab> {
 
     if (_activated) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (mounted) _syncBackground();
+        if (mounted && _appliedScript != _injectionScript()) {
+          _injectStyle();
+        }
       });
     }
 
@@ -243,39 +286,11 @@ class _YokochoWebViewTabState extends ConsumerState<_YokochoWebViewTab> {
           child: Stack(
             children: [
               if (_activated) WebViewWidget(controller: _controller),
-              if (_activated) ...[
-                _edgeStrip(fromLeft: true),
-                _edgeStrip(fromLeft: false),
-              ],
               if (_failed)
                 Center(
                   child: GestureDetector(
                     onTap: _start,
                     child: Icon(Icons.refresh, size: 32, color: palette.subtle),
-                  ),
-                ),
-              // 横丁のヘッダーを隠しているので、詳細などから戻る手段を、ここに置く。
-              if (_canGoBack)
-                Positioned(
-                  left: 12,
-                  top: 8,
-                  child: Material(
-                    color: palette.card.withValues(alpha: 0.9),
-                    shape: CircleBorder(
-                      side: BorderSide(color: palette.outlineVariant),
-                    ),
-                    child: InkWell(
-                      customBorder: const CircleBorder(),
-                      onTap: () => _controller.goBack(),
-                      child: Padding(
-                        padding: const EdgeInsets.all(8),
-                        child: Icon(
-                          Icons.arrow_back,
-                          size: 22,
-                          color: palette.onSurface,
-                        ),
-                      ),
-                    ),
                   ),
                 ),
             ],
