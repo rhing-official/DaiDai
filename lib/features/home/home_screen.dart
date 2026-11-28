@@ -25,7 +25,7 @@ import '../../widgets/pane_visibility.dart';
 import '../chat/talks_tab.dart';
 import '../profile/profile_tab.dart';
 import '../settings/settings_tab.dart';
-import '../yokocho/yokocho_tab.dart';
+import '../yokocho/yokocho_webview_tab.dart';
 import '../../utils/yokocho.dart';
 
 /// サイドバー/下部ナビの切り替えしきい値。Material Design 3の

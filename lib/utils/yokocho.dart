@@ -30,3 +30,10 @@ bool yokochoTabAvailable() =>
     kIsWeb ||
     defaultTargetPlatform == TargetPlatform.android ||
     defaultTargetPlatform == TargetPlatform.iOS;
+
+/// アプリ内の横丁を、WebViewで開けるか（2026-11-28）。Android・iOSのアプリだけ。
+/// Web版のアプリはWebViewが使えないので、Dart版の画面を使う。
+bool yokochoWebViewAvailable() =>
+    !kIsWeb &&
+    (defaultTargetPlatform == TargetPlatform.android ||
+        defaultTargetPlatform == TargetPlatform.iOS);

@@ -15,6 +15,12 @@ class Strings {
     required this.navProfile,
     required this.navSettings,
     required this.navAccount,
+    required this.yokochoInfoCount,
+    required this.yokochoInfoCategory,
+    required this.yokochoInfoPublished,
+    required this.yokochoInfoTags,
+    required this.yokochoNoteUse,
+    required this.yokochoNoImage,
     required this.navYokocho,
     required this.yokochoSearchHint,
     required this.yokochoFilterAll,
@@ -1366,6 +1372,12 @@ class Strings {
   final String navProfile;
   final String navSettings;
   final String navAccount;
+  final String yokochoInfoCount;
+  final String yokochoInfoCategory;
+  final String yokochoInfoPublished;
+  final String yokochoInfoTags;
+  final String yokochoNoteUse;
+  final String yokochoNoImage;
   final String navYokocho;
   final String yokochoSearchHint;
   final String yokochoFilterAll;
@@ -3113,6 +3125,12 @@ class Strings {
     navProfile: '身だしなみ',
     navSettings: '設定',
     navAccount: 'アカウント',
+    yokochoInfoCount: '収録数',
+    yokochoInfoCategory: 'カテゴリ',
+    yokochoInfoPublished: '公開日',
+    yokochoInfoTags: 'タグ',
+    yokochoNoteUse: '入手すると、DaiDaiアプリでこのぺったんが使えるようになります。',
+    yokochoNoImage: '画像が有りません',
     navYokocho: '横丁',
     yokochoSearchHint: 'ぺったんを検索',
     yokochoFilterAll: 'すべて',
@@ -4571,6 +4589,12 @@ class Strings {
     navProfile: 'Profile',
     navSettings: 'Settings',
     navAccount: 'Accounts',
+    yokochoInfoCount: 'Stickers',
+    yokochoInfoCategory: 'Category',
+    yokochoInfoPublished: 'Published',
+    yokochoInfoTags: 'Tags',
+    yokochoNoteUse: 'Once you get it, you can use this sticker pack in DaiDai.',
+    yokochoNoImage: 'No image',
     navYokocho: 'Yokocho',
     yokochoSearchHint: 'Search stickers',
     yokochoFilterAll: 'All',

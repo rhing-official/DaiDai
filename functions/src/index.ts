@@ -979,6 +979,27 @@ export const redeemSwitchSession = onCall(
 );
 
 /**
+ * アプリ内の横丁（WebView）へ、いまのアカウントのまま入る為の、使い捨てのカスタムトークンを発行する
+ * （2026-11-28）。WebViewの横丁は、アプリとログイン状態を共有しないので、横丁側が
+ * `signInWithCustomToken`で入る。ログイン中の本人だけが呼べる。停止中・削除申請中の
+ * アカウントには発行しない。トークンの有効期限はFirebaseの既定（1時間）。
+ */
+export const createWebSignInToken = onCall(
+  { region: "asia-northeast1" },
+  async (request) => {
+    const uid = request.auth?.uid;
+    if (!uid) {
+      throw new HttpsError("unauthenticated", "ログインが必要です");
+    }
+    const userDoc = await db.collection("users").doc(uid).get();
+    if (userDoc.data()?.accountStatus !== "active") {
+      throw new HttpsError("failed-precondition", "このアカウントは使えません");
+    }
+    return { customToken: await getAuth().createCustomToken(uid) };
+  },
+);
+
+/**
  * 保存したアカウントを取り外す（ログアウト・取り外し）。合言葉で本人の端末だと確かめて、
  * セッションを消す。別のアカウントにログインしている時でも呼べるよう、ログインは要らない。
  */
