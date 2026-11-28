@@ -114,3 +114,27 @@ class ItemPickBridge {
 final itemPickBridgeProvider = Provider<ItemPickBridge>(
   (ref) => ItemPickBridge(),
 );
+
+/// ホームのタブを、今のチップの並びで、隣へ移す依頼（2026-11-29）。横丁タブ（WebView）の中の
+/// 横スワイプが、トップページを開いている間は、タブの移動になる為に使う。[delta]は-1（左隣）・
+/// 1（右隣）。[seq]は、同じ向きの依頼が続いても変化として届ける為の連番。端まで来ていたら何もしない。
+class HomeTabStepRequest {
+  const HomeTabStepRequest(this.delta, this.seq);
+
+  final int delta;
+  final int seq;
+}
+
+class HomeTabStepNotifier extends Notifier<HomeTabStepRequest?> {
+  int _seq = 0;
+
+  @override
+  HomeTabStepRequest? build() => null;
+
+  void step(int delta) => state = HomeTabStepRequest(delta, ++_seq);
+}
+
+final homeTabStepProvider =
+    NotifierProvider<HomeTabStepNotifier, HomeTabStepRequest?>(
+      HomeTabStepNotifier.new,
+    );

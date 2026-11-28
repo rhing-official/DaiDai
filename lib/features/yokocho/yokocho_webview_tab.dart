@@ -10,6 +10,7 @@ import '../../models/app_user.dart';
 import '../../models/nav_chip_layout.dart';
 import '../../providers/home_shell_providers.dart';
 import '../../providers/nav_chip_layout_provider.dart';
+import '../../providers/slide_transition_style_provider.dart';
 import '../../router/back_stack.dart';
 import '../../services/app_functions.dart';
 import '../../utils/yokocho.dart';
@@ -68,6 +69,20 @@ class _YokochoWebViewTabState extends ConsumerState<_YokochoWebViewTab> {
     super.initState();
     _controller = WebViewController()
       ..setJavaScriptMode(JavaScriptMode.unrestricted)
+      // トップページでの横スワイプを、タブの移動として受け取る（差し込みの`DaidaiTab.postMessage`）。
+      ..addJavaScriptChannel(
+        'DaidaiTab',
+        onMessageReceived: (message) {
+          final delta = switch (message.message) {
+            'prev' => -1,
+            'next' => 1,
+            _ => 0,
+          };
+          if (delta != 0) {
+            ref.read(homeTabStepProvider.notifier).step(delta);
+          }
+        },
+      )
       ..setNavigationDelegate(
         NavigationDelegate(
           onNavigationRequest: (request) {
@@ -130,6 +145,112 @@ class _YokochoWebViewTabState extends ConsumerState<_YokochoWebViewTab> {
     return '${two(c.r)}${two(c.g)}${two(c.b)}';
   }
 
+  /// ページ移動の動き（2026-11-29）。設定の「画面遷移」（[SlideTransitionStyle]）を、横丁の中の
+  /// ページ移動にも当てる。新しいページの内容（`main`）が、設定の動きで現れる。戻る（右スワイプ・
+  /// 戻るボタン）はスライドが左から、進むと新しい移動は右から。吸い込み・ポップ・描きは向きに依らない。
+  /// 設定は`window.__daidaiTransCfg`（style・ms）で受け取る。何度差し込んでも、見張りは1組だけ。
+  /// 描きは、ペンの往復ではなく、下から上への塗り広げで近似する。
+  static const _transitionJs = r'''
+(function(){
+  if(window.__daidaiTransOff)window.__daidaiTransOff();
+  var EASE_OUT="cubic-bezier(0.215,0.61,0.355,1)";
+  var EASE_BACK="cubic-bezier(0.34,1.56,0.64,1)";
+  var EASE_IO="cubic-bezier(0.42,0,0.58,1)";
+  var dir="forward";
+  var timer=null;
+  function animate(d){
+    var cfg=window.__daidaiTransCfg||{};
+    var main=document.querySelector("main");
+    if(!main)return;
+    // 右上のバー（position:fixed、`.recede-hide.fixed`）は、`main`の中の入れ物の中に有る。入れ物を
+    // 変形させると、固定表示も一緒に動く（変形した要素が、固定表示の基準になる）為、バーを含む入れ物は
+    // 動かさず、その中の、バーを含まない要素だけを動かす。
+    var targets=[];
+    var collect=function(node){
+      for(var i=0;i<node.children.length;i++){
+        var c=node.children[i];
+        if(getComputedStyle(c).position==="fixed")continue;
+        if(c.querySelector(".recede-hide.fixed"))collect(c);else targets.push(c);
+      }
+    };
+    collect(main);
+    if(!targets.length||!targets[0].animate)return;
+    var s=cfg.style,ms=cfg.ms||220;
+    var x=d==="back"?"-100%":"100%";
+    var root=document.documentElement;
+    var prevX=root.style.overflowX;
+    root.style.overflowX="hidden";
+    var opts=function(easing){return {duration:ms,easing:easing,fill:"none"};};
+    var first=null;
+    var run=function(el,kf,easing){
+      var a=el.animate(kf,opts(easing));
+      if(!first)first=a;
+    };
+    for(var k=0;k<targets.length;k++){
+      var el=targets[k];
+      if(s==="slideBlur"){
+        run(el,[{transform:"translateX("+x+")",opacity:0,filter:"blur(10px)"},{transform:"none",opacity:1,filter:"blur(0)"}],EASE_OUT);
+      }else if(s==="slide"){
+        run(el,[{transform:"translateX("+x+")"},{transform:"none"}],EASE_OUT);
+      }else if(s==="suck"){
+        el.style.transformOrigin="100% 100%";
+        run(el,[{transform:"scale(0.1)",opacity:0,filter:"blur(10px)"},{transform:"none",opacity:1,filter:"blur(0)"}],EASE_OUT);
+      }else if(s==="pop"){
+        el.style.transformOrigin="50% 50%";
+        run(el,[{transform:"scale(0.6)"},{transform:"none"}],EASE_BACK);
+        run(el,[{opacity:0},{opacity:1}],EASE_OUT);
+      }else if(s==="draw"){
+        run(el,[{clipPath:"inset(100% 0 0 0)"},{clipPath:"inset(0 0 0 0)"}],EASE_IO);
+      }
+    }
+    var done=function(){
+      root.style.overflowX=prevX;
+      for(var j=0;j<targets.length;j++)targets[j].style.transformOrigin="";
+    };
+    if(first){first.onfinish=done;first.oncancel=done;}else done();
+  }
+  function schedule(d){
+    clearTimeout(timer);
+    timer=setTimeout(function(){animate(d);},80);
+  }
+  function onNavigate(e){
+    var d="forward";
+    if(e.navigationType==="traverse"&&e.destination&&window.navigation&&navigation.currentEntry){
+      d=e.destination.index<navigation.currentEntry.index?"back":"forward";
+    }
+    dir=d;
+    try{sessionStorage.setItem("__daidaiDir",d);}catch(_){}
+    if(e.destination&&e.destination.sameDocument)schedule(d);
+  }
+  var onPop=function(){dir="back";schedule("back");};
+  if(window.navigation&&navigation.addEventListener){
+    navigation.addEventListener("navigate",onNavigate);
+  }else{
+    window.addEventListener("popstate",onPop);
+  }
+  window.__daidaiTransOff=function(){
+    clearTimeout(timer);
+    if(window.navigation&&navigation.removeEventListener)navigation.removeEventListener("navigate",onNavigate);
+    window.removeEventListener("popstate",onPop);
+  };
+  // ページを読み込み直した時（ページ全体の移動）は、直前に記録した向きで、1回だけ動かす。最初の読み込みは動かさない。
+  if(!window.__daidaiLoadAnimated){
+    window.__daidaiLoadAnimated=true;
+    var seen=false,d0="forward";
+    try{
+      seen=sessionStorage.getItem("__daidaiSeen")==="1";
+      d0=sessionStorage.getItem("__daidaiDir")||"forward";
+      sessionStorage.setItem("__daidaiSeen","1");
+      sessionStorage.removeItem("__daidaiDir");
+    }catch(_){}
+    if(seen){
+      if(document.readyState==="loading")document.addEventListener("DOMContentLoaded",function(){schedule(d0);});
+      else schedule(d0);
+    }
+  }
+})();
+''';
+
   /// アプリで開いた横丁にだけ当てるCSS。横丁のサイトの実装は変えず、アプリ側から差し込む
   /// （2026-11-29、ユーザー指示）。
   ///
@@ -153,6 +274,7 @@ nav[aria-label="お気に入り・カート・アカウント"] a,nav[aria-label
   /// 読み込みの始め・終わり・ページの移動のたびに呼ぶ（ページが作り直されても、差し込みが残るように）。
   String _injectionScript() {
     final hex = _backgroundHex();
+    final transition = ref.read(slideTransitionStyleProvider);
     return '''
 (function(){
   var e=document.documentElement;
@@ -185,6 +307,52 @@ nav[aria-label="お気に入り・カート・アカウント"] a,nav[aria-label
     document.body.appendChild(a);
   }
 })();
+(function(){
+  if(window.__daidaiSwipeOff)window.__daidaiSwipeOff();
+  var sx=0,sy=0,st=0,ok=false;
+  function hscroll(el){
+    while(el&&el!==document.body){
+      var cs=getComputedStyle(el);
+      if((cs.overflowX==="auto"||cs.overflowX==="scroll")&&el.scrollWidth>el.clientWidth+1)return true;
+      el=el.parentElement;
+    }
+    return false;
+  }
+  function ts(e){
+    if(e.touches.length!==1){ok=false;return;}
+    var t=e.touches[0];
+    sx=t.clientX;sy=t.clientY;st=Date.now();
+    var w=window.innerWidth;
+    ok=sx>24&&sx<w-24&&!hscroll(e.target)&&!/^(INPUT|TEXTAREA|SELECT)\$/.test(e.target.tagName);
+  }
+  function te(e){
+    if(!ok)return;
+    ok=false;
+    var t=e.changedTouches[0];
+    var dx=t.clientX-sx,dy=t.clientY-sy,dt=Date.now()-st;
+    if(Math.abs(dx)<80||Math.abs(dy)>Math.abs(dx)*0.5||dt>600)return;
+    // トップページ（一覧）を開いている間は、タブの移動にする。右へ引けば前のタブ、左へ引けば、
+    // 進めるときは進み、進めなければ次のタブ。それ以外のページは、戻る・進む。
+    var top=location.pathname.replace(/\\/+\$/,"")==="/daidai-yokocho";
+    var tab=function(d){if(window.DaidaiTab)DaidaiTab.postMessage(d);};
+    if(top){
+      if(dx>0)tab("prev");
+      else if(window.navigation&&navigation.canGoForward)history.forward();
+      else tab("next");
+    }else{
+      if(dx>0)history.back();else history.forward();
+    }
+  }
+  document.addEventListener("touchstart",ts,{passive:true});
+  document.addEventListener("touchend",te,{passive:true});
+  window.__daidaiSwipeOff=function(){
+    document.removeEventListener("touchstart",ts);
+    document.removeEventListener("touchend",te);
+  };
+})();
+
+window.__daidaiTransCfg=${jsonEncode({'style': transition.name, 'ms': transition.usesDraw ? 420 : 220})};
+$_transitionJs
 ''';
   }
 
@@ -240,6 +408,8 @@ nav[aria-label="お気に入り・カート・アカウント"] a,nav[aria-label
   Widget build(BuildContext context) {
     // 初めて開いた時に待たされないよう、アプリを開いて少し経ったら、裏で読み込み始める
     // （2026-11-29）。タブを先に開いた場合は、その場で始める。チップを消している間は読まない。
+    // 画面遷移の設定が変わったら、差し込み直す（`_injectionScript`の中身が変わる）。
+    ref.watch(slideTransitionStyleProvider);
     final selected =
         ref.watch(homeSelectedTabProvider) == HomeTabId.yokocho.index;
     final chipEnabled = ref.watch(

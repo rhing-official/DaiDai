@@ -5033,15 +5033,11 @@ class NavChipLayoutFolder extends ConsumerWidget {
     HomeTabId.yokocho: Icons.storefront_outlined,
   };
 
-  /// 並べ替えに出すタブか。「アカウント」は保存が2つ以上で縦画面の時だけ、「横丁」は
-  /// Android・iOS・Webだけ。
-  bool _navChipListed(
-    HomeTabId tab,
-    bool accountChipListed,
-    bool yokochoChipEnabled,
-  ) => switch (tab) {
-    HomeTabId.account => accountChipListed,
-    HomeTabId.yokocho => yokochoTabAvailable() && yokochoChipEnabled,
+  /// 並べ替えに出すタブか。「アカウント」は縦画面だけ、「横丁」はAndroid・iOS・Webだけ。
+  /// 表示のトグルを行に持つ為、切ったタブも一覧に残す（戻す場所が分からなくなる為）。
+  bool _navChipListed(HomeTabId tab, bool narrow) => switch (tab) {
+    HomeTabId.account => narrow,
+    HomeTabId.yokocho => yokochoTabAvailable(),
     _ => true,
   };
 
@@ -5174,10 +5170,7 @@ class NavChipLayoutFolder extends ConsumerWidget {
             ),
           );
 
-    final accountChipListed =
-        ref.watch(accountTabVisibleProvider) &&
-        layout.accountChipEnabled &&
-        MediaQuery.sizeOf(context).width < kNavChipWideBreakpoint;
+    final narrow = MediaQuery.sizeOf(context).width < kNavChipWideBreakpoint;
     // 並び替えの行の幅は、一番長いチップの名前に合わせる（2026-11-26、フランス語の
     // 「Discussions」が固定の220で「Discussio…」と省略された）。名前以外の部分（左右の余白・
     // アイコン・つまみ・箱の枠と影）の分を足し、最低220、画面の幅を超えない。
@@ -5197,32 +5190,22 @@ class NavChipLayoutFolder extends ConsumerWidget {
       alignment: Alignment.centerLeft,
       child: LayoutBuilder(
         builder: (context, constraints) => SizedBox(
-          width: (longestLabel + _kNavChipOrderRowChrome)
+          width: (longestLabel + _kNavChipOrderRowChrome + 64)
               .clamp(220.0, constraints.maxWidth)
               .toDouble(),
           child: _NavChipOrderList(
-            // 「アカウント」のチップは、保存したアカウントが2つ以上で縦画面の時だけ出る。
-            // 横表示（設定が分割表示になる幅）では出ないので、並べ替えの対象にもしない。
+            // 「アカウント」のチップは縦画面だけの機能。横表示（設定が分割表示になる幅）
+            // では出ないので、並べ替えの対象にもしない。
             order: [
               for (final t in layout.order)
-                if (_navChipListed(
-                  t,
-                  accountChipListed,
-                  layout.yokochoChipEnabled,
-                ))
-                  t,
+                if (_navChipListed(t, narrow)) t,
             ],
             onReorder: (list) {
-              // 並べ替えの対象外のタブ（保存が2つ未満の「アカウント」、デスクトップの「横丁」）は、
+              // 並べ替えの対象外のタブ（横表示の「アカウント」、デスクトップの「横丁」）は、
               // 今の位置を残したまま、対象のタブだけを入れ替える。
               final hidden = [
                 for (final t in layout.order)
-                  if (!_navChipListed(
-                    t,
-                    accountChipListed,
-                    layout.yokochoChipEnabled,
-                  ))
-                    t,
+                  if (!_navChipListed(t, narrow)) t,
               ];
               if (hidden.isEmpty) {
                 notifier.setOrder(list);
@@ -5241,29 +5224,58 @@ class NavChipLayoutFolder extends ConsumerWidget {
               final contentColor = isGekiga
                   ? GekigaColors.onPanel
                   : colorScheme.onSurface;
+              // 表示のトグルを持つタブ（アカウント・横丁）。切った行は、中身を薄くして残す。
+              final bool? shown = switch (tab) {
+                HomeTabId.account => layout.accountChipEnabled,
+                HomeTabId.yokocho => layout.yokochoChipEnabled,
+                _ => null,
+              };
+              void setShown(bool value) {
+                if (tab == HomeTabId.account) {
+                  notifier.setAccountChipEnabled(value);
+                } else if (tab == HomeTabId.yokocho) {
+                  notifier.setYokochoChipEnabled(value);
+                }
+              }
+
               final content = Row(
                 crossAxisAlignment: CrossAxisAlignment.center,
                 children: [
                   const SizedBox(width: 12),
-                  Icon(_icons[tab], color: contentColor),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Text(
-                      _tabLabel(tab),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                        color: contentColor,
-                        height: 1.0,
-                      ),
-                    ),
-                  ),
+                  // つまみは左端。右端のトグルとの押し間違いを避ける。
                   Icon(
                     Icons.drag_handle,
                     color: isGekiga
                         ? GekigaColors.onPanel
                         : colorScheme.onSurfaceVariant,
                   ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Opacity(
+                      opacity: shown == false ? 0.45 : 1,
+                      child: Row(
+                        children: [
+                          Icon(_icons[tab], color: contentColor),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Text(
+                              _tabLabel(tab),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: Theme.of(context).textTheme.bodyLarge
+                                  ?.copyWith(color: contentColor, height: 1.0),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                  if (shown != null)
+                    AppSwitch(
+                      value: shown,
+                      onChanged: setShown,
+                      onDarkSurface: isGekiga,
+                    ),
                   const SizedBox(width: 12),
                 ],
               );
@@ -5382,10 +5394,23 @@ class NavChipLayoutFolder extends ConsumerWidget {
           child: GekigaSectionHeader(strings.settingsNavChipsOrderTitle),
         ),
         orderControl,
-        if (yokochoTabAvailable()) ...[
-          const SizedBox(height: 8),
-          _YokochoChipSwitch(strings: strings),
-        ],
+        // 行のトグルの説明。
+        if (yokochoTabAvailable())
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 4, 16, 0),
+            child: Text(
+              strings.settingsNavChipsYokochoSubtitle,
+              style: Theme.of(context).textTheme.bodySmall,
+            ),
+          ),
+        if (narrow)
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 4, 16, 0),
+            child: Text(
+              strings.settingsNavChipsAccountSubtitle,
+              style: Theme.of(context).textTheme.bodySmall,
+            ),
+          ),
         // 項目一覧の縦の位置は、2026-11-07に縦表示（幅600px未満）限定で追加し、
         // 2026-11-23に一度画面の広さを問わず常時出す形へ変更したが、同日中に
         // 広い画面は上の「揃え」（ナビチップの`wideAlignment`）へ同期する方式に
@@ -5398,98 +5423,8 @@ class NavChipLayoutFolder extends ConsumerWidget {
             ),
           ),
           listVerticalControl,
-          const SizedBox(height: 8),
-          // 縦画面の「アカウント」のチップ表示切替も、このチップ自体が縦表示専用の
-          // 機能の為、同じ条件でだけ出す（項目一覧の位置設定とは無関係）。
-          _AccountChipSwitch(strings: strings),
         ],
       ],
-    );
-  }
-}
-
-/// 縦画面の「アカウント」のチップを出すか（2026-11-11、端末ごとの保存、標準オン）。
-/// チップは保存したアカウントが2つ以上の時だけ出る。
-class _AccountChipSwitch extends ConsumerWidget {
-  const _AccountChipSwitch({required this.strings});
-
-  final Strings strings;
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final enabled = ref.watch(
-      navChipLayoutProvider.select((l) => l.accountChipEnabled),
-    );
-    final isGekiga = ref.watch(appUiStyleProvider) == AppUiStyle.gekiga;
-    void set(bool value) =>
-        ref.read(navChipLayoutProvider.notifier).setAccountChipEnabled(value);
-    if (isGekiga) {
-      return GekigaJointedTileList(
-        seeds: const [2],
-        selectedFlags: const [false],
-        children: [
-          GekigaTileContent(
-            selected: false,
-            title: Text(strings.settingsNavChipsAccountTitle),
-            subtitle: Text(strings.settingsNavChipsAccountSubtitle),
-            trailing: AppSwitch(
-              value: enabled,
-              onChanged: set,
-              onDarkSurface: true,
-            ),
-            onTap: () => set(!enabled),
-          ),
-        ],
-      );
-    }
-    return AppSwitchListTile(
-      value: enabled,
-      title: Text(strings.settingsNavChipsAccountTitle),
-      subtitle: Text(strings.settingsNavChipsAccountSubtitle),
-      onChanged: set,
-    );
-  }
-}
-
-/// 「横丁」のチップを出すか（2026-11-29、端末ごとの保存、標準オン）。Android・iOS・Webだけで、
-/// 幅を問わず出す。作りは[_AccountChipSwitch]と同じ。
-class _YokochoChipSwitch extends ConsumerWidget {
-  const _YokochoChipSwitch({required this.strings});
-
-  final Strings strings;
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final enabled = ref.watch(
-      navChipLayoutProvider.select((l) => l.yokochoChipEnabled),
-    );
-    final isGekiga = ref.watch(appUiStyleProvider) == AppUiStyle.gekiga;
-    void set(bool value) =>
-        ref.read(navChipLayoutProvider.notifier).setYokochoChipEnabled(value);
-    if (isGekiga) {
-      return GekigaJointedTileList(
-        seeds: const [3],
-        selectedFlags: const [false],
-        children: [
-          GekigaTileContent(
-            selected: false,
-            title: Text(strings.settingsNavChipsYokochoTitle),
-            subtitle: Text(strings.settingsNavChipsYokochoSubtitle),
-            trailing: AppSwitch(
-              value: enabled,
-              onChanged: set,
-              onDarkSurface: true,
-            ),
-            onTap: () => set(!enabled),
-          ),
-        ],
-      );
-    }
-    return AppSwitchListTile(
-      value: enabled,
-      title: Text(strings.settingsNavChipsYokochoTitle),
-      subtitle: Text(strings.settingsNavChipsYokochoSubtitle),
-      onChanged: set,
     );
   }
 }

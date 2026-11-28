@@ -546,6 +546,17 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
       }
     });
 
+    // 横丁タブの横スワイプ（トップページを開いている間）による、隣のタブへの移動（2026-11-29）。
+    // 並びは、画面のチップと同じ（[_displayOrderNow]）。端まで来ていたら何もしない。
+    ref.listen<HomeTabStepRequest?>(homeTabStepProvider, (previous, next) {
+      if (next == null) return;
+      final order = _displayOrderNow();
+      final pos = order.indexOf(_selectedIndex);
+      final target = pos + next.delta;
+      if (pos < 0 || target < 0 || target >= order.length) return;
+      ref.read(homeSelectedTabProvider.notifier).set(order[target]);
+    });
+
     final strings = ref.watch(appStringsProvider);
     final titles = [
       strings.navTalk,
